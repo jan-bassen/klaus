@@ -1,0 +1,52 @@
+export const config = {
+  // Model tier map — change model IDs here to swap providers/versions globally.
+  // Each tier is referenced by name throughout the codebase; no other file hardcodes model IDs.
+  models: {
+    default: 'claude-sonnet-4-5-20251001', // main conversational agent
+    low:     'claude-haiku-4-5-20251001',  // lightweight tasks, cheap calls
+    high:    'claude-opus-4-5-20251001',   // @think — deep reasoning
+    tts:     'tts-1',                      // text-to-speech output
+    stt:     'whisper-1',                  // voice message transcription
+    vision:  'claude-sonnet-4-5-20251001', // image analysis
+    embedding: 'text-embedding-3-small',   // 1536-dim embeddings for pgvector
+  },
+
+  // Token budgets for context assembly. The assembler fills up to totalTokens,
+  // then trims lower-priority sections first if everything doesn't fit.
+  context: {
+    totalTokens:        100_000, // hard cap passed to the model
+    conversationTokens:  20_000, // recent message history (trimmed oldest-first)
+    graphContextTokens:  40_000, // pinned nodes + search results + edge expansion
+    activeTasksTokens:    5_000, // in-flight async tasks
+  },
+
+  // Sliding-window rate limits. Two independent gates:
+  // 1. messages   — checked by pipeline before any LLM work (blocks floods)
+  // 2. modelCalls — checked by model-router per LLM invocation (blocks runaway loops)
+  rateLimits: {
+    messages:   { max: 30, windowMs: 60_000 }, // 30 inbound messages per minute
+    modelCalls: { max: 60, windowMs: 60_000 }, // 60 LLM calls per minute
+  },
+
+  // Nodes whose body exceeds this threshold are split into chunks for embedding.
+  // Chunks are a search optimization — search hits are always resolved back to the parent node.
+  chunking: {
+    thresholdTokens: 800,
+  },
+
+  // Retry policy for transient failures in async task jobs.
+  retries: {
+    max:       3,      // attempts before marking a task failed
+    backoffMs: 1_000,  // base delay; actual delay = backoffMs * attempt (linear)
+  },
+
+  // Debounce window for batching rapid successive messages from the same chatId.
+  debounce: {
+    windowMs: 1_200, // 1.2s — covers typical multi-message typing bursts
+  },
+
+  // The agent that handles all messages not prefixed with an @route.
+  defaultAgent: 'klaus',
+} as const;
+
+export type ModelTier = keyof typeof config.models;

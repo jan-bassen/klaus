@@ -1,0 +1,4 @@
+# Local dev — plain HTTP on :80, no TLS
+:80 {
+	reverse_proxy app:3000
+}
