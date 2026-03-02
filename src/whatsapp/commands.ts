@@ -1,4 +1,4 @@
-import type { InboundMessage } from '../types';
+import type { InboundMessage } from '@/types';
 
 export interface Command {
   name: string;

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { config } from '../../config';
-import { _resetForTest, checkMessageRate, checkModelRate } from '../../core/rate-limiter';
-import type { InboundMessage } from '../../types';
+import { config } from '@/config';
+import { _resetForTest, checkMessageRate, checkModelRate } from '@/core/rate-limiter';
+import type { InboundMessage } from '@/types';
 
 function makeMsg(chatId = 'user@s.whatsapp.net'): InboundMessage {
   return {

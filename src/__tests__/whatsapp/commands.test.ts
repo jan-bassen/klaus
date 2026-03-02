@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { CommandRegistry, parseCommand } from '../../whatsapp/commands';
-import type { InboundMessage } from '../../types';
+import { CommandRegistry, parseCommand } from '@/whatsapp/commands';
+import type { InboundMessage } from '@/types';
 
 function makeMsg(text?: string): InboundMessage {
   const base = {

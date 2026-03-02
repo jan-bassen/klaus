@@ -1,12 +1,12 @@
 import { embed } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { voyage } from 'voyage-ai-provider';
 import { inArray, sql } from 'drizzle-orm';
-import { config } from '../config';
-import type { Node } from '../types';
+import { config } from '@/config';
+import type { Node } from '@/types';
 import { db } from './client';
 import { nodes } from './schema';
 
-const EMBED_MODEL = openai.embedding(config.models.embedding);
+const EMBED_MODEL = voyage.textEmbeddingModel(config.models.embed);
 const RRF_K = 60;
 const CANDIDATE_LIMIT = 50;
 

@@ -8,7 +8,7 @@ CREATE TABLE "chunks" (
 	"node_id" uuid NOT NULL,
 	"ordinal" integer NOT NULL,
 	"body" text NOT NULL,
-	"embedding" vector(1536),
+	"embedding" vector(1024),
 	"search_tsv" "tsvector",
 	"token_count" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -24,6 +24,16 @@ CREATE TABLE "edges" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "edges_source_id_target_id_relation_unique" UNIQUE("source_id","target_id","relation")
+);
+--> statement-breakpoint
+CREATE TABLE "files" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"path" text NOT NULL,
+	"mime_type" text NOT NULL,
+	"size_bytes" integer NOT NULL,
+	"message_id" uuid,
+	"node_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "llm_budgets" (
@@ -77,7 +87,7 @@ CREATE TABLE "nodes" (
 	"tags" text[] DEFAULT '{}'::text[],
 	"pinned" boolean DEFAULT false NOT NULL,
 	"archived" boolean DEFAULT false NOT NULL,
-	"embedding" vector(1536),
+	"embedding" vector(1024),
 	"search_tsv" "tsvector",
 	"token_count" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -107,6 +117,8 @@ CREATE TABLE "tasks" (
 ALTER TABLE "chunks" ADD CONSTRAINT "chunks_node_id_nodes_id_fk" FOREIGN KEY ("node_id") REFERENCES "public"."nodes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "edges" ADD CONSTRAINT "edges_source_id_nodes_id_fk" FOREIGN KEY ("source_id") REFERENCES "public"."nodes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "edges" ADD CONSTRAINT "edges_target_id_nodes_id_fk" FOREIGN KEY ("target_id") REFERENCES "public"."nodes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "files" ADD CONSTRAINT "files_message_id_messages_id_fk" FOREIGN KEY ("message_id") REFERENCES "public"."messages"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "files" ADD CONSTRAINT "files_node_id_nodes_id_fk" FOREIGN KEY ("node_id") REFERENCES "public"."nodes"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "llm_costs" ADD CONSTRAINT "llm_costs_message_id_messages_id_fk" FOREIGN KEY ("message_id") REFERENCES "public"."messages"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "llm_costs" ADD CONSTRAINT "llm_costs_task_id_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "node_versions" ADD CONSTRAINT "node_versions_node_id_nodes_id_fk" FOREIGN KEY ("node_id") REFERENCES "public"."nodes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint

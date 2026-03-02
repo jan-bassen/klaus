@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ToolDefinition } from '../../types';
+import type { ToolDefinition } from '@/types';
 
 // task.create — surface tool (always available)
 const taskCreateSchema = z.object({

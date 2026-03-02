@@ -49,20 +49,23 @@ async function ensureTestDb(): Promise<void> {
   const url = new URL(DB_URL);
   const dbName = url.pathname.slice(1);
   url.pathname = '/postgres';
+  // Always drop and recreate so we start from a guaranteed clean state.
+  // This avoids "type already exists" errors from partially-applied migrations
+  // left over by a previous failed run.
   const admin = postgres(url.toString(), { max: 1 });
   try {
+    // Terminate any open connections first — DROP DATABASE fails if others are connected.
+    // This handles stale connections from a previously crashed run and the parallel
+    // test runner starting a second file before the first has fully torn down.
+    await admin`
+      SELECT pg_terminate_backend(pid)
+      FROM pg_stat_activity
+      WHERE datname = ${dbName} AND pid <> pg_backend_pid()
+    `;
+    await admin.unsafe(`DROP DATABASE IF EXISTS "${dbName}"`);
     await admin.unsafe(`CREATE DATABASE "${dbName}"`);
-  } catch (e: unknown) {
-    if (!String((e as { message?: string }).message).includes('already exists')) throw e;
   } finally {
     await admin.end();
-  }
-  // pgvector must be enabled before migrations run (idempotent)
-  const ext = postgres(DB_URL, { max: 1 });
-  try {
-    await ext.unsafe('CREATE EXTENSION IF NOT EXISTS vector');
-  } finally {
-    await ext.end();
   }
 }
 
@@ -77,9 +80,6 @@ export function setupTestDb(): void {
   beforeAll(async () => {
     await startPostgres();
     await waitForPostgres();
-    // Generate migrations from current schema (no-op if already up to date).
-    // drizzle-kit generate is filesystem-only — no DB connection required.
-    await $`bun run db:generate`.quiet();
     await ensureTestDb();
     client = postgres(DB_URL, { max: 1 });
     cleanupDb = drizzle(client);
@@ -91,7 +91,7 @@ export function setupTestDb(): void {
     // Truncate in reverse FK order so CASCADE handles child rows.
     // Exclude __drizzle_migrations so migration state is preserved.
     await cleanupDb.execute(
-      sql`TRUNCATE TABLE llm_costs, llm_budgets, provenance, node_versions, chunks, edges, messages, tasks, nodes RESTART IDENTITY CASCADE`,
+      sql`TRUNCATE TABLE llm_costs, llm_budgets, provenance, node_versions, chunks, edges, files, messages, tasks, nodes RESTART IDENTITY CASCADE`,
     );
   });
 

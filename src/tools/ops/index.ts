@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ToolDefinition } from '../../types';
+import type { ToolDefinition } from '@/types';
 
 const opsCronSchema = z.object({
   pattern: z.string().describe('Cron expression'),

@@ -1,15 +1,15 @@
 import { embed } from 'ai';
-import { openai } from '@ai-sdk/openai';
+import { voyage } from 'voyage-ai-provider';
 import { desc, eq, sql } from 'drizzle-orm';
 import type { InferInsertModel } from 'drizzle-orm';
-import { config } from '../config';
-import type { Node } from '../types';
+import { config } from '@/config';
+import type { Node } from '@/types';
 import { db } from './client';
 import { chunks, nodeVersions, nodes } from './schema';
 
 export type NodeInsert = InferInsertModel<typeof nodes>;
 
-const EMBED_MODEL = openai.embedding(config.models.embedding);
+const EMBED_MODEL = voyage.textEmbeddingModel(config.models.embed);
 
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);

@@ -11,7 +11,12 @@ export interface AgentRunPayload {
 let boss: PgBoss | null = null;
 
 export async function initQueue(): Promise<PgBoss> {
-  throw new Error('TODO: not implemented');
+  const b = new PgBoss(
+    process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/klaus',
+  );
+  await b.start();
+  boss = b;
+  return b;
 }
 
 export function getQueue(): PgBoss {
@@ -21,9 +26,9 @@ export function getQueue(): PgBoss {
 
 /** Enqueue an agent run job for a given task. jobId provides idempotency. */
 export async function dispatch(
-  _name: JobName,
-  _payload: AgentRunPayload,
-  _jobId: string,
+  name: JobName,
+  payload: AgentRunPayload,
+  jobId: string,
 ): Promise<void> {
-  throw new Error('TODO: not implemented');
+  await getQueue().send(name, payload, { id: jobId });
 }

@@ -4,8 +4,8 @@ import {
   _resetDebounceForTest,
   checkAllowlist,
   debounce,
-} from '../../core/middleware';
-import type { InboundMessage } from '../../types';
+} from '@/core/middleware';
+import type { InboundMessage } from '@/types';
 
 function makeMsg(chatId = 'user@s.whatsapp.net', text = 'hi'): InboundMessage {
   return {

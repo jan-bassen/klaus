@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ToolDefinition } from '../../types';
+import type { ToolDefinition } from '@/types';
 
 // memory.search — surface tool (always available)
 const memorySearchSchema = z.object({

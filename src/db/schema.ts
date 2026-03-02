@@ -10,6 +10,7 @@ import {
   timestamp,
   jsonb,
   customType,
+  vector,
   index,
   unique,
 } from 'drizzle-orm/pg-core';
@@ -20,13 +21,6 @@ import { sql } from 'drizzle-orm';
 const tsvector = customType<{ data: string }>({
   dataType: () => 'tsvector',
 });
-
-const vector = (name: string, config: { dimensions: number }) =>
-  customType<{ data: number[]; driverData: string }>({
-    dataType: () => `vector(${config.dimensions})`,
-    toDriver: (value: number[]) => `[${value.join(',')}]`,
-    fromDriver: (value: string) => value.slice(1, -1).split(',').map(Number),
-  })(name);
 
 // -- enums --
 
@@ -81,7 +75,7 @@ export const nodes = pgTable('nodes', {
   tags: text('tags').array().default(sql`'{}'::text[]`),
   pinned: boolean('pinned').default(false).notNull(),
   archived: boolean('archived').default(false).notNull(),
-  embedding: vector('embedding', { dimensions: 1536 }),
+  embedding: vector('embedding', { dimensions: 1024 }),
   searchTsv: tsvector('search_tsv'),
   tokenCount: integer('token_count'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -109,7 +103,7 @@ export const chunks = pgTable('chunks', {
   nodeId: uuid('node_id').notNull().references(() => nodes.id, { onDelete: 'cascade' }),
   ordinal: integer('ordinal').notNull(),
   body: text('body').notNull(),
-  embedding: vector('embedding', { dimensions: 1536 }),
+  embedding: vector('embedding', { dimensions: 1024 }),
   searchTsv: tsvector('search_tsv'),
   tokenCount: integer('token_count'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -180,5 +174,15 @@ export const llmBudgets = pgTable('llm_budgets', {
   monthlyLimitUsd: numeric('monthly_limit_usd', { precision: 10, scale: 2 }),
   currentDailyUsd: numeric('current_daily_usd', { precision: 10, scale: 6 }).default('0'),
   currentMonthlyUsd: numeric('current_monthly_usd', { precision: 10, scale: 6 }).default('0'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const files = pgTable('files', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  path: text('path').notNull(),
+  mimeType: text('mime_type').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  messageId: uuid('message_id').references(() => messages.id, { onDelete: 'set null' }),
+  nodeId: uuid('node_id').references(() => nodes.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });

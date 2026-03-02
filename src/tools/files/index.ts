@@ -1,15 +1,16 @@
 import { z } from 'zod';
-import type { ToolDefinition } from '../../types';
+import type { ToolDefinition } from '@/types';
 
 const filesUploadSchema = z.object({
   name: z.string(),
   content: z.string().describe('Base64-encoded file content'),
   mimeType: z.string(),
+  nodeId: z.string().uuid().optional().describe('Optional graph node to link this file to'),
 });
 
 export const filesUploadTool: ToolDefinition<typeof filesUploadSchema> = {
   name: 'files.upload',
-  description: 'Upload a file to the files volume.',
+  description: 'Upload a file to the files volume and create a metadata row in the files table. Optionally links to a graph node via nodeId.',
   inputSchema: filesUploadSchema,
   execute: async (_input, _context) => { throw new Error('TODO: not implemented'); },
   kind: 'builtin',
@@ -22,7 +23,7 @@ const filesDownloadSchema = z.object({
 
 export const filesDownloadTool: ToolDefinition<typeof filesDownloadSchema> = {
   name: 'files.download',
-  description: 'Download a file from the files volume.',
+  description: 'Download a file from the files volume by name.',
   inputSchema: filesDownloadSchema,
   execute: async (_input, _context) => { throw new Error('TODO: not implemented'); },
   kind: 'builtin',
@@ -35,7 +36,7 @@ const filesListSchema = z.object({
 
 export const filesListTool: ToolDefinition<typeof filesListSchema> = {
   name: 'files.list',
-  description: 'List files in the files volume.',
+  description: 'List files by querying the files metadata table. Optionally filter by name prefix.',
   inputSchema: filesListSchema,
   execute: async (_input, _context) => { throw new Error('TODO: not implemented'); },
   kind: 'builtin',
@@ -48,7 +49,7 @@ const filesDeleteSchema = z.object({
 
 export const filesDeleteTool: ToolDefinition<typeof filesDeleteSchema> = {
   name: 'files.delete',
-  description: 'Delete a file from the files volume.',
+  description: 'Delete a file — removes both the blob from the files volume and its metadata row.',
   inputSchema: filesDeleteSchema,
   execute: async (_input, _context) => { throw new Error('TODO: not implemented'); },
   kind: 'builtin',

@@ -8,6 +8,7 @@ import type {
   tasks,
   messages,
   llmCosts,
+  files,
 } from './db/schema';
 import type { ModelTier } from './config';
 
@@ -20,6 +21,7 @@ export type NodeVersion = InferSelectModel<typeof nodeVersions>;
 export type Task = InferSelectModel<typeof tasks>;
 export type Message = InferSelectModel<typeof messages>;
 export type LlmCost = InferSelectModel<typeof llmCosts>;
+export type File = InferSelectModel<typeof files>;
 
 // -- WhatsApp / transport --
 
@@ -28,9 +30,8 @@ export interface InboundMessage {
   chatId: string;
   senderId: string;
   text?: string;
-  imageBuffer?: Buffer;
-  audioBuffer?: Buffer;
-  mimeType?: string;
+  /** Set by receive.ts after blob is persisted to the files volume */
+  media?: { fileId: string; path: string; mimeType: string; transcription?: string };
   timestamp: Date;
   /** Raw Baileys message key, used for reactions */
   messageKey: Record<string, unknown>;

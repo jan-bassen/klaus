@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { FLAG_MAP, parseFlags, stripFlags } from '../../whatsapp/flags';
-import type { InboundMessage } from '../../types';
+import { FLAG_MAP, parseFlags, stripFlags } from '@/whatsapp/flags';
+import type { InboundMessage } from '@/types';
 
 function makeMsg(text?: string): InboundMessage {
   const base = {

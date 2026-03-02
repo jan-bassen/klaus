@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import type { ToolDefinition } from '../types';
+import type { ToolDefinition } from '@/types';
+import { enqueueMessage } from '@/whatsapp/send';
 
 const replySchema = z.object({
   content: z.string().describe('The message content to send'),
@@ -10,8 +11,13 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
   name: 'reply',
   description: 'Send a message, media, reaction, or follow-up question via WhatsApp.',
   inputSchema: replySchema,
-  execute: async (_input, _context) => {
-    throw new Error('TODO: not implemented');
+  execute: async ({ content }, context) => {
+    enqueueMessage({
+      chatId: context.msg.chatId,
+      content,
+      dedupKey: `${context.msg.id}:reply`,
+    });
+    return 'sent';
   },
   kind: 'builtin',
   capability: 'tool',

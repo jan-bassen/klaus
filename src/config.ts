@@ -2,13 +2,13 @@ export const config = {
   // Model tier map — change model IDs here to swap providers/versions globally.
   // Each tier is referenced by name throughout the codebase; no other file hardcodes model IDs.
   models: {
-    default: 'claude-sonnet-4-5-20251001', // main conversational agent
-    low:     'claude-haiku-4-5-20251001',  // lightweight tasks, cheap calls
-    high:    'claude-opus-4-5-20251001',   // @think — deep reasoning
-    tts:     'tts-1',                      // text-to-speech output
-    stt:     'whisper-1',                  // voice message transcription
-    vision:  'claude-sonnet-4-5-20251001', // image analysis
-    embedding: 'text-embedding-3-small',   // 1536-dim embeddings for pgvector
+    default: 'claude-sonnet-4-20250514',   // main conversational agent
+    low:     'claude-haiku-3-20250307',    // lightweight tasks, cheap calls
+    high:    'claude-opus-4-20250514',     // @think — deep reasoning
+    tts:     'eleven_multilingual_v2',     // ElevenLabs TTS
+    stt:     'scribe_v1',                  // ElevenLabs Scribe STT
+    vision:  'claude-sonnet-4-20250514',   // image analysis (Claude)
+    embed:   'voyage-3',                   // Voyage AI, 1024-dim embeddings
   },
 
   // Token budgets for context assembly. The assembler fills up to totalTokens,

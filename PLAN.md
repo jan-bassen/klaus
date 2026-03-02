@@ -4,20 +4,21 @@ A lean, self-hosted personal AI agent stack: **WhatsApp → TypeScript → Postg
 
 ## 1. Infrastructure
 
-| **Component**       | **Tech**                                | **Purpose**                                                                                                | **Depends on**              |
-| ------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------- |
-| Hosting             | Hetzner VPS                             | Runs the entire stack via Docker Compose                                                                   | —                           |
-| Runtime             | Bun                                     | JS/TS runtime                                                                                              | —                           |
-| Language            | TypeScript                              | End-to-end type safety                                                                                     | Bun                         |
-| Reverse Proxy       | Caddy                                   | HTTPS termination, reverse proxy (auto-managed Let's Encrypt)                                              | —                           |
-| WhatsApp Client     | Baileys                                 | Unofficial WhatsApp Web API client (multi-device)                                                          | WhatsApp Web API            |
-| Agent Framework     | Vercel AI SDK                           | LLM orchestration + tool calling                                                                           | —                           |
-| Database            | Postgres + Drizzle ORM                  | Core data, knowledge graph, memory — single source of truth                                                | Docker                      |
-| Job Queue           | pgboss (Postgres)                       | Agent dispatch, retries, stalled recovery, idempotent dedup via `jobId`. Postgres-native via `SKIP LOCKED` | Postgres                    |
-| Search              | Postgres (pgvector + tsvector)          | Internal hybrid search across nodes and chunks (chunk hits resolved to parent node); web search via Anthropic's built-in tool | —                           |
-| File Storage        | Docker volume                           | Blobs, media, documents                                                                                    | Docker                      |
-| Secrets             | Docker secrets + `.env`                 | API keys, tokens, DB credentials                                                                           | 1Password (source of truth) |
-| Health / Monitoring | `/healthz`  • structured JSON logs      | Uptime checks, audit trail, debugging                                                                      | Caddy                       |
+| **Component**       | **Tech**                           | **Purpose**                                                                                                                  | **Depends on**              |
+| ------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Hosting             | Hetzner VPS                        | Runs the entire stack via Docker Compose                                                                                     | —                           |
+| Runtime             | Bun                                | JS/TS runtime                                                                                                                | —                           |
+| Language            | TypeScript                         | End-to-end type safety                                                                                                       | Bun                         |
+| Reverse Proxy       | Caddy                              | HTTPS termination, reverse proxy (auto-managed Let's Encrypt)                                                                | —                           |
+| WhatsApp Client     | Baileys                            | Unofficial WhatsApp Web API client (multi-device)                                                                            | WhatsApp Web API            |
+| Agent Framework     | Vercel AI SDK                      | LLM orchestration + tool calling                                                                                             | —                           |
+| AI Providers        | Anthropic · Voyage AI · ElevenLabs | LLM + vision (Claude) · embeddings (Voyage) · TTS + STT (ElevenLabs). Three providers — opinionated defaults, each swappable | Vercel AI SDK               |
+| Database            | Postgres + Drizzle ORM             | Core data, knowledge graph, memory — single source of truth                                                                  | Docker                      |
+| Job Queue           | pgboss (Postgres)                  | Agent dispatch, retries, stalled recovery, idempotent dedup via `jobId`. Postgres-native via `SKIP LOCKED`                   | Postgres                    |
+| Search              | Postgres (pgvector + tsvector)     | Internal hybrid search across nodes and chunks (chunk hits resolved to parent node)                                          | —                           |
+| File Storage        | Docker volume + `files` table      | Blobs on volume, metadata in Postgres — `files` table tracks path, type, size, and optional message/node links               | Docker, Postgres            |
+| Secrets             | Docker secrets + `.env`            | API keys, tokens, DB credentials                                                                                             | 1Password (source of truth) |
+| Health / Monitoring | `/healthz`  • structured JSON logs | Uptime checks, audit trail, debugging                                                                                        | Caddy                       |
 
 ---
 
@@ -40,15 +41,16 @@ Baileys is an unofficial client, this is a known and accepted failure point
 
 - **Multi-message responses** — the agent's reply is split across multiple WhatsApp messages when appropriate (text, code blocks, media, files). A **send queue** handles ordering, rate-limit back-off, and retry
 - **Deduplication** — each outgoing message is keyed by `(task_id, message_ordinal)` for task follow-ups, or `(message_id, ordinal)` for direct replies. If the composite key already exists, the send is skipped
-- **Image input** — photos and images are analyzed via the `vision` model tier. The analysis is included in the target agent's context
-- **Voice input** — audio messages are transcribed via the `stt` model tier. The transcript is passed to the target agent as if it were text
-- **Voice output** — voice clips via the `tts` model tier when requested by the user
+- **Image input** — photos and images are analyzed via Claude (`vision` tier). The analysis is included in the target agent's context
+- **Voice input** — audio messages are transcribed via ElevenLabs Scribe (`stt` tier). The transcript is passed to the target agent as if it were text
+- **Voice output** — voice clips via ElevenLabs (`tts` tier, default `eleven_multilingual_v2`) when requested by the user
+- **Media persistence** — all inbound media (images, voice notes, documents) is auto-persisted to the files volume in `receive.ts` before downstream processing. A metadata row is written to the `files` table so every blob is tracked and recoverable regardless of what the pipeline does with its content
 - **Reactions** — Klaus reacts to user messages with emoji. Also used for **confirmations** — confirmation-tier security actions prompt the user and Klaus watches for a 👍 reaction to proceed or 👎 to cancel
 - **Formatting** — WhatsApp's built-in formatting for rich text: bold, italic, monospace, lists. Long responses are chunked to stay within message size limits or sent via voice
 
 ### Routing ( @ )
 
-Agent routes (`@think`, `@files`, etc.) at the start of a message routes the turn directly to the named agent instead of Klaus (the default). The context assembly pipeline runs identically regardless of which agent handles the turn
+Agent routes (`@think`, etc.) at the start of a message routes the turn directly to the named agent instead of Klaus (the default). The context assembly pipeline runs identically regardless of which agent handles the turn
 
 ### Commands ( / )
 
@@ -64,11 +66,11 @@ Flags are defined in `whatsapp/flags.ts`, parsed from the user message by the `f
 
 The `/whatsapp` layer is split into three focused files — each owns exactly one concern:
 
-| **File**        | **Responsibility**                                                                       |
-| --------------- | ---------------------------------------------------------------------------------------- |
-| `connection.ts` | Baileys setup, QR pairing, reconnect — nothing else                                      |
-| `receive.ts`    | Raw message handler → normalize to `InboundMessage`, hand off to `pipeline.ts`           |
-| `send.ts`       | Send queue: message ordering, dedup by composite key, WhatsApp rate-limit backoff, retry |
+| **File**        | **Responsibility**                                                                                                                                                                                                                  |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connection.ts` | Baileys setup, QR pairing, reconnect — nothing else                                                                                                                                                                                 |
+| `receive.ts`    | Raw message handler → normalize to `InboundMessage` (includes optional `media: { fileId, path, mimeType }` for images, voice notes, documents), auto-persist inbound blobs to files volume + `files` row, hand off to `pipeline.ts` |
+| `send.ts`       | Send queue: message ordering, dedup by composite key, WhatsApp rate-limit backoff, retry                                                                                                                                            |
 
 Pre-processing (auth, debounce, rate limiting) is **not** part of the transport layer — it lives in the core pipeline (see *Turn Pipeline*). `/commands` are the exception: parsed and executed at the transport layer since they bypass the LLM entirely.
 
@@ -110,13 +112,12 @@ Every agent is a markdown file in `/src/agents/`. A new agent means adding a pro
 
 **Core default agents:**
 
-| **Agent**                      | **Model** | Context                                                | **Tools**                              | **Default Mode**       | **Hooks**                  |
-| ------------------------------ | --------- | ------------------------------------------------------ | -------------------------------------- | ---------------------- | -------------------------- |
-| **Klaus** *(default)*          | `default` | Active tasks, last messages, related context           | Standalone + surface + dynamic loading | sync (entry point)     | `runAfter: memorize-agent` |
-| **Thinking Agent**             | `high`    | Active tasks, last messages, related context           | Standalone + surface + dynamic loading | sync or async          | `runAfter: memorize-agent` |
-| **Memorize Agent**             | `default` | Last messages, deep related context                    | `memory.*`                             | async (post-turn hook) | —                          |
-| **Reflection Agent** *(daily)* | `default` | Message history, deep related context                  | `memory.*`                             | async (scheduled)      | —                          |
-| **Files Agent**                | `default` | File system overview, message history, related context | `files.*` `memory.*`                   | async                  | —                          |
+| **Agent**                      | **Model** | Context                                      | **Tools**                              | **Default Mode**       | **Hooks**                  |
+| ------------------------------ | --------- | -------------------------------------------- | -------------------------------------- | ---------------------- | -------------------------- |
+| **Klaus** *(default)*          | `default` | Active tasks, last messages, related context | Standalone + surface + dynamic loading | sync (entry point)     | `runAfter: memorize-agent` |
+| **Thinking Agent**             | `high`    | Active tasks, last messages, related context | Standalone + surface + dynamic loading | sync or async          | `runAfter: memorize-agent` |
+| **Memorize Agent**             | `default` | Last messages, deep related context          | `memory.*`                             | async (post-turn hook) | —                          |
+| **Reflection Agent** *(daily)* | `default` | Message history, deep related context        | `memory.*`                             | async (scheduled)      | —                          |
 
 ### Hook System
 
@@ -193,13 +194,13 @@ When a toolset loads, its surface tools are already present — no duplication, 
 
 #### Standalone Tools
 
-| **Tool**     | **Kind** | **Capability** | **Purpose**                                                       |
-| ------------ | -------- | -------------- | ----------------------------------------------------------------- |
-| `reply`      | builtin  | tool           | Send messages, media, reactions, follow-up questions via WhatsApp |
+| **Tool** | **Kind** | **Capability** | **Purpose**                                                       |
+| -------- | -------- | -------------- | ----------------------------------------------------------------- |
+| `reply`  | builtin  | tool           | Send messages, media, reactions, follow-up questions via WhatsApp |
 
-Web search is handled via Anthropic's built-in `web_search` tool — passed directly to the model, no wrapper needed.
+Basic tools like web search/fetch etc are handled via the providers (Anthropic) built-in tool — passed directly to the model.
 
-#### Tool-Sets
+#### Tool-Set
 
 Tools are organized into on-demand **namespaced tool-sets** — domain-specific groups that keep the context window lean while enabling richer, more granular tools within each domain. Each available tool set is its own meta-tool for retrieval of the full set. Each tool set has its own folder in /src/tools with an index file for tool set level information. Meta-tool responses are pre-loaded and sticky to minimize latency.
 
@@ -208,7 +209,7 @@ Tools are organized into on-demand **namespaced tool-sets** — domain-specific 
 | **memory**   | `memory.search` *(surface)*, `memory.write`, `memory.read`, `memory.archive`, `memory.link`, `memory.unlink`, `memory.traverse` | Full graph lifecycle — node CRUD, typed edges, hybrid search across nodes and chunks (resolved to parent node) with graph expansion and traversal.       |
 | **task**     | `task.create` *(surface)*, `task.cancel`, `task.list`                                                                           | Async task lifecycle. `create` enqueues a pgboss job for the assigned agent. `cancel` marks cancelled + removes pending job. `list` returns active tasks |
 | **ops**      | `ops.cron`, `ops.cost-tracking`, `ops.postgres-query`                                                                           | Scheduling, spend/budget queries, read-only named queries via `app_ro`                                                                                   |
-| **files**    | `files.upload`, `files.download`, `files.list`, `files.delete`                                                                  | Blob/media CRUD on files volume                                                                                                                          |
+| **files**    | `files.upload`, `files.download`, `files.list`, `files.delete`                                                                  | Blob/media CRUD on files volume + `files` metadata table. Optional `nodeId` linking to associate files with graph nodes                                  |
 
 ---
 
@@ -226,6 +227,7 @@ Tools are organized into on-demand **namespaced tool-sets** — domain-specific 
 6. **No `source` column** — provenance is handled by the dedicated `provenance` table (see below). Typed, queryable, supports multiple origins per node.
 7. **Chunks are operational** — chunking is a search optimization, not a node type.
 8. **Versioning is operational** — like chunks, version history lives in its own table, not in the graph. `nodes` always holds the current state; `node_versions` stores historical snapshots. `supersedes` edges are reserved for cross-node replacement only.
+9. **Files are operational** — like chunks and versions, files are not graph nodes. A lean `files` metadata table tracks blobs on the volume with optional `nodeId` FKs for graph association. No file nodes, no file versioning, no dedup.
 
 ### Node Types
 
@@ -266,7 +268,7 @@ export const nodes = pgTable('nodes', {
   tags: text('tags').array().default([]),     // fast flat labels, GIN-indexed
   pinned: boolean('pinned').default(false).notNull(),
   archived: boolean('archived').default(false).notNull(),
-  embedding: vector('embedding', { dimensions: 1536 }),
+  embedding: vector('embedding', { dimensions: 1024 }),  // Voyage AI voyage-3
   searchTsv: tsvector('search_tsv'),         // generated on title || body
   tokenCount: integer('token_count'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -322,7 +324,7 @@ export const chunks = pgTable('chunks', {
   nodeId: uuid('node_id').notNull().references(() => nodes.id, { onDelete: 'cascade' }),
   ordinal: integer('ordinal').notNull(),
   body: text('body').notNull(),
-  embedding: vector('embedding', { dimensions: 1536 }),
+  embedding: vector('embedding', { dimensions: 1024 }),  // Voyage AI voyage-3
   searchTsv: tsvector('search_tsv'),
   tokenCount: integer('token_count'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -447,6 +449,16 @@ export const llmBudgets = pgTable('llm_budgets', {
   monthlyLimitUsd: numeric('monthly_limit_usd', { precision: 10, scale: 2 }),
   currentDailyUsd: numeric('current_daily_usd', { precision: 10, scale: 6 }).default('0'),
   currentMonthlyUsd: numeric('current_monthly_usd', { precision: 10, scale: 6 }).default('0'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+// File Metadata
+export const files = pgTable('files', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  path: text('path').notNull(),
+  mimeType: text('mime_type').notNull(),
+  sizeBytes: integer('size_bytes'),
+  messageId: uuid('message_id').references(() => messages.id),
+  nodeId: uuid('node_id').references(() => nodes.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 ```
@@ -575,13 +587,30 @@ One implementation in `core/rate-limiter.ts`, **two distinct call sites:**
 
 **Everything is immutable code.** Changes = git push + autodeploy. Agent prompt files in `/src/agents/` support hot-reload: a file watcher detects changes and re-reads the `.md` file without restarting the process.
 
-| **What**                                                                            | **Where**                     |
-| ----------------------------------------------------------------------------------- | ----------------------------- |
-| Model tier map (default, low, high, tts, stt, vision), context budgets, rate limits | `/src/settings.ts`            |
-| Flag definitions                                                                    | `/src/whatsapp/flags.ts`      |
-| Agent definitions                                                                   | `/src/agents/`                |
-| All prompts                                                                         | `.md` files in `/src/agents/` |
-| Static queries                                                                      | `/src/db/queries/`            |
+| **What**                                                 | **Where**                     |
+| -------------------------------------------------------- | ----------------------------- |
+| Model tier map, context budgets, rate limits (see below) | `/src/config.ts`              |
+| Flag definitions                                         | `/src/whatsapp/flags.ts`      |
+| Agent definitions                                        | `/src/agents/`                |
+| All prompts                                              | `.md` files in `/src/agents/` |
+| Static queries                                           | `/src/db/queries/`            |
+
+### Model Tier Map
+
+All LLM tiers resolve to Anthropic models. Voice is ElevenLabs. Embeddings are Voyage AI. Changing a provider means updating this map and the corresponding SDK call in `model-router.ts` — nothing else.
+
+```tsx
+// config.ts — default model tier map
+const models = {
+  default: 'claude-sonnet-4-20250514',
+  high:    'claude-opus-4-20250514',
+  low:     'claude-haiku-3-20250307',
+  vision:  'claude-sonnet-4-20250514',
+  tts:     'eleven_multilingual_v2',       // ElevenLabs
+  stt:     'scribe_v1',                    // ElevenLabs
+  embed:   'voyage-3',                     // Voyage AI, 1024 dims
+};
+```
 
 ### Cost Tracking
 
@@ -655,7 +684,7 @@ interface EvalAssertion {
 
 **LLM-as-judge pattern:**
 
-For free-form output quality, use a cheap model (`gpt-4o-mini`) to judge against criteria:
+For free-form output quality, use a cheap model (`claude-haiku`) to judge against criteria:
 
 ```tsx
 async function llmJudge(output: string, criteria: string): Promise<{ pass: boolean; reason: string }>
@@ -728,20 +757,18 @@ async function simulateTurn(input: string, chatId?: string): Promise<TurnResult>
 
 ---
 
-## 9. App Structure
-
 ```jsx
 Dockerfile
 .env.example
 /src
 	README.md
-  settings.ts                — model tier map, context budgets, rate limits
+  config.ts                  — model tier map, context budgets, rate limits
   types.ts                   — all types
   /core
     pipeline.ts              — the turn sequence: auth → normalize → route → assemble → run → respond → hooks
     middleware.ts            — pure functions: checkAllowlist(), debounce(), ...
     agent.ts                 — generic agent assembly and execution engine (used by all agents)
-    model-router.ts          — resolves tier/override → provider + model; calls rateLimiter.checkModelRate() per LLM call
+    model-router.ts          — resolves tier → model from config map (Anthropic for LLM/vision, ElevenLabs for voice, Voyage for embeddings); calls rateLimiter.checkModelRate() per invocation
     queue.ts                 — pgboss dispatch, retries, stalled recovery
     worker.ts                — pgboss worker: claims jobs, resolves AgentDefinition, calls agent.ts directly
     rate-limiter.ts          — sliding window implementation; exports checkMessageRate() and checkModelRate()
@@ -778,5 +805,5 @@ Dockerfile
     thinking-agent.md
     memorize-agent.md
     reflection-agent.md
-    files-agent.md
+
 ```

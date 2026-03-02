@@ -1,5 +1,5 @@
-import { config } from '../config';
-import type { InboundMessage } from '../types';
+import { config } from '@/config';
+import type { InboundMessage } from '@/types';
 
 export interface RateLimitResult {
   allowed: boolean;

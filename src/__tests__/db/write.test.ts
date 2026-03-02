@@ -1,20 +1,20 @@
 import { mock } from 'bun:test';
 
-const MOCK_EMBEDDING = new Array(1536).fill(0.01);
+const MOCK_EMBEDDING = new Array(1024).fill(0.01);
 
 mock.module('ai', () => ({
   embed: () => Promise.resolve({ embedding: MOCK_EMBEDDING }),
 }));
-mock.module('@ai-sdk/openai', () => ({
-  openai: Object.assign(() => ({}), { embedding: () => ({}) }),
+mock.module('voyage-ai-provider', () => ({
+  voyage: Object.assign(() => ({}), { textEmbeddingModel: () => ({}) }),
 }));
 
 import { expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
-import { config } from '../../config';
-import { db } from '../../db/client';
-import { chunks, nodeVersions, nodes } from '../../db/schema';
-import { estimateTokens, upsertNode, writeNode } from '../../db/write';
+import { config } from '@/config';
+import { db } from '@/db/client';
+import { chunks, nodeVersions, nodes } from '@/db/schema';
+import { estimateTokens, upsertNode, writeNode } from '@/db/write';
 import { describeDb, setupTestDb } from './helpers';
 
 setupTestDb();
