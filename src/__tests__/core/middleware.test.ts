@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import {
-  _resetAllowlistForTest,
   _resetDebounceForTest,
   checkAllowlist,
   debounce,
@@ -9,6 +8,7 @@ import type { InboundMessage } from '@/types';
 
 function makeMsg(chatId = 'user@s.whatsapp.net', text = 'hi'): InboundMessage {
   return {
+    kind: 'whatsapp',
     id: crypto.randomUUID(),
     chatId,
     senderId: chatId,
@@ -24,45 +24,35 @@ describe('checkAllowlist', () => {
   let originalEnv: string | undefined;
 
   beforeEach(() => {
-    originalEnv = process.env.ALLOWED_CHAT_IDS;
-    _resetAllowlistForTest();
+    originalEnv = process.env.ALLOWED_CHAT_ID;
   });
 
   afterEach(() => {
     if (originalEnv === undefined) {
-      delete process.env.ALLOWED_CHAT_IDS;
+      delete process.env.ALLOWED_CHAT_ID;
     } else {
-      process.env.ALLOWED_CHAT_IDS = originalEnv;
+      process.env.ALLOWED_CHAT_ID = originalEnv;
     }
-    _resetAllowlistForTest();
   });
 
-  test('allows a chatId in the list', () => {
-    process.env.ALLOWED_CHAT_IDS = 'user@s.whatsapp.net';
+  test('allows a chatId matching the configured ID', () => {
+    process.env.ALLOWED_CHAT_ID = 'user@s.whatsapp.net';
     expect(checkAllowlist(makeMsg('user@s.whatsapp.net')).allowed).toBe(true);
   });
 
-  test('blocks a chatId not in the list', () => {
-    process.env.ALLOWED_CHAT_IDS = 'allowed@s.whatsapp.net';
+  test('blocks a chatId not matching the configured ID', () => {
+    process.env.ALLOWED_CHAT_ID = 'allowed@s.whatsapp.net';
     expect(checkAllowlist(makeMsg('stranger@s.whatsapp.net')).allowed).toBe(false);
   });
 
   test('blocks all when env var is empty', () => {
-    process.env.ALLOWED_CHAT_IDS = '';
+    process.env.ALLOWED_CHAT_ID = '';
     expect(checkAllowlist(makeMsg()).allowed).toBe(false);
   });
 
   test('blocks all when env var is unset', () => {
-    delete process.env.ALLOWED_CHAT_IDS;
+    delete process.env.ALLOWED_CHAT_ID;
     expect(checkAllowlist(makeMsg()).allowed).toBe(false);
-  });
-
-  test('handles multiple comma-separated IDs with whitespace', () => {
-    process.env.ALLOWED_CHAT_IDS = ' alice@s.whatsapp.net , bob@s.whatsapp.net , carol@s.whatsapp.net ';
-    expect(checkAllowlist(makeMsg('alice@s.whatsapp.net')).allowed).toBe(true);
-    expect(checkAllowlist(makeMsg('bob@s.whatsapp.net')).allowed).toBe(true);
-    expect(checkAllowlist(makeMsg('carol@s.whatsapp.net')).allowed).toBe(true);
-    expect(checkAllowlist(makeMsg('dave@s.whatsapp.net')).allowed).toBe(false);
   });
 });
 
@@ -84,7 +74,7 @@ describe('debounce', () => {
     expect(batch[0]!.id).toBe(msg.id);
   });
 
-  test('multiple rapid messages from same chatId are batched', async () => {
+  test('multiple rapid messages are batched', async () => {
     const m1 = makeMsg('user@s.whatsapp.net', 'first');
     const m2 = makeMsg('user@s.whatsapp.net', 'second');
     const m3 = makeMsg('user@s.whatsapp.net', 'third');
@@ -99,20 +89,6 @@ describe('debounce', () => {
     const batch = await batchPromise;
     expect(batch).toHaveLength(3);
     expect(batch.map((m) => m.text)).toEqual(['first', 'second', 'third']);
-  });
-
-  test('messages from different chatIds are independent', async () => {
-    const msgA = makeMsg('a@s.whatsapp.net', 'alpha');
-    const msgB = makeMsg('b@s.whatsapp.net', 'beta');
-
-    const batchA = debounce(msgA);
-    const batchB = debounce(msgB);
-
-    const [resultA, resultB] = await Promise.all([batchA, batchB]);
-    expect(resultA).toHaveLength(1);
-    expect(resultA[0]!.text).toBe('alpha');
-    expect(resultB).toHaveLength(1);
-    expect(resultB[0]!.text).toBe('beta');
   });
 
   test('only the first caller gets the batch; subsequent callers get []', async () => {

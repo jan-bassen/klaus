@@ -9,10 +9,14 @@ export const conversationQuery: ContextQuery = {
   name: 'conversation',
   priority: 3,
   run: async (turn: Omit<TurnContext, 'assembled'>): Promise<ContextResult> => {
+    if (turn.msg.kind === 'async') {
+      return { content: '', tokenCount: 0, truncate: 'oldest' };
+    }
+
     const rows = await db
       .select()
       .from(messages)
-      .where(eq(messages.whatsappChatId, turn.msg.chatId))
+      .where(eq(messages.chatId, turn.msg.chatId))
       .orderBy(desc(messages.createdAt))
       .limit(100);
 

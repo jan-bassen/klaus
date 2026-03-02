@@ -9,30 +9,24 @@ export function setSocket(socket: WASocket): void {
   _socket = socket;
 }
 
-// Per-chat promise chain for FIFO ordering.
-const _queues = new Map<string, Promise<void>>();
+// Single FIFO promise chain for message ordering.
+let _queue: Promise<void> = Promise.resolve();
 // In-memory dedup: skip re-sending a key within the current process lifetime.
 const _seen = new Set<string>();
 
 /**
- * Per-chat send queue: ensures message ordering, deduplication by composite key,
- * WhatsApp rate-limit backoff, and retry.
+ * Enqueue an outbound message for delivery: ensures FIFO ordering, deduplication
+ * by composite key, WhatsApp rate-limit backoff, and retry.
  */
-export class SendQueue {
-  constructor(private readonly _chatId: string) {}
+export function enqueueMessage(msg: OutboundMessage): void {
+  if (_seen.has(msg.dedupKey)) return;
+  _seen.add(msg.dedupKey);
 
-  enqueue(msg: OutboundMessage): void {
-    if (_seen.has(msg.dedupKey)) return;
-    _seen.add(msg.dedupKey);
-
-    const prev = _queues.get(this._chatId) ?? Promise.resolve();
-    const next = prev
-      .then(() => sendWithRetry(msg))
-      .catch((err: unknown) => {
-        console.error(`[send] failed after retries for ${msg.dedupKey}:`, err);
-      });
-    _queues.set(this._chatId, next);
-  }
+  _queue = _queue
+    .then(() => sendWithRetry(msg))
+    .catch((err: unknown) => {
+      console.error(`[send] failed after retries for ${msg.dedupKey}:`, err);
+    });
 }
 
 async function sendWithRetry(msg: OutboundMessage, attempt = 1): Promise<void> {
@@ -52,13 +46,4 @@ async function sendWithRetry(msg: OutboundMessage, attempt = 1): Promise<void> {
     }
     throw err;
   }
-}
-
-/**
- * Convenience wrapper — sends a single outbound message via the active Baileys socket.
- * Routes through SendQueue for ordering, dedup, and retry.
- */
-export function enqueueMessage(msg: OutboundMessage): void {
-  const q = new SendQueue(msg.chatId);
-  q.enqueue(msg);
 }

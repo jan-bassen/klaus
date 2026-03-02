@@ -7,24 +7,10 @@ export interface AuthResult {
 
 // --- Allowlist ---
 
-let allowedSet: Set<string> | null = null;
-
-function getAllowedSet(): Set<string> {
-  if (allowedSet) return allowedSet;
-  const raw = process.env.ALLOWED_CHAT_IDS ?? '';
-  const ids = raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  allowedSet = new Set(ids);
-  return allowedSet;
-}
-
-/** Verify that the sender's chatId is in the configured allowlist. Fail-closed: empty list blocks all. */
+/** Verify the sender's chatId matches the single configured chat. Fail-closed: unset env blocks all. */
 export function checkAllowlist(msg: InboundMessage): AuthResult {
-  const set = getAllowedSet();
-  if (set.size === 0) return { allowed: false };
-  return { allowed: set.has(msg.chatId) };
+  const allowed = process.env.ALLOWED_CHAT_ID ?? '';
+  return { allowed: allowed !== '' && msg.chatId === allowed };
 }
 
 // --- Debounce ---
@@ -35,45 +21,35 @@ interface DebounceEntry {
   timer: ReturnType<typeof setTimeout>;
 }
 
-const pending = new Map<string, DebounceEntry>();
+let pending: DebounceEntry | null = null;
 
 /**
- * Debounce rapid successive messages from the same chatId.
+ * Debounce rapid successive messages within the debounce window.
  * The first caller's promise resolves with the full batch when the window closes.
  * Subsequent callers within the same window resolve with [] (skip signal).
  */
 export function debounce(msg: InboundMessage): Promise<InboundMessage[]> {
-  const existing = pending.get(msg.chatId);
-
-  if (existing) {
-    existing.messages.push(msg);
-    clearTimeout(existing.timer);
-    existing.timer = setTimeout(() => flush(msg.chatId), config.debounce.windowMs);
+  if (pending) {
+    pending.messages.push(msg);
+    clearTimeout(pending.timer);
+    pending.timer = setTimeout(flush, config.debounce.windowMs);
     return Promise.resolve([]);
   }
 
   return new Promise<InboundMessage[]>((resolve) => {
-    const timer = setTimeout(() => flush(msg.chatId), config.debounce.windowMs);
-    pending.set(msg.chatId, { messages: [msg], resolve, timer });
+    pending = { messages: [msg], resolve, timer: setTimeout(flush, config.debounce.windowMs) };
   });
 }
 
-function flush(chatId: string): void {
-  const entry = pending.get(chatId);
-  if (!entry) return;
-  pending.delete(chatId);
+function flush(): void {
+  if (!pending) return;
+  const entry = pending;
+  pending = null;
   entry.resolve(entry.messages);
 }
 
-/** Test-only: clear all pending debounce state and cancel timers. */
+/** Test-only: clear pending debounce state and cancel timer. */
 export function _resetDebounceForTest(): void {
-  for (const entry of pending.values()) {
-    clearTimeout(entry.timer);
-  }
-  pending.clear();
-}
-
-/** Test-only: clear cached allowlist so env changes take effect. */
-export function _resetAllowlistForTest(): void {
-  allowedSet = null;
+  if (pending) clearTimeout(pending.timer);
+  pending = null;
 }

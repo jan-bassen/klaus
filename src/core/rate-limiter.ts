@@ -8,20 +8,15 @@ export interface RateLimitResult {
 
 type LimitKind = 'messages' | 'modelCalls';
 
-const windows: Record<LimitKind, Map<string, number[]>> = {
-  messages: new Map(),
-  modelCalls: new Map(),
+const windows: Record<LimitKind, number[]> = {
+  messages: [],
+  modelCalls: [],
 };
 
-function check(kind: LimitKind, chatId: string, now = Date.now()): RateLimitResult {
+function check(kind: LimitKind, now = Date.now()): RateLimitResult {
   const { max, windowMs } = config.rateLimits[kind];
   const cutoff = now - windowMs;
-
-  let timestamps = windows[kind].get(chatId);
-  if (!timestamps) {
-    timestamps = [];
-    windows[kind].set(chatId, timestamps);
-  }
+  const timestamps = windows[kind];
 
   // Prune expired entries
   while (timestamps.length > 0 && timestamps[0]! < cutoff) {
@@ -38,17 +33,17 @@ function check(kind: LimitKind, chatId: string, now = Date.now()): RateLimitResu
 }
 
 /** Message-level gate — called by pipeline before any LLM work. */
-export function checkMessageRate(msg: InboundMessage): RateLimitResult {
-  return check('messages', msg.chatId);
+export function checkMessageRate(_msg: InboundMessage): RateLimitResult {
+  return check('messages');
 }
 
 /** LLM-call-level gate — called by model-router before each LLM invocation. */
-export function checkModelRate(chatId: string): RateLimitResult {
-  return check('modelCalls', chatId);
+export function checkModelRate(): RateLimitResult {
+  return check('modelCalls');
 }
 
 /** Test-only: clear all sliding-window state. */
 export function _resetForTest(): void {
-  windows.messages.clear();
-  windows.modelCalls.clear();
+  windows.messages = [];
+  windows.modelCalls = [];
 }

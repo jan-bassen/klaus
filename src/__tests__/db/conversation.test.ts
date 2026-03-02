@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { db } from '@/db/client';
 import { messages } from '@/db/schema';
 import { conversationQuery } from '@/context/conversation';
-import { describeDb, setupTestDb } from '../db/helpers';
+import { describeDb, setupTestDb } from './helpers';
 import type { AgentDefinition, InboundMessage } from '@/types';
 
 setupTestDb();
@@ -11,6 +11,7 @@ const CHAT_ID = 'user@s.whatsapp.net';
 const OTHER_CHAT_ID = 'other@s.whatsapp.net';
 
 const dummyMsg: InboundMessage = {
+  kind: 'whatsapp',
   id: 'msg-1',
   chatId: CHAT_ID,
   senderId: CHAT_ID,
@@ -37,7 +38,7 @@ async function insertMessage(
   const [row] = await db
     .insert(messages)
     .values({
-      whatsappChatId: chatId,
+      chatId: chatId,
       role,
       content,
       tokensUsed: opts?.tokensUsed ?? null,
@@ -105,7 +106,7 @@ describeDb('conversationQuery', () => {
     const t1 = new Date('2024-01-01T10:01:00Z');
     // Insert a message with null content (tool-call-only assistant turn)
     await db.insert(messages).values({
-      whatsappChatId: CHAT_ID,
+      chatId: CHAT_ID,
       role: 'assistant',
       content: null,
       createdAt: t0,

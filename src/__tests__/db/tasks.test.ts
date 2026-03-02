@@ -2,12 +2,13 @@ import { expect, test } from 'bun:test';
 import { db } from '@/db/client';
 import { tasks } from '@/db/schema';
 import { activeTasksQuery } from '@/context/tasks';
-import { describeDb, setupTestDb } from '../db/helpers';
+import { describeDb, setupTestDb } from './helpers';
 import type { AgentDefinition, InboundMessage } from '@/types';
 
 setupTestDb();
 
 const dummyMsg: InboundMessage = {
+  kind: 'whatsapp',
   id: 'msg-1',
   chatId: 'user@s.whatsapp.net',
   senderId: 'user@s.whatsapp.net',

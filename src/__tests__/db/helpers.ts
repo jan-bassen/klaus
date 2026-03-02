@@ -9,8 +9,9 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 // but bun supports it.todo(label) without a function at runtime.
 export const todo = (label: string) => (it.todo as unknown as (label: string) => void)(label);
 
-// Gate: DB tests only run when DATABASE_URL is explicitly set (e.g. via test:db script).
-export const DB_AVAILABLE = !!process.env.DATABASE_URL;
+// Gate: DB tests only run when RUN_DB_TESTS=1 is explicitly set (e.g. via test:db script).
+// DATABASE_URL is always present from .env, so we use a dedicated opt-in flag instead.
+export const DB_AVAILABLE = process.env.RUN_DB_TESTS === '1';
 export const describeDb: typeof describe = DB_AVAILABLE ? describe : describe.skip;
 
 // test:db script sets DATABASE_URL to the test DB (klaus_test).

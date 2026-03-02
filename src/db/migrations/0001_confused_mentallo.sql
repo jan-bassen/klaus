@@ -38,7 +38,7 @@ CREATE TABLE "files" (
 --> statement-breakpoint
 CREATE TABLE "llm_budgets" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"whatsapp_chat_id" text NOT NULL,
+	"chat_id" text NOT NULL,
 	"daily_limit_usd" numeric(10, 2),
 	"monthly_limit_usd" numeric(10, 2),
 	"current_daily_usd" numeric(10, 6) DEFAULT '0',
@@ -59,7 +59,7 @@ CREATE TABLE "llm_costs" (
 --> statement-breakpoint
 CREATE TABLE "messages" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"whatsapp_chat_id" text NOT NULL,
+	"chat_id" text NOT NULL,
 	"role" text NOT NULL,
 	"content" text,
 	"tool_calls" jsonb,

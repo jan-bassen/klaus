@@ -17,4 +17,13 @@ export async function loadAllTools(): Promise<void> {
 
   const { filesToolset } = await import('./files/index');
   for (const t of filesToolset) registerTool(t);
+
+  const { memoryToolset } = await import('./memory/index');
+  for (const t of memoryToolset) registerTool(t);
+
+  const { taskToolset } = await import('./task/index');
+  for (const t of taskToolset) registerTool(t);
+
+  const { opsToolset } = await import('./ops/index');
+  for (const t of opsToolset) registerTool(t);
 }

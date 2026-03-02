@@ -26,6 +26,7 @@ export type File = InferSelectModel<typeof files>;
 // -- WhatsApp / transport --
 
 export interface InboundMessage {
+  kind: 'whatsapp';
   id: string;
   chatId: string;
   senderId: string;
@@ -37,10 +38,20 @@ export interface InboundMessage {
   messageKey: Record<string, unknown>;
 }
 
+/** Invocation context for background agent jobs — distinct from WhatsApp turns. */
+export interface AsyncAgentInvocation {
+  kind: 'async';
+  /** pg-boss job ID */
+  id: string;
+  taskId: string;
+  /** Raw job input — string prompt or structured payload */
+  input: unknown;
+}
+
 // -- Turn pipeline --
 
 export interface TurnContext {
-  msg: InboundMessage;
+  msg: InboundMessage | AsyncAgentInvocation;
   agent: AgentDefinition;
   flags: Record<string, boolean>;
   assembled: AssembledContext;

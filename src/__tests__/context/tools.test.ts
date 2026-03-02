@@ -5,6 +5,7 @@ import { registerTool, toolRegistry } from '@/tools/registry';
 import type { AgentDefinition, InboundMessage, TurnContext } from '@/types';
 
 const dummyMsg: InboundMessage = {
+  kind: 'whatsapp',
   id: 'test-id',
   chatId: 'user@s.whatsapp.net',
   senderId: 'user@s.whatsapp.net',

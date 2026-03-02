@@ -137,7 +137,7 @@ export const provenance = pgTable('provenance', {
 
 export const messages = pgTable('messages', {
   id: uuid('id').primaryKey().defaultRandom(),
-  whatsappChatId: text('whatsapp_chat_id').notNull(),
+  chatId: text('chat_id').notNull(),
   role: text('role').notNull(),
   content: text('content'),
   toolCalls: jsonb('tool_calls'),
@@ -169,7 +169,7 @@ export const llmCosts = pgTable('llm_costs', {
 
 export const llmBudgets = pgTable('llm_budgets', {
   id: uuid('id').primaryKey().defaultRandom(),
-  whatsappChatId: text('whatsapp_chat_id').notNull(),
+  chatId: text('chat_id').notNull(),
   dailyLimitUsd: numeric('daily_limit_usd', { precision: 10, scale: 2 }),
   monthlyLimitUsd: numeric('monthly_limit_usd', { precision: 10, scale: 2 }),
   currentDailyUsd: numeric('current_daily_usd', { precision: 10, scale: 6 }).default('0'),

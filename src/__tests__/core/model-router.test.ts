@@ -12,7 +12,10 @@ const mockGenerateText = mock(async (_opts: Record<string, unknown>) => ({
 const mockInsert = mock(() => ({ values: mock(async () => [{}]) }));
 const mockDb = { insert: mockInsert };
 
-mock.module('ai', () => ({ generateText: mockGenerateText }));
+mock.module('ai', () => ({
+  generateText: mockGenerateText,
+  embed: mock(async () => ({ embedding: [], usage: { tokens: 0 } })),
+}));
 mock.module('@ai-sdk/anthropic', () => ({ anthropic: mock((id: string) => ({ id })) }));
 mock.module('../../db/client', () => ({ db: mockDb }));
 

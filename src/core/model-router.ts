@@ -8,7 +8,7 @@ import { llmCosts } from '@/db/schema';
 
 export interface ModelCallOptions {
   tier: ModelTier;
-  chatId: string;
+  chatId?: string;
   system?: string;
   messages: ModelMessage[];
   tools?: ToolSet;
@@ -29,7 +29,7 @@ export interface ModelCallResult {
  * calls the Vercel AI SDK, and records cost.
  */
 export async function callModel(opts: ModelCallOptions): Promise<ModelCallResult> {
-  const rate = checkModelRate(opts.chatId);
+  const rate = checkModelRate();
   if (!rate.allowed) {
     throw new Error(`LLM rate limit exceeded. Retry in ${rate.retryAfterMs}ms`);
   }

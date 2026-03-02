@@ -18,7 +18,12 @@
       "Bash(bun test --verbose)",
       "Bash(bun test src/__tests__/db/)",
       "Bash(bun tsc --noEmit)",
-      "Bash(bun run db:generate)"
+      "Bash(bun run db:generate)",
+      "Bash(bun test src/__tests__/context src/__tests__/core src/__tests__/whatsapp)",
+      "Bash(ls /Users/janbassen/Code/klaus/.env*)",
+      "Bash(bun test src/__tests__/core/model-router.test.ts src/__tests__/db/write.test.ts)",
+      "Bash(bun test --list)",
+      "Bash(bun test src/__tests__/context src/__tests__/core src/__tests__/whatsapp --verbose)"
     ]
   }
 }

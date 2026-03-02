@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import type { ToolDefinition } from '@/types';
+import { db } from '@/db/client';
+import { tasks } from '@/db/schema';
+import { dispatch } from '@/core/queue';
 
 // task.create — surface tool (always available)
 const taskCreateSchema = z.object({
@@ -12,7 +15,20 @@ export const taskCreateTool: ToolDefinition<typeof taskCreateSchema> = {
   name: 'task.create',
   description: 'Create an async task and enqueue it for the assigned agent.',
   inputSchema: taskCreateSchema,
-  execute: async (_input, _context) => { throw new Error('TODO: not implemented'); },
+  execute: async (input) => {
+    const [task] = await db
+      .insert(tasks)
+      .values({
+        objective: input.objective,
+        assignedTo: input.agentName,
+        status: 'pending',
+        ...(input.input ? { input: input.input } : {}),
+      })
+      .returning();
+    if (!task) throw new Error('Task insert returned no row');
+    await dispatch('agent-run', { taskId: task.id, agentName: input.agentName, input: input.input ?? null }, task.id);
+    return `Task created: ${task.id}`;
+  },
   kind: 'builtin',
   capability: 'tool',
   surface: true,

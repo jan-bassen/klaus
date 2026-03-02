@@ -4,6 +4,7 @@ import type { InboundMessage } from '@/types';
 
 function makeMsg(text?: string): InboundMessage {
   const base = {
+    kind: 'whatsapp' as const,
     id: crypto.randomUUID(),
     chatId: 'user@s.whatsapp.net',
     senderId: 'user@s.whatsapp.net',

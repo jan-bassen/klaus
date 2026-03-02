@@ -4,6 +4,7 @@ const MOCK_EMBEDDING = new Array(1024).fill(0.01);
 
 mock.module('ai', () => ({
   embed: () => Promise.resolve({ embedding: MOCK_EMBEDDING }),
+  generateText: mock(async () => ({ text: '', steps: [{ usage: { inputTokens: 0, outputTokens: 0 } }] })),
 }));
 mock.module('voyage-ai-provider', () => ({
   voyage: Object.assign(() => ({}), { textEmbeddingModel: () => ({}) }),

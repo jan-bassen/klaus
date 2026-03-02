@@ -1,5 +1,10 @@
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ToolDefinition } from '@/types';
+import { hybridSearch } from '@/db/search';
+import { writeNode } from '@/db/write';
+import { db } from '@/db/client';
+import { nodes } from '@/db/schema';
 
 // memory.search — surface tool (always available)
 const memorySearchSchema = z.object({
@@ -12,7 +17,16 @@ export const memorySearchTool: ToolDefinition<typeof memorySearchSchema> = {
   name: 'memory.search',
   description: 'Search the knowledge graph using hybrid semantic + full-text search.',
   inputSchema: memorySearchSchema,
-  execute: async (_input, _context) => { throw new Error('TODO: not implemented'); },
+  execute: async (input) => {
+    const results = await hybridSearch({ query: input.query, ...(input.tags ? { tags: input.tags } : {}), limit: input.limit });
+    if (results.length === 0) return 'No results found.';
+    return results
+      .map(({ node, matchingChunk }) => {
+        const body = matchingChunk ?? node.body ?? '';
+        return `[${node.id}] ${node.title ?? '(untitled)'} (${node.type})\n${body}`;
+      })
+      .join('\n\n');
+  },
   kind: 'builtin',
   capability: 'resource',
   surface: true,
@@ -30,7 +44,15 @@ export const memoryWriteTool: ToolDefinition<typeof memoryWriteSchema> = {
   name: 'memory.write',
   description: 'Write a new node to the knowledge graph.',
   inputSchema: memoryWriteSchema,
-  execute: async (_input, _context) => { throw new Error('TODO: not implemented'); },
+  execute: async (input) => {
+    const node = await writeNode({
+      type: input.type,
+      title: input.title ?? null,
+      body: input.body ?? null,
+      tags: input.tags ?? [],
+    });
+    return `Created node ${node.id}`;
+  },
   kind: 'builtin',
   capability: 'tool',
 };
@@ -44,7 +66,11 @@ export const memoryReadTool: ToolDefinition<typeof memoryReadSchema> = {
   name: 'memory.read',
   description: 'Read a node from the knowledge graph by ID.',
   inputSchema: memoryReadSchema,
-  execute: async (_input, _context) => { throw new Error('TODO: not implemented'); },
+  execute: async (input) => {
+    const [node] = await db.select().from(nodes).where(eq(nodes.id, input.id));
+    if (!node) return `Node ${input.id} not found.`;
+    return `[${node.id}] ${node.title ?? '(untitled)'} (${node.type})\n${node.body ?? ''}`;
+  },
   kind: 'builtin',
   capability: 'resource',
 };

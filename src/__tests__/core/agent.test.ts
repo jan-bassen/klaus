@@ -28,6 +28,7 @@ const emptyAssembled: AssembledContext = {
 function makeTurn(overrides: Partial<AssembledContext> = {}): TurnContext {
   return {
     msg: {
+      kind: 'whatsapp',
       id: 'msg-1',
       chatId: 'user@s.whatsapp.net',
       senderId: 'user@s.whatsapp.net',

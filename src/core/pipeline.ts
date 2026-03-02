@@ -89,7 +89,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 
   // Persist inbound message to conversation history
   await db.insert(messages).values({
-    whatsappChatId: effectiveMsg.chatId,
+    chatId: effectiveMsg.chatId,
     role: 'user',
     content: effectiveMsg.text ?? null,
     createdAt: effectiveMsg.timestamp,

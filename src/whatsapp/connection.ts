@@ -9,7 +9,7 @@ import makeWASocket, {
 let socket: WASocket | null = null;
 
 const AUTH_DIR =
-  process.env.BAILEYS_AUTH_DIR ?? path.join(process.cwd(), '.baileys-auth');
+  process.env.BAILEYS_AUTH_FOLDER ?? path.join(process.cwd(), '.baileys-auth');
 
 /**
  * Initialize Baileys, handle QR pairing on first run, and manage reconnects.

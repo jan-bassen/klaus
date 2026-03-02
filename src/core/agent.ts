@@ -57,9 +57,19 @@ export async function runAgent(
 
   const result = await callModel({
     tier: def.modelTier,
-    chatId: turn.msg.chatId,
+    ...(turn.msg.kind !== 'async' ? { chatId: turn.msg.chatId } : {}),
     system,
-    messages: [{ role: 'user', content: turn.msg.text ?? '' }],
+    messages: [
+      {
+        role: 'user',
+        content:
+          turn.msg.kind === 'async'
+            ? typeof turn.msg.input === 'string'
+              ? turn.msg.input
+              : JSON.stringify(turn.msg.input)
+            : turn.msg.text ?? '',
+      },
+    ],
     ...(Object.keys(tools).length > 0 ? { tools: tools as never } : {}),
   });
 

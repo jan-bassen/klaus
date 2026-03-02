@@ -1,3 +1,5 @@
+# Klaus
+
 A lean, self-hosted personal AI agent stack: **WhatsApp → TypeScript → Postgres**. The project is built to be easy configurable and extensible in code, mainly through new tools and agents. *Klaus* is a reference to [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), the legendary pirate who allegedly walked past his crew after being beheaded — because this stack is *headless*. This is a personal hobby project for now and not implemented yet. We're still in planning mode.
 
 ---

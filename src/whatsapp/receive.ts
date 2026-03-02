@@ -52,6 +52,7 @@ export function normalizeMessage(raw: unknown): InboundMessage | null {
   const tsSeconds = typeof rawTs === 'bigint' ? Number(rawTs) : (rawTs ?? Date.now() / 1000);
 
   return {
+    kind: 'whatsapp',
     id: m.key.id ?? crypto.randomUUID(),
     chatId: m.key.remoteJid,
     senderId: m.key.participant ?? m.key.remoteJid,

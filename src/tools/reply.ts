@@ -12,6 +12,9 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
   description: 'Send a message, media, reaction, or follow-up question via WhatsApp.',
   inputSchema: replySchema,
   execute: async ({ content }, context) => {
+    if (context.msg.kind !== 'whatsapp') {
+      throw new Error('reply tool can only be used in a WhatsApp turn context');
+    }
     enqueueMessage({
       chatId: context.msg.chatId,
       content,

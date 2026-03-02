@@ -16,7 +16,12 @@ export const graphContextQuery: ContextQuery = {
     const pinned = await db.select().from(nodes).where(eq(nodes.pinned, true));
 
     // Hybrid search on message text (skip if empty)
-    const query = turn.msg.text ?? '';
+    const query =
+      turn.msg.kind === 'async'
+        ? typeof turn.msg.input === 'string'
+          ? turn.msg.input
+          : ''
+        : turn.msg.text ?? '';
     const searchResults = query
       ? await hybridSearch({ query, limit: 10, expandEdges: true })
       : [];

@@ -4,6 +4,7 @@ import { FLAG_MAP } from '@/whatsapp/flags';
 import type { AgentDefinition, InboundMessage, TurnContext } from '@/types';
 
 const dummyMsg: InboundMessage = {
+  kind: 'whatsapp',
   id: 'test-id',
   chatId: 'user@s.whatsapp.net',
   senderId: 'user@s.whatsapp.net',

@@ -5,6 +5,7 @@ import type { AgentDefinition, ContextQuery, InboundMessage } from '@/types';
 // ─── fixtures ────────────────────────────────────────────────────────────────
 
 const dummyMsg: InboundMessage = {
+  kind: 'whatsapp',
   id: 'msg-1',
   chatId: 'user@s.whatsapp.net',
   senderId: 'user@s.whatsapp.net',
