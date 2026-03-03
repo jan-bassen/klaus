@@ -62,10 +62,10 @@ describeDb('conversationQuery', () => {
     expect(result.content).toBe('User: hello there');
   });
 
-  test('single assistant message formatted as "Klaus: <content>"', async () => {
+  test('single assistant message formatted as "<agent>: <content>"', async () => {
     await insertMessage(CHAT_ID, 'assistant', 'how can I help?');
     const result = await conversationQuery.run(turn);
-    expect(result.content).toBe('Klaus: how can I help?');
+    expect(result.content).toBe(`${dummyAgent.name}: how can I help?`);
   });
 
   test('user+assistant pair is in chronological order separated by double newline', async () => {
@@ -75,7 +75,7 @@ describeDb('conversationQuery', () => {
     await insertMessage(CHAT_ID, 'assistant', 'hello!', { createdAt: t1 });
 
     const result = await conversationQuery.run(turn);
-    expect(result.content).toBe('User: hi\n\nKlaus: hello!');
+    expect(result.content).toBe(`User: hi\n\n${dummyAgent.name}: hello!`);
   });
 
   test('three messages appear in chronological order', async () => {
@@ -89,7 +89,7 @@ describeDb('conversationQuery', () => {
     const result = await conversationQuery.run(turn);
     const lines = result.content.split('\n\n');
     expect(lines[0]).toBe('User: first');
-    expect(lines[1]).toBe('Klaus: second');
+    expect(lines[1]).toBe(`${dummyAgent.name}: second`);
     expect(lines[2]).toBe('User: third');
   });
 

@@ -49,6 +49,10 @@ export const config = {
   // The agent that handles all messages not prefixed with an @route.
   defaultAgent: 'klaus',
 
+  // Locale and timezone used for date/time context injected into agent prompts.
+  locale: 'de-DE',
+  timezone: 'Europe/Berlin',
+
   // Inline prompt modifiers triggered by !flag tokens in the message.
   // Each key is the flag name; the value is prepended verbatim to the top of the system prompt.
   flags: {

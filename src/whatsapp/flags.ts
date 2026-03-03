@@ -1,6 +1,13 @@
 import type { InboundMessage } from '@/types';
 import { config } from '@/config';
 
+/** Returns the flag name if a token is a recognized !flag, otherwise null. */
+function flagName(token: string): string | null {
+  if (!token.startsWith('!') || token.length <= 1) return null;
+  const name = token.slice(1);
+  return name in config.flags ? name : null;
+}
+
 /**
  * Parse !flags from a message and return the active flags.
  * Only recognizes flags defined in config.flags.
@@ -10,10 +17,8 @@ export function parseFlags(msg: InboundMessage): Record<string, boolean> {
 
   const flags: Record<string, boolean> = {};
   for (const token of msg.text.split(/\s+/)) {
-    if (token.startsWith('!') && token.length > 1) {
-      const name = token.slice(1);
-      if (name in config.flags) flags[name] = true;
-    }
+    const name = flagName(token);
+    if (name) flags[name] = true;
   }
   return flags;
 }
@@ -22,10 +27,7 @@ export function parseFlags(msg: InboundMessage): Record<string, boolean> {
 export function stripFlags(text: string): string {
   return text
     .split(/\s+/)
-    .filter((token) => {
-      if (!token.startsWith('!') || token.length <= 1) return true;
-      return !(token.slice(1) in config.flags);
-    })
+    .filter((token) => flagName(token) === null)
     .join(' ')
     .trim();
 }

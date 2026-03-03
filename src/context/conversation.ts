@@ -4,6 +4,9 @@ import { config } from '@/config';
 import { db } from '@/db/client';
 import { messages } from '@/db/schema';
 
+// Rough token estimate: 1 token ≈ 4 characters (good enough for conversation history).
+const CHARS_PER_TOKEN = 4;
+
 /** Provides conversation: last N messages from the messages table for this chatId. */
 export const conversationQuery: ContextQuery = {
   name: 'conversation',
@@ -28,7 +31,7 @@ export const conversationQuery: ContextQuery = {
 
     for (const row of rows) {
       if (!row.content) continue;
-      const msgTokens = Math.ceil(row.content.length / 4);
+      const msgTokens = Math.ceil(row.content.length / CHARS_PER_TOKEN);
       if (tokenCount + msgTokens > budget) break;
       included.push(row);
       tokenCount += msgTokens;
@@ -37,8 +40,9 @@ export const conversationQuery: ContextQuery = {
     // Reverse to chronological order for the LLM
     included.reverse();
 
+    const agentLabel = turn.agent?.name ?? 'Assistant';
     const content = included
-      .map((row) => `${row.role === 'user' ? 'User' : 'Klaus'}: ${row.content}`)
+      .map((row) => `${row.role === 'user' ? 'User' : agentLabel}: ${row.content}`)
       .join('\n\n');
 
     return { content, tokenCount, truncate: 'oldest' };

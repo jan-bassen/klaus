@@ -69,6 +69,7 @@ export async function callModel(opts: ModelCallOptions): Promise<ModelCallResult
   const promptTokens = result.steps.reduce((s, st) => s + (st.usage.inputTokens ?? 0), 0);
   const completionTokens = result.steps.reduce((s, st) => s + (st.usage.outputTokens ?? 0), 0);
   const costUsd = 0; // TODO: add pricing table per model
+  log.warn('[model-router] cost tracking not implemented — recording 0', { model: modelId });
 
   // Serialize steps: pick only the fields useful for debugging.
   // reasoning is populated when extended thinking is enabled (providerOptions.thinking).

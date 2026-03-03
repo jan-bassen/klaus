@@ -141,7 +141,9 @@ export const messages = pgTable('messages', {
   role: text('role').notNull(),
   content: text('content'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  index('idx_messages_chat_time').on(t.chatId, t.createdAt),
+]);
 
 export const tasks = pgTable('tasks', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -163,7 +165,9 @@ export const llmBudgets = pgTable('llm_budgets', {
   currentDailyUsd: numeric('current_daily_usd', { precision: 10, scale: 6 }).default('0'),
   currentMonthlyUsd: numeric('current_monthly_usd', { precision: 10, scale: 6 }).default('0'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  unique('uq_llm_budgets_chat').on(t.chatId),
+]);
 
 export const files = pgTable('files', {
   id: uuid('id').primaryKey().defaultRandom(),

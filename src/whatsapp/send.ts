@@ -1,4 +1,4 @@
-import type { WASocket } from '@whiskeysockets/baileys';
+import type { AnyMessageContent, WASocket } from '@whiskeysockets/baileys';
 import type { OutboundMessage } from '@/types';
 import { config } from '@/config';
 import { log } from '@/logger';
@@ -14,7 +14,9 @@ export function setSocket(socket: WASocket): void {
 // Single FIFO promise chain for message ordering.
 let _queue: Promise<void> = Promise.resolve();
 // In-memory dedup: skip re-sending a key within the current process lifetime.
+// Capped at MAX_SEEN_SIZE to prevent unbounded memory growth in long-running processes.
 const _seen = new Set<string>();
+const MAX_SEEN_SIZE = 10_000;
 
 /**
  * Enqueue an outbound message for delivery: ensures FIFO ordering, deduplication
@@ -22,6 +24,7 @@ const _seen = new Set<string>();
  */
 export function enqueueMessage(msg: OutboundMessage): void {
   if (_seen.has(msg.dedupKey)) return;
+  if (_seen.size >= MAX_SEEN_SIZE) _seen.delete(_seen.values().next().value!);
   _seen.add(msg.dedupKey);
 
   _queue = _queue
@@ -34,13 +37,21 @@ export function enqueueMessage(msg: OutboundMessage): void {
     });
 }
 
+function mediaContent(content: Buffer, mimeType?: string): AnyMessageContent {
+  const mime = mimeType ?? 'application/octet-stream';
+  if (mime.startsWith('image/')) return { image: content, mimetype: mime };
+  if (mime.startsWith('audio/')) return { audio: content, mimetype: mime };
+  if (mime.startsWith('video/')) return { video: content, mimetype: mime };
+  return { document: content, mimetype: mime };
+}
+
 async function sendWithRetry(msg: OutboundMessage, attempt = 1): Promise<void> {
   if (!_socket) throw new Error('No WhatsApp socket — call setSocket() before sending');
 
   const waContent =
     typeof msg.content === 'string'
       ? { text: msg.content }
-      : { image: msg.content, mimetype: msg.mimeType ?? 'application/octet-stream' };
+      : mediaContent(msg.content, msg.mimeType);
 
   try {
     if (attempt > 1) {

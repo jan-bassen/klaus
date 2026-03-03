@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '@/types';
+import { log } from '@/logger';
 
 /** Maps tool name → ToolDefinition. Populated at startup by loadAllTools(). */
 export const toolRegistry = new Map<string, ToolDefinition<any>>();
@@ -37,7 +38,7 @@ async function loadToolModule(filePath: string): Promise<void> {
     }
   } catch (err) {
     // Log errors but don't crash startup — a broken tool file shouldn't kill the process
-    console.error(`[tools] failed to load ${filePath}:`, err instanceof Error ? err.message : String(err));
+    log.error('[tools] failed to load module', { filePath, error: err instanceof Error ? err.message : String(err) });
   }
 }
 
