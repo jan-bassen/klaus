@@ -1,5 +1,7 @@
 import type { WASocket } from '@whiskeysockets/baileys';
 import type { OutboundMessage } from '@/types';
+import { config } from '@/config';
+import { log } from '@/logger';
 
 // Module-level socket reference set by attachReceiveHandler at startup.
 let _socket: WASocket | null = null;
@@ -25,7 +27,10 @@ export function enqueueMessage(msg: OutboundMessage): void {
   _queue = _queue
     .then(() => sendWithRetry(msg))
     .catch((err: unknown) => {
-      console.error(`[send] failed after retries for ${msg.dedupKey}:`, err);
+      log.error('[send] failed after retries', {
+        dedupKey: msg.dedupKey,
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
 }
 
@@ -38,7 +43,12 @@ async function sendWithRetry(msg: OutboundMessage, attempt = 1): Promise<void> {
       : { image: msg.content, mimetype: msg.mimeType ?? 'application/octet-stream' };
 
   try {
+    if (attempt > 1) {
+      log.info('[send] retry attempt', { dedupKey: msg.dedupKey, attempt });
+    }
     await _socket.sendMessage(msg.chatId, waContent);
+    log.info('[send] sent', { dedupKey: msg.dedupKey });
+    await new Promise<void>((r) => setTimeout(r, config.send.interMessageDelayMs));
   } catch (err) {
     if (attempt < 3) {
       await new Promise<void>((r) => setTimeout(r, 1_000 * attempt));

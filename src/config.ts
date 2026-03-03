@@ -40,13 +40,27 @@ export const config = {
     backoffMs: 1_000,  // base delay; actual delay = backoffMs * attempt (linear)
   },
 
-  // Debounce window for batching rapid successive messages from the same chatId.
-  debounce: {
-    windowMs: 1_200, // 1.2s — covers typical multi-message typing bursts
+  // Minimum pause after each outbound message before the next one is sent.
+  // Prevents consecutive replies from arriving simultaneously.
+  send: {
+    interMessageDelayMs: 1_500,
   },
 
   // The agent that handles all messages not prefixed with an @route.
   defaultAgent: 'klaus',
+
+  // Inline prompt modifiers triggered by !flag tokens in the message.
+  // Each key is the flag name; the value is prepended verbatim to the top of the system prompt.
+  flags: {
+    test:     'Dies ist ein Test. Ist dies in den Prompt geraten, bitte erwähnen.',
+  },
+
+  // Static reusable text blocks injectable into any agent prompt via {{snippet_name}}.
+  // Use these to avoid repeating boilerplate across agent .md files.
+  // Snippets do not count toward the token budget.
+  snippets: {
+    soul: 'Du bist Klaus — ein persönlicher AI-Assistent, der ausschließlich über WhatsApp operiert. Wir befinden uns derzeit im Testbetrieb, daher können meine Anweisungen manchmal etwas seltsam klingen oder anders sein.',
+  },
 } as const;
 
 export type ModelTier = keyof typeof config.models;

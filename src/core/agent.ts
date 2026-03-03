@@ -1,30 +1,40 @@
 import { parse as parseYaml } from 'yaml';
-import type { AgentDefinition, AgentHookConfig, TurnContext, AgentReturn, AssembledContext } from '@/types';
+import { tool } from 'ai';
+import type { ToolSet } from 'ai';
+import type { AgentDefinition, AgentHookConfig, TurnContext, AgentReturn } from '@/types';
 import type { ModelTier } from '@/config';
 import { config } from '@/config';
-import { toolRegistry } from '@/tools/registry';
+import { toolRegistry, getToolsForToolset } from '@/tools/registry';
 import { callModel } from './model-router';
+import { log } from '@/logger';
 
-function buildSystemPrompt(body: string, assembled: AssembledContext): string {
-  const sections: string[] = [body.trim()];
+function buildSystemPrompt(body: string, vars: Map<string, string>): string {
+  // {{name}} and {{name?key=val}} both resolve to vars[name]; the ?params suffix is for query config only.
+  return body.trim().replace(/\{\{(\w+)(?:\?[^}]*)?\}\}/g, (_, key: string) => vars.get(key) ?? '');
+}
 
-  if (assembled.toolDescriptions) {
-    sections.push(`## Available Tools\n${assembled.toolDescriptions}`);
+/**
+ * Scan a prompt body for {{name?key=val&key2=val2}} placeholders and return
+ * a contextParams map. Values that parse as numbers become numbers; rest stay strings.
+ */
+function parseInlineParams(body: string): Record<string, Record<string, unknown>> {
+  const result: Record<string, Record<string, unknown>> = {};
+  const re = /\{\{(\w+)\?([^}]+)\}\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body)) !== null) {
+    const name = m[1]!;
+    const qs = m[2]!;
+    result[name] ??= {};
+    for (const pair of qs.split('&')) {
+      const eq = pair.indexOf('=');
+      if (eq === -1) continue;
+      const k = pair.slice(0, eq).trim();
+      const raw = pair.slice(eq + 1).trim();
+      const num = Number(raw);
+      result[name]![k] = raw !== '' && !isNaN(num) ? num : raw;
+    }
   }
-  if (assembled.conversation) {
-    sections.push(`## Conversation History\n${assembled.conversation}`);
-  }
-  if (assembled.graphContext) {
-    sections.push(`## Knowledge Graph\n${assembled.graphContext}`);
-  }
-  if (assembled.activeTasks) {
-    sections.push(`## Active Tasks\n${assembled.activeTasks}`);
-  }
-  if (assembled.flagInjections) {
-    sections.push(assembled.flagInjections);
-  }
-
-  return sections.join('\n\n');
+  return result;
 }
 
 /**
@@ -40,37 +50,63 @@ export async function runAgent(
   const raw = await Bun.file(def.promptPath).text();
   const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, '');
 
-  const system = buildSystemPrompt(body, turn.assembled);
+  const vars = new Map<string, string>(Object.entries(turn.assembled.vars));
+  const system = buildSystemPrompt(body, vars);
 
   // Build Vercel AI SDK tools — closures over turn so execute receives TurnContext
-  const tools: Record<string, { description: string; parameters: unknown; execute: (input: unknown) => Promise<unknown> }> = {};
+  const tools: ToolSet = {};
+  const addTool = (t: ReturnType<typeof toolRegistry.get>) => {
+    if (!t) return;
+    tools[t.name.replace(/\./g, '_')] = tool({
+      description: t.description,
+      inputSchema: t.inputSchema,
+      execute: (input) => t.execute(input as never, turn),
+    });
+  };
   for (const name of def.tools) {
-    const t = toolRegistry.get(name);
-    if (t) {
-      tools[name] = {
-        description: t.description,
-        parameters: t.inputSchema,
-        execute: (input: unknown) => t.execute(input as never, turn),
-      };
-    }
+    addTool(toolRegistry.get(name));
+  }
+  for (const tsName of (def.toolsets ?? [])) {
+    for (const t of getToolsForToolset(tsName)) addTool(t);
   }
 
-  const result = await callModel({
-    tier: def.modelTier,
-    ...(turn.msg.kind !== 'async' ? { chatId: turn.msg.chatId } : {}),
-    system,
-    messages: [
-      {
-        role: 'user',
-        content:
-          turn.msg.kind === 'async'
-            ? typeof turn.msg.input === 'string'
-              ? turn.msg.input
-              : JSON.stringify(turn.msg.input)
-            : turn.msg.text ?? '',
-      },
-    ],
-    ...(Object.keys(tools).length > 0 ? { tools: tools as never } : {}),
+  const modelId = config.models[def.modelTier];
+  log.info('[agent] calling model', { agent: def.name, model: modelId, tools: Object.keys(tools) });
+
+  let result: Awaited<ReturnType<typeof callModel>>;
+  try {
+    result = await callModel({
+      tier: def.modelTier,
+      agentName: def.name,
+...(turn.msg.kind !== 'async' ? { chatId: turn.msg.chatId } : {}),
+      ...(turn.messageId ? { messageId: turn.messageId } : {}),
+      ...(turn.msg.kind === 'async' ? { taskId: turn.msg.taskId } : {}),
+      system,
+      messages: [
+        {
+          role: 'user',
+          content:
+            turn.msg.kind === 'async'
+              ? typeof turn.msg.input === 'string'
+                ? turn.msg.input
+                : JSON.stringify(turn.msg.input)
+              : turn.msg.text ?? '',
+        },
+      ],
+      ...(Object.keys(tools).length > 0 ? { tools } : {}),
+    });
+  } catch (err) {
+    log.error('[agent] callModel failed', {
+      agent: def.name,
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    throw err;
+  }
+
+  log.info('[agent] model call completed', {
+    agent: def.name,
+    usage: result.usage,
   });
 
   // Structured agents (e.g. memorize-agent) return JSON matching AgentReturn in their text
@@ -86,6 +122,7 @@ export async function runAgent(
  * Called at startup and on hot-reload.
  */
 export async function loadAgentDefinition(promptPath: string): Promise<AgentDefinition> {
+  log.debug('[agent] loading definition', { promptPath });
   const raw = await Bun.file(promptPath).text();
 
   const match = raw.match(/^---\n([\s\S]*?)\n---/);
@@ -108,6 +145,10 @@ export async function loadAgentDefinition(promptPath: string): Promise<AgentDefi
     ? (front.tools as string[])
     : [];
 
+  const toolsets: string[] = Array.isArray(front.toolsets)
+    ? (front.toolsets as string[])
+    : [];
+
   // Normalize hooks: [] → undefined, { runAfter: [...] } → AgentHookConfig[]
   let hooks: AgentHookConfig[] | undefined;
   const rawHooks = front.hooks;
@@ -120,11 +161,32 @@ export async function loadAgentDefinition(promptPath: string): Promise<AgentDefi
     }
   }
 
+  // Per-query params from optional `context:` YAML key.
+  // Example: context: { conversation: { limit: 10 } }
+  const yamlParams: Record<string, Record<string, unknown>> =
+    typeof front.context === 'object' && front.context !== null && !Array.isArray(front.context)
+      ? (front.context as Record<string, Record<string, unknown>>)
+      : {};
+
+  // Inline params parsed from {{name?key=val}} placeholders in the prompt body.
+  // Merged on top of YAML params (inline wins per-key).
+  const body = raw.slice(match[0].length);
+  const inlineParams = parseInlineParams(body);
+  const merged: Record<string, Record<string, unknown>> = { ...yamlParams };
+  for (const [qName, params] of Object.entries(inlineParams)) {
+    merged[qName] = { ...(merged[qName] ?? {}), ...params };
+  }
+  const contextParams = Object.keys(merged).length > 0 ? merged : undefined;
+
+  log.info('[agent] loaded definition', { name, modelTier, tools });
+
   return {
     name,
     modelTier: modelTier as ModelTier,
     tools,
+    ...(toolsets.length > 0 ? { toolsets } : {}),
     ...(hooks ? { hooks } : {}),
+    ...(contextParams ? { contextParams } : {}),
     promptPath,
   };
 }

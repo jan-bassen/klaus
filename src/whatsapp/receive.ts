@@ -2,6 +2,7 @@ import type { WASocket } from '@whiskeysockets/baileys';
 import type { InboundMessage } from '@/types';
 import { setSocket } from './send';
 import { handleTurn } from '@/core/pipeline';
+import { log } from '@/logger';
 
 /**
  * Attach the message event handler to the Baileys socket.
@@ -16,7 +17,10 @@ export function attachReceiveHandler(socket: WASocket): void {
     if (type !== 'notify') return;
     for (const raw of msgs) {
       const msg = normalizeMessage(raw);
-      if (msg) await handleTurn(msg);
+      if (msg) {
+        log.info('[receive] message', { chatId: msg.chatId, text: msg.text?.slice(0, 40), kind: msg.kind });
+        await handleTurn(msg);
+      }
     }
   });
 }
@@ -38,15 +42,25 @@ export function normalizeMessage(raw: unknown): InboundMessage | null {
   };
 
   // Skip messages we sent and messages without a remote JID
-  if (!m?.key?.remoteJid || m.key.fromMe) return null;
-  if (!m.message) return null;
+  if (!m?.key?.remoteJid) return null;
+  if (m.key.fromMe) {
+    log.debug('[receive] skip fromMe', { remoteJid: m.key.remoteJid });
+    return null;
+  }
+  if (!m.message) {
+    log.debug('[receive] skip no-message', { remoteJid: m.key.remoteJid });
+    return null;
+  }
 
   // Extract text — conversation (1:1) or extendedTextMessage (quoted/formatted)
   const text =
     m.message.conversation ?? m.message.extendedTextMessage?.text ?? null;
 
   // Skip non-text messages (images, audio, etc.) — deferred to voice/vision step
-  if (!text) return null;
+  if (!text) {
+    log.debug('[receive] skip no-text', { remoteJid: m.key.remoteJid });
+    return null;
+  }
 
   const rawTs = m.messageTimestamp;
   const tsSeconds = typeof rawTs === 'bigint' ? Number(rawTs) : (rawTs ?? Date.now() / 1000);

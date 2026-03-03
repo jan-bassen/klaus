@@ -8,17 +8,19 @@ import { messages } from '@/db/schema';
 export const conversationQuery: ContextQuery = {
   name: 'conversation',
   priority: 3,
-  run: async (turn: Omit<TurnContext, 'assembled'>): Promise<ContextResult> => {
+  run: async (turn: Omit<TurnContext, 'assembled'>, params?: Record<string, unknown>): Promise<ContextResult> => {
     if (turn.msg.kind === 'async') {
       return { content: '', tokenCount: 0, truncate: 'oldest' };
     }
+
+    const limit = typeof params?.limit === 'number' ? params.limit : 100;
 
     const rows = await db
       .select()
       .from(messages)
       .where(eq(messages.chatId, turn.msg.chatId))
       .orderBy(desc(messages.createdAt))
-      .limit(100);
+      .limit(limit);
 
     const budget = config.context.conversationTokens;
     let tokenCount = 0;
@@ -26,7 +28,7 @@ export const conversationQuery: ContextQuery = {
 
     for (const row of rows) {
       if (!row.content) continue;
-      const msgTokens = row.tokensUsed ?? Math.ceil(row.content.length / 4);
+      const msgTokens = Math.ceil(row.content.length / 4);
       if (tokenCount + msgTokens > budget) break;
       included.push(row);
       tokenCount += msgTokens;

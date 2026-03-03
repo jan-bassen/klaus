@@ -1,6 +1,7 @@
 services:
   postgres:
     image: pgvector/pgvector:pg17
+    restart: unless-stopped
     environment:
       POSTGRES_DB: klaus
       POSTGRES_USER: postgres
@@ -17,15 +18,21 @@ services:
 
   app:
     build: .
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     env_file: .env
+    environment:
+      # Override DATABASE_URL so the app always reaches the postgres service by name,
+      # regardless of what localhost-based URL is set in .env for native dev.
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/klaus
     volumes:
       - baileys_auth:/app/auth
 
   caddy:
     image: caddy:2-alpine
+    restart: unless-stopped
     depends_on:
       - app
     ports:

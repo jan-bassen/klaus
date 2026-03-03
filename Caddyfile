@@ -1,4 +1,5 @@
-# Local dev — plain HTTP on :80, no TLS
-:80 {
+# No DOMAIN set → plain HTTP on :80 (local dev/test)
+# DOMAIN=your.domain.com → Caddy auto-TLS via Let's Encrypt (prod)
+{$DOMAIN::80} {
 	reverse_proxy app:3000
 }

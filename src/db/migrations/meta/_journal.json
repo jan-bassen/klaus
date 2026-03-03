@@ -15,6 +15,20 @@
       "when": 1772469139789,
       "tag": "0001_confused_mentallo",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772534828157,
+      "tag": "0002_tiny_matthew_murdock",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1772535526567,
+      "tag": "0003_lush_rhino",
+      "breakpoints": true
     }
   ]
 }

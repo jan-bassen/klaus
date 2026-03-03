@@ -8,11 +8,7 @@ import type { TurnContext, AsyncAgentInvocation, AssembledContext } from '@/type
 const AGENTS_DIR = path.join(import.meta.dir, '..', 'agents');
 
 const EMPTY_ASSEMBLED: AssembledContext = {
-  conversation: '',
-  graphContext: '',
-  activeTasks: '',
-  toolDescriptions: '',
-  flagInjections: '',
+  vars: {},
   totalTokens: 0,
 };
 

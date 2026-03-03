@@ -23,7 +23,12 @@
       "Bash(ls /Users/janbassen/Code/klaus/.env*)",
       "Bash(bun test src/__tests__/core/model-router.test.ts src/__tests__/db/write.test.ts)",
       "Bash(bun test --list)",
-      "Bash(bun test src/__tests__/context src/__tests__/core src/__tests__/whatsapp --verbose)"
+      "Bash(bun test src/__tests__/context src/__tests__/core src/__tests__/whatsapp --verbose)",
+      "Bash(bun test --testPathPattern=\"logger|core/middleware|core/model-router|core/rate-limiter|core/agent|context/|whatsapp/\")",
+      "Bash(bun test --reporter=verbose)",
+      "Bash(bun test src/__tests__/core/middleware.test.ts)",
+      "WebFetch(domain:support.claude.com)",
+      "Bash(bun test src/__tests__/core/model-router.test.ts)"
     ]
   }
 }

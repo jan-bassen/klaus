@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { assembleContext } from '@/context/assemble';
+import { assembleContext } from '@/core/assemble';
+import { config } from '@/config';
 import type { AgentDefinition, ContextQuery, InboundMessage } from '@/types';
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
@@ -40,55 +41,41 @@ function makeQuery(
 describe('assembleContext', () => {
   // ─── basic shape ─────────────────────────────────────────────────────────
 
-  test('no queries → all fields empty, totalTokens 0', async () => {
+  test('no queries → vars contains only snippets, totalTokens 0', async () => {
     const result = await assembleContext(dummyMsg, dummyAgent);
-    expect(result.conversation).toBe('');
-    expect(result.graphContext).toBe('');
-    expect(result.activeTasks).toBe('');
-    expect(result.toolDescriptions).toBe('');
-    expect(result.flagInjections).toBe('');
+    expect(result.vars).toEqual({ ...config.snippets });
     expect(result.totalTokens).toBe(0);
   });
 
-  test('maps flag_injections → flagInjections', async () => {
-    const q = makeQuery('flag_injections', 0, 'be concise', 10, 'never');
-    const result = await assembleContext(dummyMsg, dummyAgent, [q]);
-    expect(result.flagInjections).toBe('be concise');
-  });
-
-  test('maps conversation → conversation', async () => {
+  test('query result lands in vars keyed by query name', async () => {
     const q = makeQuery('conversation', 3, 'User: hi\n\nKlaus: hello', 20, 'oldest');
     const result = await assembleContext(dummyMsg, dummyAgent, [q]);
-    expect(result.conversation).toBe('User: hi\n\nKlaus: hello');
+    expect(result.vars['conversation']).toBe('User: hi\n\nKlaus: hello');
   });
 
-  test('maps all five known query names', async () => {
+  test('all query results land in vars', async () => {
     const queries = [
-      makeQuery('flag_injections', 0, 'flags', 5, 'never'),
-      makeQuery('tool_descriptions', 1, 'tools', 5, 'never'),
       makeQuery('graph_context', 2, 'graph', 5, 'always'),
       makeQuery('conversation', 3, 'convo', 5, 'oldest'),
       makeQuery('active_tasks', 4, 'tasks', 5, 'always'),
     ];
     const result = await assembleContext(dummyMsg, dummyAgent, queries);
-    expect(result.flagInjections).toBe('flags');
-    expect(result.toolDescriptions).toBe('tools');
-    expect(result.graphContext).toBe('graph');
-    expect(result.conversation).toBe('convo');
-    expect(result.activeTasks).toBe('tasks');
+    expect(result.vars['graph_context']).toBe('graph');
+    expect(result.vars['conversation']).toBe('convo');
+    expect(result.vars['active_tasks']).toBe('tasks');
   });
 
-  test('unknown query name is silently ignored', async () => {
+  test('arbitrary query names land in vars', async () => {
     const q = makeQuery('unknown_thing', 2, 'whatever', 5, 'always');
     const result = await assembleContext(dummyMsg, dummyAgent, [q]);
-    expect(result.totalTokens).toBe(5); // counted in budget
-    expect(result.conversation).toBe(''); // but not mapped to any field
+    expect(result.totalTokens).toBe(5);
+    expect(result.vars['unknown_thing']).toBe('whatever');
   });
 
   test('sums tokenCount across all queries', async () => {
     const queries = [
       makeQuery('conversation', 3, 'a', 300, 'oldest'),
-      makeQuery('flag_injections', 0, 'b', 700, 'never'),
+      makeQuery('graph_context', 2, 'b', 700, 'always'),
     ];
     const result = await assembleContext(dummyMsg, dummyAgent, queries);
     expect(result.totalTokens).toBe(1000);
@@ -100,29 +87,31 @@ describe('assembleContext', () => {
       priority: 3,
       run: async () => { throw new Error('DB exploded'); },
     };
-    const good = makeQuery('flag_injections', 0, 'flags', 5, 'never');
+    const good = makeQuery('graph_context', 2, 'graph data', 5, 'always');
     const result = await assembleContext(dummyMsg, dummyAgent, [bad, good]);
-    expect(result.flagInjections).toBe('flags');
-    expect(result.conversation).toBe(''); // failed, stays empty
+    expect(result.vars['graph_context']).toBe('graph data');
+    expect(result.vars['conversation']).toBeUndefined(); // failed, not set
   });
 
-  // ─── !flags from msg.text ────────────────────────────────────────────────
+  // ─── flag injections ──────────────────────────────────────────────────────
 
-  test('!flags in msg.text are parsed and passed to flagsQuery via turn.flags', async () => {
-    // flagsQuery reads turn.flags built by assembleContext from parseFlags(msg)
-    // Using a spy query to verify turn.flags is correctly set
-    let capturedFlags: Record<string, boolean> | undefined;
-    const spyQuery: ContextQuery = {
-      name: 'flag_injections',
-      priority: 0,
-      run: async (turn) => {
-        capturedFlags = turn.flags;
-        return { content: '', tokenCount: 0, truncate: 'never' };
-      },
-    };
-    const msgWithFlag: InboundMessage = { ...dummyMsg, text: '!verbose do this' };
-    await assembleContext(msgWithFlag, dummyAgent, [spyQuery]);
-    expect(capturedFlags).toEqual({ verbose: true });
+
+  test('!test in msg → flags gets test prompt string', async () => {
+    const msg: InboundMessage = { ...dummyMsg, text: '!test do this' };
+    const result = await assembleContext(msg, dummyAgent, []);
+    expect(result.vars['flags']).toBe(config.flags.test);
+  });
+
+  test('unknown flag → flags var is undefined', async () => {
+    const msg: InboundMessage = { ...dummyMsg, text: '!unknown do this' };
+    const result = await assembleContext(msg, dummyAgent, []);
+    expect(result.vars['flags']).toBeUndefined();
+  });
+
+  test('flagInjections are not counted in totalTokens', async () => {
+    const msg: InboundMessage = { ...dummyMsg, text: '!test do this' };
+    const result = await assembleContext(msg, dummyAgent, []);
+    expect(result.totalTokens).toBe(0);
   });
 
   // ─── trimming: always ─────────────────────────────────────────────────────
@@ -131,38 +120,37 @@ describe('assembleContext', () => {
     // 50_000 + 40_000 = 90_000 < 100_000 → no trim
     const queries = [
       makeQuery('graph_context', 2, 'graph content', 50_000, 'always'),
-      makeQuery('flag_injections', 0, 'flags', 40_000, 'never'),
+      makeQuery('conversation', 3, 'convo', 40_000, 'oldest'),
     ];
     const result = await assembleContext(dummyMsg, dummyAgent, queries);
-    expect(result.graphContext).toBe('graph content');
-    expect(result.flagInjections).toBe('flags');
+    expect(result.vars['graph_context']).toBe('graph content');
+    expect(result.vars['conversation']).toBe('convo');
     expect(result.totalTokens).toBe(90_000);
   });
 
   test('over budget: always-truncate query is cleared (priority 2 trimmed before priority 3)', async () => {
     // 60_000 + 60_000 = 120_000 > 100_000 → excess 20_000
     // graph_context (priority 2, always) is trimmed before conversation (priority 3, oldest)
-    // Lower priority number = trimmed first
     const queries = [
       makeQuery('graph_context', 2, 'graph content', 60_000, 'always'),
       makeQuery('conversation', 3, 'Turn 1\n\nTurn 2', 60_000, 'oldest'),
     ];
     const result = await assembleContext(dummyMsg, dummyAgent, queries);
-    expect(result.graphContext).toBe('');
-    expect(result.conversation).toBe('Turn 1\n\nTurn 2'); // untouched
+    expect(result.vars['graph_context']).toBe('');
+    expect(result.vars['conversation']).toBe('Turn 1\n\nTurn 2'); // untouched
     expect(result.totalTokens).toBe(60_000);
   });
 
   test('over budget: never-truncate is protected even with lowest priority number', async () => {
-    // flags (priority 0, never) cannot be trimmed even though it has the lowest priority number
+    // conversation (priority 1, never) cannot be trimmed
     // graph_context (priority 2, always) is trimmed instead
     const queries = [
-      makeQuery('flag_injections', 0, 'important flags', 60_000, 'never'),
+      makeQuery('conversation', 1, 'important convo', 60_000, 'never'),
       makeQuery('graph_context', 2, 'less important graph', 60_000, 'always'),
     ];
     const result = await assembleContext(dummyMsg, dummyAgent, queries);
-    expect(result.flagInjections).toBe('important flags'); // protected
-    expect(result.graphContext).toBe(''); // cleared
+    expect(result.vars['conversation']).toBe('important convo'); // protected
+    expect(result.vars['graph_context']).toBe(''); // cleared
   });
 
   // ─── trimming: oldest ────────────────────────────────────────────────────
@@ -175,21 +163,20 @@ describe('assembleContext', () => {
     ];
     const result = await assembleContext(dummyMsg, dummyAgent, queries);
     // First block removed to cover excess of 3
-    expect(result.conversation).not.toContain('Block 1');
-    expect(result.conversation).toContain('Block 2');
-    expect(result.conversation).toContain('Block 3');
+    expect(result.vars['conversation']).not.toContain('Block 1');
+    expect(result.vars['conversation']).toContain('Block 2');
+    expect(result.vars['conversation']).toContain('Block 3');
   });
 
   test('over budget: oldest clears content if all blocks must be removed', async () => {
     // 60_000 + 60_000 = 120_000 > 100_000 → excess 20_000
     // Only conversation (oldest) is trimmable; it gets drained entirely
     const queries = [
-      makeQuery('flag_injections', 0, 'protected', 60_000, 'never'),
+      makeQuery('graph_context', 2, 'important graph', 60_000, 'never'),
       makeQuery('conversation', 3, 'Turn 1\n\nTurn 2', 60_000, 'oldest'),
     ];
     const result = await assembleContext(dummyMsg, dummyAgent, queries);
-    // All blocks removed (each block is tiny vs the 20k excess)
-    expect(result.conversation).toBe('');
+    expect(result.vars['conversation']).toBe('');
   });
 
   // ─── totalTokens reflects post-trim state ────────────────────────────────
@@ -197,7 +184,7 @@ describe('assembleContext', () => {
   test('totalTokens reflects post-trim state', async () => {
     const queries = [
       makeQuery('graph_context', 2, 'stuff', 80_000, 'always'),
-      makeQuery('flag_injections', 0, 'flags', 40_000, 'never'),
+      makeQuery('conversation', 3, 'convo', 40_000, 'never'),
     ];
     // Pre-trim total: 120_000. graph_context (priority 2, always) cleared → 40_000.
     const result = await assembleContext(dummyMsg, dummyAgent, queries);

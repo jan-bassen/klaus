@@ -7,8 +7,8 @@ import type {
   nodeVersions,
   tasks,
   messages,
-  llmCosts,
   files,
+  agentInvocations,
 } from './db/schema';
 import type { ModelTier } from './config';
 
@@ -20,8 +20,8 @@ export type Chunk = InferSelectModel<typeof chunks>;
 export type NodeVersion = InferSelectModel<typeof nodeVersions>;
 export type Task = InferSelectModel<typeof tasks>;
 export type Message = InferSelectModel<typeof messages>;
-export type LlmCost = InferSelectModel<typeof llmCosts>;
 export type File = InferSelectModel<typeof files>;
+export type AgentInvocation = InferSelectModel<typeof agentInvocations>;
 
 // -- WhatsApp / transport --
 
@@ -55,14 +55,13 @@ export interface TurnContext {
   agent: AgentDefinition;
   flags: Record<string, boolean>;
   assembled: AssembledContext;
+  /** DB ID of the persisted inbound message row — set in pipeline after insert */
+  messageId?: string;
 }
 
 export interface AssembledContext {
-  conversation: string;
-  graphContext: string;
-  activeTasks: string;
-  toolDescriptions: string;
-  flagInjections: string;
+  /** Context variables keyed by query name — directly available as {{variable}} in prompts */
+  vars: Record<string, string>;
   totalTokens: number;
 }
 
@@ -77,7 +76,11 @@ export interface AgentDefinition {
   name: string;
   modelTier: ModelTier;
   tools: string[];
+  /** Toolset names — expanded to all `{name}.*` tools at runtime */
+  toolsets?: string[];
   hooks?: AgentHookConfig[];
+  /** Per-query params from the agent's YAML `context:` section, keyed by query name. */
+  contextParams?: Record<string, Record<string, unknown>>;
   /** Absolute path to the .md file — used for hot-reload */
   promptPath: string;
 }
@@ -116,7 +119,7 @@ export interface ContextQuery {
   name: string;
   /** Lower number = trimmed first on overflow */
   priority: number;
-  run(turn: Omit<TurnContext, 'assembled'>): Promise<ContextResult>;
+  run(turn: Omit<TurnContext, 'assembled'>, params?: Record<string, unknown>): Promise<ContextResult>;
 }
 
 export interface ContextResult {

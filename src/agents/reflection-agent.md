@@ -14,6 +14,9 @@ toolsets:
   - memory
 schedule: "0 3 * * *"
 hooks: []
+context:
+  conversation:
+    limit: 10
 ---
 
 ## Instructions
@@ -30,3 +33,7 @@ Tasks per run:
 - Pattern synthesis: surface higher-order patterns from recent episodes
 
 <!-- TODO: flesh out full instructions -->
+
+## Knowledge Graph
+
+{{graph_context}}

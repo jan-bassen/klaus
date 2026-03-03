@@ -5,6 +5,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
   type WASocket,
 } from '@whiskeysockets/baileys';
+import { log } from '@/logger';
 
 let socket: WASocket | null = null;
 
@@ -15,44 +16,61 @@ const AUTH_DIR =
  * Initialize Baileys, handle QR pairing on first run, and manage reconnects.
  * Returns the active WASocket once the connection is open.
  *
- * On disconnect: logs the reason. If not a deliberate logout, the process
- * should be restarted by the supervisor (PM2, systemd, Docker restart policy).
+ * Uses an inner connect() loop so reconnects never create concurrent sockets.
+ * On loggedOut: rejects the startup promise (or exits if already running).
+ * On any other disconnect: waits 1.5s and reconnects with the same auth state.
  */
 export async function startConnection(): Promise<WASocket> {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
 
   return new Promise<WASocket>((resolve, reject) => {
-    const sock = makeWASocket({
-      version,
-      auth: state,
-      printQRInTerminal: true,
-    });
+    let settled = false;
 
-    sock.ev.on('creds.update', saveCreds);
+    function connect(): void {
+      const allowedJid = process.env.ALLOWED_CHAT_ID ?? '';
+      const sock = makeWASocket({
+        version,
+        auth: state,
+        printQRInTerminal: true,
+        // Drop all events for JIDs that aren't the whitelisted chat — fail-closed
+        // when ALLOWED_CHAT_ID is unset (empty string never matches any real JID).
+        shouldIgnoreJid: (jid) => jid !== allowedJid,
+      });
 
-    sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
-      if (connection === 'open') {
-        socket = sock;
-        console.log('[whatsapp] connected');
-        resolve(sock);
-      } else if (connection === 'close') {
-        const code = (
-          lastDisconnect?.error as { output?: { statusCode?: number } } | undefined
-        )?.output?.statusCode;
+      sock.ev.on('creds.update', saveCreds);
 
-        if (code === DisconnectReason.loggedOut) {
-          const msg = '[whatsapp] logged out — delete .baileys-auth and restart';
-          console.error(msg);
-          // Only reject if we haven't resolved yet (never connected)
-          reject(new Error(msg));
-        } else {
-          console.warn(
-            `[whatsapp] disconnected (code ${code ?? 'unknown'}) — restart process to reconnect`,
-          );
+      sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+        if (connection === 'open') {
+          socket = sock;
+          log.info('[connection] connected');
+          if (!settled) {
+            settled = true;
+            resolve(sock);
+          }
+        } else if (connection === 'close') {
+          socket = null;
+          const code = (
+            lastDisconnect?.error as { output?: { statusCode?: number } } | undefined
+          )?.output?.statusCode;
+
+          if (code === DisconnectReason.loggedOut) {
+            log.error('[connection] logged out — delete auth folder and restart', { authDir: AUTH_DIR });
+            if (!settled) {
+              settled = true;
+              reject(new Error('WhatsApp logged out'));
+            } else {
+              process.exit(1);
+            }
+          } else {
+            log.warn('[connection] disconnected', { code: code ?? 'unknown' });
+            setTimeout(connect, 1_500);
+          }
         }
-      }
-    });
+      });
+    }
+
+    connect();
   });
 }
 

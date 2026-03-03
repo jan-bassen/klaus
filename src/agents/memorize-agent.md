@@ -47,3 +47,7 @@ You MUST return valid JSON as your final response, matching this shape:
 ```
 
 Set `fire: false` always — this agent has no downstream hooks.
+
+## Conversation History
+
+{{conversation}}

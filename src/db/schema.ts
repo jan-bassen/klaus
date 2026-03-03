@@ -140,8 +140,6 @@ export const messages = pgTable('messages', {
   chatId: text('chat_id').notNull(),
   role: text('role').notNull(),
   content: text('content'),
-  toolCalls: jsonb('tool_calls'),
-  tokensUsed: integer('tokens_used'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -156,16 +154,6 @@ export const tasks = pgTable('tasks', {
   completedAt: timestamp('completed_at', { withTimezone: true }),
 });
 
-export const llmCosts = pgTable('llm_costs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  messageId: uuid('message_id').references(() => messages.id),
-  taskId: uuid('task_id').references(() => tasks.id),
-  model: text('model').notNull(),
-  promptTokens: integer('prompt_tokens').notNull(),
-  completionTokens: integer('completion_tokens').notNull(),
-  costUsd: numeric('cost_usd', { precision: 10, scale: 6 }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
 
 export const llmBudgets = pgTable('llm_budgets', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -186,3 +174,21 @@ export const files = pgTable('files', {
   nodeId: uuid('node_id').references(() => nodes.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const agentInvocations = pgTable('agent_invocations', {
+  id:               uuid('id').primaryKey().defaultRandom(),
+  messageId:        uuid('message_id').references(() => messages.id),
+  taskId:           uuid('task_id').references(() => tasks.id),
+  agent:            text('agent').notNull(),
+  model:            text('model').notNull(),
+  systemPrompt:     text('system_prompt'),
+  userMessage:      text('user_message'),
+  steps:            jsonb('steps').notNull().default(sql`'[]'::jsonb`),
+  promptTokens:     integer('prompt_tokens'),
+  completionTokens: integer('completion_tokens'),
+  costUsd:          numeric('cost_usd', { precision: 10, scale: 6 }),
+  durationMs:       integer('duration_ms'),
+  createdAt:        timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('idx_agent_invocations_message').on(t.messageId),
+]);

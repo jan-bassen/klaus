@@ -12,9 +12,13 @@ const mockGenerateText = mock(async (_opts: Record<string, unknown>) => ({
 const mockInsert = mock(() => ({ values: mock(async () => [{}]) }));
 const mockDb = { insert: mockInsert };
 
+const mockStepCountIs = mock((n: number) => ({ __stepCount: n }));
+
 mock.module('ai', () => ({
   generateText: mockGenerateText,
   embed: mock(async () => ({ embedding: [], usage: { tokens: 0 } })),
+  stepCountIs: mockStepCountIs,
+  tool: mock((opts: unknown) => opts),
 }));
 mock.module('@ai-sdk/anthropic', () => ({ anthropic: mock((id: string) => ({ id })) }));
 mock.module('../../db/client', () => ({ db: mockDb }));
@@ -63,8 +67,7 @@ describe('callModel', () => {
   });
 
   test('throws when LLM rate limit is exceeded', async () => {
-    // Exhaust the 60 calls/min limit
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < config.rateLimits.modelCalls.max; i++) {
       await callModel(BASE_OPTS);
     }
     await expect(callModel(BASE_OPTS)).rejects.toThrow('LLM rate limit exceeded');
@@ -91,16 +94,16 @@ describe('callModel', () => {
     expect((opts as { system?: string }).system).toBe('You are a test agent.');
   });
 
-  test('passes tools and maxSteps when tools provided', async () => {
+  test('passes tools and stopWhen when tools provided', async () => {
     const fakeTools = { reply: { description: 'Reply', parameters: {}, execute: async () => 'sent' } };
     await callModel({ ...BASE_OPTS, tools: fakeTools as never });
     const [opts] = mockGenerateText.mock.calls[0]!;
-    expect((opts as { maxSteps?: number }).maxSteps).toBe(10);
+    expect((opts as { stopWhen?: unknown }).stopWhen).toEqual({ __stepCount: 10 });
   });
 
-  test('does not set maxSteps when no tools provided', async () => {
+  test('does not set stopWhen when no tools provided', async () => {
     await callModel(BASE_OPTS);
     const [opts] = mockGenerateText.mock.calls[0]!;
-    expect((opts as { maxSteps?: number }).maxSteps).toBeUndefined();
+    expect((opts as { stopWhen?: unknown }).stopWhen).toBeUndefined();
   });
 });

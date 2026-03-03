@@ -3,6 +3,7 @@ import { db } from '@/db/client';
 import { messages } from '@/db/schema';
 import { conversationQuery } from '@/context/conversation';
 import { describeDb, setupTestDb } from './helpers';
+import { config } from '@/config';
 import type { AgentDefinition, InboundMessage } from '@/types';
 
 setupTestDb();
@@ -33,7 +34,7 @@ async function insertMessage(
   chatId: string,
   role: 'user' | 'assistant',
   content: string,
-  opts?: { tokensUsed?: number; createdAt?: Date },
+  opts?: { createdAt?: Date },
 ) {
   const [row] = await db
     .insert(messages)
@@ -41,7 +42,6 @@ async function insertMessage(
       chatId: chatId,
       role,
       content,
-      tokensUsed: opts?.tokensUsed ?? null,
       createdAt: opts?.createdAt ?? new Date(),
     })
     .returning();
@@ -117,13 +117,7 @@ describeDb('conversationQuery', () => {
     expect(result.content).toBe('User: visible');
   });
 
-  test('tokenCount uses stored tokensUsed when available', async () => {
-    await insertMessage(CHAT_ID, 'user', 'hi', { tokensUsed: 42 });
-    const result = await conversationQuery.run(turn);
-    expect(result.tokenCount).toBe(42);
-  });
-
-  test('tokenCount falls back to char/4 estimate when tokensUsed is null', async () => {
+  test('tokenCount uses char/4 estimate', async () => {
     const content = 'hello'; // 5 chars → Math.ceil(5/4) = 2 tokens
     await insertMessage(CHAT_ID, 'user', content);
     const result = await conversationQuery.run(turn);
@@ -131,22 +125,23 @@ describeDb('conversationQuery', () => {
   });
 
   test('token budget stops including oldest messages when exceeded', async () => {
-    // Insert 3 messages each claiming 8000 tokens → total would be 24000 > 20000 budget
-    // Only the 2 newest should be included
+    // Each message = 40% of budget in tokens → 2 fit (80%), 3 don't (120%)
+    const budget = config.context.conversationTokens;
+    const tokensPerMsg = Math.ceil(budget * 2 / 5);
+    const charsPerMsg = tokensPerMsg * 4;
+    const pad = (label: string) => label + 'x'.repeat(charsPerMsg - label.length);
     const t0 = new Date('2024-01-01T10:00:00Z');
     const t1 = new Date('2024-01-01T10:01:00Z');
     const t2 = new Date('2024-01-01T10:02:00Z');
-    await insertMessage(CHAT_ID, 'user', 'oldest message', { tokensUsed: 8_000, createdAt: t0 });
-    await insertMessage(CHAT_ID, 'assistant', 'middle message', { tokensUsed: 8_000, createdAt: t1 });
-    await insertMessage(CHAT_ID, 'user', 'newest message', { tokensUsed: 8_000, createdAt: t2 });
+    await insertMessage(CHAT_ID, 'user', pad('oldest message'), { createdAt: t0 });
+    await insertMessage(CHAT_ID, 'assistant', pad('middle message'), { createdAt: t1 });
+    await insertMessage(CHAT_ID, 'user', pad('newest message'), { createdAt: t2 });
 
     const result = await conversationQuery.run(turn);
-    // Newest-first selection: newest (8k) + middle (8k) = 16k < 20k budget ✓
-    // oldest (8k) would make 24k > 20k budget ✗
     expect(result.content).not.toContain('oldest message');
     expect(result.content).toContain('middle message');
     expect(result.content).toContain('newest message');
-    expect(result.tokenCount).toBe(16_000);
+    expect(result.tokenCount).toBe(2 * tokensPerMsg);
   });
 
   test('name and priority are correct', () => {

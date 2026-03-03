@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { FLAG_MAP, parseFlags, stripFlags } from '@/whatsapp/flags';
+import { parseFlags, stripFlags } from '@/whatsapp/flags';
+import { config } from '@/config';
 import type { InboundMessage } from '@/types';
 
 function makeMsg(text?: string): InboundMessage {
@@ -15,6 +16,11 @@ function makeMsg(text?: string): InboundMessage {
   return base;
 }
 
+// Derive flag names from config so tests never break when flags are added/removed
+const knownFlags = Object.keys(config.flags);
+const flagA = knownFlags[0]!;
+const flagB = knownFlags[1] ?? knownFlags[0]!; // same as flagA when only one flag exists
+
 describe('parseFlags', () => {
   test('returns {} when text is undefined', () => {
     expect(parseFlags(makeMsg(undefined))).toEqual({});
@@ -29,28 +35,21 @@ describe('parseFlags', () => {
   });
 
   test('parses a single known flag at the start', () => {
-    expect(parseFlags(makeMsg('!verbose tell me more'))).toEqual({
-      verbose: true,
-    });
+    expect(parseFlags(makeMsg(`!${flagA} tell me more`))).toEqual({ [flagA]: true });
   });
 
   test('parses a single known flag at the end', () => {
-    expect(parseFlags(makeMsg('explain this !concise'))).toEqual({
-      concise: true,
-    });
+    expect(parseFlags(makeMsg(`explain this !${flagA}`))).toEqual({ [flagA]: true });
   });
 
   test('parses a flag mid-sentence', () => {
-    expect(parseFlags(makeMsg('please !raw give me the data'))).toEqual({
-      raw: true,
-    });
+    expect(parseFlags(makeMsg(`please !${flagA} give me the data`))).toEqual({ [flagA]: true });
   });
 
   test('parses multiple known flags', () => {
-    expect(parseFlags(makeMsg('!verbose !debug explain'))).toEqual({
-      verbose: true,
-      debug: true,
-    });
+    const text = `!${flagA} !${flagB} explain`;
+    const expected = { [flagA]: true, [flagB]: true };
+    expect(parseFlags(makeMsg(text))).toEqual(expected);
   });
 
   test('ignores unknown flags', () => {
@@ -58,45 +57,36 @@ describe('parseFlags', () => {
   });
 
   test('returns only known flags when mixed with unknown', () => {
-    expect(parseFlags(makeMsg('!verbose !banana !debug'))).toEqual({
-      verbose: true,
-      debug: true,
-    });
+    expect(parseFlags(makeMsg(`!${flagA} !banana`))).toEqual({ [flagA]: true });
   });
 
   test('handles duplicate flags idempotently', () => {
-    expect(parseFlags(makeMsg('!verbose !verbose'))).toEqual({
-      verbose: true,
-    });
+    expect(parseFlags(makeMsg(`!${flagA} !${flagA}`))).toEqual({ [flagA]: true });
   });
 
   test('is case-sensitive — uppercase flags are not recognized', () => {
-    expect(parseFlags(makeMsg('!Verbose !DEBUG'))).toEqual({});
+    const upper = flagA.charAt(0).toUpperCase() + flagA.slice(1);
+    expect(parseFlags(makeMsg(`!${upper}`))).toEqual({});
   });
 
   test('does not match a bare ! with no name', () => {
     expect(parseFlags(makeMsg('hey ! what'))).toEqual({});
   });
 
-  test('parses all four built-in flags', () => {
-    expect(
-      parseFlags(makeMsg('!verbose !concise !debug !raw')),
-    ).toEqual({
-      verbose: true,
-      concise: true,
-      debug: true,
-      raw: true,
-    });
+  test('parses all flags defined in config', () => {
+    const text = knownFlags.map((f) => `!${f}`).join(' ');
+    const expected = Object.fromEntries(knownFlags.map((f) => [f, true]));
+    expect(parseFlags(makeMsg(text))).toEqual(expected);
   });
 });
 
 describe('stripFlags', () => {
   test('removes a recognized flag and trims', () => {
-    expect(stripFlags('!verbose tell me more')).toBe('tell me more');
+    expect(stripFlags(`!${flagA} tell me more`)).toBe('tell me more');
   });
 
   test('removes multiple recognized flags', () => {
-    expect(stripFlags('!verbose !debug explain this')).toBe('explain this');
+    expect(stripFlags(`!${flagA} !${flagB} explain this`)).toBe('explain this');
   });
 
   test('leaves unknown !words intact', () => {
@@ -104,15 +94,15 @@ describe('stripFlags', () => {
   });
 
   test('removes only recognized flags among mixed tokens', () => {
-    expect(stripFlags('!verbose !banana !raw data')).toBe('!banana data');
+    expect(stripFlags(`!${flagA} !banana data`)).toBe('!banana data');
   });
 
   test('collapses extra whitespace', () => {
-    expect(stripFlags('  !verbose   tell   me  ')).toBe('tell me');
+    expect(stripFlags(`  !${flagA}   tell   me  `)).toBe('tell me');
   });
 
   test('returns empty string when only flags remain', () => {
-    expect(stripFlags('!verbose !concise')).toBe('');
+    expect(stripFlags(`!${flagA} !${flagB}`)).toBe('');
   });
 
   test('returns the text unchanged when no flags present', () => {
@@ -121,17 +111,5 @@ describe('stripFlags', () => {
 
   test('leaves bare ! intact', () => {
     expect(stripFlags('hey ! what')).toBe('hey ! what');
-  });
-});
-
-describe('FLAG_MAP', () => {
-  test('contains exactly 4 flags', () => {
-    expect(Object.keys(FLAG_MAP)).toHaveLength(4);
-  });
-
-  test('every flag has a non-empty promptInjection', () => {
-    for (const flag of Object.values(FLAG_MAP)) {
-      expect(flag.promptInjection.length).toBeGreaterThan(0);
-    }
   });
 });

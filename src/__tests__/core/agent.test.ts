@@ -17,15 +17,11 @@ import type { TurnContext, AssembledContext } from '@/types';
 // ---- runAgent helpers ----
 
 const emptyAssembled: AssembledContext = {
-  conversation: '',
-  graphContext: '',
-  activeTasks: '',
-  toolDescriptions: '',
-  flagInjections: '',
+  vars: {},
   totalTokens: 0,
 };
 
-function makeTurn(overrides: Partial<AssembledContext> = {}): TurnContext {
+function makeTurn(vars: Record<string, string> = {}): TurnContext {
   return {
     msg: {
       kind: 'whatsapp',
@@ -43,7 +39,7 @@ function makeTurn(overrides: Partial<AssembledContext> = {}): TurnContext {
       promptPath: '/dev/null',
     },
     flags: {},
-    assembled: { ...emptyAssembled, ...overrides },
+    assembled: { ...emptyAssembled, vars },
   };
 }
 
@@ -126,6 +122,62 @@ describe('loadAgentDefinition', () => {
     });
   });
 
+  // --- contextParams: YAML ---
+
+  test('context: YAML key is parsed into contextParams', async () => {
+    const fm = 'name: ctx-agent\nmodelTier: default\ntools: []\nhooks: []\ncontext:\n  conversation:\n    limit: 10';
+    await withFixture('ctx-yaml', fm, '## Hi\n', async (p) => {
+      const def = await loadAgentDefinition(p);
+      expect(def.contextParams?.conversation?.limit).toBe(10);
+    });
+  });
+
+  // --- contextParams: inline ---
+
+  test('{{name?key=val}} in body is parsed into contextParams', async () => {
+    const fm = 'name: inline-agent\nmodelTier: default\ntools: []\nhooks: []';
+    await withFixture('ctx-inline', fm, '{{conversation?limit=5}}\n', async (p) => {
+      const def = await loadAgentDefinition(p);
+      expect(def.contextParams?.conversation?.limit).toBe(5);
+    });
+  });
+
+  test('inline params are parsed as numbers when numeric', async () => {
+    const fm = 'name: num-agent\nmodelTier: default\ntools: []\nhooks: []';
+    await withFixture('ctx-num', fm, '{{graph_context?limit=20&offset=5}}\n', async (p) => {
+      const def = await loadAgentDefinition(p);
+      expect(def.contextParams?.graph_context?.limit).toBe(20);
+      expect(def.contextParams?.graph_context?.offset).toBe(5);
+    });
+  });
+
+  test('inline params override YAML params per-key', async () => {
+    const fm = 'name: merge-agent\nmodelTier: default\ntools: []\nhooks: []\ncontext:\n  conversation:\n    limit: 100\n    offset: 0';
+    await withFixture('ctx-merge', fm, '{{conversation?limit=10}}\n', async (p) => {
+      const def = await loadAgentDefinition(p);
+      // inline limit wins, YAML offset is preserved
+      expect(def.contextParams?.conversation?.limit).toBe(10);
+      expect(def.contextParams?.conversation?.offset).toBe(0);
+    });
+  });
+
+  // --- toolsets ---
+
+  test('toolsets: YAML key is parsed into toolsets array', async () => {
+    const fm = 'name: ts-agent\nmodelTier: default\ntools: []\nhooks: []\ntoolsets: [memory, files]';
+    await withFixture('toolsets', fm, '## Hi\n', async (p) => {
+      const def = await loadAgentDefinition(p);
+      expect(def.toolsets).toEqual(['memory', 'files']);
+    });
+  });
+
+  test('missing toolsets produces no toolsets property', async () => {
+    await withFixture('no-toolsets', 'name: plain-agent\nmodelTier: default\ntools: []\nhooks: []', '## Hi\n', async (p) => {
+      const def = await loadAgentDefinition(p);
+      expect(def.toolsets).toBeUndefined();
+    });
+  });
+
   // --- unknown fields are ignored ---
 
   test('unknown frontmatter fields are silently ignored', async () => {
@@ -176,7 +228,7 @@ describe('runAgent', () => {
       content: '',
       usage: { promptTokens: 10, completionTokens: 5, costUsd: 0 },
     }));
-    await writeAgentFile(tmpPath, '## Instructions\nYou are a test agent.');
+    await writeAgentFile(tmpPath, '## Instructions\nYou are a test agent.\n\n{{conversation}}\n\n{{graph_context}}\n\n{{active_tasks}}\n\n{{flags}}');
   });
 
   const cleanup = () => { try { unlinkSync(tmpPath); } catch { /* already gone */ } };
@@ -210,8 +262,21 @@ describe('runAgent', () => {
     expect((opts as { system: string }).system).toContain('User: hi');
   });
 
+  test('{{name?params}} placeholder resolves to var value (params stripped from output)', async () => {
+    const p = path.join(import.meta.dir, '__inline-params.md');
+    await Bun.write(p, '---\nname: test-agent\nmodelTier: default\ntools: []\nhooks: []\n---\n## Instructions\n{{conversation?limit=5}}\n');
+    const turn = makeTurn({ conversation: 'User: hey' });
+    turn.agent.promptPath = p;
+    await runAgent(turn, turn.agent);
+    try { unlinkSync(p); } catch { /* gone */ }
+    const opts = lastArg(mockCallModel);
+    const system = (opts as { system: string }).system;
+    expect(system).toContain('User: hey');
+    expect(system).not.toContain('?limit=5');
+  });
+
   test('system prompt includes graph context when present', async () => {
-    const turn = makeTurn({ graphContext: '### Node Title\nsome body text' });
+    const turn = makeTurn({ graph_context: '### Node Title\nsome body text' });
     turn.agent.promptPath = tmpPath;
     await runAgent(turn, turn.agent);
     cleanup();
@@ -262,6 +327,26 @@ describe('runAgent', () => {
     const opts = lastArg(mockCallModel);
     expect((opts as { tools?: Record<string, unknown> }).tools).toBeDefined();
     expect((opts as { tools: Record<string, unknown> }).tools['test-tool']).toBeDefined();
+  });
+
+  test('tools from def.toolsets are expanded and wired into callModel', async () => {
+    const executeFn = mock(async () => 'ok');
+    registerTool({
+      name: 'ts.alpha',
+      description: 'A toolset tool',
+      inputSchema: z.object({ x: z.string() }),
+      execute: executeFn,
+      kind: 'builtin',
+      capability: 'tool',
+    });
+    const turn = makeTurn();
+    turn.agent = { ...turn.agent, toolsets: ['ts'], promptPath: tmpPath };
+    await runAgent(turn, turn.agent);
+    cleanup();
+    toolRegistry.delete('ts.alpha');
+    const opts = lastArg(mockCallModel);
+    expect((opts as { tools?: Record<string, unknown> }).tools).toBeDefined();
+    expect((opts as { tools: Record<string, unknown> }).tools['ts_alpha']).toBeDefined();
   });
 
   test('unknown tools are silently omitted from callModel', async () => {
