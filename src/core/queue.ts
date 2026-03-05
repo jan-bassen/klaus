@@ -24,6 +24,7 @@ export async function initQueue(): Promise<PgBoss> {
     process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/klaus',
   );
   await b.start();
+  await b.createQueue('agent-run');
   boss = b;
   return b;
 }
@@ -47,7 +48,10 @@ export async function scheduleJob(
   schedule: string,
   payload: Omit<AgentRunPayload, 'taskId' | 'depth'>,
 ): Promise<void> {
-  await getQueue().schedule(agentName, schedule, payload);
+  const q = getQueue();
+  // pg-boss v10: schedule.name is a FK to queue.name, so the queue must exist first.
+  await q.createQueue(agentName);
+  await q.schedule(agentName, schedule, payload);
 }
 
 export async function stopQueue(): Promise<void> {

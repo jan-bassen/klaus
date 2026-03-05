@@ -56,7 +56,7 @@ Agent routes (`@think`, etc.) at the start of a message routes the turn directly
 
 ### Commands ( / )
 
-**Prefix commands** (`/start`, `/status`, `/abort`, `/switch` etc.) registered in `whatsapp/commands.ts`. Parsed from the message text since WhatsApp has no native command system. These provide direct control bypassing the LLM — useful for quick actions and as escape hatches.
+**Prefix commands** (`/start`, `/status`, `/abort`, `/switch` etc.) live in `src/commands/`. Parsed from the message text since WhatsApp has no native command system. These provide direct control bypassing the LLM — useful for quick actions and as escape hatches. Command parsing happens in `pipeline.ts` at the parse step (step 4, alongside `@agent` and `!flag` parsing); handlers live in `src/commands/` as business logic separate from the transport layer.
 
 ### Flags ( ! )
 
@@ -74,7 +74,7 @@ The `/whatsapp` layer is split into three focused files — each owns exactly on
 | `receive.ts`    | Raw message handler → normalize to `InboundMessage` (includes optional `media: { fileId, path, mimeType }` for images, voice notes, documents), auto-persist inbound blobs to files volume + `files` row, hand off to `pipeline.ts` |
 | `send.ts`       | Send queue: message ordering, dedup by composite key, WhatsApp rate-limit backoff, retry                                                                                                                                            |
 
-Pre-processing (auth, debounce, rate limiting) is **not** part of the transport layer — it lives in the core pipeline (see *Turn Pipeline*). `/commands` are the exception: parsed and executed at the transport layer since they bypass the LLM entirely.
+Pre-processing (auth, debounce, rate limiting) is **not** part of the transport layer — it lives in the core pipeline (see *Turn Pipeline*).
 
 ---
 
@@ -110,12 +110,12 @@ Every agent is a markdown file in `/src/agents/`. A new agent means adding a pro
 
 **Core default agents:**
 
-| **Agent**                      | **Model** | Context                                      | **Tools**                              | **Default Mode**  |
-| ------------------------------ | --------- | -------------------------------------------- | -------------------------------------- | ----------------- |
-| **Klaus** *(default)*          | `default` | Active tasks, last messages, related context | Standalone + surface + dynamic loading | sync (entry point) |
-| **Thinking Agent**             | `high`    | Active tasks, last messages, related context | Standalone + surface + dynamic loading | sync or async     |
+| **Agent**                      | **Model** | Context                                      | **Tools**                              | **Default Mode**                                         |
+| ------------------------------ | --------- | -------------------------------------------- | -------------------------------------- | -------------------------------------------------------- |
+| **Klaus** *(default)*          | `default` | Active tasks, last messages, related context | Standalone + surface + dynamic loading | sync (entry point)                                       |
+| **Thinking Agent**             | `high`    | Active tasks, last messages, related context | Standalone + surface + dynamic loading | sync or async                                            |
 | **Memorize Agent**             | `default` | Last messages, deep related context          | `memory.*`                             | async (dispatched by Klaus/thinking via `dispatch` tool) |
-| **Reflection Agent** *(daily)* | `default` | Message history, deep related context        | `memory.*`                             | async (scheduled cron) |
+| **Reflection Agent** *(daily)* | `default` | Message history, deep related context        | `memory.*`                             | async (scheduled cron)                                   |
 
 ### Dispatch System
 
@@ -157,12 +157,12 @@ Basic tools like web search/fetch etc are handled via the providers (Anthropic) 
 
 Tools are organized into on-demand **namespaced tool-sets** — domain-specific groups that keep the context window lean while enabling richer, more granular tools within each domain. Each available tool set is its own meta-tool for retrieval of the full set. Each tool set has its own folder in /src/tools with an index file for tool set level information. Meta-tool responses are pre-loaded and sticky to minimize latency.
 
-| **Tool-Set** | **Tools**                                                                                                                       | **Purpose**                                                                                                                                              |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **memory**   | `memory.search` *(surface)*, `memory.write`, `memory.read`, `memory.archive`, `memory.link`, `memory.unlink`, `memory.traverse` | Full graph lifecycle — node CRUD, typed edges, hybrid search across nodes and chunks (resolved to parent node) with graph expansion and traversal.       |
+| **Tool-Set** | **Tools**                                                                                                                       | **Purpose**                                                                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **memory**   | `memory.search` *(surface)*, `memory.write`, `memory.read`, `memory.archive`, `memory.link`, `memory.unlink`, `memory.traverse` | Full graph lifecycle — node CRUD, typed edges, hybrid search across nodes and chunks (resolved to parent node) with graph expansion and traversal.          |
 | **task**     | `dispatch` *(surface)*, `task.cancel`, `task.list`                                                                              | Agent dispatch + task lifecycle. `dispatch` invokes an agent inline/async/cron. `cancel` marks cancelled + removes pending job. `list` returns active tasks |
-| **ops**      | `ops.cron`, `ops.cost-tracking`, `ops.postgres-query`                                                                           | Scheduling, spend/budget queries, read-only named queries via `app_ro`                                                                                   |
-| **files**    | `files.upload`, `files.download`, `files.list`, `files.delete`                                                                  | Blob/media CRUD on files volume + `files` metadata table. Optional `nodeId` linking to associate files with graph nodes                                  |
+| **ops**      | `ops.cron`, `ops.cost-tracking`, `ops.postgres-query`                                                                           | Scheduling, spend/budget queries, read-only named queries via `app_ro`                                                                                      |
+| **files**    | `files.upload`, `files.download`, `files.list`, `files.delete`                                                                  | Blob/media CRUD on files volume + `files` metadata table. Optional `nodeId` linking to associate files with graph nodes                                     |
 
 ---
 
@@ -503,13 +503,13 @@ interface ContextResult {
 
 **Query suite:**
 
-| Query              | **Variable**        | Content                                                                                                        | **Priority** | **Trim**                                  |
-| ------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------- | ------------ | ----------------------------------------- |
-| `graph-context.ts` | `graph_context`     | Pinned nodes (always) + hybrid search across nodes and chunks (resolved to parent node) + 1-hop edge expansion | 2            | Truncate oldest                           |
-| `conversation.ts`  | `conversation`      | Last N messages from `messages` table                                                                          | 3            | Truncate oldest                           |
-| `tasks.ts`         | `active_tasks`      | Active (pending/running) tasks, hierarchical tree                                                              | 4            | Always (removed entirely if over budget)  |
-| `dispatch.ts`      | `dispatch_context`  | Caller, objective, hint, mode — injected for dispatched agents; empty for direct WhatsApp turns                | -1           | Never                                     |
-| `datetime.ts`      | `date` / `time`     | Formatted date and time (de-DE, Europe/Berlin timezone)                                                        | static       | Never (no token cost, static snippets)    |
+| Query              | **Variable**       | Content                                                                                                        | **Priority** | **Trim**                                 |
+| ------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------- | ------------ | ---------------------------------------- |
+| `graph-context.ts` | `graph_context`    | Pinned nodes (always) + hybrid search across nodes and chunks (resolved to parent node) + 1-hop edge expansion | 2            | Truncate oldest                          |
+| `conversation.ts`  | `conversation`     | Last N messages from `messages` table                                                                          | 3            | Truncate oldest                          |
+| `tasks.ts`         | `active_tasks`     | Active (pending/running) tasks, hierarchical tree                                                              | 4            | Always (removed entirely if over budget) |
+| `dispatch.ts`      | `dispatch_context` | Caller, objective, hint, mode — injected for dispatched agents; empty for direct WhatsApp turns                | -1           | Never                                    |
+| `datetime.ts`      | `date` / `time`    | Formatted date and time (de-DE, Europe/Berlin timezone)                                                        | static       | Never (no token cost, static snippets)   |
 
 **Flags** (`!flag` tokens) are parsed inline in `pipeline.ts` via `parseFlags()` and stored as `TurnContext.flags`. They are not a context query — `assemble.ts` injects them as static snippets with no token cost.
 
@@ -551,13 +551,16 @@ One implementation in `core/rate-limiter.ts`, **two distinct call sites:**
 
 **Everything is immutable code.** Changes = git push + autodeploy. Agent prompt files in `/src/agents/` support hot-reload: a file watcher detects changes and re-reads the `.md` file without restarting the process.
 
-| **What**                                                 | **Where**                     |
-| -------------------------------------------------------- | ----------------------------- |
-| Model tier map, context budgets, rate limits (see below) | `/src/config.ts`              |
-| Flag definitions                                         | `/src/whatsapp/flags.ts`      |
-| Agent definitions                                        | `/src/agents/`                |
-| All prompts                                              | `.md` files in `/src/agents/` |
-| Static queries                                           | `/src/db/queries/`            |
+**Everything is immutable code.** Changes = git push + autodeploy. Agent prompt files in `/src/agents/` support hot-reload: a file watcher detects changes and re-reads the `.md` file without restarting the process.
+
+| **What**                                                        | **Where**          |
+| --------------------------------------------------------------- | ------------------ |
+| Model tier map, context budgets, rate limits, flags (see below) | `/src/config.ts`   |
+| Agent definitions + prompts                                     | `/src/agents/`     |
+| Context queries                                                 | `/src/context/`    |
+| All tooling                                                     | `/src/tools/`      |
+| All commands                                                    | `/src/commands/`   |
+| Static queries                                                  | `/src/db/queries/` |
 
 ### Model Tier Map
 
@@ -701,8 +704,9 @@ async function simulateTurn(input: string, chatId?: string): Promise<TurnResult>
   /whatsapp
     receive.test.ts
     send.test.ts
-    commands.test.ts
     flags.test.ts
+  /commands
+    index.test.ts
   /tools
     memory.test.ts
     task.test.ts
@@ -751,9 +755,10 @@ Dockerfile
     send.ts                  — send queue: ordering, dedup by composite key, rate-limit backoff, retry
     voice.ts                 — [deferred] STT transcription + vision analysis
     tts.ts                   — [deferred] text-to-speech output
-    commands.ts              — prefix /commands (parsed from message text)
     flags.ts                 — !flag definitions + parsing
     confirm.ts               — [deferred] user confirmations for selected tools
+  /commands
+    index.ts                 — Command interface, CommandRegistry, parseCommand, registry
   /tools
     registry.ts              — tool registry + loading
     reply.ts                 — send messages, media, reactions, follow-up questions

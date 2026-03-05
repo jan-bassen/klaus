@@ -5,7 +5,7 @@ import { checkMessageRate } from './rate-limiter';
 import { runAgent, loadAgentDefinition, agentRegistry } from './agent';
 import { assembleContext } from './assemble';
 import { parseFlags, stripFlags } from '@/whatsapp/flags';
-import { parseCommand, registry as commandRegistry } from '@/whatsapp/commands';
+import { parseCommand, registry as commandRegistry } from '@/commands';
 import { enqueueMessage } from '@/whatsapp/send';
 import { db } from '@/db/client';
 import { messages } from '@/db/schema';

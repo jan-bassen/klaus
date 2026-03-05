@@ -27,7 +27,6 @@ export const registry = new CommandRegistry();
 /**
  * Parse a /command from a message.
  * Returns null if the message is not a command.
- * Commands are parsed and executed at the transport layer — they bypass the LLM entirely.
  */
 export function parseCommand(
   msg: InboundMessage,

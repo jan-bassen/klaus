@@ -3,7 +3,7 @@ import type PgBoss from 'pg-boss';
 import { getQueue } from './queue';
 import { runAgent, loadAgentDefinition, agentRegistry } from './agent';
 import { assembleContext } from './assemble';
-import { markTaskRunning, markTaskDone, markTaskFailed } from './dispatch';
+import { dispatch, markTaskRunning, markTaskDone, markTaskFailed } from './dispatch';
 import { log } from '@/logger';
 import type { AgentRunPayload } from './queue';
 import type { TurnContext } from '@/types';
@@ -59,4 +59,25 @@ export async function startWorkers(): Promise<void> {
       });
     }
   });
+
+  // Cron queues: each scheduled agent has its own pg-boss queue (schedule.name is a FK to
+  // queue.name). Register a thin worker per queue that re-dispatches into 'agent-run'.
+  for (const def of agentRegistry.values()) {
+    if (!def.schedule) continue;
+
+    await boss.work<Omit<AgentRunPayload, 'taskId' | 'depth'>>(def.name, async (jobs) => {
+      const job = jobs[0];
+      if (!job) return;
+      const { agentName, chatId, dispatchContext } = job.data;
+      log.info('[worker] cron trigger, re-dispatching', { agentName });
+      await dispatch({
+        agent: agentName,
+        objective: dispatchContext.objective,
+        ...(dispatchContext.hint ? { hint: dispatchContext.hint } : {}),
+        mode: { kind: 'async' },
+        chatId,
+        caller: 'scheduler',
+      });
+    });
+  }
 }
