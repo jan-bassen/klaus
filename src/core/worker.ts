@@ -2,15 +2,13 @@ import path from 'path';
 import type PgBoss from 'pg-boss';
 import { getQueue } from './queue';
 import { runAgent, loadAgentDefinition, agentRegistry } from './agent';
+import { assembleContext } from './assemble';
+import { markTaskRunning, markTaskDone, markTaskFailed } from './dispatch';
+import { log } from '@/logger';
 import type { AgentRunPayload } from './queue';
-import type { TurnContext, AsyncAgentInvocation, AssembledContext } from '@/types';
+import type { TurnContext } from '@/types';
 
 const AGENTS_DIR = path.join(import.meta.dir, '..', 'agents');
-
-const EMPTY_ASSEMBLED: AssembledContext = {
-  vars: {},
-  totalTokens: 0,
-};
 
 /**
  * Registers pgboss workers for all job types.
@@ -24,7 +22,7 @@ export async function startWorkers(): Promise<void> {
     const job = jobs[0];
     if (!job) return;
 
-    const { agentName, input } = job.data;
+    const { agentName, taskId, chatId, dispatchContext, depth } = job.data;
 
     let def = agentRegistry.get(agentName);
     if (!def) {
@@ -33,20 +31,32 @@ export async function startWorkers(): Promise<void> {
       agentRegistry.set(def.name, def);
     }
 
-    const msg: AsyncAgentInvocation = {
-      kind: 'async',
-      id: job.id,
-      taskId: job.data.taskId,
-      input,
-    };
-
-    const turn: TurnContext = {
-      msg,
+    // Build partial TurnContext for context assembly
+    const partialTurn: Omit<TurnContext, 'assembled'> = {
+      chatId,
+      taskId,
       agent: def,
       flags: {},
-      assembled: EMPTY_ASSEMBLED,
+      dispatchContext,
     };
 
-    await runAgent(turn, def);
+    await markTaskRunning(taskId);
+
+    try {
+      const assembled = await assembleContext(partialTurn);
+      const turn: TurnContext = { ...partialTurn, assembled };
+
+      log.info('[worker] starting agent', { agentName, taskId, depth });
+      await runAgent(turn, def);
+      await markTaskDone(taskId);
+      log.info('[worker] agent completed', { agentName, taskId });
+    } catch (err) {
+      await markTaskFailed(taskId);
+      log.error('[worker] agent failed', {
+        agentName,
+        taskId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   });
 }

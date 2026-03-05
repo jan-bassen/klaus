@@ -13,6 +13,7 @@ import {
   vector,
   index,
   unique,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -147,14 +148,18 @@ export const messages = pgTable('messages', {
 
 export const tasks = pgTable('tasks', {
   id: uuid('id').primaryKey().defaultRandom(),
+  chatId: text('chat_id').notNull(),
   objective: text('objective').notNull(),
   assignedTo: text('assigned_to'),
+  caller: text('caller'),
   status: taskStatusEnum('status').notNull(),
-  input: jsonb('input'),
   result: jsonb('result'),
+  parentTaskId: uuid('parent_task_id').references((): AnyPgColumn => tasks.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
-});
+}, (t) => [
+  index('idx_tasks_chat').on(t.chatId),
+]);
 
 
 export const llmBudgets = pgTable('llm_budgets', {

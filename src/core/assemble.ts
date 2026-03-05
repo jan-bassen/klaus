@@ -1,11 +1,9 @@
 import type {
-  InboundMessage,
-  AgentDefinition,
+  TurnContext,
   AssembledContext,
   ContextQuery,
   ContextResult,
 } from '@/types';
-import { parseFlags } from '@/whatsapp/flags';
 import { config } from '@/config';
 import { log } from '@/logger';
 
@@ -25,16 +23,12 @@ export function setContextQueries(queries: ContextQuery[]): void {
  * Pass an explicit list in tests to avoid depending on global state.
  */
 export async function assembleContext(
-  msg: InboundMessage,
-  agent: AgentDefinition,
+  turn: Omit<TurnContext, 'assembled'>,
   queries: ContextQuery[] = loadedQueries,
 ): Promise<AssembledContext> {
-  const flags = parseFlags(msg);
-  const turn = { msg, agent, flags };
-
   const settled = await Promise.allSettled(
     queries.map((q) => {
-      const params = agent.contextParams?.[q.name];
+      const params = turn.agent.contextParams?.[q.name];
       return q.run(turn, params).then((result) => ({ query: q, result }));
     }),
   );

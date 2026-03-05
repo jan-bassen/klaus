@@ -7,11 +7,13 @@ import type { AgentDefinition, InboundMessage } from '@/types';
 
 setupTestDb();
 
+const CHAT_ID = 'user@s.whatsapp.net';
+
 const dummyMsg: InboundMessage = {
   kind: 'whatsapp',
   id: 'msg-1',
-  chatId: 'user@s.whatsapp.net',
-  senderId: 'user@s.whatsapp.net',
+  chatId: CHAT_ID,
+  senderId: CHAT_ID,
   text: 'what tasks are running?',
   timestamp: new Date(),
   messageKey: {},
@@ -24,7 +26,7 @@ const dummyAgent: AgentDefinition = {
   promptPath: '/dev/null',
 };
 
-const turn = { msg: dummyMsg, agent: dummyAgent, flags: {} };
+const turn = { chatId: CHAT_ID, message: dummyMsg, agent: dummyAgent, flags: {} };
 
 describeDb('activeTasksQuery', () => {
   test('name and priority are correct', () => {
@@ -45,28 +47,28 @@ describeDb('activeTasksQuery', () => {
   });
 
   test('pending task appears in output', async () => {
-    await db.insert(tasks).values({ objective: 'Send weekly report', status: 'pending' });
+    await db.insert(tasks).values({ chatId: CHAT_ID, objective: 'Send weekly report', status: 'pending' });
     const result = await activeTasksQuery.run(turn);
     expect(result.content).toContain('[pending] Send weekly report');
   });
 
   test('running task appears in output', async () => {
-    await db.insert(tasks).values({ objective: 'Analyze data', status: 'running' });
+    await db.insert(tasks).values({ chatId: CHAT_ID, objective: 'Analyze data', status: 'running' });
     const result = await activeTasksQuery.run(turn);
     expect(result.content).toContain('[running] Analyze data');
   });
 
   test('done and failed tasks are excluded', async () => {
-    await db.insert(tasks).values({ objective: 'Finished task', status: 'done' });
-    await db.insert(tasks).values({ objective: 'Broken task', status: 'failed' });
+    await db.insert(tasks).values({ chatId: CHAT_ID, objective: 'Finished task', status: 'done' });
+    await db.insert(tasks).values({ chatId: CHAT_ID, objective: 'Broken task', status: 'failed' });
     const result = await activeTasksQuery.run(turn);
     expect(result.content).toBe('');
     expect(result.tokenCount).toBe(0);
   });
 
   test('multiple active tasks are each on their own line', async () => {
-    await db.insert(tasks).values({ objective: 'Task A', status: 'pending' });
-    await db.insert(tasks).values({ objective: 'Task B', status: 'running' });
+    await db.insert(tasks).values({ chatId: CHAT_ID, objective: 'Task A', status: 'pending' });
+    await db.insert(tasks).values({ chatId: CHAT_ID, objective: 'Task B', status: 'running' });
     const result = await activeTasksQuery.run(turn);
     const lines = result.content.split('\n');
     expect(lines.length).toBe(2);
@@ -75,7 +77,7 @@ describeDb('activeTasksQuery', () => {
   });
 
   test('tokenCount is non-zero when tasks are present', async () => {
-    await db.insert(tasks).values({ objective: 'Some work', status: 'pending' });
+    await db.insert(tasks).values({ chatId: CHAT_ID, objective: 'Some work', status: 'pending' });
     const result = await activeTasksQuery.run(turn);
     expect(result.tokenCount).toBeGreaterThan(0);
   });

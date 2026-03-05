@@ -25,7 +25,6 @@ const AGENTS_DIR = path.join(import.meta.dir, '..', 'agents');
  *   5. Route       → resolve target AgentDefinition
  *   6. Assemble    → context.assemble (all queries in parallel)
  *   7. Execute     → agent.runAgent
- *   8. Hooks       → dispatch post-turn hooks via queue (async, zero latency impact)
  */
 export async function handleTurn(msg: InboundMessage): Promise<void> {
   try {
@@ -65,6 +64,9 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
     const routeMatch = rawText.match(/^@([\w-]+)\s*/);
     const agentName = routeMatch ? routeMatch[1]! : config.defaultAgent;
     const cleanText = routeMatch ? rawText.slice(routeMatch[0].length) : rawText;
+
+    // Parse flags from cleanText BEFORE stripping — strippedText loses the !tokens
+    const flags = parseFlags({ ...msg, text: cleanText });
     const strippedText = stripFlags(cleanText);
 
     // Strip flags and routing prefix from msg text so downstream context sees clean text
@@ -79,10 +81,6 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
     }
     log.info('[pipeline] routing to agent', { chatId: effectiveMsg.chatId, agent: agentName });
 
-    // Step 7: Assemble context (all 4 queries in parallel)
-    const assembled = await assembleContext(effectiveMsg, def);
-    log.info('[pipeline] context assembled', { chatId: effectiveMsg.chatId, totalTokens: assembled.totalTokens });
-
     // Persist inbound message to conversation history
     const [inserted] = await db.insert(messages).values({
       chatId: effectiveMsg.chatId,
@@ -91,34 +89,41 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
       createdAt: effectiveMsg.timestamp,
     }).returning({ id: messages.id });
 
-    // Build TurnContext
-    const flags = parseFlags(effectiveMsg);
-    const turn: TurnContext = {
-      msg: effectiveMsg,
+    // Build partial TurnContext for context assembly
+    const partialTurn: Omit<TurnContext, 'assembled'> = {
+      chatId: effectiveMsg.chatId,
+      message: effectiveMsg,
       agent: def,
       flags,
-      assembled,
       ...(inserted ? { messageId: inserted.id } : {}),
     };
 
+    // Step 7: Assemble context (all queries in parallel)
+    const assembled = await assembleContext(partialTurn);
+    log.info('[pipeline] context assembled', { chatId: effectiveMsg.chatId, totalTokens: assembled.totalTokens });
+
+    const turn: TurnContext = { ...partialTurn, assembled };
+
     // Step 8: Execute agent
     log.info('[pipeline] agent execution started', { chatId: effectiveMsg.chatId, agent: agentName });
-    const agentReturn = await runAgent(turn, def);
+    await runAgent(turn, def);
     log.info('[pipeline] agent execution completed', { chatId: effectiveMsg.chatId, agent: agentName });
-
-    // Step 9: Hooks — fire synchronously for V1 (pg-boss async dispatch deferred)
-    for (const hookCfg of def.hooks ?? []) {
-      const signal = agentReturn?.hooks?.[hookCfg.signal];
-      if (signal?.fire === false) continue;
-      log.info('[pipeline] hook dispatched', { chatId: effectiveMsg.chatId, hook: hookCfg.hook });
-      const hookDef = agentRegistry.get(hookCfg.hook);
-      if (hookDef) await runAgent(turn, hookDef);
-    }
   } catch (err) {
     log.error('[pipeline] unhandled error', {
       chatId: msg.chatId,
       error: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack : undefined,
     });
+    if (msg.kind === 'whatsapp') {
+      try {
+        enqueueMessage({
+          chatId: msg.chatId,
+          content: 'Something went wrong processing your message. Please try again.',
+          dedupKey: `${msg.id}:error`,
+        });
+      } catch {
+        // best-effort; ignore
+      }
+    }
   }
 }

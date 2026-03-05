@@ -3,7 +3,7 @@ import type { ContextQuery, ContextResult, TurnContext } from '@/types';
 import { db } from '@/db/client';
 import { tasks } from '@/db/schema';
 
-/** Provides active_tasks: all non-terminal tasks from the tasks table. */
+/** Provides active_tasks: all non-terminal tasks from the tasks table, showing chain structure. */
 export const activeTasksQuery: ContextQuery = {
   name: 'active_tasks',
   priority: 4,
@@ -15,7 +15,24 @@ export const activeTasksQuery: ContextQuery = {
 
     if (rows.length === 0) return { content: '', tokenCount: 0, truncate: 'always' };
 
-    const content = rows.map((t) => `- [${t.status}] ${t.objective}`).join('\n');
+    // Separate top-level tasks (no parent) from chain children.
+    const topLevel = rows.filter((t) => !t.parentTaskId);
+    const children = rows.filter((t) => t.parentTaskId);
+
+    const lines: string[] = [];
+    for (const t of topLevel) {
+      lines.push(`- [${t.status}] ${t.objective}`);
+      for (const child of children.filter((c) => c.parentTaskId === t.id)) {
+        lines.push(`  - [${child.status}] ${child.objective}`);
+      }
+    }
+    // Any children whose parent is not itself active (parent already done/failed).
+    const topLevelIds = new Set(topLevel.map((t) => t.id));
+    for (const child of children.filter((c) => !topLevelIds.has(c.parentTaskId!))) {
+      lines.push(`- [${child.status}] ${child.objective}`);
+    }
+
+    const content = lines.join('\n');
     const tokenCount = Math.ceil(content.length / 4);
     return { content, tokenCount, truncate: 'always' };
   },

@@ -23,7 +23,8 @@ const emptyAssembled: AssembledContext = {
 
 function makeTurn(vars: Record<string, string> = {}): TurnContext {
   return {
-    msg: {
+    chatId: 'user@s.whatsapp.net',
+    message: {
       kind: 'whatsapp',
       id: 'msg-1',
       chatId: 'user@s.whatsapp.net',
@@ -46,7 +47,7 @@ function makeTurn(vars: Record<string, string> = {}): TurnContext {
 async function writeAgentFile(promptPath: string, body: string): Promise<void> {
   await Bun.write(
     promptPath,
-    `---\nname: test-agent\nmodelTier: default\ntools: []\nhooks: []\n---\n${body}`,
+    `---\nname: test-agent\nmodelTier: default\ntools: []\n---\n${body}`,
   );
 }
 
@@ -70,7 +71,7 @@ describe('loadAgentDefinition', () => {
   // --- basic shape ---
 
   test('parses name and modelTier from frontmatter', async () => {
-    await withFixture('basic', 'name: my-agent\nmodelTier: default\ntools: []\nhooks: []', '## Hi\n', async (p) => {
+    await withFixture('basic', 'name: my-agent\nmodelTier: default\ntools: []', '## Hi\n', async (p) => {
       const def = await loadAgentDefinition(p);
       expect(def.name).toBe('my-agent');
       expect(def.modelTier).toBe('default');
@@ -78,14 +79,14 @@ describe('loadAgentDefinition', () => {
   });
 
   test('parses "high" modelTier correctly', async () => {
-    await withFixture('high-tier', 'name: deep-agent\nmodelTier: high\ntools: []\nhooks: []', '## Hi\n', async (p) => {
+    await withFixture('high-tier', 'name: deep-agent\nmodelTier: high\ntools: []', '## Hi\n', async (p) => {
       const def = await loadAgentDefinition(p);
       expect(def.modelTier).toBe('high');
     });
   });
 
   test('promptPath is the absolute path passed in', async () => {
-    await withFixture('path', 'name: path-agent\nmodelTier: default\ntools: []\nhooks: []', '## Hi\n', async (p) => {
+    await withFixture('path', 'name: path-agent\nmodelTier: default\ntools: []', '## Hi\n', async (p) => {
       const def = await loadAgentDefinition(p);
       expect(def.promptPath).toBe(p);
     });
@@ -94,38 +95,33 @@ describe('loadAgentDefinition', () => {
   // --- tools ---
 
   test('tools are parsed as an array of strings', async () => {
-    await withFixture('tools', 'name: tool-agent\nmodelTier: default\ntools: [alpha, beta]\nhooks: []', '## Hi\n', async (p) => {
+    await withFixture('tools', 'name: tool-agent\nmodelTier: default\ntools: [alpha, beta]', '## Hi\n', async (p) => {
       const def = await loadAgentDefinition(p);
       expect(def.tools).toEqual(['alpha', 'beta']);
     });
   });
 
-  // --- hooks: runAfter form ---
+  // --- schedule ---
 
-  test('runAfter hooks are normalized to {hook, signal} objects', async () => {
-    const fm = 'name: hook-agent\nmodelTier: default\ntools: []\nhooks:\n  runAfter:\n    - hook: summarize\n      signal: Done';
-    await withFixture('hooks', fm, '## Hi\n', async (p) => {
+  test('schedule string is parsed from frontmatter', async () => {
+    const fm = 'name: scheduled-agent\nmodelTier: default\ntools: []\nschedule: "0 3 * * *"';
+    await withFixture('schedule', fm, '## Hi\n', async (p) => {
       const def = await loadAgentDefinition(p);
-      expect(def.hooks).toBeDefined();
-      expect(def.hooks!.length).toBe(1);
-      expect(def.hooks![0]!.hook).toBe('summarize');
-      expect(def.hooks![0]!.signal).toBe('Done');
+      expect(def.schedule).toBe('0 3 * * *');
     });
   });
 
-  // --- hooks: empty array form ---
-
-  test('empty hooks list produces no hooks property', async () => {
-    await withFixture('no-hooks', 'name: quiet-agent\nmodelTier: default\ntools: []\nhooks: []', '## Hi\n', async (p) => {
+  test('no schedule field when schedule key is absent', async () => {
+    await withFixture('no-schedule', 'name: quiet-agent\nmodelTier: default\ntools: []', '## Hi\n', async (p) => {
       const def = await loadAgentDefinition(p);
-      expect(def.hooks).toBeUndefined();
+      expect(def.schedule).toBeUndefined();
     });
   });
 
   // --- contextParams: YAML ---
 
   test('context: YAML key is parsed into contextParams', async () => {
-    const fm = 'name: ctx-agent\nmodelTier: default\ntools: []\nhooks: []\ncontext:\n  conversation:\n    limit: 10';
+    const fm = 'name: ctx-agent\nmodelTier: default\ntools: []\ncontext:\n  conversation:\n    limit: 10';
     await withFixture('ctx-yaml', fm, '## Hi\n', async (p) => {
       const def = await loadAgentDefinition(p);
       expect(def.contextParams?.conversation?.limit).toBe(10);
@@ -135,7 +131,7 @@ describe('loadAgentDefinition', () => {
   // --- contextParams: inline ---
 
   test('{{name?key=val}} in body is parsed into contextParams', async () => {
-    const fm = 'name: inline-agent\nmodelTier: default\ntools: []\nhooks: []';
+    const fm = 'name: inline-agent\nmodelTier: default\ntools: []';
     await withFixture('ctx-inline', fm, '{{conversation?limit=5}}\n', async (p) => {
       const def = await loadAgentDefinition(p);
       expect(def.contextParams?.conversation?.limit).toBe(5);
@@ -143,7 +139,7 @@ describe('loadAgentDefinition', () => {
   });
 
   test('inline params are parsed as numbers when numeric', async () => {
-    const fm = 'name: num-agent\nmodelTier: default\ntools: []\nhooks: []';
+    const fm = 'name: num-agent\nmodelTier: default\ntools: []';
     await withFixture('ctx-num', fm, '{{graph_context?limit=20&offset=5}}\n', async (p) => {
       const def = await loadAgentDefinition(p);
       expect(def.contextParams?.graph_context?.limit).toBe(20);
@@ -152,7 +148,7 @@ describe('loadAgentDefinition', () => {
   });
 
   test('inline params override YAML params per-key', async () => {
-    const fm = 'name: merge-agent\nmodelTier: default\ntools: []\nhooks: []\ncontext:\n  conversation:\n    limit: 100\n    offset: 0';
+    const fm = 'name: merge-agent\nmodelTier: default\ntools: []\ncontext:\n  conversation:\n    limit: 100\n    offset: 0';
     await withFixture('ctx-merge', fm, '{{conversation?limit=10}}\n', async (p) => {
       const def = await loadAgentDefinition(p);
       // inline limit wins, YAML offset is preserved
@@ -164,7 +160,7 @@ describe('loadAgentDefinition', () => {
   // --- toolsets ---
 
   test('toolsets: YAML key is parsed into toolsets array', async () => {
-    const fm = 'name: ts-agent\nmodelTier: default\ntools: []\nhooks: []\ntoolsets: [memory, files]';
+    const fm = 'name: ts-agent\nmodelTier: default\ntools: []\ntoolsets: [memory, files]';
     await withFixture('toolsets', fm, '## Hi\n', async (p) => {
       const def = await loadAgentDefinition(p);
       expect(def.toolsets).toEqual(['memory', 'files']);
@@ -172,7 +168,7 @@ describe('loadAgentDefinition', () => {
   });
 
   test('missing toolsets produces no toolsets property', async () => {
-    await withFixture('no-toolsets', 'name: plain-agent\nmodelTier: default\ntools: []\nhooks: []', '## Hi\n', async (p) => {
+    await withFixture('no-toolsets', 'name: plain-agent\nmodelTier: default\ntools: []', '## Hi\n', async (p) => {
       const def = await loadAgentDefinition(p);
       expect(def.toolsets).toBeUndefined();
     });
@@ -181,10 +177,10 @@ describe('loadAgentDefinition', () => {
   // --- unknown fields are ignored ---
 
   test('unknown frontmatter fields are silently ignored', async () => {
-    const fm = 'name: scheduled-agent\nmodelTier: default\ntools: []\nhooks: []\nschedule: "0 * * * *"';
+    const fm = 'name: extra-agent\nmodelTier: default\ntools: []\nunknown_key: some_value';
     await withFixture('unknown-field', fm, '## Hi\n', async (p) => {
       const def = await loadAgentDefinition(p);
-      expect(def.name).toBe('scheduled-agent');
+      expect(def.name).toBe('extra-agent');
     });
   });
 
@@ -202,7 +198,7 @@ describe('loadAgentDefinition', () => {
 
   test('throws when modelTier is invalid', async () => {
     const tmpPath = path.join(import.meta.dir, '__bad-tier.md');
-    await Bun.write(tmpPath, '---\nname: bad\nmodelTier: nonexistent\ntools: []\nhooks: []\n---\n## hi\n');
+    await Bun.write(tmpPath, '---\nname: bad\nmodelTier: nonexistent\ntools: []\n---\n## hi\n');
     try {
       await expect(loadAgentDefinition(tmpPath)).rejects.toThrow("Invalid 'modelTier'");
     } finally {
@@ -264,7 +260,7 @@ describe('runAgent', () => {
 
   test('{{name?params}} placeholder resolves to var value (params stripped from output)', async () => {
     const p = path.join(import.meta.dir, '__inline-params.md');
-    await Bun.write(p, '---\nname: test-agent\nmodelTier: default\ntools: []\nhooks: []\n---\n## Instructions\n{{conversation?limit=5}}\n');
+    await Bun.write(p, '---\nname: test-agent\nmodelTier: default\ntools: []\n---\n## Instructions\n{{conversation?limit=5}}\n');
     const turn = makeTurn({ conversation: 'User: hey' });
     turn.agent.promptPath = p;
     await runAgent(turn, turn.agent);
@@ -284,29 +280,12 @@ describe('runAgent', () => {
     expect((opts as { system: string }).system).toContain('### Node Title');
   });
 
-  test('returns undefined when model returns non-JSON text', async () => {
-    mockCallModel.mockImplementationOnce(async () => ({
-      content: 'Sure, I can help with that!',
-      usage: { promptTokens: 10, completionTokens: 5, costUsd: 0 },
-    }));
+  test('runAgent returns void', async () => {
     const turn = makeTurn();
     turn.agent.promptPath = tmpPath;
     const result = await runAgent(turn, turn.agent);
     cleanup();
     expect(result).toBeUndefined();
-  });
-
-  test('returns parsed AgentReturn when model returns valid JSON', async () => {
-    mockCallModel.mockImplementationOnce(async () => ({
-      content: JSON.stringify({ hooks: { HookSignal: { fire: true } } }),
-      usage: { promptTokens: 10, completionTokens: 5, costUsd: 0 },
-    }));
-    const turn = makeTurn();
-    turn.agent.promptPath = tmpPath;
-    const result = await runAgent(turn, turn.agent);
-    cleanup();
-    expect(result).toBeDefined();
-    expect(result!.hooks?.HookSignal?.fire).toBe(true);
   });
 
   test('tools from registry are wired into callModel', async () => {
@@ -356,5 +335,24 @@ describe('runAgent', () => {
     cleanup();
     const opts = lastArg(mockCallModel);
     expect((opts as { tools?: Record<string, unknown> }).tools).toBeUndefined();
+  });
+
+  test('dispatched agent uses objective as user message', async () => {
+    const base = makeTurn();
+    const turn: TurnContext = {
+      chatId: base.chatId,
+      agent: { ...base.agent, promptPath: tmpPath },
+      flags: {},
+      assembled: base.assembled,
+      dispatchContext: {
+        caller: 'thinking',
+        objective: 'Research LLM patterns',
+        mode: { kind: 'async' },
+      },
+    };
+    await runAgent(turn, turn.agent);
+    cleanup();
+    const opts = lastArg(mockCallModel) as { messages: Array<{ role: string; content: string }> };
+    expect(opts.messages[0]?.content).toBe('Research LLM patterns');
   });
 });

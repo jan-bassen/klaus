@@ -5,6 +5,7 @@ import { config } from '@/config';
 import type { Node } from '@/types';
 import { db } from './client';
 import { nodes } from './schema';
+import { log } from '@/logger';
 
 const EMBED_MODEL = voyage.textEmbeddingModel(config.models.embed);
 const RRF_K = 60;
@@ -91,11 +92,20 @@ async function vectorSearch(embedding: number[], tags: string[] | undefined): Pr
 export async function hybridSearch(opts: SearchOptions): Promise<SearchResult[]> {
   const { query, embedding: providedEmbedding, tags, limit = 10, expandEdges = false } = opts;
 
-  const embedding = providedEmbedding ?? (await embedText(query));
+  let embedding: number[] | undefined = providedEmbedding;
+  if (!embedding) {
+    try {
+      embedding = await embedText(query);
+    } catch (err) {
+      log.warn('[search] embedding failed — falling back to FTS only', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 
   const [ftsResults, vecResults] = await Promise.all([
     ftsSearch(query, tags),
-    vectorSearch(embedding, tags),
+    embedding ? vectorSearch(embedding, tags) : Promise.resolve([]),
   ]);
 
   // RRF fusion: accumulate 1/(k+rank) per node across both sources

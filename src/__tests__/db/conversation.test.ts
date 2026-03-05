@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { db } from '@/db/client';
 import { messages } from '@/db/schema';
-import { conversationQuery } from '@/context/conversation';
+import { conversationQuery, formatMessageTimestamp } from '@/context/conversation';
 import { describeDb, setupTestDb } from './helpers';
 import { config } from '@/config';
 import type { AgentDefinition, InboundMessage } from '@/types';
@@ -28,7 +28,7 @@ const dummyAgent: AgentDefinition = {
   promptPath: '/dev/null',
 };
 
-const turn = { msg: dummyMsg, agent: dummyAgent, flags: {} };
+const turn = { chatId: CHAT_ID, message: dummyMsg, agent: dummyAgent, flags: {} };
 
 async function insertMessage(
   chatId: string,
@@ -56,16 +56,18 @@ describeDb('conversationQuery', () => {
     expect(result.truncate).toBe('oldest');
   });
 
-  test('single user message formatted as "User: <content>"', async () => {
-    await insertMessage(CHAT_ID, 'user', 'hello there');
+  test('single user message formatted as "[user | ts]\\n<content>"', async () => {
+    const t0 = new Date('2024-01-01T10:00:00Z');
+    await insertMessage(CHAT_ID, 'user', 'hello there', { createdAt: t0 });
     const result = await conversationQuery.run(turn);
-    expect(result.content).toBe('User: hello there');
+    expect(result.content).toBe(`[user | ${formatMessageTimestamp(t0)}]\nhello there`);
   });
 
-  test('single assistant message formatted as "<agent>: <content>"', async () => {
-    await insertMessage(CHAT_ID, 'assistant', 'how can I help?');
+  test('single assistant message formatted as "[<agent> | ts]\\n<content>"', async () => {
+    const t0 = new Date('2024-01-01T10:00:00Z');
+    await insertMessage(CHAT_ID, 'assistant', 'how can I help?', { createdAt: t0 });
     const result = await conversationQuery.run(turn);
-    expect(result.content).toBe(`${dummyAgent.name}: how can I help?`);
+    expect(result.content).toBe(`[${dummyAgent.name} | ${formatMessageTimestamp(t0)}]\nhow can I help?`);
   });
 
   test('user+assistant pair is in chronological order separated by double newline', async () => {
@@ -75,7 +77,9 @@ describeDb('conversationQuery', () => {
     await insertMessage(CHAT_ID, 'assistant', 'hello!', { createdAt: t1 });
 
     const result = await conversationQuery.run(turn);
-    expect(result.content).toBe(`User: hi\n\n${dummyAgent.name}: hello!`);
+    expect(result.content).toBe(
+      `[user | ${formatMessageTimestamp(t0)}]\nhi\n\n[${dummyAgent.name} | ${formatMessageTimestamp(t1)}]\nhello!`,
+    );
   });
 
   test('three messages appear in chronological order', async () => {
@@ -87,18 +91,20 @@ describeDb('conversationQuery', () => {
     await insertMessage(CHAT_ID, 'user', 'third', { createdAt: t2 });
 
     const result = await conversationQuery.run(turn);
-    const lines = result.content.split('\n\n');
-    expect(lines[0]).toBe('User: first');
-    expect(lines[1]).toBe(`${dummyAgent.name}: second`);
-    expect(lines[2]).toBe('User: third');
+    const blocks = result.content.split('\n\n');
+    expect(blocks[0]).toBe(`[user | ${formatMessageTimestamp(t0)}]\nfirst`);
+    expect(blocks[1]).toBe(`[${dummyAgent.name} | ${formatMessageTimestamp(t1)}]\nsecond`);
+    expect(blocks[2]).toBe(`[user | ${formatMessageTimestamp(t2)}]\nthird`);
   });
 
   test('messages from other chatIds are excluded', async () => {
-    await insertMessage(CHAT_ID, 'user', 'mine');
-    await insertMessage(OTHER_CHAT_ID, 'user', 'not mine');
+    const t0 = new Date('2024-01-01T10:00:00Z');
+    await insertMessage(CHAT_ID, 'user', 'mine', { createdAt: t0 });
+    await insertMessage(OTHER_CHAT_ID, 'user', 'not mine', { createdAt: t0 });
 
     const result = await conversationQuery.run(turn);
-    expect(result.content).toBe('User: mine');
+    expect(result.content).toContain('mine');
+    expect(result.content).not.toContain('not mine');
   });
 
   test('messages with null content are skipped', async () => {
@@ -114,12 +120,13 @@ describeDb('conversationQuery', () => {
     await insertMessage(CHAT_ID, 'user', 'visible', { createdAt: t1 });
 
     const result = await conversationQuery.run(turn);
-    expect(result.content).toBe('User: visible');
+    expect(result.content).toBe(`[user | ${formatMessageTimestamp(t1)}]\nvisible`);
   });
 
-  test('tokenCount uses char/4 estimate', async () => {
+  test('tokenCount uses char/4 estimate of content only (not header)', async () => {
     const content = 'hello'; // 5 chars → Math.ceil(5/4) = 2 tokens
-    await insertMessage(CHAT_ID, 'user', content);
+    const t0 = new Date('2024-01-01T10:00:00Z');
+    await insertMessage(CHAT_ID, 'user', content, { createdAt: t0 });
     const result = await conversationQuery.run(turn);
     expect(result.tokenCount).toBe(Math.ceil(content.length / 4));
   });
@@ -147,5 +154,32 @@ describeDb('conversationQuery', () => {
   test('name and priority are correct', () => {
     expect(conversationQuery.name).toBe('conversation');
     expect(conversationQuery.priority).toBe(3);
+  });
+
+  test('limit param caps returned messages to N most recent', async () => {
+    const t0 = new Date('2024-01-01T10:00:00Z');
+    const t1 = new Date('2024-01-01T10:01:00Z');
+    const t2 = new Date('2024-01-01T10:02:00Z');
+    await insertMessage(CHAT_ID, 'user', 'first', { createdAt: t0 });
+    await insertMessage(CHAT_ID, 'assistant', 'second', { createdAt: t1 });
+    await insertMessage(CHAT_ID, 'user', 'third', { createdAt: t2 });
+
+    const result = await conversationQuery.run(turn, { limit: 1 });
+    expect(result.content).toBe(`[user | ${formatMessageTimestamp(t2)}]\nthird`);
+  });
+
+  test('limit: 2 returns the two most recent messages in chronological order', async () => {
+    const t0 = new Date('2024-01-01T10:00:00Z');
+    const t1 = new Date('2024-01-01T10:01:00Z');
+    const t2 = new Date('2024-01-01T10:02:00Z');
+    await insertMessage(CHAT_ID, 'user', 'first', { createdAt: t0 });
+    await insertMessage(CHAT_ID, 'assistant', 'second', { createdAt: t1 });
+    await insertMessage(CHAT_ID, 'user', 'third', { createdAt: t2 });
+
+    const result = await conversationQuery.run(turn, { limit: 2 });
+    const blocks = result.content.split('\n\n');
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toBe(`[${dummyAgent.name} | ${formatMessageTimestamp(t1)}]\nsecond`);
+    expect(blocks[1]).toBe(`[user | ${formatMessageTimestamp(t2)}]\nthird`);
   });
 });

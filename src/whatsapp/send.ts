@@ -11,6 +11,14 @@ export function setSocket(socket: WASocket): void {
   _socket = socket;
 }
 
+/**
+ * Returns a promise that resolves when the current send queue has fully drained.
+ * Use during graceful shutdown to avoid dropping in-flight messages.
+ */
+export function drainQueue(): Promise<void> {
+  return _queue;
+}
+
 // Single FIFO promise chain for message ordering.
 let _queue: Promise<void> = Promise.resolve();
 // In-memory dedup: skip re-sending a key within the current process lifetime.
@@ -31,9 +39,20 @@ export function enqueueMessage(msg: OutboundMessage): void {
     .then(() => sendWithRetry(msg))
     .catch((err: unknown) => {
       log.error('[send] failed after retries', {
+        chatId: msg.chatId,
         dedupKey: msg.dedupKey,
         error: err instanceof Error ? err.message : String(err),
       });
+      // Best-effort delivery-failure notification so the user knows the message was lost.
+      // One attempt only, no retry, to avoid an infinite failure loop.
+      if (_socket) {
+        _socket.sendMessage(msg.chatId, { text: 'Failed to deliver my last message. Please try again.' }).catch((sendErr: unknown) => {
+          log.warn('[send] could not notify user of delivery failure', {
+            chatId: msg.chatId,
+            error: sendErr instanceof Error ? sendErr.message : String(sendErr),
+          });
+        });
+      }
     });
 }
 

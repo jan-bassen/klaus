@@ -1,5 +1,5 @@
 ---
-name: reflection-agent
+name: reflection
 modelTier: default
 tools:
   - memory.search
@@ -13,7 +13,6 @@ tools:
 toolsets:
   - memory
 schedule: "0 3 * * *"
-hooks: []
 context:
   conversation:
     limit: 10

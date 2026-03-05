@@ -15,13 +15,8 @@ export const graphContextQuery: ContextQuery = {
     // Always include pinned nodes
     const pinned = await db.select().from(nodes).where(eq(nodes.pinned, true));
 
-    // Hybrid search on message text (skip if empty)
-    const query =
-      turn.msg.kind === 'async'
-        ? typeof turn.msg.input === 'string'
-          ? turn.msg.input
-          : ''
-        : turn.msg.text ?? '';
+    // Hybrid search: use message text for WhatsApp turns, objective for dispatched agents
+    const query = turn.message?.text ?? turn.dispatchContext?.objective ?? '';
     const searchResults = query
       ? await hybridSearch({ query, limit: 10, expandEdges: true })
       : [];

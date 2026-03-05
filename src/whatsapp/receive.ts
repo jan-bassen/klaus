@@ -1,6 +1,6 @@
 import type { WASocket } from '@whiskeysockets/baileys';
 import type { InboundMessage } from '@/types';
-import { setSocket } from './send';
+import { setSocket, enqueueMessage } from './send';
 import { handleTurn } from '@/core/pipeline';
 import { log } from '@/logger';
 
@@ -19,7 +19,26 @@ export function attachReceiveHandler(socket: WASocket): void {
       const msg = normalizeMessage(raw);
       if (msg) {
         log.info('[receive] message', { chatId: msg.chatId, text: msg.text?.slice(0, 40), kind: msg.kind });
-        await handleTurn(msg);
+        try {
+          await handleTurn(msg);
+        } catch (err) {
+          // Should not happen — pipeline has its own top-level catch — but guard here
+          // anyway so a bug in the pipeline itself cannot crash the event listener.
+          log.error('[receive] unhandled error from handleTurn', {
+            chatId: msg.chatId,
+            error: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+          });
+          // Last-resort notification: pipeline's own catch should have already sent this,
+          // but if it threw itself the user would otherwise get nothing.
+          try {
+            enqueueMessage({
+              chatId: msg.chatId,
+              content: 'Something went wrong. Please try again.',
+              dedupKey: `${msg.id}:receive-error`,
+            });
+          } catch { /* best-effort */ }
+        }
       }
     }
   });

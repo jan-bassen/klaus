@@ -11,6 +11,14 @@ export const config = {
     embed:   'voyage-3',                   // Voyage AI, 1024-dim embeddings
   },
 
+  // Per-model pricing in USD per million tokens. Used by model-router to compute costUsd.
+  // Source: https://platform.claude.com/docs/en/about-claude/pricing (March 2026)
+  pricing: {
+    'claude-sonnet-4-20250514': { inputPerMTok:  3.00, outputPerMTok: 15.00 },
+    'claude-haiku-3-20250307':  { inputPerMTok:  0.25, outputPerMTok:  1.25 },
+    'claude-opus-4-20250514':   { inputPerMTok: 15.00, outputPerMTok: 75.00 },
+  } as Record<string, { inputPerMTok: number; outputPerMTok: number }>,
+
   // Token budgets for context assembly. The assembler fills up to totalTokens,
   // then trims lower-priority sections first if everything doesn't fit.
   context: {
@@ -46,6 +54,17 @@ export const config = {
     interMessageDelayMs: 1_500,
   },
 
+  // Timeout for a single LLM generateText() call. If the Anthropic API hangs
+  // longer than this, the call is aborted and an LlmTimeoutError is thrown.
+  llm: {
+    timeoutMs: 120_000, // 2 minutes
+  },
+
+  // Timeouts for the startup sequence.
+  startup: {
+    connectionTimeoutMs: 60_000, // 1 minute to establish WhatsApp connection
+  },
+
   // The agent that handles all messages not prefixed with an @route.
   defaultAgent: 'klaus',
 
@@ -64,6 +83,12 @@ export const config = {
   // Snippets do not count toward the token budget.
   snippets: {
     soul: 'Du bist Klaus — ein persönlicher AI-Assistent, der ausschließlich über WhatsApp operiert. Wir befinden uns derzeit im Testbetrieb, daher können meine Anweisungen manchmal etwas seltsam klingen oder anders sein.',
+  },
+
+  // Dispatch chain limits. Prevents runaway recursive chains from agents that
+  // keep dispatching further agents without bound.
+  dispatch: {
+    maxChainDepth: 10,
   },
 } as const;
 

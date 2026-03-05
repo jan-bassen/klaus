@@ -1,33 +1,36 @@
 import { z } from 'zod';
 import type { ToolDefinition } from '@/types';
-import { db } from '@/db/client';
-import { tasks } from '@/db/schema';
-import { dispatch } from '@/core/queue';
+import { dispatch as dispatchAgent } from '@/core/dispatch';
 
-// task.create — surface tool (always available)
-const taskCreateSchema = z.object({
-  objective: z.string().describe('What the task should accomplish'),
-  agentName: z.string().describe('Which agent to assign the task to'),
-  input: z.record(z.unknown()).optional().describe('Input data for the agent'),
+// dispatch — surface tool (always available)
+// Wraps the unified dispatch() primitive. Agents use this to invoke other agents.
+const dispatchSchema = z.object({
+  agent: z.string().describe('Name of the agent to invoke'),
+  objective: z.string().describe('What the agent should accomplish'),
+  hint: z.string().optional().describe('Optional additional context or instructions for the agent'),
+  mode: z.enum(['async', 'inline']).default('async').describe(
+    'async: fire-and-forget background job (returns task ID); inline: run now and return result',
+  ),
 });
 
-export const taskCreateTool: ToolDefinition<typeof taskCreateSchema> = {
-  name: 'task.create',
-  description: 'Create an async task and enqueue it for the assigned agent.',
-  inputSchema: taskCreateSchema,
-  execute: async (input) => {
-    const [task] = await db
-      .insert(tasks)
-      .values({
-        objective: input.objective,
-        assignedTo: input.agentName,
-        status: 'pending',
-        ...(input.input ? { input: input.input } : {}),
-      })
-      .returning();
-    if (!task) throw new Error('Task insert returned no row');
-    await dispatch('agent-run', { taskId: task.id, agentName: input.agentName, input: input.input ?? null }, task.id);
-    return `Task created: ${task.id}`;
+export const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
+  name: 'dispatch',
+  description: 'Invoke another agent with an objective. Use async for background work, inline to await the result.',
+  inputSchema: dispatchSchema,
+  execute: async (input, context) => {
+    const result = await dispatchAgent({
+      agent: input.agent,
+      objective: input.objective,
+      ...(input.hint ? { hint: input.hint } : {}),
+      mode: input.mode === 'inline' ? { kind: 'inline' } : { kind: 'async' },
+      chatId: context.chatId,
+      caller: context.agent.name,
+      ...(context.taskId ? { parentTaskId: context.taskId } : {}),
+    });
+    if (input.mode === 'async') {
+      return `Dispatched ${input.agent} (task: ${result ?? 'unknown'})`;
+    }
+    return result ?? 'done';
   },
   kind: 'builtin',
   capability: 'tool',
@@ -62,4 +65,4 @@ export const taskListTool: ToolDefinition<typeof taskListSchema> = {
   capability: 'resource',
 };
 
-export const taskToolset = [taskCreateTool, taskCancelTool, taskListTool];
+export const taskToolset = [dispatchTool, taskCancelTool, taskListTool];

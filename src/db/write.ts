@@ -6,6 +6,7 @@ import { config } from '@/config';
 import type { Node } from '@/types';
 import { db } from './client';
 import { chunks, nodeVersions, nodes } from './schema';
+import { log } from '@/logger';
 
 export type NodeInsert = InferInsertModel<typeof nodes>;
 
@@ -73,7 +74,14 @@ export async function writeNode(insert: NodeInsert): Promise<Node> {
   if (!node) throw new Error('Insert returned no row');
 
   if (node.body && tokenCount > config.chunking.thresholdTokens) {
-    await syncChunks(node.id, node.body);
+    try {
+      await syncChunks(node.id, node.body);
+    } catch (err) {
+      log.warn('[write] chunk sync failed after insert — chunks may be stale', {
+        nodeId: node.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   return node;
@@ -124,10 +132,17 @@ export async function upsertNode(
   if (!updated) throw new Error(`Update returned no row for node: ${id}`);
 
   if (update.body !== undefined) {
-    if (updated.body && tokenCount > config.chunking.thresholdTokens) {
-      await syncChunks(id, updated.body);
-    } else {
-      await db.delete(chunks).where(eq(chunks.nodeId, id));
+    try {
+      if (updated.body && tokenCount > config.chunking.thresholdTokens) {
+        await syncChunks(id, updated.body);
+      } else {
+        await db.delete(chunks).where(eq(chunks.nodeId, id));
+      }
+    } catch (err) {
+      log.warn('[write] chunk sync failed after upsert — chunks may be stale', {
+        nodeId: id,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

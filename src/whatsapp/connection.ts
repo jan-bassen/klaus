@@ -8,6 +8,7 @@ import makeWASocket, {
 import { log } from '@/logger';
 
 let socket: WASocket | null = null;
+let closing = false;
 
 const AUTH_DIR =
   process.env.BAILEYS_AUTH_FOLDER ?? path.join(process.cwd(), '.baileys-auth');
@@ -26,6 +27,7 @@ export async function startConnection(): Promise<WASocket> {
 
   return new Promise<WASocket>((resolve, reject) => {
     let settled = false;
+    let retryCount = 0;
 
     function connect(): void {
       const allowedJid = process.env.ALLOWED_CHAT_ID ?? '';
@@ -43,6 +45,7 @@ export async function startConnection(): Promise<WASocket> {
       sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
         if (connection === 'open') {
           socket = sock;
+          retryCount = 0;
           log.info('[connection] connected');
           if (!settled) {
             settled = true;
@@ -50,6 +53,7 @@ export async function startConnection(): Promise<WASocket> {
           }
         } else if (connection === 'close') {
           socket = null;
+          if (closing) return;
           const code = (
             lastDisconnect?.error as { output?: { statusCode?: number } } | undefined
           )?.output?.statusCode;
@@ -63,8 +67,16 @@ export async function startConnection(): Promise<WASocket> {
               process.exit(1);
             }
           } else {
-            log.warn('[connection] disconnected', { code: code ?? 'unknown' });
-            setTimeout(connect, 1_500);
+            const delayMs =
+              Math.min(30_000, 1_500 * Math.pow(2, retryCount)) +
+              Math.floor(Math.random() * 500);
+            retryCount++;
+            log.warn('[connection] disconnected, reconnecting', {
+              code: code ?? 'unknown',
+              attempt: retryCount,
+              delayMs,
+            });
+            setTimeout(connect, delayMs);
           }
         }
       });
@@ -77,4 +89,14 @@ export async function startConnection(): Promise<WASocket> {
 export function getSocket(): WASocket {
   if (!socket) throw new Error('WhatsApp socket not initialized — call startConnection() first');
   return socket;
+}
+
+export function closeSocket(): void {
+  closing = true;
+  socket?.end(undefined);
+  socket = null;
+}
+
+export function isConnected(): boolean {
+  return socket !== null;
 }

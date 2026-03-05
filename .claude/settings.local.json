@@ -28,7 +28,8 @@
       "Bash(bun test --reporter=verbose)",
       "Bash(bun test src/__tests__/core/middleware.test.ts)",
       "WebFetch(domain:support.claude.com)",
-      "Bash(bun test src/__tests__/core/model-router.test.ts)"
+      "Bash(bun test src/__tests__/core/model-router.test.ts)",
+      "Bash(bun typecheck)"
     ]
   }
 }

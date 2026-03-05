@@ -1,19 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { assembleContext } from '@/core/assemble';
 import { config } from '@/config';
-import type { AgentDefinition, ContextQuery, InboundMessage } from '@/types';
+import type { AgentDefinition, ContextQuery, TurnContext } from '@/types';
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
 
-const dummyMsg: InboundMessage = {
-  kind: 'whatsapp',
-  id: 'msg-1',
-  chatId: 'user@s.whatsapp.net',
-  senderId: 'user@s.whatsapp.net',
-  text: 'hello',
-  timestamp: new Date(),
-  messageKey: {},
-};
+const CHAT_ID = 'user@s.whatsapp.net';
 
 const dummyAgent: AgentDefinition = {
   name: 'test',
@@ -21,6 +13,26 @@ const dummyAgent: AgentDefinition = {
   tools: [],
   promptPath: '/dev/null',
 };
+
+function makeTurn(
+  overrides: Partial<Omit<TurnContext, 'assembled'>> = {},
+): Omit<TurnContext, 'assembled'> {
+  return {
+    chatId: CHAT_ID,
+    message: {
+      kind: 'whatsapp',
+      id: 'msg-1',
+      chatId: CHAT_ID,
+      senderId: CHAT_ID,
+      text: 'hello',
+      timestamp: new Date(),
+      messageKey: {},
+    },
+    agent: dummyAgent,
+    flags: {},
+    ...overrides,
+  };
+}
 
 function makeQuery(
   name: string,
@@ -42,14 +54,14 @@ describe('assembleContext', () => {
   // ─── basic shape ─────────────────────────────────────────────────────────
 
   test('no queries → vars contains only snippets, totalTokens 0', async () => {
-    const result = await assembleContext(dummyMsg, dummyAgent);
+    const result = await assembleContext(makeTurn());
     expect(result.vars).toEqual({ ...config.snippets });
     expect(result.totalTokens).toBe(0);
   });
 
   test('query result lands in vars keyed by query name', async () => {
     const q = makeQuery('conversation', 3, 'User: hi\n\nKlaus: hello', 20, 'oldest');
-    const result = await assembleContext(dummyMsg, dummyAgent, [q]);
+    const result = await assembleContext(makeTurn(), [q]);
     expect(result.vars['conversation']).toBe('User: hi\n\nKlaus: hello');
   });
 
@@ -59,7 +71,7 @@ describe('assembleContext', () => {
       makeQuery('conversation', 3, 'convo', 5, 'oldest'),
       makeQuery('active_tasks', 4, 'tasks', 5, 'always'),
     ];
-    const result = await assembleContext(dummyMsg, dummyAgent, queries);
+    const result = await assembleContext(makeTurn(), queries);
     expect(result.vars['graph_context']).toBe('graph');
     expect(result.vars['conversation']).toBe('convo');
     expect(result.vars['active_tasks']).toBe('tasks');
@@ -67,7 +79,7 @@ describe('assembleContext', () => {
 
   test('arbitrary query names land in vars', async () => {
     const q = makeQuery('unknown_thing', 2, 'whatever', 5, 'always');
-    const result = await assembleContext(dummyMsg, dummyAgent, [q]);
+    const result = await assembleContext(makeTurn(), [q]);
     expect(result.totalTokens).toBe(5);
     expect(result.vars['unknown_thing']).toBe('whatever');
   });
@@ -77,7 +89,7 @@ describe('assembleContext', () => {
       makeQuery('conversation', 3, 'a', 300, 'oldest'),
       makeQuery('graph_context', 2, 'b', 700, 'always'),
     ];
-    const result = await assembleContext(dummyMsg, dummyAgent, queries);
+    const result = await assembleContext(makeTurn(), queries);
     expect(result.totalTokens).toBe(1000);
   });
 
@@ -88,30 +100,65 @@ describe('assembleContext', () => {
       run: async () => { throw new Error('DB exploded'); },
     };
     const good = makeQuery('graph_context', 2, 'graph data', 5, 'always');
-    const result = await assembleContext(dummyMsg, dummyAgent, [bad, good]);
+    const result = await assembleContext(makeTurn(), [bad, good]);
     expect(result.vars['graph_context']).toBe('graph data');
     expect(result.vars['conversation']).toBeUndefined(); // failed, not set
   });
 
   // ─── flag injections ──────────────────────────────────────────────────────
 
-
-  test('!test in msg → flags gets test prompt string', async () => {
-    const msg: InboundMessage = { ...dummyMsg, text: '!test do this' };
-    const result = await assembleContext(msg, dummyAgent, []);
+  test('flags: { test: true } → flags gets test prompt string', async () => {
+    const result = await assembleContext(makeTurn({ flags: { test: true } }), []);
     expect(result.vars['flags']).toBe(config.flags.test);
   });
 
   test('unknown flag → flags var is undefined', async () => {
-    const msg: InboundMessage = { ...dummyMsg, text: '!unknown do this' };
-    const result = await assembleContext(msg, dummyAgent, []);
+    const result = await assembleContext(makeTurn({ flags: { unknown: true } }), []);
     expect(result.vars['flags']).toBeUndefined();
   });
 
   test('flagInjections are not counted in totalTokens', async () => {
-    const msg: InboundMessage = { ...dummyMsg, text: '!test do this' };
-    const result = await assembleContext(msg, dummyAgent, []);
+    const result = await assembleContext(makeTurn({ flags: { test: true } }), []);
     expect(result.totalTokens).toBe(0);
+  });
+
+  // ─── contextParams forwarding ─────────────────────────────────────────────
+
+  test('contextParams on agent are forwarded to query run()', async () => {
+    let capturedParams: Record<string, unknown> | undefined;
+    const spy: ContextQuery = {
+      name: 'conversation',
+      priority: 3,
+      run: async (_turn, params) => {
+        capturedParams = params;
+        return { content: '', tokenCount: 0, truncate: 'never' as const };
+      },
+    };
+    const agent: AgentDefinition = {
+      ...dummyAgent,
+      contextParams: { conversation: { limit: 5 } },
+    };
+    await assembleContext(makeTurn({ agent }), [spy]);
+    expect(capturedParams).toEqual({ limit: 5 });
+  });
+
+  test('query with no matching contextParams receives undefined', async () => {
+    let capturedParams: Record<string, unknown> | undefined = { sentinel: true };
+    const spy: ContextQuery = {
+      name: 'graph_context',
+      priority: 2,
+      run: async (_turn, params) => {
+        capturedParams = params;
+        return { content: '', tokenCount: 0, truncate: 'never' as const };
+      },
+    };
+    // contextParams only defines 'conversation', not 'graph_context'
+    const agent: AgentDefinition = {
+      ...dummyAgent,
+      contextParams: { conversation: { limit: 5 } },
+    };
+    await assembleContext(makeTurn({ agent }), [spy]);
+    expect(capturedParams).toBeUndefined();
   });
 
   // ─── trimming: always ─────────────────────────────────────────────────────
@@ -122,7 +169,7 @@ describe('assembleContext', () => {
       makeQuery('graph_context', 2, 'graph content', 50_000, 'always'),
       makeQuery('conversation', 3, 'convo', 40_000, 'oldest'),
     ];
-    const result = await assembleContext(dummyMsg, dummyAgent, queries);
+    const result = await assembleContext(makeTurn(), queries);
     expect(result.vars['graph_context']).toBe('graph content');
     expect(result.vars['conversation']).toBe('convo');
     expect(result.totalTokens).toBe(90_000);
@@ -135,7 +182,7 @@ describe('assembleContext', () => {
       makeQuery('graph_context', 2, 'graph content', 60_000, 'always'),
       makeQuery('conversation', 3, 'Turn 1\n\nTurn 2', 60_000, 'oldest'),
     ];
-    const result = await assembleContext(dummyMsg, dummyAgent, queries);
+    const result = await assembleContext(makeTurn(), queries);
     expect(result.vars['graph_context']).toBe('');
     expect(result.vars['conversation']).toBe('Turn 1\n\nTurn 2'); // untouched
     expect(result.totalTokens).toBe(60_000);
@@ -148,7 +195,7 @@ describe('assembleContext', () => {
       makeQuery('conversation', 1, 'important convo', 60_000, 'never'),
       makeQuery('graph_context', 2, 'less important graph', 60_000, 'always'),
     ];
-    const result = await assembleContext(dummyMsg, dummyAgent, queries);
+    const result = await assembleContext(makeTurn(), queries);
     expect(result.vars['conversation']).toBe('important convo'); // protected
     expect(result.vars['graph_context']).toBe(''); // cleared
   });
@@ -161,7 +208,7 @@ describe('assembleContext', () => {
     const queries = [
       makeQuery('conversation', 3, 'Block 1\n\nBlock 2\n\nBlock 3', 100_003, 'oldest'),
     ];
-    const result = await assembleContext(dummyMsg, dummyAgent, queries);
+    const result = await assembleContext(makeTurn(), queries);
     // First block removed to cover excess of 3
     expect(result.vars['conversation']).not.toContain('Block 1');
     expect(result.vars['conversation']).toContain('Block 2');
@@ -175,7 +222,7 @@ describe('assembleContext', () => {
       makeQuery('graph_context', 2, 'important graph', 60_000, 'never'),
       makeQuery('conversation', 3, 'Turn 1\n\nTurn 2', 60_000, 'oldest'),
     ];
-    const result = await assembleContext(dummyMsg, dummyAgent, queries);
+    const result = await assembleContext(makeTurn(), queries);
     expect(result.vars['conversation']).toBe('');
   });
 
@@ -187,7 +234,7 @@ describe('assembleContext', () => {
       makeQuery('conversation', 3, 'convo', 40_000, 'never'),
     ];
     // Pre-trim total: 120_000. graph_context (priority 2, always) cleared → 40_000.
-    const result = await assembleContext(dummyMsg, dummyAgent, queries);
+    const result = await assembleContext(makeTurn(), queries);
     expect(result.totalTokens).toBe(40_000);
   });
 });

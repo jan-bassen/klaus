@@ -38,25 +38,45 @@ export interface InboundMessage {
   messageKey: Record<string, unknown>;
 }
 
-/** Invocation context for background agent jobs — distinct from WhatsApp turns. */
-export interface AsyncAgentInvocation {
-  kind: 'async';
-  /** pg-boss job ID */
-  id: string;
-  taskId: string;
-  /** Raw job input — string prompt or structured payload */
-  input: unknown;
+// -- Dispatch --
+
+export type DispatchMode =
+  | { kind: 'inline' }
+  | { kind: 'async' }
+  | { kind: 'cron'; schedule: string };
+
+export interface DispatchOptions {
+  agent: string;
+  objective: string;
+  hint?: string;
+  mode: DispatchMode;
+  chatId: string;
+  caller?: string;
+  parentTaskId?: string;
+  /** Chain depth — incremented on each recursive dispatch. Enforces maxChainDepth. */
+  depth?: number;
 }
 
 // -- Turn pipeline --
 
 export interface TurnContext {
-  msg: InboundMessage | AsyncAgentInvocation;
+  chatId: string;
+  /** Present for WhatsApp turns; undefined for dispatched agent invocations */
+  message?: InboundMessage;
+  /** Set for all dispatched agents (async and inline) */
+  taskId?: string;
   agent: AgentDefinition;
   flags: Record<string, boolean>;
   assembled: AssembledContext;
   /** DB ID of the persisted inbound message row — set in pipeline after insert */
   messageId?: string;
+  /** Injected for dispatched agents; undefined for direct @agent WhatsApp calls */
+  dispatchContext?: {
+    caller: string;
+    objective: string;
+    hint?: string;
+    mode: DispatchMode;
+  };
 }
 
 export interface AssembledContext {
@@ -78,25 +98,12 @@ export interface AgentDefinition {
   tools: string[];
   /** Toolset names — expanded to all `{name}.*` tools at runtime */
   toolsets?: string[];
-  hooks?: AgentHookConfig[];
+  /** cron schedule string (e.g. "0 3 * * *") for scheduled agents */
+  schedule?: string;
   /** Per-query params from the agent's YAML `context:` section, keyed by query name. */
   contextParams?: Record<string, Record<string, unknown>>;
   /** Absolute path to the .md file — used for hot-reload */
   promptPath: string;
-}
-
-export interface AgentHookConfig {
-  hook: string;
-  signal: string;
-}
-
-export interface AgentReturn {
-  hooks?: Record<string, HookSignal>;
-}
-
-export interface HookSignal {
-  fire: boolean;
-  hint?: string;
 }
 
 // -- Tool system --

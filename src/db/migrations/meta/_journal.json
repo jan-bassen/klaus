@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1740000000000,
-      "tag": "0000_base",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1772469139789,
-      "tag": "0001_confused_mentallo",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1772534828157,
-      "tag": "0002_tiny_matthew_murdock",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1772535526567,
-      "tag": "0003_lush_rhino",
+      "when": 1772706194301,
+      "tag": "0000_silent_sunset_bain",
       "breakpoints": true
     }
   ]

@@ -45,7 +45,7 @@ const dummyAgent: AgentDefinition = {
   promptPath: '/dev/null',
 };
 
-const turn = { msg: dummyMsg, agent: dummyAgent, flags: {} };
+const turn = { chatId: 'user@s.whatsapp.net', message: dummyMsg, agent: dummyAgent, flags: {} };
 
 describe('graphContextQuery', () => {
   beforeEach(() => {
@@ -113,7 +113,7 @@ describe('graphContextQuery', () => {
 
   test('no text in message → skips search, only pinned nodes included', async () => {
     const { text: _unused, ...msgWithoutText } = dummyMsg;
-    const noTextTurn = { ...turn, msg: msgWithoutText as InboundMessage };
+    const noTextTurn = { ...turn, message: msgWithoutText as InboundMessage };
     await graphContextQuery.run(noTextTurn);
     expect(mockHybridSearch).not.toHaveBeenCalled();
   });

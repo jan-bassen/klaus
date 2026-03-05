@@ -1,7 +1,7 @@
 import { parse as parseYaml } from 'yaml';
 import { tool } from 'ai';
 import type { ToolSet } from 'ai';
-import type { AgentDefinition, AgentHookConfig, TurnContext, AgentReturn } from '@/types';
+import type { AgentDefinition, TurnContext } from '@/types';
 import type { ModelTier } from '@/config';
 import { config } from '@/config';
 import { toolRegistry, getToolsForToolset } from '@/tools/registry';
@@ -39,13 +39,13 @@ function parseInlineParams(body: string): Record<string, Record<string, unknown>
 
 /**
  * Generic agent execution engine used by all agents.
- * Loads the agent's prompt, runs the agentic loop via the Vercel AI SDK,
- * and returns the structured output (if the agent has hooks) or void.
+ * Loads the agent's prompt, runs the agentic loop via the Vercel AI SDK.
+ * All agents produce free-text output via the reply tool — no structured return.
  */
 export async function runAgent(
   turn: TurnContext,
   def: AgentDefinition,
-): Promise<AgentReturn | void> {
+): Promise<void> {
   // Load prompt body (strip YAML frontmatter)
   const raw = await Bun.file(def.promptPath).text();
   const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, '');
@@ -73,27 +73,26 @@ export async function runAgent(
   const modelId = config.models[def.modelTier];
   log.info('[agent] calling model', { agent: def.name, model: modelId, tools: Object.keys(tools) });
 
-  let result: Awaited<ReturnType<typeof callModel>>;
   try {
-    result = await callModel({
+    const result = await callModel({
       tier: def.modelTier,
       agentName: def.name,
-...(turn.msg.kind !== 'async' ? { chatId: turn.msg.chatId } : {}),
+      chatId: turn.chatId,
       ...(turn.messageId ? { messageId: turn.messageId } : {}),
-      ...(turn.msg.kind === 'async' ? { taskId: turn.msg.taskId } : {}),
+      ...(turn.taskId ? { taskId: turn.taskId } : {}),
       system,
       messages: [
         {
           role: 'user',
-          content:
-            turn.msg.kind === 'async'
-              ? typeof turn.msg.input === 'string'
-                ? turn.msg.input
-                : JSON.stringify(turn.msg.input)
-              : turn.msg.text ?? '',
+          content: turn.message?.text ?? turn.dispatchContext?.objective ?? '',
         },
       ],
       ...(Object.keys(tools).length > 0 ? { tools } : {}),
+    });
+
+    log.info('[agent] model call completed', {
+      agent: def.name,
+      usage: result.usage,
     });
   } catch (err) {
     log.error('[agent] callModel failed', {
@@ -102,18 +101,6 @@ export async function runAgent(
       stack: err instanceof Error ? err.stack : undefined,
     });
     throw err;
-  }
-
-  log.info('[agent] model call completed', {
-    agent: def.name,
-    usage: result.usage,
-  });
-
-  // Structured agents (e.g. memorize-agent) return JSON matching AgentReturn in their text
-  try {
-    return JSON.parse(result.content) as AgentReturn;
-  } catch {
-    return undefined;
   }
 }
 
@@ -149,17 +136,8 @@ export async function loadAgentDefinition(promptPath: string): Promise<AgentDefi
     ? (front.toolsets as string[])
     : [];
 
-  // Normalize hooks: [] → undefined, { runAfter: [...] } → AgentHookConfig[]
-  let hooks: AgentHookConfig[] | undefined;
-  const rawHooks = front.hooks;
-  if (Array.isArray(rawHooks) && rawHooks.length > 0) {
-    hooks = rawHooks as AgentHookConfig[];
-  } else if (rawHooks && typeof rawHooks === 'object' && !Array.isArray(rawHooks)) {
-    const runAfter = (rawHooks as Record<string, unknown>).runAfter;
-    if (Array.isArray(runAfter) && runAfter.length > 0) {
-      hooks = runAfter as AgentHookConfig[];
-    }
-  }
+  // Optional cron schedule string (e.g. "0 3 * * *")
+  const schedule = typeof front.schedule === 'string' ? front.schedule : undefined;
 
   // Per-query params from optional `context:` YAML key.
   // Example: context: { conversation: { limit: 10 } }
@@ -185,7 +163,7 @@ export async function loadAgentDefinition(promptPath: string): Promise<AgentDefi
     modelTier: modelTier as ModelTier,
     tools,
     ...(toolsets.length > 0 ? { toolsets } : {}),
-    ...(hooks ? { hooks } : {}),
+    ...(schedule ? { schedule } : {}),
     ...(contextParams ? { contextParams } : {}),
     promptPath,
   };

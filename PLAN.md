@@ -1,6 +1,6 @@
 # Klaus
 
-A lean, self-hosted personal AI agent stack: **WhatsApp → TypeScript → Postgres**. The project is built to be easy configurable and extensible in code, mainly through new tools and agents. *Klaus* is a reference to [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), the legendary pirate who allegedly walked past his crew after being beheaded — because this stack is *headless*. This is a personal hobby project for now and not implemented yet. We're still in planning mode.
+A lean, self-hosted personal AI agent stack: **WhatsApp → TypeScript → Postgres**. The project is built to be easy configurable and extensible in code, mainly through new tools and agents. *Klaus* is a reference to [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), the legendary pirate who allegedly walked past his crew after being beheaded — because this stack is *headless*. This is a personal hobby project.
 
 ---
 
@@ -90,22 +90,18 @@ Every inbound message flows through **one function**: `pipeline.handleTurn(msg: 
 handleTurn(msg: InboundMessage)
   1. Auth           → middleware.checkAllowlist(msg)
   2. Rate check     → rateLimiter.checkMessageRate(msg)     // message-level gate
-  3. Debounce       → middleware.debounce(msg)               // batch rapid messages
-  4. Normalize      → if voice: voice.transcribe(msg)        // media → text
-                    → if image: voice.analyzeImage(msg)
-  5. Parse          → parse @agent, !flags                   // inline in pipeline
-  6. Route          → resolve target agent from @mention or default
-  7. Assemble       → context.assemble(turn)                 // all context queries, parallel
-  8. Execute        → agent.run(turn)                        // sync execution
-  9. Hooks          → dispatch post-turn hooks via queue      // e.g. memorize-agent
+  3. Normalize      → [deferred] voice.transcribe / vision.analyzeImage
+  4. Parse          → parse @agent, !flags                   // inline in pipeline
+  5. Route          → resolve target agent from @mention or default
+  6. Assemble       → context.assemble(turn)                 // all context queries, parallel
+  7. Execute        → agent.run(turn)                        // sync execution
 ```
 
 **Key boundaries:**
 
-- **Steps 1–4** are pre-processing (no LLM). `core/middleware.ts` provides pure functions: `checkAllowlist()`, `debounce()`, etc . It has no independent message handling — the pipeline calls it
-- **Steps 5–6** resolve *what* runs. Routing and flag parsing happen inline in the pipeline
-- **Steps 7–8** are the agent turn. `agent.ts` handles assembly and execution, called by the pipeline
-- **Steps 9** is post-execution. Response delivery is handed to the transport layer (`send.ts`). Hooks are dispatched async via the queue — zero latency impact on the response
+- **Steps 1–2** are pre-processing (no LLM). `core/middleware.ts` provides pure functions: `checkAllowlist()`. It has no independent message handling — the pipeline calls it
+- **Steps 4–5** resolve *what* runs. Routing and flag parsing happen inline in the pipeline
+- **Steps 6–7** are the agent turn. `agent.ts` handles assembly and execution, called by the pipeline
 - **Async path (tasks)**: `worker.ts` claims pgboss jobs and calls `agent.ts` directly — it does *not* go through `pipeline.ts`. The inbound pipeline is only for user-initiated messages
 
 ### Agent Definitions
@@ -114,69 +110,24 @@ Every agent is a markdown file in `/src/agents/`. A new agent means adding a pro
 
 **Core default agents:**
 
-| **Agent**                      | **Model** | Context                                      | **Tools**                              | **Default Mode**       | **Hooks**                  |
-| ------------------------------ | --------- | -------------------------------------------- | -------------------------------------- | ---------------------- | -------------------------- |
-| **Klaus** *(default)*          | `default` | Active tasks, last messages, related context | Standalone + surface + dynamic loading | sync (entry point)     | `runAfter: memorize-agent` |
-| **Thinking Agent**             | `high`    | Active tasks, last messages, related context | Standalone + surface + dynamic loading | sync or async          | `runAfter: memorize-agent` |
-| **Memorize Agent**             | `default` | Last messages, deep related context          | `memory.*`                             | async (post-turn hook) | —                          |
-| **Reflection Agent** *(daily)* | `default` | Message history, deep related context        | `memory.*`                             | async (scheduled)      | —                          |
+| **Agent**                      | **Model** | Context                                      | **Tools**                              | **Default Mode**  |
+| ------------------------------ | --------- | -------------------------------------------- | -------------------------------------- | ----------------- |
+| **Klaus** *(default)*          | `default` | Active tasks, last messages, related context | Standalone + surface + dynamic loading | sync (entry point) |
+| **Thinking Agent**             | `high`    | Active tasks, last messages, related context | Standalone + surface + dynamic loading | sync or async     |
+| **Memorize Agent**             | `default` | Last messages, deep related context          | `memory.*`                             | async (dispatched by Klaus/thinking via `dispatch` tool) |
+| **Reflection Agent** *(daily)* | `default` | Message history, deep related context        | `memory.*`                             | async (scheduled cron) |
 
-### Hook System
+### Dispatch System
 
-Hooks are the general mechanism for **automatic agent calling**. 
+**`core/dispatch.ts`** is the unified primitive — the only way agents invoke other agents. Three modes:
 
-**Three trigger modes:**
+1. **inline** — run the target agent synchronously in the current process; useful for sub-tasks that need to complete before the caller continues
+2. **async** — create a `tasks` row (status: `pending`) and enqueue a pg-boss job; returns the task ID. The worker picks it up and calls `agent.ts` directly
+3. **cron** — register a pg-boss schedule for the agent (e.g., reflection at 03:00 UTC daily)
 
-1. **Post-turn hooks** — fire after an agent run completes. Agents with post-turn hooks use **structured output** — the LLM's final return is an `AgentReturn` JSON object (see *Structured Output* below), not free-text. The pipeline reads the `hooks` map deterministically and dispatches each hook where `fire: true`. Because the final output is machine-readable, **all user-facing output must go through `reply` tool calls** during the run. The structured return is never shown to the user. Zero latency impact — hooks are dispatched after the response is already sent
+Chain depth is tracked and capped at `config.dispatch.maxChainDepth` (10) to prevent infinite loops.
 
-<aside>
-⚠️
-
-**Prompt requirement:** Every agent with a post-turn hook must be explicitly instructed in its prompt to (1) always use the `reply` tool for user-facing output and (2) return the expected `AgentReturn` shape as its final response. Without this, the agent may attempt to return free-text, breaking hook dispatch and leaving the user with no visible reply.
-
-</aside>
-
-1. **Scheduled hooks** — fire on a cron schedule. The reflection-agent runs daily as a standard agent through pgboss
-2. **Direct invocation** — any agent can call another agent mid-run via the `task.create` tool (see below), either sync or async. Used for task delegation/ async execution.
-
-**Default configuration:**
-
-- Klaus/thinking-agent → memorize-agent (post-turn, optional)
-- Reflection-agent (daily cron)
-
-### Structured Output
-
-Agents with post-turn hooks return a unified `AgentReturn` shape as their final LLM output. Agents without hooks return free-text (ignored by the pipeline) or `{}`.
-
-```tsx
-// Base return — every hooked agent returns this shape
-interface AgentReturn {
-  hooks?: Record<string, HookSignal>;  // keyed by hook name
-}
-
-// Each hook defines its own signal shape
-interface HookSignal {
-  fire: boolean;           // should the hook run?
-  hint?: string;           // optional context passed to the hook agent
-}
-```
-
-**Example:** Klaus with the memorize hook returns:
-
-```json
-{ "hooks": { "memorize-agent": { "fire": true, "hint": "user shared a new preference about coffee" } } }
-```
-
-The pipeline reads `return.hooks[hookName]`, validates the signal, and dispatches via the queue if `fire: true`. Each hook's signal shape is defined alongside the hook — adding a new hook means defining a new signal interface, nothing else changes.
-
-The expected hooks are declared in the agent's frontmatter:
-
-```yaml
-hooks:
-  runAfter:
-    - hook: memorize-agent
-      signal: HookSignal
-```
+Agents invoke other agents via the **`dispatch` tool** (surface tool in the `task` toolset). Klaus and thinking use it to trigger memorize after a turn — agent-driven, not pipeline-driven.
 
 ### Tool System
 
@@ -189,7 +140,7 @@ Three visibility tiers — one definition per tool, no duplication:
 | **Tier**       | **Loaded when**                                             | **Examples**                     |
 | -------------- | ----------------------------------------------------------- | -------------------------------- |
 | **Standalone** | Always — not part of any set                                | `reply`                          |
-| **Surface**    | Always — belongs to a set, but promoted to always-available | `memory.search`, `task.create`   |
+| **Surface**    | Always — belongs to a set, but promoted to always-available | `memory.search`, `dispatch`      |
 | **Set-only**   | Only when the toolset is loaded                             | `memory.write`, `memory.link`, … |
 
 When a toolset loads, its surface tools are already present — no duplication, no swap. The set fills in around them. When the set unloads, surface tools stay. To promote a new tool to always-available, set `surface: true` on its definition — one-line change.
@@ -209,7 +160,7 @@ Tools are organized into on-demand **namespaced tool-sets** — domain-specific 
 | **Tool-Set** | **Tools**                                                                                                                       | **Purpose**                                                                                                                                              |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **memory**   | `memory.search` *(surface)*, `memory.write`, `memory.read`, `memory.archive`, `memory.link`, `memory.unlink`, `memory.traverse` | Full graph lifecycle — node CRUD, typed edges, hybrid search across nodes and chunks (resolved to parent node) with graph expansion and traversal.       |
-| **task**     | `task.create` *(surface)*, `task.cancel`, `task.list`                                                                           | Async task lifecycle. `create` enqueues a pgboss job for the assigned agent. `cancel` marks cancelled + removes pending job. `list` returns active tasks |
+| **task**     | `dispatch` *(surface)*, `task.cancel`, `task.list`                                                                              | Agent dispatch + task lifecycle. `dispatch` invokes an agent inline/async/cron. `cancel` marks cancelled + removes pending job. `list` returns active tasks |
 | **ops**      | `ops.cron`, `ops.cost-tracking`, `ops.postgres-query`                                                                           | Scheduling, spend/budget queries, read-only named queries via `app_ro`                                                                                   |
 | **files**    | `files.upload`, `files.download`, `files.list`, `files.delete`                                                                  | Blob/media CRUD on files volume + `files` metadata table. Optional `nodeId` linking to associate files with graph nodes                                  |
 
@@ -344,9 +295,9 @@ Versions are **not nodes**. Like chunks, they're an operational concern — an e
 ```tsx
 export const nodeVersionReasonType = pgEnum('node_version_reason', [
   'user_edit',              // user explicitly changed the node
-  'contradiction_resolved', // memorize-agent resolved a conflict
-  'merged',                 // reflection-agent merged duplicates
-  'reflection',             // reflection-agent rewrote or refined
+  'contradiction_resolved', // memorize resolved a conflict
+  'merged',                 // reflection merged duplicates
+  'reflection',             // reflection rewrote or refined
 ]);
 
 export const nodeVersions = pgTable('node_versions', {
@@ -364,7 +315,7 @@ export const nodeVersions = pgTable('node_versions', {
 ]);
 ```
 
-`write.ts` snapshots the current state to `node_versions` before overwriting — same pattern as auto-chunking. `version` is a monotonic integer per node. `reason` tracks *why* the version was created — a user edit, a contradiction resolution by the memorize-agent, and a merge by the reflection-agent are all distinguishable. Versions cascade-delete when their parent node is deleted.
+`write.ts` snapshots the current state to `node_versions` before overwriting — same pattern as auto-chunking. `version` is a monotonic integer per node. `reason` tracks *why* the version was created — a user edit, a contradiction resolution by the memorize agent, and a merge by the reflection agent are all distinguishable. Versions cascade-delete when their parent node is deleted.
 
 **Boundary with `supersedes`:** Version history tracks a *single node evolving over time*. The `supersedes` edge is for *cross-node replacement* — when a genuinely new node replaces a different old node (e.g., a new assertion contradicts and replaces an old one). That's a graph-level semantic relationship, not an edit-history concern.
 
@@ -398,9 +349,9 @@ export const provenance = pgTable('provenance', {
 
 #### Memorize Agent
 
-The memorize-agent is a default agent that optionally runs post-turn when the calling agent (usually Klaus). Uses the `memory.*` tool-set to enter new memories to the graph automatically.
+The memorize agent is a default agent that optionally runs post-turn when the calling agent (usually Klaus). Uses the `memory.*` tool-set to enter new memories to the graph automatically.
 
-**In one pass**, the memorize-agent:
+**In one pass**, the memorize agent:
 
 1. Uses context and search for assessing if new information has been presented
 2. Writes or updates nodes and edges accordingly — updates to existing nodes are automatically versioned by `write.ts` (snapshot before overwrite)
@@ -408,7 +359,7 @@ The memorize-agent is a default agent that optionally runs post-turn when the ca
 
 #### Reflection Agent
 
-The reflection-agent runs daily via a scheduled hook (cron), keeping the graph healthy:
+The reflection agent runs daily via a cron schedule, keeping the graph healthy:
 
 - **General maintenance** — checks new memories (according to schedule) and checks them for issues, inconsistencies, missing pieces, …
 - **Tag → topic suggestions** — scans `tags[]` across all nodes, surfaces candidates for `topic` node creation (frequent, semantically coherent tags)
@@ -424,35 +375,42 @@ The reflection-agent runs daily via a scheduled hook (cron), keeping the graph h
 // Messages
 export const messages = pgTable('messages', {
   id: uuid('id').primaryKey().defaultRandom(),
-  whatsappChatId: text('whatsapp_chat_id').notNull(),
-  role: text('role').notNull(), //maybe enum
+  chatId: text('chat_id').notNull(),
+  role: text('role').notNull(),
   content: text('content'),
-  toolCalls: jsonb('tool_calls'),
-  tokensUsed: integer('tokens_used'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  index('idx_messages_chat_time').on(t.chatId, t.createdAt),
+]);
 
-// LLM Cost Tracking
-export const llmCosts = pgTable('llm_costs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  messageId: uuid('message_id').references(() => messages.id),
-  taskId: uuid('task_id').references(() => tasks.id),
-  model: text('model').notNull(),
-  promptTokens: integer('prompt_tokens').notNull(),
-  completionTokens: integer('completion_tokens').notNull(),
-  costUsd: numeric('cost_usd', { precision: 10, scale: 6 }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+// LLM Invocation Tracing (replaces lean llmCosts table)
+export const agentInvocations = pgTable('agent_invocations', {
+  id:               uuid('id').primaryKey().defaultRandom(),
+  messageId:        uuid('message_id').references(() => messages.id),
+  taskId:           uuid('task_id').references(() => tasks.id),
+  agent:            text('agent').notNull(),
+  model:            text('model').notNull(),
+  systemPrompt:     text('system_prompt'),
+  userMessage:      text('user_message'),
+  steps:            jsonb('steps').notNull().default(sql`'[]'::jsonb`),
+  promptTokens:     integer('prompt_tokens'),
+  completionTokens: integer('completion_tokens'),
+  costUsd:          numeric('cost_usd', { precision: 10, scale: 6 }),
+  durationMs:       integer('duration_ms'),
+  createdAt:        timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const llmBudgets = pgTable('llm_budgets', {
   id: uuid('id').primaryKey().defaultRandom(),
-  whatsappChatId: text('whatsapp_chat_id').notNull(),
+  chatId: text('chat_id').notNull(),
   dailyLimitUsd: numeric('daily_limit_usd', { precision: 10, scale: 2 }),
   monthlyLimitUsd: numeric('monthly_limit_usd', { precision: 10, scale: 2 }),
   currentDailyUsd: numeric('current_daily_usd', { precision: 10, scale: 6 }).default('0'),
   currentMonthlyUsd: numeric('current_monthly_usd', { precision: 10, scale: 6 }).default('0'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  unique('uq_llm_budgets_chat').on(t.chatId),
+]);
 // File Metadata
 export const files = pgTable('files', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -491,11 +449,13 @@ Tasks are how Klaus handles **async work** that goes beyond a single turn — re
 ```tsx
 export const tasks = pgTable('tasks', {
   id: uuid('id').primaryKey().defaultRandom(),
+  chatId: text('chat_id').notNull(),
   objective: text('objective').notNull(),
   assignedTo: text('assigned_to'),          // agent name
+  caller: text('caller'),                   // who dispatched this task
   status: taskStatusEnum('status').notNull(), // pending | running | done | failed | cancelled
-  input: jsonb('input'),                     // whatever the agent needs
   result: jsonb('result'),                   // whatever the agent produced
+  parentTaskId: uuid('parent_task_id').references((): AnyPgColumn => tasks.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   completedAt: timestamp('completed_at', { withTimezone: true }),
 });
@@ -505,7 +465,7 @@ export const tasks = pgTable('tasks', {
 
 ### Multi-Step Work
 
-If a task requires multiple steps, the assigned agent handles sequencing internally via `task.create` calls — no upfront DAG declaration needed. This keeps the planning logic in the agent (where it belongs) rather than in a separate orchestration layer.
+If a task requires multiple steps, the assigned agent handles sequencing internally via `dispatch` tool calls — no upfront DAG declaration needed. This keeps the planning logic in the agent (where it belongs) rather than in a separate orchestration layer.
 
 ### Cancellation
 
@@ -543,24 +503,26 @@ interface ContextResult {
 
 **Query suite:**
 
-| Query              | **Variable**        | Content                                                                                                                     | **Trim**                                                           |
-| ------------------ | ------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `graph-context.ts` | `graph_context`     | Pinned nodes (always) + hybrid search across nodes and chunks (resolved to parent node) + 1-hop edge expansion              | Pinned: never. Search results: truncate lowest similarity          |
-| `tools.ts`         | `tool_descriptions` | Standalone + surface tool descriptions + `listToolSets()` index. Loaded sets injected on demand, surface tools deduplicated | Standalone + surface: never trimmed. Loaded sets: drop on overflow |
-| `conversation.ts`  | `conversation`      | Last N messages from `messages` table                                                                                       | Truncate oldest                                                    |
-| `tasks.ts`         | `active_tasks`      | Active tasks from `tasks` table                                                                                             | Truncate oldest                                                    |
-| `flags.ts`         | `flag_injections`   | Parsed `!flags` from the current message                                                                                    | Never                                                              |
+| Query              | **Variable**        | Content                                                                                                        | **Priority** | **Trim**                                  |
+| ------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------- | ------------ | ----------------------------------------- |
+| `graph-context.ts` | `graph_context`     | Pinned nodes (always) + hybrid search across nodes and chunks (resolved to parent node) + 1-hop edge expansion | 2            | Truncate oldest                           |
+| `conversation.ts`  | `conversation`      | Last N messages from `messages` table                                                                          | 3            | Truncate oldest                           |
+| `tasks.ts`         | `active_tasks`      | Active (pending/running) tasks, hierarchical tree                                                              | 4            | Always (removed entirely if over budget)  |
+| `dispatch.ts`      | `dispatch_context`  | Caller, objective, hint, mode — injected for dispatched agents; empty for direct WhatsApp turns                | -1           | Never                                     |
+| `datetime.ts`      | `date` / `time`     | Formatted date and time (de-DE, Europe/Berlin timezone)                                                        | static       | Never (no token cost, static snippets)    |
+
+**Flags** (`!flag` tokens) are parsed inline in `pipeline.ts` via `parseFlags()` and stored as `TurnContext.flags`. They are not a context query — `assemble.ts` injects them as static snippets with no token cost.
 
 ### Assembly
 
-`assemble.ts` runs all providers in parallel, checks total against `context_budget_tokens`, and trims lowest-priority results first. Each provider's `truncate` controls how it degrades:
+`core/assemble.ts` runs all context queries in parallel, checks total against `context_budget_tokens` (100k), and trims lowest-priority results first. Each provider's `truncate` controls how it degrades:
 
 - **`never`** — never trimmed
 - **`always`** — removed entirely
 - **`oldest`** — remove items from the tail (conversations, memories, episodes)
-- **`summarize`** — remove full context, but add the summary if it exists (nodes over `NODE_CONTEXT_MAX_TOKENS` are already chunked and summarized)
+- **`summarize`** — remove full context, but add the summary if it exists
 
-Standalone and surface tool descriptions are never trimmed. Loaded tool-sets are dropped on overflow.
+Static snippets (flags, date/time) are injected with no token cost and are never trimmed.
 
 ---
 
@@ -750,7 +712,7 @@ async function simulateTurn(input: string, chatId?: string): Promise<TurnResult>
     graph-context.test.ts
   /evals
     tool-selection.eval.ts
-    memorize-agent.eval.ts
+    memorize.eval.ts
     routing.eval.ts
   /integration
     turn-pipeline.test.ts
@@ -759,53 +721,55 @@ async function simulateTurn(input: string, chatId?: string): Promise<TurnResult>
 
 ---
 
-```jsx
+```
 Dockerfile
 .env.example
 /src
-	README.md
   config.ts                  — model tier map, context budgets, rate limits
   types.ts                   — all types
+  index.ts                   — bootstrap: load tools/agents/context queries, start queue, register crons, connect WhatsApp, /healthz
+  logger.ts                  — structured JSON logging (silent in tests)
   /core
-    pipeline.ts              — the turn sequence: auth → normalize → route → assemble → run → respond → hooks
-    middleware.ts            — pure functions: checkAllowlist(), debounce(), ...
-    agent.ts                 — generic agent assembly and execution engine (used by all agents)
-    model-router.ts          — resolves tier → model from config map (Anthropic for LLM/vision, ElevenLabs for voice, Voyage for embeddings); calls rateLimiter.checkModelRate() per invocation
-    queue.ts                 — pgboss dispatch, retries, stalled recovery
-    worker.ts                — pgboss worker: claims jobs, resolves AgentDefinition, calls agent.ts directly
-    rate-limiter.ts          — sliding window implementation; exports checkMessageRate() and checkModelRate()
+    pipeline.ts              — turn sequence: auth → rate-check → parse → route → assemble → run
+    middleware.ts            — pure functions: checkAllowlist()
+    agent.ts                 — agent loader (YAML frontmatter) + execution engine (runAgent)
+    dispatch.ts              — unified dispatch primitive: inline / async / cron
+    model-router.ts          — resolves tier → model; calls generateText(); records agentInvocations
+    queue.ts                 — pg-boss wrapper: enqueueJob(), scheduleJob()
+    worker.ts                — pg-boss worker: claims jobs, calls agent.ts directly
+    rate-limiter.ts          — sliding window; exports checkMessageRate() and checkModelRate()
+    assemble.ts              — runs all context queries in parallel, enforces token budget, trims by priority
   /db
+    client.ts                — Drizzle + Postgres client
     schema.ts                — Drizzle schema (nodes, edges, chunks + operational tables)
-    search.ts                — hybrid search engine (tsvector + pgvector, RRF) across nodes and chunks; chunk hits resolved to parent node with matching chunk highlighted
-    write.ts                 — node write path (embed, tsvector, upsert) + auto-chunking to `chunks` table when body exceeds token threshold + auto-versioning to `node_versions` on update
-    queries/                 — static queries
+    search.ts                — hybrid search engine (tsvector + pgvector, RRF); chunk hits resolved to parent node
+    write.ts                 — node write path: embed, tsvector, upsert, auto-chunk, auto-version
     migrations/              — sequential SQL files
   /whatsapp
     connection.ts            — Baileys setup, QR pairing, reconnect
     receive.ts               — raw message handler → normalize to InboundMessage, hand off to pipeline
     send.ts                  — send queue: ordering, dedup by composite key, rate-limit backoff, retry
-    voice.ts                 — STT transcription + vision analysis
-    tts.ts                   — text-to-speech output
+    voice.ts                 — [deferred] STT transcription + vision analysis
+    tts.ts                   — [deferred] text-to-speech output
     commands.ts              — prefix /commands (parsed from message text)
     flags.ts                 — !flag definitions + parsing
-    confirm.ts               — user confirmations for selected tools
+    confirm.ts               — [deferred] user confirmations for selected tools
   /tools
+    registry.ts              — tool registry + loading
     reply.ts                 — send messages, media, reactions, follow-up questions
-    memory/                  — write, read, archive, link, unlink, search, traverse
-    task/                    — create, cancel, list
+    memory/                  — search (surface), write, read, archive, link, unlink, traverse
+    task/                    — dispatch (surface), cancel, list
     files/                   — upload, download, list, delete (blob/media on files volume)
     ops/                     — cron, cost-tracking, postgres-query
   /context
-    assemble.ts              — runs all context queries in parallel, enforces token budget, trims by priority
-    graph-context.ts         — pinned nodes + hybrid search across nodes and chunks (resolved to parent node) + edge expansion
+    graph-context.ts         — pinned nodes + hybrid search across nodes and chunks + edge expansion
     conversation.ts          — last N messages from current conversation
-    tasks.ts                 — active tasks
-    tools.ts                 — standalone + surface tool descriptions + listToolSets() index
-    flags.ts                 — parsed !flags → flag_injections variable
+    tasks.ts                 — active tasks (pending/running), hierarchical tree
+    dispatch.ts              — caller/objective/hint/mode for dispatched agents (empty for direct turns)
+    datetime.ts              — date and time (de-DE, Europe/Berlin)
   /agents
     klaus.md
-    thinking-agent.md
-    memorize-agent.md
-    reflection-agent.md
-
+    thinking.md
+    memorize.md
+    reflection.md
 ```
