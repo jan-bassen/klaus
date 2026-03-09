@@ -11,7 +11,7 @@ const mockCallModel = mock(async () => ({
 mock.module('../../core/model-router', () => ({ callModel: mockCallModel }));
 
 import { loadAgentDefinition, runAgent } from '@/core/agent';
-import { registerTool, toolRegistry } from '@/tools/registry';
+import { registerTool, registerToolset, toolRegistry, toolsetRegistry } from '@/core/registry';
 import type { TurnContext, AssembledContext } from '@/types';
 
 // ---- runAgent helpers ----
@@ -21,7 +21,7 @@ const emptyAssembled: AssembledContext = {
   totalTokens: 0,
 };
 
-function makeTurn(vars: Record<string, string> = {}): TurnContext {
+function makeTurn(vars: Record<string, unknown> = {}): TurnContext {
   return {
     chatId: 'user@s.whatsapp.net',
     message: {
@@ -308,24 +308,95 @@ describe('runAgent', () => {
     expect((opts as { tools: Record<string, unknown> }).tools['test-tool']).toBeDefined();
   });
 
-  test('tools from def.toolsets are expanded and wired into callModel', async () => {
+  test('toolsets use a meta-tool initially; toolset tools registered but not active', async () => {
     const executeFn = mock(async () => 'ok');
-    registerTool({
-      name: 'ts.alpha',
-      description: 'A toolset tool',
-      inputSchema: z.object({ x: z.string() }),
-      execute: executeFn,
-      kind: 'builtin',
-      capability: 'tool',
+    registerToolset({
+      name: 'ts',
+      description: 'Test toolset.',
+      tools: [{
+        name: 'ts.alpha',
+        description: 'A toolset tool',
+        inputSchema: z.object({ x: z.string() }),
+        execute: executeFn,
+        kind: 'builtin',
+        capability: 'tool',
+      }],
     });
     const turn = makeTurn();
     turn.agent = { ...turn.agent, toolsets: ['ts'], promptPath: tmpPath };
     await runAgent(turn, turn.agent);
     cleanup();
     toolRegistry.delete('ts.alpha');
-    const opts = lastArg(mockCallModel);
-    expect((opts as { tools?: Record<string, unknown> }).tools).toBeDefined();
-    expect((opts as { tools: Record<string, unknown> }).tools['ts_alpha']).toBeDefined();
+    toolsetRegistry.delete('ts');
+    const opts = lastArg(mockCallModel) as {
+      tools?: Record<string, unknown>;
+      activeTools?: string[];
+    };
+    // All tools (meta + toolset tools) are registered
+    expect(opts.tools).toBeDefined();
+    expect(opts.tools!['use_ts']).toBeDefined();
+    expect(opts.tools!['ts_alpha']).toBeDefined();
+    // Only the meta-tool is initially active; toolset tool is inactive until use_ts is called
+    expect(opts.activeTools).toContain('use_ts');
+    expect(opts.activeTools).not.toContain('ts_alpha');
+  });
+
+  test('generateMetaTool description lists all toolset tools', async () => {
+    const { generateMetaTool } = await import('@/core/registry');
+    const ts = {
+      name: 'demo',
+      description: 'Use for demo things.',
+      tools: [
+        { name: 'demo.foo', description: 'Foo action', inputSchema: {} as any, execute: async () => {}, kind: 'builtin' as const, capability: 'tool' as const },
+        { name: 'demo.bar', description: 'Bar action', inputSchema: {} as any, execute: async () => {}, kind: 'builtin' as const, capability: 'tool' as const },
+      ],
+    };
+    const meta = generateMetaTool(ts);
+    expect(meta.name).toBe('use_demo');
+    expect(meta.description).toContain('demo.foo');
+    expect(meta.description).toContain('Foo action');
+    expect(meta.description).toContain('demo.bar');
+    expect(meta.description).toContain('Bar action');
+    expect(meta.description).toContain('Use for demo things.');
+  });
+
+  test('prepareStep expands activeTools after use_X call in a previous step', async () => {
+    const executeFn = mock(async () => 'ok');
+    registerToolset({
+      name: 'expand',
+      description: 'Expansion toolset.',
+      tools: [{
+        name: 'expand.one',
+        description: 'One',
+        inputSchema: {} as any,
+        execute: executeFn,
+        kind: 'builtin',
+        capability: 'tool',
+      }],
+    });
+    const turn = makeTurn();
+    turn.agent = { ...turn.agent, toolsets: ['expand'], promptPath: tmpPath };
+    await runAgent(turn, turn.agent);
+    cleanup();
+
+    const opts = lastArg(mockCallModel) as {
+      activeTools?: string[];
+      prepareStep?: (steps: any[]) => string[];
+    };
+    expect(opts.prepareStep).toBeDefined();
+
+    // Before any use_expand call: same as initialActive
+    const before = opts.prepareStep!([]);
+    expect(before).toContain('use_expand');
+    expect(before).not.toContain('expand_one');
+
+    // After a step that called use_expand: meta-tool removed, real tools added
+    const after = opts.prepareStep!([{ toolCalls: [{ toolName: 'use_expand' }], toolResults: [] }]);
+    expect(after).not.toContain('use_expand');
+    expect(after).toContain('expand_one');
+
+    toolRegistry.delete('expand.one');
+    toolsetRegistry.delete('expand');
   });
 
   test('unknown tools are silently omitted from callModel', async () => {
@@ -354,5 +425,57 @@ describe('runAgent', () => {
     cleanup();
     const opts = lastArg(mockCallModel) as { messages: Array<{ role: string; content: string }> };
     expect(opts.messages[0]?.content).toBe('Research LLM patterns');
+  });
+
+  // -- Handlebars rendering --
+
+  test('nested {{#if}} blocks render correctly', async () => {
+    const p = path.join(import.meta.dir, '__hbs-nested.md');
+    await Bun.write(p, '---\nname: test-agent\nmodelTier: default\ntools: []\n---\n{{#if outer}}A{{#if inner}}B{{/if}}C{{/if}}');
+    const turn = makeTurn({ outer: true, inner: true });
+    turn.agent.promptPath = p;
+    await runAgent(turn, turn.agent);
+    try { unlinkSync(p); } catch { /* gone */ }
+    expect((lastArg(mockCallModel) as { system: string }).system).toBe('ABC');
+  });
+
+  test('{{#if (eq x "val")}} renders when value matches', async () => {
+    const p = path.join(import.meta.dir, '__hbs-eq.md');
+    await Bun.write(p, '---\nname: test-agent\nmodelTier: default\ntools: []\n---\n{{#if (eq message_type "voice")}}voice!{{/if}}');
+    const turn = makeTurn({ message_type: 'voice' });
+    turn.agent.promptPath = p;
+    await runAgent(turn, turn.agent);
+    try { unlinkSync(p); } catch { /* gone */ }
+    expect((lastArg(mockCallModel) as { system: string }).system).toBe('voice!');
+  });
+
+  test('{{#if (eq x "val")}} is empty when value does not match', async () => {
+    const p = path.join(import.meta.dir, '__hbs-eq-miss.md');
+    await Bun.write(p, '---\nname: test-agent\nmodelTier: default\ntools: []\n---\n{{#if (eq message_type "voice")}}voice!{{/if}}');
+    const turn = makeTurn({ message_type: 'text' });
+    turn.agent.promptPath = p;
+    await runAgent(turn, turn.agent);
+    try { unlinkSync(p); } catch { /* gone */ }
+    expect((lastArg(mockCallModel) as { system: string }).system).toBe('');
+  });
+
+  test('{{#each items}} renders array values', async () => {
+    const p = path.join(import.meta.dir, '__hbs-each.md');
+    await Bun.write(p, '---\nname: test-agent\nmodelTier: default\ntools: []\n---\n{{#each items}}-{{this}}{{/each}}');
+    const turn = makeTurn({ items: ['a', 'b', 'c'] });
+    turn.agent.promptPath = p;
+    await runAgent(turn, turn.agent);
+    try { unlinkSync(p); } catch { /* gone */ }
+    expect((lastArg(mockCallModel) as { system: string }).system).toBe('-a-b-c');
+  });
+
+  test('& in var value is not HTML-escaped', async () => {
+    const p = path.join(import.meta.dir, '__hbs-escape.md');
+    await Bun.write(p, '---\nname: test-agent\nmodelTier: default\ntools: []\n---\n{{val}}');
+    const turn = makeTurn({ val: 'a & b' });
+    turn.agent.promptPath = p;
+    await runAgent(turn, turn.agent);
+    try { unlinkSync(p); } catch { /* gone */ }
+    expect((lastArg(mockCallModel) as { system: string }).system).toBe('a & b');
   });
 });

@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import type { ToolDefinition } from '@/types';
+import type { ToolDefinition, ToolsetDefinition } from '@/types';
 import { hybridSearch } from '@/db/search';
 import { writeNode } from '@/db/write';
 import { db } from '@/db/client';
@@ -138,12 +138,16 @@ export const memoryTraverseTool: ToolDefinition<typeof memoryTraverseSchema> = {
   capability: 'resource',
 };
 
-export const memoryToolset = [
-  memorySearchTool,
-  memoryWriteTool,
-  memoryReadTool,
-  memoryArchiveTool,
-  memoryLinkTool,
-  memoryUnlinkTool,
-  memoryTraverseTool,
-];
+export const memoryToolset: ToolsetDefinition = {
+  name: 'memory',
+  description: 'Use when you need to search, read, write, or manage nodes and edges in the knowledge graph.',
+  tools: [
+    memorySearchTool,
+    memoryWriteTool,
+    memoryReadTool,
+    memoryArchiveTool,
+    memoryLinkTool,
+    memoryUnlinkTool,
+    memoryTraverseTool,
+  ],
+};

@@ -142,8 +142,13 @@ export const messages = pgTable('messages', {
   role: text('role').notNull(),
   content: text('content'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  /** Baileys message ID — stored so quoted-message FK resolution can look up our DB UUID */
+  externalId: text('external_id'),
+  /** Self-referential FK to the quoted message row (null when not a reply or message not in DB) */
+  quotedMessageId: uuid('quoted_message_id').references((): AnyPgColumn => messages.id, { onDelete: 'set null' }),
 }, (t) => [
   index('idx_messages_chat_time').on(t.chatId, t.createdAt),
+  index('idx_messages_external').on(t.chatId, t.externalId),
 ]);
 
 export const tasks = pgTable('tasks', {

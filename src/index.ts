@@ -3,7 +3,7 @@ import { initQueue, stopQueue, isQueueReady } from './core/queue';
 import { startWorkers } from './core/worker';
 import { loadAgents, agentRegistry } from './core/agent';
 import { dispatch } from './core/dispatch';
-import { loadAllTools } from './tools/registry';
+import { loadAllTools } from './core/registry';
 import { loadContextQueries, setContextQueries } from './core/assemble';
 import { startConnection, closeSocket, isConnected } from './whatsapp/connection';
 import { attachReceiveHandler } from './whatsapp/receive';

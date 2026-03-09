@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { assembleContext } from '@/core/assemble';
-import { config } from '@/config';
+import { flagsQuery } from '@/context/flags';
+import { snippetsQuery } from '@/context/snippets';
 import type { AgentDefinition, ContextQuery, TurnContext } from '@/types';
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
@@ -39,7 +40,7 @@ function makeQuery(
   priority: number,
   content: string,
   tokenCount: number,
-  truncate: 'never' | 'always' | 'oldest' | 'summarize' = 'never',
+  truncate: 'never' | 'always' | 'oldest' = 'never',
 ): ContextQuery {
   return {
     name,
@@ -53,9 +54,16 @@ function makeQuery(
 describe('assembleContext', () => {
   // ─── basic shape ─────────────────────────────────────────────────────────
 
-  test('no queries → vars contains only snippets, totalTokens 0', async () => {
-    const result = await assembleContext(makeTurn());
-    expect(result.vars).toEqual({ ...config.snippets });
+  test('no queries → vars is empty, totalTokens 0', async () => {
+    const result = await assembleContext(makeTurn(), []);
+    expect(result.vars).toEqual({});
+    expect(result.totalTokens).toBe(0);
+  });
+
+  test('snippetsQuery → extraVars land as named template vars', async () => {
+    const result = await assembleContext(makeTurn(), [snippetsQuery]);
+    expect(result.vars['soul']).toBeDefined();
+    expect(typeof result.vars['soul']).toBe('string');
     expect(result.totalTokens).toBe(0);
   });
 
@@ -108,17 +116,17 @@ describe('assembleContext', () => {
   // ─── flag injections ──────────────────────────────────────────────────────
 
   test('flags: { test: true } → flags gets test prompt string', async () => {
-    const result = await assembleContext(makeTurn({ flags: { test: true } }), []);
-    expect(result.vars['flags']).toBe(config.flags.test);
+    const result = await assembleContext(makeTurn({ flags: { test: true } }), [flagsQuery]);
+    expect(result.vars['flags']).toBe('Dies ist ein Test. Ist dies in den Prompt geraten, bitte erwähnen.');
   });
 
-  test('unknown flag → flags var is undefined', async () => {
-    const result = await assembleContext(makeTurn({ flags: { unknown: true } }), []);
-    expect(result.vars['flags']).toBeUndefined();
+  test('unknown flag → flags var is empty string', async () => {
+    const result = await assembleContext(makeTurn({ flags: { unknown: true } }), [flagsQuery]);
+    expect(result.vars['flags']).toBe('');
   });
 
-  test('flagInjections are not counted in totalTokens', async () => {
-    const result = await assembleContext(makeTurn({ flags: { test: true } }), []);
+  test('flagsQuery tokenCount is 0', async () => {
+    const result = await assembleContext(makeTurn({ flags: { test: true } }), [flagsQuery]);
     expect(result.totalTokens).toBe(0);
   });
 

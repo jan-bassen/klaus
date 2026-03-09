@@ -7,6 +7,9 @@ FROM oven/bun:1
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN mkdir -p /app/auth
+RUN addgroup --system --gid 1001 bun && \
+    adduser --system --uid 1001 --ingroup bun bun && \
+    chown -R bun:bun /app
+USER bun
 EXPOSE 3000
 CMD ["bun", "run", "src/index.ts"]

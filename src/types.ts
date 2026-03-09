@@ -32,7 +32,25 @@ export interface InboundMessage {
   senderId: string;
   text?: string;
   /** Set by receive.ts after blob is persisted to the files volume */
-  media?: { fileId: string; path: string; mimeType: string; transcription?: string };
+  media?: {
+    fileId: string;
+    path: string;
+    mimeType: string;
+    transcription?: string;
+    /** For voice notes: the original typed caption before transcript replaced text */
+    voiceCaption?: string;
+    /** For documents: the original filename from Baileys */
+    fileName?: string;
+  };
+  /** Set by receive.ts when this message is a reply to another message */
+  quotedMessage?: {
+    /** Baileys stanzaId — used to resolve the quotedMessageId FK in the DB */
+    externalId: string;
+    /** Text of the quoted message, extracted from Baileys contextInfo at receive time */
+    text?: string;
+    /** Resolved by pipeline.ts: image file linked to the quoted message, if any */
+    media?: { fileId: string; path: string; mimeType: string };
+  };
   timestamp: Date;
   /** Raw Baileys message key, used for reactions */
   messageKey: Record<string, unknown>;
@@ -81,7 +99,7 @@ export interface TurnContext {
 
 export interface AssembledContext {
   /** Context variables keyed by query name — directly available as {{variable}} in prompts */
-  vars: Record<string, string>;
+  vars: Record<string, unknown>;
   totalTokens: number;
 }
 
@@ -120,6 +138,15 @@ export interface ToolDefinition<TInput extends z.ZodTypeAny = z.ZodTypeAny> {
   requiresConfirmation?: boolean;
 }
 
+export interface ToolsetDefinition {
+  /** Namespace prefix, e.g. "files". Tools are named "{name}.*". */
+  name: string;
+  /** One-line description of when to activate this toolset. */
+  description: string;
+  /** All tools belonging to this toolset. */
+  tools: ToolDefinition<any>[];
+}
+
 // -- Context queries --
 
 export interface ContextQuery {
@@ -130,9 +157,12 @@ export interface ContextQuery {
 }
 
 export interface ContextResult {
-  content: string;
+  /** Primary content for vars[query.name]. Omit for queries that only produce vars. */
+  content?: string;
   tokenCount: number;
-  truncate: 'never' | 'always' | 'oldest' | 'summarize';
+  truncate: 'never' | 'always' | 'oldest';
+  /** Named vars to inject beyond vars[query.name]. Token-free. */
+  vars?: Record<string, unknown>;
 }
 
 // -- Evals --

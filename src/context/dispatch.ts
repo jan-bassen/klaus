@@ -9,7 +9,7 @@ export const dispatchContextQuery: ContextQuery = {
   priority: -1, // never trimmed
   async run(turn): Promise<ContextResult> {
     if (!turn.dispatchContext) {
-      return { content: '', tokenCount: 0, truncate: 'never' };
+      return { tokenCount: 0, truncate: 'never' };
     }
 
     const { caller, objective, hint, mode } = turn.dispatchContext;

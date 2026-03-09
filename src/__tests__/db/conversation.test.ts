@@ -91,7 +91,7 @@ describeDb('conversationQuery', () => {
     await insertMessage(CHAT_ID, 'user', 'third', { createdAt: t2 });
 
     const result = await conversationQuery.run(turn);
-    const blocks = result.content.split('\n\n');
+    const blocks = result.content!.split('\n\n');
     expect(blocks[0]).toBe(`[user | ${formatMessageTimestamp(t0)}]\nfirst`);
     expect(blocks[1]).toBe(`[${dummyAgent.name} | ${formatMessageTimestamp(t1)}]\nsecond`);
     expect(blocks[2]).toBe(`[user | ${formatMessageTimestamp(t2)}]\nthird`);
@@ -177,7 +177,7 @@ describeDb('conversationQuery', () => {
     await insertMessage(CHAT_ID, 'user', 'third', { createdAt: t2 });
 
     const result = await conversationQuery.run(turn, { limit: 2 });
-    const blocks = result.content.split('\n\n');
+    const blocks = result.content!.split('\n\n');
     expect(blocks).toHaveLength(2);
     expect(blocks[0]).toBe(`[${dummyAgent.name} | ${formatMessageTimestamp(t1)}]\nsecond`);
     expect(blocks[1]).toBe(`[user | ${formatMessageTimestamp(t2)}]\nthird`);

@@ -1,0 +1,40 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'src/agents/**'   # agent-only changes use the faster agents.yml workflow
+
+jobs:
+  test:
+    runs-on: nas
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun test src/__tests__/context src/__tests__/core src/__tests__/whatsapp
+
+  deploy:
+    needs: test
+    runs-on: nas
+    env:
+      COMPOSE: docker compose -f docker-compose.yml -f docker-compose.nas.yml
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync agent files to bind mount
+        run: cp -r src/agents ./agents
+
+      - name: Build app image
+        run: ${{ env.COMPOSE }} build app
+
+      - name: Restart app
+        run: ${{ env.COMPOSE }} up -d app

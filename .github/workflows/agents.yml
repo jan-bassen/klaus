@@ -1,0 +1,22 @@
+name: Deploy Agents
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/agents/**'
+
+# Fast path: agent .md files changed — no Docker rebuild needed.
+# Syncs files to the bind-mount directory and restarts the app container (~5s).
+
+jobs:
+  deploy-agents:
+    runs-on: nas
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync agent files to bind mount
+        run: cp -r src/agents ./agents
+
+      - name: Restart app (no rebuild)
+        run: docker compose restart app

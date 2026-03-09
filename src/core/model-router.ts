@@ -1,4 +1,4 @@
-import type { ModelMessage, ToolSet } from 'ai';
+import type { ModelMessage, StepResult, ToolSet } from 'ai';
 import { generateText, stepCountIs } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { config, type ModelTier } from '@/config';
@@ -24,6 +24,10 @@ export interface ModelCallOptions {
   messageId?: string;
   taskId?: string;
   agentName?: string;
+  /** Initial active tool names (allowlist). If omitted, all tools are active. */
+  activeTools?: string[];
+  /** Called before each step; return updated active tool names to expand the allowlist. */
+  prepareStep?: (steps: StepResult<ToolSet>[]) => string[];
 }
 
 export interface ModelCallResult {
@@ -42,6 +46,7 @@ export interface ModelCallResult {
 function isRetryable(err: unknown): boolean {
   if (err instanceof LlmTimeoutError) return false;
   if (err instanceof Error && /rate.?limit/i.test(err.message)) return false;
+  if (err instanceof Error && /prompt is too long/i.test(err.message)) return false;
   return true;
 }
 
@@ -78,7 +83,20 @@ export async function callModel(opts: ModelCallOptions): Promise<ModelCallResult
           ...(opts.system ? { system: opts.system } : {}),
           messages: opts.messages,
           ...(opts.tools && Object.keys(opts.tools).length > 0
-            ? { tools: opts.tools, stopWhen: stepCountIs(10) }
+            ? {
+                tools: opts.tools,
+                stopWhen: stepCountIs(10),
+                ...(opts.activeTools
+                  ? { activeTools: opts.activeTools as Array<keyof ToolSet> }
+                  : {}),
+                ...(opts.prepareStep
+                  ? {
+                      prepareStep: ({ steps }: { steps: StepResult<ToolSet>[] }) => ({
+                        activeTools: opts.prepareStep!(steps) as Array<keyof ToolSet>,
+                      }),
+                    }
+                  : {}),
+              }
             : {}),
         }),
         timeoutPromise,

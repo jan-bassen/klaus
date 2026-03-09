@@ -1,4 +1,3 @@
-CREATE EXTENSION IF NOT EXISTS vector;--> statement-breakpoint
 CREATE TYPE "public"."edge_relation_type" AS ENUM('about', 'part_of', 'derived_from', 'influenced_by', 'references', 'supersedes', 'related_to');--> statement-breakpoint
 CREATE TYPE "public"."node_type" AS ENUM('episode', 'procedure', 'topic', 'document', 'project', 'entity', 'assertion');--> statement-breakpoint
 CREATE TYPE "public"."node_version_reason" AS ENUM('user_edit', 'contradiction_resolved', 'merged', 'reflection');--> statement-breakpoint
@@ -69,7 +68,9 @@ CREATE TABLE "messages" (
 	"chat_id" text NOT NULL,
 	"role" text NOT NULL,
 	"content" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"external_id" text,
+	"quoted_message_id" uuid
 );
 --> statement-breakpoint
 CREATE TABLE "node_versions" (
@@ -128,6 +129,7 @@ ALTER TABLE "edges" ADD CONSTRAINT "edges_source_id_nodes_id_fk" FOREIGN KEY ("s
 ALTER TABLE "edges" ADD CONSTRAINT "edges_target_id_nodes_id_fk" FOREIGN KEY ("target_id") REFERENCES "public"."nodes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "files" ADD CONSTRAINT "files_message_id_messages_id_fk" FOREIGN KEY ("message_id") REFERENCES "public"."messages"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "files" ADD CONSTRAINT "files_node_id_nodes_id_fk" FOREIGN KEY ("node_id") REFERENCES "public"."nodes"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "messages" ADD CONSTRAINT "messages_quoted_message_id_messages_id_fk" FOREIGN KEY ("quoted_message_id") REFERENCES "public"."messages"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "node_versions" ADD CONSTRAINT "node_versions_node_id_nodes_id_fk" FOREIGN KEY ("node_id") REFERENCES "public"."nodes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "provenance" ADD CONSTRAINT "provenance_node_id_nodes_id_fk" FOREIGN KEY ("node_id") REFERENCES "public"."nodes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tasks" ADD CONSTRAINT "tasks_parent_task_id_tasks_id_fk" FOREIGN KEY ("parent_task_id") REFERENCES "public"."tasks"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -136,6 +138,7 @@ CREATE INDEX "idx_edges_source" ON "edges" USING btree ("source_id");--> stateme
 CREATE INDEX "idx_edges_target" ON "edges" USING btree ("target_id");--> statement-breakpoint
 CREATE INDEX "idx_edges_relation" ON "edges" USING btree ("relation");--> statement-breakpoint
 CREATE INDEX "idx_messages_chat_time" ON "messages" USING btree ("chat_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_messages_external" ON "messages" USING btree ("chat_id","external_id");--> statement-breakpoint
 CREATE INDEX "idx_node_versions_node" ON "node_versions" USING btree ("node_id");--> statement-breakpoint
 CREATE INDEX "idx_provenance_node" ON "provenance" USING btree ("node_id");--> statement-breakpoint
 CREATE INDEX "idx_provenance_source" ON "provenance" USING btree ("source_type","source_id");--> statement-breakpoint

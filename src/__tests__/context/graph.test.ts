@@ -65,7 +65,7 @@ describe('graphContextQuery', () => {
 
   test('empty DB and no search results → empty content, zero tokens', async () => {
     const result = await graphContextQuery.run(turn);
-    expect(result.content).toBe('');
+    expect(result.content).toBeUndefined();
     expect(result.tokenCount).toBe(0);
   });
 
@@ -96,7 +96,7 @@ describe('graphContextQuery', () => {
     ]);
 
     const result = await graphContextQuery.run(turn);
-    const blocks = result.content.split('\n\n');
+    const blocks = result.content!.split('\n\n');
     expect(blocks.length).toBeGreaterThanOrEqual(2);
     expect(result.content).toContain('### Alpha');
     expect(result.content).toContain('### Beta');

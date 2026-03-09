@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import type { ContextQuery, ContextResult, TurnContext } from '@/types';
+import { config } from '@/config';
 import { hybridSearch } from '@/db/search';
 import { db } from '@/db/client';
 import { nodes } from '@/db/schema';
@@ -36,13 +37,26 @@ export const graphContextQuery: ContextQuery = {
       }
     }
 
-    if (items.length === 0) return { content: '', tokenCount: 0, truncate: 'oldest' };
+    if (items.length === 0) return { tokenCount: 0, truncate: 'oldest' };
 
-    const content = items
+    // Trim items from the tail until within the per-source budget.
+    const budget = config.context.graphContextTokens;
+    let tokenCount = 0;
+    const included: typeof items = [];
+    for (const item of items) {
+      const rendered = `### ${item.title ?? '(untitled)'}\n${item.body ?? ''}`;
+      const tokens = Math.ceil(rendered.length / 4);
+      if (tokenCount + tokens > budget) break;
+      included.push(item);
+      tokenCount += tokens;
+    }
+
+    if (included.length === 0) return { tokenCount: 0, truncate: 'oldest' };
+
+    const content = included
       .map(({ title, body }) => `### ${title ?? '(untitled)'}\n${body ?? ''}`)
       .join('\n\n');
 
-    const tokenCount = Math.ceil(content.length / 4);
     return { content, tokenCount, truncate: 'oldest' };
   },
 };

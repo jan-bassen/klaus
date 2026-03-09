@@ -1,16 +1,26 @@
 import { parse as parseYaml } from 'yaml';
 import { tool } from 'ai';
-import type { ToolSet } from 'ai';
+import type { ImagePart, StepResult, TextPart, ToolSet, UserContent } from 'ai';
 import type { AgentDefinition, TurnContext } from '@/types';
 import type { ModelTier } from '@/config';
 import { config } from '@/config';
-import { toolRegistry, getToolsForToolset } from '@/tools/registry';
+import sharp from 'sharp';
+import { hbs } from './hbs';
+import { toolRegistry, toolsetRegistry, generateMetaTool } from '@/core/registry';
 import { callModel } from './model-router';
 import { log } from '@/logger';
 
-function buildSystemPrompt(body: string, vars: Map<string, string>): string {
-  // {{name}} and {{name?key=val}} both resolve to vars[name]; the ?params suffix is for query config only.
-  return body.trim().replace(/\{\{(\w+)(?:\?[^}]*)?\}\}/g, (_, key: string) => vars.get(key) ?? '');
+// Max long-edge dimension for vision images. A 2048px image → at most 4×4 = 16 tiles ≈ 24k tokens.
+const MAX_IMAGE_DIMENSION = 2048;
+
+/** Strip inline query params from {{name?key=val}} → {{name}} before Handlebars compilation. */
+function stripInlineParams(body: string): string {
+  return body.replace(/\{\{(\w+)\?[^}]*\}\}/g, '{{$1}}');
+}
+
+function buildSystemPrompt(body: string, vars: Record<string, unknown>): string {
+  const template = hbs.compile(stripInlineParams(body), { noEscape: true });
+  return template(vars).replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /**
@@ -50,30 +60,92 @@ export async function runAgent(
   const raw = await Bun.file(def.promptPath).text();
   const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, '');
 
-  const vars = new Map<string, string>(Object.entries(turn.assembled.vars));
-  const system = buildSystemPrompt(body, vars);
+  const system = buildSystemPrompt(body, turn.assembled.vars);
 
   // Build Vercel AI SDK tools — closures over turn so execute receives TurnContext
-  const tools: ToolSet = {};
-  const addTool = (t: ReturnType<typeof toolRegistry.get>) => {
-    if (!t) return;
-    tools[t.name.replace(/\./g, '_')] = tool({
-      description: t.description,
-      inputSchema: t.inputSchema,
-      execute: (input) => t.execute(input as never, turn),
-    });
-  };
+  const wrap = (t: { name: string; description: string; inputSchema: any; execute: (...a: any[]) => any }) =>
+    tool({ description: t.description, inputSchema: t.inputSchema, execute: (input) => t.execute(input, turn) });
+
+  // All registered tools visible to the model (core tools + meta-tools + all toolset tools).
+  // activeTools below restricts which subset is shown per step.
+  const allTools: ToolSet = {};
+
+  // Core tools — always active
+  const initialActive: string[] = [];
   for (const name of def.tools) {
-    addTool(toolRegistry.get(name));
+    const t = toolRegistry.get(name);
+    if (!t) { log.warn('[agent] unknown tool', { tool: name }); continue; }
+    const sdkName = t.name.replace(/\./g, '_');
+    allTools[sdkName] = wrap(t);
+    initialActive.push(sdkName);
   }
+
+  // Toolsets — register meta-tool (active) + all toolset tools (inactive until activated)
   for (const tsName of (def.toolsets ?? [])) {
-    for (const t of getToolsForToolset(tsName)) addTool(t);
+    const ts = toolsetRegistry.get(tsName);
+    if (!ts) { log.warn('[agent] unknown toolset', { toolset: tsName }); continue; }
+    const meta = generateMetaTool(ts);
+    allTools[meta.name] = wrap(meta);
+    initialActive.push(meta.name);
+    for (const t of ts.tools) {
+      allTools[t.name.replace(/\./g, '_')] = wrap(t);
+      // NOT added to initialActive — only visible after use_X is called
+    }
   }
+
+  // prepareStep: expand activeTools when meta-tools are called in previous steps
+  const buildActiveTools = (steps: StepResult<ToolSet>[]): string[] => {
+    const active = new Set(initialActive);
+    for (const step of steps) {
+      for (const call of step.toolCalls) {
+        const name = call.toolName as string;
+        if (!name.startsWith('use_')) continue;
+        const tsName = name.slice(4); // 'use_files' → 'files'
+        const ts = toolsetRegistry.get(tsName);
+        if (!ts) continue;
+        active.delete(`use_${tsName}`); // replace meta-tool with actual tools
+        for (const t of ts.tools) active.add(t.name.replace(/\./g, '_'));
+      }
+    }
+    return [...active];
+  };
 
   const modelId = config.models[def.modelTier];
-  log.info('[agent] calling model', { agent: def.name, model: modelId, tools: Object.keys(tools) });
+  log.info('[agent] calling model', { agent: def.name, model: modelId, activeTools: initialActive });
 
   try {
+    // Build user content — include raw image bytes for vision if applicable.
+    // Prefer the current message's image; fall back to quoted message's image if this is a reply.
+    let userContent: UserContent;
+    const inboundMedia = turn.message?.media;
+    const quotedMedia = turn.message?.quotedMessage?.media;
+    const visionMedia = inboundMedia?.mimeType.startsWith('image/') ? inboundMedia
+      : quotedMedia?.mimeType.startsWith('image/') ? quotedMedia
+      : null;
+    if (visionMedia) {
+      const imageText = turn.message?.text?.trim();
+
+      // Downscale large images to prevent token overflow (Anthropic tiles at 512×512 px, ~1500 tokens/tile)
+      const rawBytes = await Bun.file(visionMedia.path).arrayBuffer();
+      const resized = await sharp(Buffer.from(rawBytes))
+        .resize(MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION, { fit: 'inside', withoutEnlargement: true })
+        .toBuffer();
+
+      const imagePart: ImagePart = {
+        type: 'image',
+        image: new Uint8Array(resized),
+        mediaType: visionMedia.mimeType as Exclude<ImagePart['mediaType'], undefined>,
+      };
+      userContent = imageText
+        ? [imagePart, { type: 'text', text: imageText } as TextPart]
+        : [imagePart];
+    } else {
+      const msgText = turn.message?.text?.trim()
+        || turn.dispatchContext?.objective
+        || '';
+      userContent = msgText;
+    }
+
     const result = await callModel({
       tier: def.modelTier,
       agentName: def.name,
@@ -81,13 +153,10 @@ export async function runAgent(
       ...(turn.messageId ? { messageId: turn.messageId } : {}),
       ...(turn.taskId ? { taskId: turn.taskId } : {}),
       system,
-      messages: [
-        {
-          role: 'user',
-          content: turn.message?.text ?? turn.dispatchContext?.objective ?? '',
-        },
-      ],
-      ...(Object.keys(tools).length > 0 ? { tools } : {}),
+      messages: [{ role: 'user', content: userContent }],
+      ...(Object.keys(allTools).length > 0
+        ? { tools: allTools, activeTools: initialActive, prepareStep: buildActiveTools }
+        : {}),
     });
 
     log.info('[agent] model call completed', {

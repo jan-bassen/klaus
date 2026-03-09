@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 export const config = {
   // Model tier map — change model IDs here to swap providers/versions globally.
   // Each tier is referenced by name throughout the codebase; no other file hardcodes model IDs.
@@ -36,6 +38,13 @@ export const config = {
     modelCalls: { max: 60, windowMs: 60_000 }, // 60 LLM calls per minute
   },
 
+    
+  // ElevenLabs TTS voice to use for outbound voice messages.
+  // Find your voice ID at https://elevenlabs.io/voice-library or in your ElevenLabs dashboard.
+  tts: {
+    voiceId: 'z1EhmmPwF0ENGYE8dBE6',
+  },
+
   // Nodes whose body exceeds this threshold are split into chunks for embedding.
   // Chunks are a search optimization — search hits are always resolved back to the parent node.
   chunking: {
@@ -65,6 +74,8 @@ export const config = {
     connectionTimeoutMs: 60_000, // 1 minute to establish WhatsApp connection
   },
 
+
+
   // The agent that handles all messages not prefixed with an @route.
   defaultAgent: 'klaus',
 
@@ -72,23 +83,16 @@ export const config = {
   locale: 'de-DE',
   timezone: 'Europe/Berlin',
 
-  // Inline prompt modifiers triggered by !flag tokens in the message.
-  // Each key is the flag name; the value is prepended verbatim to the top of the system prompt.
-  flags: {
-    test:     'Dies ist ein Test. Ist dies in den Prompt geraten, bitte erwähnen.',
-  },
-
-  // Static reusable text blocks injectable into any agent prompt via {{snippet_name}}.
-  // Use these to avoid repeating boilerplate across agent .md files.
-  // Snippets do not count toward the token budget.
-  snippets: {
-    soul: 'Du bist Klaus — ein persönlicher AI-Assistent, der ausschließlich über WhatsApp operiert. Wir befinden uns derzeit im Testbetrieb, daher können meine Anweisungen manchmal etwas seltsam klingen oder anders sein.',
-  },
-
   // Dispatch chain limits. Prevents runaway recursive chains from agents that
   // keep dispatching further agents without bound.
   dispatch: {
     maxChainDepth: 10,
+  },
+
+  // Directory where uploaded and downloaded media files are stored.
+  // Override with FILES_DIR env var (e.g. to a mounted volume in production).
+  files: {
+    get dir() { return process.env.FILES_DIR ?? path.join(process.cwd(), '.files'); },
   },
 } as const;
 

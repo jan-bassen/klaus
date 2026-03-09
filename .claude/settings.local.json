@@ -29,7 +29,32 @@
       "Bash(bun test src/__tests__/core/middleware.test.ts)",
       "WebFetch(domain:support.claude.com)",
       "Bash(bun test src/__tests__/core/model-router.test.ts)",
-      "Bash(bun typecheck)"
+      "Bash(bun typecheck)",
+      "Bash(bun test src/__tests__/whatsapp/voice.test.ts)",
+      "Bash(bun test src/__tests__/whatsapp/voice.test.ts src/__tests__/whatsapp/tts.test.ts src/__tests__/tools/files.test.ts src/__tests__/core/pipeline.test.ts)",
+      "Bash(bun test --exclude 'src/__tests__/core/pipeline.test.ts' --exclude 'src/__tests__/tools/files.test.ts' --exclude 'src/__tests__/whatsapp/voice.test.ts' --exclude 'src/__tests__/whatsapp/tts.test.ts')",
+      "Bash(bun test src/__tests__/core/agent.test.ts src/__tests__/core/middleware.test.ts src/__tests__/core/rate-limiter.test.ts)",
+      "Bash(bun test src/__tests__/core/agent.test.ts src/__tests__/core/middleware.test.ts src/__tests__/core/rate-limiter.test.ts src/__tests__/core/pipeline.test.ts)",
+      "Bash(bun test src/__tests__/core/middleware.test.ts src/__tests__/core/pipeline.test.ts)",
+      "Bash(bun test src/__tests__/whatsapp/receive.test.ts src/__tests__/pipeline.test.ts)",
+      "Bash(bun test src/__tests__/whatsapp/receive.test.ts)",
+      "Bash(bun drizzle-kit generate)",
+      "Bash(bun test src/__tests__/whatsapp/receive.test.ts src/__tests__/pipeline.test.ts src/__tests__/db/)",
+      "Bash(docker compose ps)",
+      "Bash(bun drizzle-kit migrate)",
+      "Bash(bun test src/__tests__/context/assemble.test.ts)",
+      "Bash(bun test src/__tests__/context/ src/__tests__/whatsapp/flags.test.ts src/__tests__/tools/files.test.ts)",
+      "Bash(bun test src/__tests__/pipeline.test.ts src/__tests__/context/assemble.test.ts)",
+      "Bash(bun test src/__tests__/pipeline.test.ts src/__tests__/core/middleware.test.ts)",
+      "Bash(bun test --smol)",
+      "Bash(bun test src/__tests__/context src/__tests__/core)",
+      "Bash(bun test src/__tests__/context src/__tests__/core src/__tests__/tools)",
+      "Bash(bun test src/__tests__/tools/files.test.ts src/__tests__/core/rate-limiter.test.ts)",
+      "Bash(bun test src/__tests__/core/rate-limiter.test.ts src/__tests__/tools/files.test.ts)",
+      "Bash(grep \"mock.module.*config\" /Users/janbassen/Code/klaus/src/__tests__/db/*.ts)",
+      "Bash(bun test src/__tests__/db src/__tests__/tools)",
+      "Bash(bun test src/__tests__/context src/__tests__/core src/__tests__/whatsapp src/__tests__/tools src/__tests__/commands src/__tests__/logger.test.ts)",
+      "Bash(bun test src/__tests__/core/agent.test.ts)"
     ]
   }
 }

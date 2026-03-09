@@ -1,21 +1,32 @@
-.PHONY: deploy logs pair restart ssh
+.PHONY: nas-up nas-build nas-logs nas-restart nas-backup nas-down dev-up dev-down
 
-SERVER=user@your-vps-ip
-APP_DIR=/opt/klaus
+COMPOSE     = docker compose -f docker-compose.yml -f docker-compose.nas.yml
+COMPOSE_DEV = docker compose
 
-deploy:
-	rsync -av --exclude='node_modules' --exclude='.git' --exclude='auth' \
-		./ $(SERVER):$(APP_DIR)/
-	ssh $(SERVER) "cd $(APP_DIR) && docker compose build app && docker compose up -d"
+# ── NAS (production) ─────────────────────────────────────────────────────────
 
-logs:
-	ssh $(SERVER) "cd $(APP_DIR) && docker compose logs -f app"
+nas-up:
+	$(COMPOSE) up -d
 
-pair:
-	ssh $(SERVER) "cd $(APP_DIR) && docker compose logs -f app"
+nas-build:
+	$(COMPOSE) build app
 
-restart:
-	ssh $(SERVER) "cd $(APP_DIR) && docker compose restart app"
+nas-logs:
+	$(COMPOSE) logs -f app
 
-ssh:
-	ssh $(SERVER)
+nas-restart:
+	$(COMPOSE) restart app
+
+nas-backup:
+	$(COMPOSE) --profile backup run --rm backup
+
+nas-down:
+	$(COMPOSE) down
+
+# ── Local dev ────────────────────────────────────────────────────────────────
+
+dev-up:
+	$(COMPOSE_DEV) up -d
+
+dev-down:
+	$(COMPOSE_DEV) down

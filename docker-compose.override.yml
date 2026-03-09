@@ -1,0 +1,6 @@
+# Local dev overrides — auto-loaded by `docker compose`, not used in prod.
+# Exposes postgres on localhost:5432 so host-side tools (tests, drizzle-kit, etc.) can connect.
+services:
+  postgres:
+    ports:
+      - "5432:5432"

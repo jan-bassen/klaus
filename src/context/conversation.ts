@@ -1,4 +1,5 @@
 import { desc, eq } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { ContextQuery, ContextResult, TurnContext } from '@/types';
 import { config } from '@/config';
 import { db } from '@/db/client';
@@ -6,6 +7,7 @@ import { messages } from '@/db/schema';
 
 // Rough token estimate: 1 token ≈ 4 characters (good enough for conversation history).
 const CHARS_PER_TOKEN = 4;
+const MAX_QUOTED_CHARS = 500;
 
 /** Formats a message timestamp using the configured locale and timezone. */
 export function formatMessageTimestamp(date: Date): string {
@@ -30,9 +32,18 @@ export const conversationQuery: ContextQuery = {
 
     const limit = typeof params?.limit === 'number' ? params.limit : 100;
 
+    const quotedMsg = alias(messages, 'quoted_msg');
     const rows = await db
-      .select()
+      .select({
+        id: messages.id,
+        role: messages.role,
+        content: messages.content,
+        createdAt: messages.createdAt,
+        quotedContent: quotedMsg.content,
+        quotedRole: quotedMsg.role,
+      })
       .from(messages)
+      .leftJoin(quotedMsg, eq(messages.quotedMessageId, quotedMsg.id))
       .where(eq(messages.chatId, turn.chatId))
       .orderBy(desc(messages.createdAt))
       .limit(limit);
@@ -43,7 +54,10 @@ export const conversationQuery: ContextQuery = {
 
     for (const row of rows) {
       if (!row.content) continue;
-      const msgTokens = Math.ceil(row.content.length / CHARS_PER_TOKEN);
+      const quotedLen = row.quotedContent
+        ? Math.min(row.quotedContent.length, MAX_QUOTED_CHARS)
+        : 0;
+      const msgTokens = Math.ceil((row.content.length + quotedLen) / CHARS_PER_TOKEN);
       if (tokenCount + msgTokens > budget) break;
       included.push(row);
       tokenCount += msgTokens;
@@ -57,7 +71,12 @@ export const conversationQuery: ContextQuery = {
       .map((row) => {
         const role = row.role === 'user' ? 'user' : agentLabel;
         const ts = formatMessageTimestamp(row.createdAt);
-        return `[${role} | ${ts}]\n${row.content}`;
+        const quotedRaw = row.quotedContent?.slice(0, MAX_QUOTED_CHARS) ?? null;
+        const ellipsis = row.quotedContent && row.quotedContent.length > MAX_QUOTED_CHARS ? '…' : '';
+        const quoteBlock = quotedRaw
+          ? `> ${row.quotedRole === 'user' ? 'user' : agentLabel}: ${quotedRaw}${ellipsis}\n`
+          : '';
+        return `[${role} | ${ts}]\n${quoteBlock}${row.content}`;
       })
       .join('\n\n');
 

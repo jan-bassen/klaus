@@ -58,13 +58,13 @@ export async function assembleContext(
     for (const item of trimmable) {
       if (remaining <= 0) break;
 
-      if (item.result.truncate === 'always' || item.result.truncate === 'summarize') {
+      if (item.result.truncate === 'always') {
         remaining -= item.result.tokenCount;
         totalTokens -= item.result.tokenCount;
         item.result = { ...item.result, content: '', tokenCount: 0 };
       } else if (item.result.truncate === 'oldest') {
         // Remove double-newline-separated blocks from the front (oldest first)
-        const blocks = item.result.content.split('\n\n');
+        const blocks = (item.result.content ?? '').split('\n\n');
         let removed = 0;
         while (blocks.length > 0 && remaining > 0) {
           const block = blocks.shift()!;
@@ -80,22 +80,11 @@ export async function assembleContext(
     }
   }
 
-  const vars: Record<string, string> = {};
-
-  // Compute flag injections directly from config — not via a context query.
-  const flagInjections = Object.keys(turn.flags)
-    .filter((k) => turn.flags[k] && k in config.flags)
-    .map((k) => config.flags[k as keyof typeof config.flags])
-    .join('\n');
-  if (flagInjections) vars['flags'] = flagInjections;
-
-  // Static snippets — always available as {{snippet_name}}, no token budget cost.
-  for (const [key, value] of Object.entries(config.snippets)) {
-    vars[key] = value;
-  }
+  const vars: Record<string, unknown> = {};
 
   for (const { query, result } of items) {
-    vars[query.name] = result.content;
+    if (result.content !== undefined) vars[query.name] = result.content;
+    if (result.vars) Object.assign(vars, result.vars);
   }
 
   return { vars, totalTokens: Math.max(0, totalTokens) };

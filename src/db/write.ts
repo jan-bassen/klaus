@@ -1,11 +1,11 @@
 import { embed } from 'ai';
 import { voyage } from 'voyage-ai-provider';
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import type { InferInsertModel } from 'drizzle-orm';
 import { config } from '@/config';
 import type { Node } from '@/types';
 import { db } from './client';
-import { chunks, nodeVersions, nodes } from './schema';
+import { chunks, files, messages, nodeVersions, nodes } from './schema';
 import { log } from '@/logger';
 
 export type NodeInsert = InferInsertModel<typeof nodes>;
@@ -85,6 +85,65 @@ export async function writeNode(insert: NodeInsert): Promise<Node> {
   }
 
   return node;
+}
+
+export type FileInsert = InferInsertModel<typeof files>;
+
+export async function saveFile(
+  insert: FileInsert,
+): Promise<{ id: string; path: string } | Error> {
+  try {
+    const [row] = await db
+      .insert(files)
+      .values(insert)
+      .returning({ id: files.id, path: files.path });
+    if (!row) return new Error('saveFile: insert returned no row');
+    return row;
+  } catch (err) {
+    return err instanceof Error ? err : new Error(String(err));
+  }
+}
+
+/**
+ * Resolve a Baileys stanzaId to our internal DB message UUID within a chat.
+ * Used to set the quotedMessageId FK when persisting a reply.
+ * Returns null if the quoted message is not in our DB (e.g. predates Klaus).
+ */
+export async function resolveQuotedMessageId(chatId: string, externalId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.chatId, chatId), eq(messages.externalId, externalId)))
+    .limit(1);
+  return row?.id ?? null;
+}
+
+/**
+ * Look up the first image file linked to a given message.
+ * Used by pipeline.ts to attach quoted image media to the turn context.
+ */
+export async function resolveQuotedMessageFile(
+  messageId: string,
+): Promise<{ fileId: string; path: string; mimeType: string } | null> {
+  const [row] = await db
+    .select({ id: files.id, path: files.path, mimeType: files.mimeType })
+    .from(files)
+    .where(eq(files.messageId, messageId))
+    .limit(1);
+  return row && row.mimeType.startsWith('image/')
+    ? { fileId: row.id, path: row.path, mimeType: row.mimeType }
+    : null;
+}
+
+export async function updateFileMessageId(
+  fileId: string,
+  messageId: string,
+): Promise<void | Error> {
+  try {
+    await db.update(files).set({ messageId }).where(eq(files.id, fileId));
+  } catch (err) {
+    return err instanceof Error ? err : new Error(String(err));
+  }
 }
 
 export async function upsertNode(

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { parseFlags, stripFlags } from '@/whatsapp/flags';
-import { config } from '@/config';
+import { getKnownFlags } from '@/context/flags';
 import type { InboundMessage } from '@/types';
 
 function makeMsg(text?: string): InboundMessage {
@@ -16,8 +16,8 @@ function makeMsg(text?: string): InboundMessage {
   return base;
 }
 
-// Derive flag names from config so tests never break when flags are added/removed
-const knownFlags = Object.keys(config.flags);
+// Derive flag names from context/flags so tests never break when flags are added/removed
+const knownFlags = getKnownFlags();
 const flagA = knownFlags[0]!;
 const flagB = knownFlags[1] ?? knownFlags[0]!; // same as flagA when only one flag exists
 

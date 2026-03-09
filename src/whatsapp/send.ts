@@ -29,14 +29,16 @@ const MAX_SEEN_SIZE = 10_000;
 /**
  * Enqueue an outbound message for delivery: ensures FIFO ordering, deduplication
  * by composite key, WhatsApp rate-limit backoff, and retry.
+ * The optional onSent callback receives the Baileys message ID after successful delivery.
  */
-export function enqueueMessage(msg: OutboundMessage): void {
+export function enqueueMessage(msg: OutboundMessage, onSent?: (waId: string) => void): void {
   if (_seen.has(msg.dedupKey)) return;
   if (_seen.size >= MAX_SEEN_SIZE) _seen.delete(_seen.values().next().value!);
   _seen.add(msg.dedupKey);
 
   _queue = _queue
     .then(() => sendWithRetry(msg))
+    .then((waId) => { if (onSent && waId) onSent(waId); })
     .catch((err: unknown) => {
       log.error('[send] failed after retries', {
         chatId: msg.chatId,
@@ -64,7 +66,7 @@ function mediaContent(content: Buffer, mimeType?: string): AnyMessageContent {
   return { document: content, mimetype: mime };
 }
 
-async function sendWithRetry(msg: OutboundMessage, attempt = 1): Promise<void> {
+async function sendWithRetry(msg: OutboundMessage, attempt = 1): Promise<string | null> {
   if (!_socket) throw new Error('No WhatsApp socket — call setSocket() before sending');
 
   const waContent =
@@ -76,9 +78,10 @@ async function sendWithRetry(msg: OutboundMessage, attempt = 1): Promise<void> {
     if (attempt > 1) {
       log.info('[send] retry attempt', { dedupKey: msg.dedupKey, attempt });
     }
-    await _socket.sendMessage(msg.chatId, waContent);
+    const result = await _socket.sendMessage(msg.chatId, waContent);
     log.info('[send] sent', { dedupKey: msg.dedupKey });
     await new Promise<void>((r) => setTimeout(r, config.send.interMessageDelayMs));
+    return result?.key?.id ?? null;
   } catch (err) {
     if (attempt < 3) {
       await new Promise<void>((r) => setTimeout(r, 1_000 * attempt));

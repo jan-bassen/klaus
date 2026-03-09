@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ToolDefinition } from '@/types';
+import type { ToolDefinition, ToolsetDefinition } from '@/types';
 import { dispatch as dispatchAgent } from '@/core/dispatch';
 
 // dispatch — surface tool (always available)
@@ -65,4 +65,8 @@ export const taskListTool: ToolDefinition<typeof taskListSchema> = {
   capability: 'resource',
 };
 
-export const taskToolset = [dispatchTool, taskCancelTool, taskListTool];
+export const taskToolset: ToolsetDefinition = {
+  name: 'task',
+  description: 'Use when you need to dispatch agents, cancel tasks, or list running tasks.',
+  tools: [dispatchTool, taskCancelTool, taskListTool],
+};

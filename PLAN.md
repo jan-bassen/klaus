@@ -8,10 +8,12 @@ A lean, self-hosted personal AI agent stack: **WhatsApp → TypeScript → Postg
 
 | **Component**       | **Tech**                           | **Purpose**                                                                                                                  | **Depends on**              |
 | ------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| Hosting             | Hetzner VPS                        | Runs the entire stack via Docker Compose                                                                                     | —                           |
+| Hosting             | Synology DS220+ (self-hosted NAS)  | Runs the entire stack via Docker Compose; ARM64, 10 GB RAM                                                                   | —                           |
+| CI/CD               | GitHub Actions + self-hosted runner | Runner container on NAS pulls jobs from GitHub — no inbound SSH needed. Agent-only deploys skip Docker rebuild (~5 s)       | Docker                      |
+| Backup              | `pg_dump` + volume tar → Hyper Backup | Daily dumps to `/volume1/backups/klaus/`; 7-day retention; Synology Hyper Backup handles off-NAS archival               | Postgres, Docker            |
 | Runtime             | Bun                                | JS/TS runtime                                                                                                                | —                           |
 | Language            | TypeScript                         | End-to-end type safety                                                                                                       | Bun                         |
-| Reverse Proxy       | Caddy                              | HTTPS termination, reverse proxy (auto-managed Let's Encrypt)                                                                | —                           |
+| Reverse Proxy       | Caddy                              | Local HTTP reverse proxy (LAN-only; no public exposure needed — Baileys is outbound-only)                                    | —                           |
 | WhatsApp Client     | Baileys                            | Unofficial WhatsApp Web API client (multi-device)                                                                            | WhatsApp Web API            |
 | Agent Framework     | Vercel AI SDK                      | LLM orchestration + tool calling                                                                                             | —                           |
 | AI Providers        | Anthropic · Voyage AI · ElevenLabs | LLM + vision (Claude) · embeddings (Voyage) · TTS + STT (ElevenLabs). Three providers — opinionated defaults, each swappable | Vercel AI SDK               |

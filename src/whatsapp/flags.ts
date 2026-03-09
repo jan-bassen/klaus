@@ -1,16 +1,18 @@
 import type { InboundMessage } from '@/types';
-import { config } from '@/config';
+import { getKnownFlags } from '@/context/flags';
+
+const knownFlags = new Set(getKnownFlags());
 
 /** Returns the flag name if a token is a recognized !flag, otherwise null. */
 function flagName(token: string): string | null {
   if (!token.startsWith('!') || token.length <= 1) return null;
   const name = token.slice(1);
-  return name in config.flags ? name : null;
+  return knownFlags.has(name) ? name : null;
 }
 
 /**
  * Parse !flags from a message and return the active flags.
- * Only recognizes flags defined in config.flags.
+ * Only recognizes flags defined in src/context/flags.ts.
  */
 export function parseFlags(msg: InboundMessage): Record<string, boolean> {
   if (!msg.text) return {};

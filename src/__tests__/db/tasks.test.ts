@@ -70,7 +70,7 @@ describeDb('activeTasksQuery', () => {
     await db.insert(tasks).values({ chatId: CHAT_ID, objective: 'Task A', status: 'pending' });
     await db.insert(tasks).values({ chatId: CHAT_ID, objective: 'Task B', status: 'running' });
     const result = await activeTasksQuery.run(turn);
-    const lines = result.content.split('\n');
+    const lines = result.content!.split('\n');
     expect(lines.length).toBe(2);
     expect(lines.some((l) => l.includes('Task A'))).toBe(true);
     expect(lines.some((l) => l.includes('Task B'))).toBe(true);

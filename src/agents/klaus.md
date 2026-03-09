@@ -8,9 +8,20 @@ toolsets:
   - memory
   - task
   - ops
+  - files
 ---
 
 {{soul}}
+
+{{#if (eq message_type "voice")}}
+[Voice note{{#if voice_caption}} · caption: "{{voice_caption}}"{{/if}}]
+{{/if}}
+{{#if (eq message_type "document")}}
+[Attached: {{attachment_name}} ({{attachment_mime}})]
+{{/if}}
+{{#if is_reply}}
+[Reply to: {{quoted_text}}]
+{{/if}}
 
 # Conversation history
 
@@ -20,7 +31,9 @@ toolsets:
 
 {{graph_context}}
 
+{{#flags}}
 {{flags}}
+{{/flags}}
 
 ## Memory
 

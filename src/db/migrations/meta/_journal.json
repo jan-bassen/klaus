@@ -6,7 +6,14 @@
       "idx": 0,
       "version": "7",
       "when": 1772706194301,
-      "tag": "0000_silent_sunset_bain",
+      "tag": "0000_extensions",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1772706194302,
+      "tag": "0001_tables",
       "breakpoints": true
     }
   ]

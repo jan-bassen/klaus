@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ToolDefinition } from '@/types';
+import type { ToolDefinition, ToolsetDefinition } from '@/types';
 
 const opsCronSchema = z.object({
   pattern: z.string().describe('Cron expression'),
@@ -43,4 +43,8 @@ export const opsPostgresQueryTool: ToolDefinition<typeof opsPostgresQuerySchema>
   capability: 'resource',
 };
 
-export const opsToolset = [opsCronTool, opsCostTrackingTool, opsPostgresQueryTool];
+export const opsToolset: ToolsetDefinition = {
+  name: 'ops',
+  description: 'Use when you need to manage cron schedules, check LLM costs, or run named Postgres queries.',
+  tools: [opsCronTool, opsCostTrackingTool, opsPostgresQueryTool],
+};

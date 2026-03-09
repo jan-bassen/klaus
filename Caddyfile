@@ -1,5 +1,4 @@
-# No DOMAIN set → plain HTTP on :80 (local dev/test)
-# DOMAIN=your.domain.com → Caddy auto-TLS via Let's Encrypt (prod)
-{$DOMAIN::80} {
+# Local-only HTTP — no TLS needed (Baileys is outbound-only, no inbound webhook surface).
+:80 {
 	reverse_proxy app:3000
 }
