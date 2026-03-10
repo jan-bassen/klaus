@@ -6,7 +6,6 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Postgres**.
 
 ## Stack
 
-
 | Layer        | Tech                                          |
 | ------------ | --------------------------------------------- |
 | Runtime      | Bun + TypeScript (strict)                     |
@@ -17,106 +16,96 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Postgres**.
 | Database     | Postgres + Drizzle ORM + pgvector + tsvector  |
 | Job queue    | pg-boss (Postgres-native, `SKIP LOCKED`)      |
 | Hosting      | Synology NAS via Docker Compose               |
-| CI/CD        | GitHub Actions + self-hosted runner on NAS    |
-
 
 ---
 
-## Running in dev
+## Operations
 
-**Prerequisites:**
+Everything goes through `make`. All commands work the same on laptop and NAS.
 
+| Command       | What it does                                                    |
+| ------------- | --------------------------------------------------------------- |
+| `make up`     | Start all services (postgres + app)                             |
+| `make down`   | Stop all services                                               |
+| `make logs`   | Follow app logs                                                 |
+| `make restart`| Restart app only (e.g. after editing `.env`)                    |
+| `make pull`   | Deploy: `git pull` + rebuild image + restart app                |
+| `make backup` | One-shot backup: postgres dump + baileys auth (see Backups)     |
+| `make reset`  | **Destructive** — stops everything and deletes all data volumes |
+| `make status` | Show container status                                           |
 
-| Tool                                                              | Install                                    |
-| ----------------------------------------------------------------- | ------------------------------------------ |
-| [Bun](https://bun.sh)                                             | `curl -fsSL https://bun.sh/install | bash` |
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Download + install                         |
+---
 
+## Initial setup
+
+Do this once on any machine (laptop or NAS).
+
+**Prerequisites:** Docker, git, and your API keys ready.
 
 ```bash
+# 1. Clone the repo
+git clone <repo-url> && cd klaus
+
+# 2. Create env files
+cp .env.example .env
 cp .env.secrets.example .env.secrets   # fill in your 4 API keys
-docker compose up -d postgres          # start Postgres (override exposes :5432 locally)
-bun install
-bun run db:migrate                     # apply schema
-make dev                               # start the agent — scan QR code on first run
+
+# 3. Start
+make up
+
+# 4. Apply database schema
+docker compose exec app bun run db:migrate
+
+# 5. Scan the WhatsApp QR code (one-time — auth persists in a Docker volume)
+make logs
 ```
 
-To test the full Docker build locally:
-
-```bash
-make dev-up    # builds image + starts postgres and app
-make dev-down
-```
+**NAS-specific:** Set `BACKUP_DIR=/volume1/backups/klaus` in your `.env` before running `make up`.
 
 ---
 
-## Deploying to NAS (production)
+## Deploying updates
 
-### One-time setup
-
-**Prerequisites on your Mac:**
-
-
-| Tool                                          | Install                                                                    |
-| --------------------------------------------- | -------------------------------------------------------------------------- |
-| [git](https://git-scm.com)                    | `brew install git` (or Xcode CLT)                                          |
-| SSH access to NAS                             | Enable in DSM → Control Panel → Terminal & SNMP                            |
-| [gh CLI](https://cli.github.com) *(optional)* | `brew install gh` then `gh auth login` — only needed for runner auto-setup |
-
-
-**On the NAS**, only Docker is required — Container Manager from the Synology Package Center provides it.
-
-**One-time steps:**
-
-1. Fill in your API keys locally (if not done already):
-  ```bash
-   cp .env.secrets.example .env.secrets   # then edit with your actual keys
-  ```
-2. Run the setup script from your Mac (inside this repo):
-  ```bash
-   make setup-nas NAS=jan@nas
-   # or: ./scripts/setup-nas.sh NAS=jan@nas
-  ```
-   The script will:
-  - Clone the repo on the NAS
-  - Copy your local `.env` over via SCP
-  - Auto-register the GitHub Actions runner (if `gh` is available and logged in)
-  - Start all services (postgres, app, runner)
-3. Scan the WhatsApp QR code (printed in the logs output by the script). Auth persists in a Docker volume — this is a one-time step.
-
-### Day-to-day
+SSH to the NAS and run:
 
 ```bash
-make nas-logs      # tail app logs
-make nas-restart   # restart app container only (e.g. after manual env changes)
-make nas-backup    # dump postgres + baileys_auth to /volume1/backups/klaus
-make nas-down      # stop everything
+make pull
 ```
 
-### CI/CD (automatic after setup)
-
-Pushes to `main` trigger the self-hosted runner on the NAS:
-
-- **Code changes** → typecheck → tests → Docker rebuild → restart (~2–3 min)
-- **Agent-only changes** (`src/agents/`**) → copy `.md` files → restart (~5 s, no rebuild)
+That's it. This pulls the latest code, rebuilds the Docker image, and restarts the app.
 
 ---
 
-## Environment variables
+## Configuration
 
+**`.env`** — non-secret config, safe to edit freely:
 
-| Variable              | Description                                 | Context                          |
-| --------------------- | ------------------------------------------- | -------------------------------- |
-| `DATABASE_URL`        | Postgres connection string                  | always                           |
-| `ANTHROPIC_API_KEY`   | Claude API key                              | always                           |
-| `VOYAGE_API_KEY`      | Voyage AI embedding key                     | always                           |
-| `ELEVENLABS_API_KEY`  | ElevenLabs TTS/STT key                      | always                           |
-| `ALLOWED_CHAT_ID`     | WhatsApp chat ID to allow, fail-closed      | always                           |
-| `BAILEYS_AUTH_FOLDER` | Auth state directory (default: `./.auth`)   | always                           |
-| `PORT`                | Internal app port (default: `3000`)         | always                           |
-| `GITHUB_REPO_URL`     | Repo URL for self-hosted Actions runner     | NAS only — set by `setup-nas.sh` |
-| `GITHUB_RUNNER_TOKEN` | Runner registration token                   | NAS only — set by `setup-nas.sh` |
+| Variable              | Description                                              | Default          |
+| --------------------- | -------------------------------------------------------- | ---------------- |
+| `DATABASE_URL`        | Postgres connection string (localhost for local tools)   | see `.env.example` |
+| `BAILEYS_AUTH_FOLDER` | Auth state directory                                     | `./.auth`        |
+| `PORT`                | Internal app port                                        | `3000`           |
+| `BACKUP_DIR`          | Where `make backup` writes files on the host             | `./backups`      |
 
+**`.env.secrets`** — API keys, gitignored, never committed:
+
+| Variable             | Description                            |
+| -------------------- | -------------------------------------- |
+| `ANTHROPIC_API_KEY`  | Claude API key                         |
+| `VOYAGE_API_KEY`     | Voyage AI embedding key                |
+| `ELEVENLABS_API_KEY` | ElevenLabs TTS/STT key                 |
+| `ALLOWED_CHAT_ID`    | WhatsApp chat ID to allow (fail-closed)|
+
+---
+
+## Backups
+
+`make backup` runs a one-shot container that:
+1. Dumps Postgres to `$BACKUP_DIR/<YYYY-MM-DD>/postgres.dump` (custom format)
+2. Archives the Baileys auth volume to `$BACKUP_DIR/<YYYY-MM-DD>/baileys_auth.tar.gz`
+3. Prunes backups older than 7 days
+
+On a Synology NAS, schedule it via **Control Panel → Task Scheduler** with command `cd /path/to/klaus && make backup`.
 
 ---
 
@@ -154,7 +143,6 @@ Agent files are hot-loaded on demand — edit a `.md` file and it takes effect o
 
 **Built-in agents:**
 
-
 | Agent        | Purpose                                                                        |
 | ------------ | ------------------------------------------------------------------------------ |
 | `klaus`      | Default conversational agent                                                   |
@@ -162,11 +150,9 @@ Agent files are hot-loaded on demand — edit a `.md` file and it takes effect o
 | `memorize`   | Async agent dispatched to extract facts into the knowledge graph               |
 | `reflection` | Daily cron (03:00 UTC) for graph maintenance: dedup, orphan cleanup, synthesis |
 
-
 ### Tools and toolsets
 
 **Tools** are always-available capabilities (e.g. `reply`, `react`, `dispatch`). **Toolsets** are groups of related tools that are lazy-loaded to save context tokens. Each toolset registers a `use_<name>` meta-tool; when the model calls it, the actual tools are injected into the next step.
-
 
 | Toolset  | Tools                                                | Purpose                         |
 | -------- | ---------------------------------------------------- | ------------------------------- |
@@ -174,7 +160,6 @@ Agent files are hot-loaded on demand — edit a `.md` file and it takes effect o
 | `task`   | dispatch, cancel, list                               | Async task management           |
 | `ops`    | cron, cost-tracking                                  | Scheduling and spend monitoring |
 | `files`  | upload, download                                     | File management                 |
-
 
 Agents can also use **provider tools** — Anthropic built-in capabilities like `web_search`, `web_fetch`, and `code_execution` that are injected directly via the Vercel AI SDK.
 
@@ -202,13 +187,11 @@ The `memorize` agent writes to the graph after conversations. The `reflection` a
 
 Agents can invoke other agents via three modes:
 
-
 | Mode     | Behavior                                                              |
 | -------- | --------------------------------------------------------------------- |
 | `inline` | Runs synchronously in the current process                             |
 | `async`  | Creates a task row, enqueues via pg-boss, returns task ID immediately |
 | `cron`   | Registers a repeating schedule via pg-boss                            |
-
 
 Max chain depth is enforced to prevent infinite recursive dispatch.
 

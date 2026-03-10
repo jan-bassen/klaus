@@ -53,6 +53,23 @@ services:
     mem_limit: 768m
     memswap_limit: 768m
 
+  backup:
+    image: postgres:17-alpine
+    restart: "no"
+    profiles: ["backup"]
+    environment:
+      PGPASSWORD: postgres
+    volumes:
+      - ./scripts/backup.sh:/backup.sh:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+      - baileys_auth:/baileys_auth:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "/backup.sh"]
+    mem_limit: 128m
+    memswap_limit: 128m
+
 volumes:
   postgres_data:
   baileys_auth:
