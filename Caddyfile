@@ -1,4 +1,0 @@
-# Local-only HTTP — no TLS needed (Baileys is outbound-only, no inbound webhook surface).
-:80 {
-	reverse_proxy app:3000
-}

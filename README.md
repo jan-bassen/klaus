@@ -44,7 +44,7 @@ make dev                               # start the agent — scan QR code on fir
 To test the full Docker build locally:
 
 ```bash
-make dev-up    # builds image + starts postgres, app, caddy
+make dev-up    # builds image + starts postgres and app
 make dev-down
 ```
 
@@ -81,7 +81,7 @@ make dev-down
   - Clone the repo on the NAS
   - Copy your local `.env` over via SCP
   - Auto-register the GitHub Actions runner (if `gh` is available and logged in)
-  - Start all services (postgres, app, caddy, runner)
+  - Start all services (postgres, app, runner)
 3. Scan the WhatsApp QR code (printed in the logs output by the script). Auth persists in a Docker volume — this is a one-time step.
 
 ### Day-to-day
@@ -113,8 +113,7 @@ Pushes to `main` trigger the self-hosted runner on the NAS:
 | `ELEVENLABS_API_KEY`  | ElevenLabs TTS/STT key                      | always                           |
 | `ALLOWED_CHAT_ID`     | WhatsApp chat ID to allow, fail-closed      | always                           |
 | `BAILEYS_AUTH_FOLDER` | Auth state directory (default: `./.auth`)   | always                           |
-| `PORT`                | Internal app port — Caddy proxies this      | always                           |
-| `DOMAIN`              | Public domain for Caddy TLS (Let's Encrypt) | NAS only                         |
+| `PORT`                | Internal app port (default: `3000`)         | always                           |
 | `GITHUB_REPO_URL`     | Repo URL for self-hosted Actions runner     | NAS only — set by `setup-nas.sh` |
 | `GITHUB_RUNNER_TOKEN` | Runner registration token                   | NAS only — set by `setup-nas.sh` |
 
