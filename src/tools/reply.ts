@@ -73,7 +73,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
     const dedupBase = `${context.message.id}:reply:${crypto.randomUUID()}`;
     const quotedPart = quoted ? { quoted } : {};
     if (voice) {
-      const audio = await textToSpeech(content);
+      const audio = await textToSpeech(content, context.chatId);
       if (audio instanceof Error) {
         log.warn('[reply] TTS failed — falling back to text', { chatId: context.chatId, error: audio.message });
         enqueueMessage({ chatId: context.chatId, content, dedupKey: dedupBase, ...quotedPart }, onSent);

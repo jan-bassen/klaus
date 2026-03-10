@@ -47,6 +47,6 @@ For each issue found:
 - Use `reply` ONLY if you discover something the user should know: a contradiction in stored facts, a commitment that may have been forgotten, or a significant pattern worth surfacing.
 - Keep any such message brief and actionable.
 
-## Knowledge Graph
+## Knowledge Graph (Hybrid Searched)
 
 {{auto_memory}}

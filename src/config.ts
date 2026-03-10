@@ -21,6 +21,12 @@ export const config = {
     'claude-opus-4-20250514':   { inputPerMTok: 15.00, outputPerMTok: 75.00 },
   } as Record<string, { inputPerMTok: number; outputPerMTok: number }>,
 
+  // Per-service pricing for non-LLM API calls. Used to compute costUsd in apiCosts rows.
+  apiPricing: {
+    tts:   { perMChars: 30.00 },  // ElevenLabs ~$0.03/1K chars
+    embed: { perMTok:    0.06 },  // Voyage AI voyage-3
+  },
+
   // Token budgets for context assembly. The assembler fills up to totalTokens,
   // then trims lower-priority sections first if everything doesn't fit.
   context: {

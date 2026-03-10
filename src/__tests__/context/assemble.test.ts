@@ -113,11 +113,11 @@ describe('assembleContext', () => {
     expect(result.vars['conversation']).toBeUndefined(); // failed, not set
   });
 
-  // ─── flag injections ──────────────────────────────────────────────────────
+  // ─── flag injections ────────────────────────────────────────────────────── 
 
   test('flags: { test: true } → flags gets test prompt string', async () => {
     const result = await assembleContext(makeTurn({ flags: { test: true } }), [flagsQuery]);
-    expect(result.vars['flags']).toBe('Dies ist ein Test. Ist dies in den Prompt geraten, bitte erwähnen.');
+    expect(result.vars['flags']).toBe('This is a test. If this is detected in the prompt, please mention it.');
   });
 
   test('unknown flag → flags var is empty string', async () => {

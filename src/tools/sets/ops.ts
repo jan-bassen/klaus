@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { ToolDefinition, ToolsetDefinition } from '@/types';
 import { dispatch } from '@/core/dispatch';
 import { db } from '@/db/client';
-import { agentInvocations, llmBudgets } from '@/db/schema';
+import { agentInvocations, apiCosts, llmBudgets } from '@/db/schema';
 import { QUERIES } from '@/db/queries';
 
 const opsCronSchema = z.object({
@@ -36,7 +36,7 @@ const opsCostTrackingSchema = z.object({
 
 export const opsCostTrackingTool: ToolDefinition<typeof opsCostTrackingSchema> = {
   name: 'ops.cost-tracking',
-  description: 'Query LLM spend and budget status.',
+  description: 'Query total spend (LLM + TTS + embeddings) and budget status.',
   inputSchema: opsCostTrackingSchema,
   execute: async (input, context) => {
     const now = new Date();
@@ -55,20 +55,30 @@ export const opsCostTrackingTool: ToolDefinition<typeof opsCostTrackingSchema> =
       endDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     }
 
-    const filter = endDate
+    const llmFilter = endDate
       ? and(gte(agentInvocations.createdAt, startDate), lte(agentInvocations.createdAt, endDate))
       : gte(agentInvocations.createdAt, startDate);
 
-    const [row] = await db
-      .select({ total: sum(agentInvocations.costUsd) })
-      .from(agentInvocations)
-      .where(filter);
+    const apiFilter = endDate
+      ? and(gte(apiCosts.createdAt, startDate), lte(apiCosts.createdAt, endDate))
+      : gte(apiCosts.createdAt, startDate);
 
-    const spent = parseFloat(row?.total ?? '0');
+    const [[llmRow], [apiRow], [budget]] = await Promise.all([
+      db.select({ total: sum(agentInvocations.costUsd) }).from(agentInvocations).where(llmFilter),
+      db.select({ total: sum(apiCosts.costUsd) }).from(apiCosts).where(apiFilter),
+      db.select().from(llmBudgets).where(sql`chat_id = ${context.chatId}`).limit(1),
+    ]);
 
-    const [budget] = await db.select().from(llmBudgets).where(sql`chat_id = ${context.chatId}`).limit(1);
+    const llmSpent = parseFloat(llmRow?.total ?? '0');
+    const apiSpent = parseFloat(apiRow?.total ?? '0');
+    const totalSpent = llmSpent + apiSpent;
 
-    const lines = [`Period: ${input.period}`, `Spent: $${spent.toFixed(4)}`];
+    const lines = [
+      `Period: ${input.period}`,
+      `Total: $${totalSpent.toFixed(4)}`,
+      `  LLM: $${llmSpent.toFixed(4)}`,
+      `  API (TTS/embed): $${apiSpent.toFixed(4)}`,
+    ];
     if (budget) {
       if (budget.dailyLimitUsd) lines.push(`Daily limit: $${budget.dailyLimitUsd}`);
       if (budget.monthlyLimitUsd) lines.push(`Monthly limit: $${budget.monthlyLimitUsd}`);

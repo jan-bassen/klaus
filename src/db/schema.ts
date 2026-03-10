@@ -66,6 +66,8 @@ export const taskStatusEnum = pgEnum('task_status', [
   'cancelled',
 ]);
 
+export const apiCostService = pgEnum('api_cost_service', ['tts', 'embed']);
+
 // -- tables --
 
 export const nodes = pgTable('nodes', {
@@ -200,6 +202,17 @@ export const reactions = pgTable('reactions', {
 }, (t) => [
   index('idx_reactions_chat_msg').on(t.chatId, t.messageExternalId),
   unique('uq_reactions_sender_msg').on(t.chatId, t.messageExternalId, t.senderId),
+]);
+
+export const apiCosts = pgTable('api_costs', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  chatId:    text('chat_id'),
+  service:   apiCostService('service').notNull(),
+  units:     integer('units').notNull(),
+  costUsd:   numeric('cost_usd', { precision: 10, scale: 6 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('idx_api_costs_created').on(t.createdAt),
 ]);
 
 export const agentInvocations = pgTable('agent_invocations', {
