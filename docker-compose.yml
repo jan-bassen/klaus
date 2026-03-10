@@ -22,6 +22,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    ports:
+      - "5433:5432"
     mem_limit: 2g
     memswap_limit: 2g
 
