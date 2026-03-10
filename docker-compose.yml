@@ -40,7 +40,7 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/klaus
     volumes:
       - baileys_auth:/app/auth
-      - ./agents:/app/src/agents:ro
+      - ./src/agents:/app/src/agents:ro
       - files_data:/app/files
     mem_limit: 768m
     memswap_limit: 768m
