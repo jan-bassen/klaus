@@ -96,7 +96,7 @@ ssh "$NAS" "sudo synogroup --adduser docker '$NAS_USER' 2>/dev/null || sudo user
 # ── Start services ────────────────────────────────────────────────────────────
 
 echo "→ Starting services (you'll be prompted once more)..."
-ssh "$NAS" "export PATH=/usr/local/bin:\$PATH; docker compose -f '$NAS_DIR/docker-compose.yml' -f '$NAS_DIR/docker-compose.nas.yml' --project-directory '$NAS_DIR' up -d"
+ssh "$NAS" "export PATH=/usr/local/bin:\$PATH; docker compose -f '$NAS_DIR/docker-compose.yml' -f '$NAS_DIR/docker-compose.nas.yml' --project-directory '$NAS_DIR' up -d --remove-orphans"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 
