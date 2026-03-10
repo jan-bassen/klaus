@@ -54,7 +54,7 @@ describe('graphContextQuery', () => {
   });
 
   test('name and priority are correct', () => {
-    expect(graphContextQuery.name).toBe('graph_context');
+    expect(graphContextQuery.name).toBe('auto_memory');
     expect(graphContextQuery.priority).toBe(2);
   });
 

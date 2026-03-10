@@ -1,6 +1,10 @@
+import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ToolDefinition, ToolsetDefinition } from '@/types';
 import { dispatch as dispatchAgent } from '@/core/dispatch';
+import { db } from '@/db/client';
+import { tasks } from '@/db/schema';
+import { getQueue } from '@/core/queue';
 
 // dispatch — surface tool (always available)
 // Wraps the unified dispatch() primitive. Agents use this to invoke other agents.
@@ -46,7 +50,14 @@ export const taskCancelTool: ToolDefinition<typeof taskCancelSchema> = {
   name: 'task.cancel',
   description: 'Cancel a pending or running task.',
   inputSchema: taskCancelSchema,
-  execute: async (_input, _context) => { throw new Error('TODO: not implemented'); },
+  execute: async (input) => {
+    const [task] = await db.select({ id: tasks.id, status: tasks.status }).from(tasks).where(eq(tasks.id, input.taskId));
+    if (!task) return `Task ${input.taskId} not found.`;
+    if (['done', 'failed', 'cancelled'].includes(task.status)) return `Task already ${task.status}.`;
+    await db.update(tasks).set({ status: 'cancelled' }).where(eq(tasks.id, input.taskId));
+    try { await getQueue().cancel('agent-run', input.taskId); } catch (_) {}
+    return `Cancelled task ${input.taskId}`;
+  },
   kind: 'builtin',
   capability: 'tool',
 };
@@ -60,7 +71,14 @@ export const taskListTool: ToolDefinition<typeof taskListSchema> = {
   name: 'task.list',
   description: 'List tasks, optionally filtered by status.',
   inputSchema: taskListSchema,
-  execute: async (_input, _context) => { throw new Error('TODO: not implemented'); },
+  execute: async (input, context) => {
+    const filter = input.status
+      ? and(eq(tasks.chatId, context.chatId), eq(tasks.status, input.status))
+      : eq(tasks.chatId, context.chatId);
+    const rows = await db.select().from(tasks).where(filter).orderBy(desc(tasks.createdAt)).limit(20);
+    if (rows.length === 0) return 'No tasks found.';
+    return rows.map((t) => `[${t.id}] ${t.assignedTo ?? '?'} — ${t.status}: ${t.objective}`).join('\n');
+  },
   kind: 'builtin',
   capability: 'resource',
 };

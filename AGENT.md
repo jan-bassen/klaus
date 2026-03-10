@@ -37,7 +37,7 @@ Bun, TypeScript (strict), Postgres (Drizzle ORM, pgvector, pgboss), Baileys, Ver
 
 ## Project Structure
 
-See `PLAN.md` §9 for the full file tree (never change PLAN.md). Key boundaries:
+See `README.md` for project overview and folder structure. Key boundaries:
 
 - `/whatsapp` — pure transport, no business logic
 - `/core` — pipeline, agent engine, queue, middleware

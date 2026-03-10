@@ -48,6 +48,7 @@ async function main(): Promise<void> {
   await loadAgents(path.join(import.meta.dir, 'agents'));
   const contextQueries = await loadContextQueries(path.join(import.meta.dir, 'context'));
   setContextQueries(contextQueries);
+  await import('./commands/register');
 
   // 2. Start pgboss queue
   log.info('[startup] initializing queue and workers');

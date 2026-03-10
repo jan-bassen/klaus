@@ -1,5 +1,10 @@
+import { and, gte, lte, sql, sum } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ToolDefinition, ToolsetDefinition } from '@/types';
+import { dispatch } from '@/core/dispatch';
+import { db } from '@/db/client';
+import { agentInvocations, llmBudgets } from '@/db/schema';
+import { QUERIES } from '@/db/queries';
 
 const opsCronSchema = z.object({
   pattern: z.string().describe('Cron expression'),
@@ -11,7 +16,16 @@ export const opsCronTool: ToolDefinition<typeof opsCronSchema> = {
   name: 'ops.cron',
   description: 'Schedule an agent to run on a cron pattern.',
   inputSchema: opsCronSchema,
-  execute: async (_input, _context) => { throw new Error('TODO: not implemented'); },
+  execute: async (input, context) => {
+    await dispatch({
+      agent: input.agentName,
+      objective: `Scheduled: ${input.label}`,
+      mode: { kind: 'cron', schedule: input.pattern },
+      chatId: context.chatId,
+      caller: context.agent.name,
+    });
+    return `Scheduled ${input.agentName} with pattern "${input.pattern}" (${input.label})`;
+  },
   kind: 'builtin',
   capability: 'tool',
 };
@@ -24,7 +38,43 @@ export const opsCostTrackingTool: ToolDefinition<typeof opsCostTrackingSchema> =
   name: 'ops.cost-tracking',
   description: 'Query LLM spend and budget status.',
   inputSchema: opsCostTrackingSchema,
-  execute: async (_input, _context) => { throw new Error('TODO: not implemented'); },
+  execute: async (input, context) => {
+    const now = new Date();
+    let startDate: Date;
+    let endDate: Date | undefined;
+
+    if (input.period === 'today') {
+      startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    } else if (input.period === 'this_month') {
+      startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    } else {
+      // last_month
+      const y = now.getUTCMonth() === 0 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
+      const m = now.getUTCMonth() === 0 ? 11 : now.getUTCMonth() - 1;
+      startDate = new Date(Date.UTC(y, m, 1));
+      endDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    }
+
+    const filter = endDate
+      ? and(gte(agentInvocations.createdAt, startDate), lte(agentInvocations.createdAt, endDate))
+      : gte(agentInvocations.createdAt, startDate);
+
+    const [row] = await db
+      .select({ total: sum(agentInvocations.costUsd) })
+      .from(agentInvocations)
+      .where(filter);
+
+    const spent = parseFloat(row?.total ?? '0');
+
+    const [budget] = await db.select().from(llmBudgets).where(sql`chat_id = ${context.chatId}`).limit(1);
+
+    const lines = [`Period: ${input.period}`, `Spent: $${spent.toFixed(4)}`];
+    if (budget) {
+      if (budget.dailyLimitUsd) lines.push(`Daily limit: $${budget.dailyLimitUsd}`);
+      if (budget.monthlyLimitUsd) lines.push(`Monthly limit: $${budget.monthlyLimitUsd}`);
+    }
+    return lines.join('\n');
+  },
   kind: 'builtin',
   capability: 'resource',
 };
@@ -36,9 +86,14 @@ const opsPostgresQuerySchema = z.object({
 
 export const opsPostgresQueryTool: ToolDefinition<typeof opsPostgresQuerySchema> = {
   name: 'ops.postgres-query',
-  description: 'Run a named read-only Postgres query via the app_ro role.',
+  description: `Run a named read-only Postgres query. Available queries: ${Object.keys(QUERIES).join(', ')}.`,
   inputSchema: opsPostgresQuerySchema,
-  execute: async (_input, _context) => { throw new Error('TODO: not implemented'); },
+  execute: async (input) => {
+    const fn = QUERIES[input.queryName];
+    if (!fn) return `Unknown query "${input.queryName}". Available: ${Object.keys(QUERIES).join(', ')}`;
+    const result = await fn(input.params ?? {});
+    return JSON.stringify(result, null, 2);
+  },
   kind: 'builtin',
   capability: 'resource',
 };

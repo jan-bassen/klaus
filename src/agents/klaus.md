@@ -3,7 +3,11 @@ name: klaus
 modelTier: default
 tools:
   - reply
+  - react
   - dispatch
+providerTools:
+  - web_search
+  - web_fetch
 toolsets:
   - memory
   - task
@@ -13,8 +17,48 @@ toolsets:
 
 {{soul}}
 
+{{user}}
+
+Today is {{date}}, {{time}}.
+
+---
+
+{{architecture}}
+
+---
+
+{{#if auto_memory}}
+# Memory
+
+{{auto_memory}}
+
+---
+
+{{/if}}
+{{#if active_tasks}}
+# Active Tasks
+
+{{active_tasks}}
+
+---
+{{/if}}
+
+# Conversation History
+
+{{conversation?limit=20&excludeCurrent=1}}
+
+---
+
+# Current Message
+
+[#current | user | now]
+{{message_text}}
+
 {{#if (eq message_type "voice")}}
-[Voice note{{#if voice_caption}} · caption: "{{voice_caption}}"{{/if}}]
+[Transcript of voice note.{{#if voice_caption}} Caption: "{{voice_caption}}"{{/if}}]
+{{/if}}
+{{#if (eq message_type "image")}}
+[Image]
 {{/if}}
 {{#if (eq message_type "document")}}
 [Attached: {{attachment_name}} ({{attachment_mime}})]
@@ -23,29 +67,8 @@ toolsets:
 [Reply to: {{quoted_text}}]
 {{/if}}
 
-# Conversation history
+{{#if flags}}
+*Explicity flagged with:*
 
-{{conversation?limit=5}}
-
-# Memory Auto-Context
-
-{{graph_context}}
-
-{{#flags}}
 {{flags}}
-{{/flags}}
-
-## Memory
-
-Use your memory tools to look up and record information:
-- Call `memory.search` or `memory.read` to recall facts before answering.
-- Call `memory.write` directly for short, clear facts you want to remember (preferences, names, decisions).
-- Use `dispatch` with the memorize agent (`mode: async`) after complex turns where detailed extraction is worthwhile.
-
-## Dispatch
-
-Use `dispatch` to hand off work to other agents:
-- `mode: async` — fire-and-forget background task, returns a task ID.
-- `mode: inline` — run the agent now and receive the result before replying.
-
-Always use the `reply` tool for all user-facing output.
+{{/if}}

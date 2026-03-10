@@ -4,11 +4,15 @@ import type { WAMessage, WASocket } from '@whiskeysockets/baileys';
 import { downloadMediaMessage, normalizeMessageContent } from '@whiskeysockets/baileys';
 import type { InboundMessage } from '@/types';
 import { setSocket, enqueueMessage } from './send';
+import { onReaction } from './confirm';
+import { persistReaction } from '@/db/write';
 import { handleTurn } from '@/core/pipeline';
 import { saveFile } from '@/db/write';
 import { log } from '@/logger';
 import { config } from '@/config';
 const MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024; // 64 MB
+const STARTUP_AT = Date.now();
+const OFFLINE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
 const MIME_TO_EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -37,8 +41,13 @@ export function attachReceiveHandler(socket: WASocket): void {
   setSocket(socket);
 
   socket.ev.on('messages.upsert', async ({ messages: msgs, type }) => {
-    if (type !== 'notify') return;
+    if (type !== 'notify' && type !== 'append') return;
     for (const raw of msgs) {
+      if (type === 'append') {
+        const rawTs = (raw as { messageTimestamp?: number | bigint }).messageTimestamp;
+        const tsMs = (typeof rawTs === 'bigint' ? Number(rawTs) : (rawTs ?? 0)) * 1000;
+        if (tsMs < STARTUP_AT - OFFLINE_WINDOW_MS) continue;
+      }
       const msg = await normalizeMessage(raw);
       if (msg) {
         log.info('[receive] message', { chatId: msg.chatId, text: msg.text?.slice(0, 40), kind: msg.kind });
@@ -62,6 +71,19 @@ export function attachReceiveHandler(socket: WASocket): void {
             });
           } catch { /* best-effort */ }
         }
+      }
+    }
+  });
+
+  socket.ev.on('messages.reaction', (reactions) => {
+    for (const { key: senderKey, reaction } of reactions) {
+      const reactedId = reaction.key?.id;
+      const chatId = reaction.key?.remoteJid ?? senderKey?.remoteJid;
+      const senderId = senderKey?.participant ?? senderKey?.remoteJid ?? 'unknown';
+      const fromMe = senderKey?.fromMe ?? false;
+      if (typeof reactedId === 'string' && typeof reaction.text === 'string' && chatId) {
+        persistReaction(chatId, reactedId, reaction.text, senderId, fromMe); // best-effort
+        onReaction(reactedId, reaction.text);
       }
     }
   });

@@ -1,13 +1,14 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { ContextQuery, ContextResult, TurnContext } from '@/types';
 import { config } from '@/config';
 import { db } from '@/db/client';
-import { messages } from '@/db/schema';
+import { messages, reactions } from '@/db/schema';
 
 // Rough token estimate: 1 token ≈ 4 characters (good enough for conversation history).
 const CHARS_PER_TOKEN = 4;
 const MAX_QUOTED_CHARS = 500;
+const MAX_MESSAGE_CHARS = 1000;
 
 /** Formats a message timestamp using the configured locale and timezone. */
 export function formatMessageTimestamp(date: Date): string {
@@ -31,6 +32,7 @@ export const conversationQuery: ContextQuery = {
     }
 
     const limit = typeof params?.limit === 'number' ? params.limit : 100;
+    const excludeCurrent = !!params?.excludeCurrent && !!turn.message?.id;
 
     const quotedMsg = alias(messages, 'quoted_msg');
     const rows = await db
@@ -39,12 +41,17 @@ export const conversationQuery: ContextQuery = {
         role: messages.role,
         content: messages.content,
         createdAt: messages.createdAt,
+        externalId: messages.externalId,
         quotedContent: quotedMsg.content,
         quotedRole: quotedMsg.role,
       })
       .from(messages)
       .leftJoin(quotedMsg, eq(messages.quotedMessageId, quotedMsg.id))
-      .where(eq(messages.chatId, turn.chatId))
+      .where(
+        excludeCurrent
+          ? and(eq(messages.chatId, turn.chatId), ne(messages.externalId, turn.message!.id))
+          : eq(messages.chatId, turn.chatId),
+      )
       .orderBy(desc(messages.createdAt))
       .limit(limit);
 
@@ -54,10 +61,11 @@ export const conversationQuery: ContextQuery = {
 
     for (const row of rows) {
       if (!row.content) continue;
+      const contentLen = Math.min(row.content.length, MAX_MESSAGE_CHARS);
       const quotedLen = row.quotedContent
         ? Math.min(row.quotedContent.length, MAX_QUOTED_CHARS)
         : 0;
-      const msgTokens = Math.ceil((row.content.length + quotedLen) / CHARS_PER_TOKEN);
+      const msgTokens = Math.ceil((contentLen + quotedLen) / CHARS_PER_TOKEN);
       if (tokenCount + msgTokens > budget) break;
       included.push(row);
       tokenCount += msgTokens;
@@ -66,20 +74,51 @@ export const conversationQuery: ContextQuery = {
     // Reverse to chronological order for the LLM
     included.reverse();
 
+    // Fetch reactions for included messages so the LLM can see them inline
+    const externalIds = included.map(r => r.externalId).filter((id): id is string => !!id);
+    const reactionRows = externalIds.length > 0
+      ? await db.select({
+          messageExternalId: reactions.messageExternalId,
+          emoji: reactions.emoji,
+          fromMe: reactions.fromMe,
+        })
+        .from(reactions)
+        .where(and(eq(reactions.chatId, turn.chatId), inArray(reactions.messageExternalId, externalIds)))
+      : [];
+
+    const reactionMap = new Map<string, { emoji: string; fromMe: boolean }[]>();
+    for (const r of reactionRows) {
+      const arr = reactionMap.get(r.messageExternalId) ?? [];
+      arr.push({ emoji: r.emoji, fromMe: r.fromMe });
+      reactionMap.set(r.messageExternalId, arr);
+    }
+
     const agentLabel = turn.agent?.name ?? 'assistant';
+    const messageRefs: Record<string, { externalId: string; role: string }> = {};
     const content = included
-      .map((row) => {
+      .map((row, i) => {
+        const label = i + 1;
         const role = row.role === 'user' ? 'user' : agentLabel;
+        if (row.externalId) {
+          messageRefs[String(label)] = { externalId: row.externalId, role: row.role };
+        }
         const ts = formatMessageTimestamp(row.createdAt);
         const quotedRaw = row.quotedContent?.slice(0, MAX_QUOTED_CHARS) ?? null;
         const ellipsis = row.quotedContent && row.quotedContent.length > MAX_QUOTED_CHARS ? '…' : '';
         const quoteBlock = quotedRaw
           ? `> ${row.quotedRole === 'user' ? 'user' : agentLabel}: ${quotedRaw}${ellipsis}\n`
           : '';
-        return `[${role} | ${ts}]\n${quoteBlock}${row.content}`;
+        const body = row.content && row.content.length > MAX_MESSAGE_CHARS
+          ? row.content.slice(0, MAX_MESSAGE_CHARS) + '…'
+          : row.content;
+        const rxns = row.externalId ? (reactionMap.get(row.externalId) ?? []) : [];
+        const reactionStr = rxns.length > 0
+          ? `\n[reactions: ${rxns.map(r => r.fromMe ? `${r.emoji} (you)` : r.emoji).join('  ')}]`
+          : '';
+        return `[#${label} | ${role} | ${ts}]\n${quoteBlock}${body}${reactionStr}`;
       })
       .join('\n\n');
 
-    return { content, tokenCount, truncate: 'oldest' };
+    return { content, tokenCount, truncate: 'oldest', vars: { _messageRefs: messageRefs } };
   },
 };

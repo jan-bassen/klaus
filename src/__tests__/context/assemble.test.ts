@@ -75,12 +75,12 @@ describe('assembleContext', () => {
 
   test('all query results land in vars', async () => {
     const queries = [
-      makeQuery('graph_context', 2, 'graph', 5, 'always'),
+      makeQuery('auto_memory', 2, 'graph', 5, 'always'),
       makeQuery('conversation', 3, 'convo', 5, 'oldest'),
       makeQuery('active_tasks', 4, 'tasks', 5, 'always'),
     ];
     const result = await assembleContext(makeTurn(), queries);
-    expect(result.vars['graph_context']).toBe('graph');
+    expect(result.vars['auto_memory']).toBe('graph');
     expect(result.vars['conversation']).toBe('convo');
     expect(result.vars['active_tasks']).toBe('tasks');
   });
@@ -95,7 +95,7 @@ describe('assembleContext', () => {
   test('sums tokenCount across all queries', async () => {
     const queries = [
       makeQuery('conversation', 3, 'a', 300, 'oldest'),
-      makeQuery('graph_context', 2, 'b', 700, 'always'),
+      makeQuery('auto_memory', 2, 'b', 700, 'always'),
     ];
     const result = await assembleContext(makeTurn(), queries);
     expect(result.totalTokens).toBe(1000);
@@ -107,9 +107,9 @@ describe('assembleContext', () => {
       priority: 3,
       run: async () => { throw new Error('DB exploded'); },
     };
-    const good = makeQuery('graph_context', 2, 'graph data', 5, 'always');
+    const good = makeQuery('auto_memory', 2, 'graph data', 5, 'always');
     const result = await assembleContext(makeTurn(), [bad, good]);
-    expect(result.vars['graph_context']).toBe('graph data');
+    expect(result.vars['auto_memory']).toBe('graph data');
     expect(result.vars['conversation']).toBeUndefined(); // failed, not set
   });
 
@@ -153,14 +153,14 @@ describe('assembleContext', () => {
   test('query with no matching contextParams receives undefined', async () => {
     let capturedParams: Record<string, unknown> | undefined = { sentinel: true };
     const spy: ContextQuery = {
-      name: 'graph_context',
+      name: 'auto_memory',
       priority: 2,
       run: async (_turn, params) => {
         capturedParams = params;
         return { content: '', tokenCount: 0, truncate: 'never' as const };
       },
     };
-    // contextParams only defines 'conversation', not 'graph_context'
+    // contextParams only defines 'conversation', not 'auto_memory'
     const agent: AgentDefinition = {
       ...dummyAgent,
       contextParams: { conversation: { limit: 5 } },
@@ -174,38 +174,38 @@ describe('assembleContext', () => {
   test('under budget → no trimming', async () => {
     // 50_000 + 40_000 = 90_000 < 100_000 → no trim
     const queries = [
-      makeQuery('graph_context', 2, 'graph content', 50_000, 'always'),
+      makeQuery('auto_memory', 2, 'graph content', 50_000, 'always'),
       makeQuery('conversation', 3, 'convo', 40_000, 'oldest'),
     ];
     const result = await assembleContext(makeTurn(), queries);
-    expect(result.vars['graph_context']).toBe('graph content');
+    expect(result.vars['auto_memory']).toBe('graph content');
     expect(result.vars['conversation']).toBe('convo');
     expect(result.totalTokens).toBe(90_000);
   });
 
   test('over budget: always-truncate query is cleared (priority 2 trimmed before priority 3)', async () => {
     // 60_000 + 60_000 = 120_000 > 100_000 → excess 20_000
-    // graph_context (priority 2, always) is trimmed before conversation (priority 3, oldest)
+    // auto_memory (priority 2, always) is trimmed before conversation (priority 3, oldest)
     const queries = [
-      makeQuery('graph_context', 2, 'graph content', 60_000, 'always'),
+      makeQuery('auto_memory', 2, 'graph content', 60_000, 'always'),
       makeQuery('conversation', 3, 'Turn 1\n\nTurn 2', 60_000, 'oldest'),
     ];
     const result = await assembleContext(makeTurn(), queries);
-    expect(result.vars['graph_context']).toBe('');
+    expect(result.vars['auto_memory']).toBe('');
     expect(result.vars['conversation']).toBe('Turn 1\n\nTurn 2'); // untouched
     expect(result.totalTokens).toBe(60_000);
   });
 
   test('over budget: never-truncate is protected even with lowest priority number', async () => {
     // conversation (priority 1, never) cannot be trimmed
-    // graph_context (priority 2, always) is trimmed instead
+    // auto_memory (priority 2, always) is trimmed instead
     const queries = [
       makeQuery('conversation', 1, 'important convo', 60_000, 'never'),
-      makeQuery('graph_context', 2, 'less important graph', 60_000, 'always'),
+      makeQuery('auto_memory', 2, 'less important graph', 60_000, 'always'),
     ];
     const result = await assembleContext(makeTurn(), queries);
     expect(result.vars['conversation']).toBe('important convo'); // protected
-    expect(result.vars['graph_context']).toBe(''); // cleared
+    expect(result.vars['auto_memory']).toBe(''); // cleared
   });
 
   // ─── trimming: oldest ────────────────────────────────────────────────────
@@ -227,7 +227,7 @@ describe('assembleContext', () => {
     // 60_000 + 60_000 = 120_000 > 100_000 → excess 20_000
     // Only conversation (oldest) is trimmable; it gets drained entirely
     const queries = [
-      makeQuery('graph_context', 2, 'important graph', 60_000, 'never'),
+      makeQuery('auto_memory', 2, 'important graph', 60_000, 'never'),
       makeQuery('conversation', 3, 'Turn 1\n\nTurn 2', 60_000, 'oldest'),
     ];
     const result = await assembleContext(makeTurn(), queries);
@@ -238,10 +238,10 @@ describe('assembleContext', () => {
 
   test('totalTokens reflects post-trim state', async () => {
     const queries = [
-      makeQuery('graph_context', 2, 'stuff', 80_000, 'always'),
+      makeQuery('auto_memory', 2, 'stuff', 80_000, 'always'),
       makeQuery('conversation', 3, 'convo', 40_000, 'never'),
     ];
-    // Pre-trim total: 120_000. graph_context (priority 2, always) cleared → 40_000.
+    // Pre-trim total: 120_000. auto_memory (priority 2, always) cleared → 40_000.
     const result = await assembleContext(makeTurn(), queries);
     expect(result.totalTokens).toBe(40_000);
   });

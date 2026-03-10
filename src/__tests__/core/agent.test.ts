@@ -140,10 +140,10 @@ describe('loadAgentDefinition', () => {
 
   test('inline params are parsed as numbers when numeric', async () => {
     const fm = 'name: num-agent\nmodelTier: default\ntools: []';
-    await withFixture('ctx-num', fm, '{{graph_context?limit=20&offset=5}}\n', async (p) => {
+    await withFixture('ctx-num', fm, '{{auto_memory?limit=20&offset=5}}\n', async (p) => {
       const def = await loadAgentDefinition(p);
-      expect(def.contextParams?.graph_context?.limit).toBe(20);
-      expect(def.contextParams?.graph_context?.offset).toBe(5);
+      expect(def.contextParams?.auto_memory?.limit).toBe(20);
+      expect(def.contextParams?.auto_memory?.offset).toBe(5);
     });
   });
 
@@ -224,7 +224,7 @@ describe('runAgent', () => {
       content: '',
       usage: { promptTokens: 10, completionTokens: 5, costUsd: 0 },
     }));
-    await writeAgentFile(tmpPath, '## Instructions\nYou are a test agent.\n\n{{conversation}}\n\n{{graph_context}}\n\n{{active_tasks}}\n\n{{flags}}');
+    await writeAgentFile(tmpPath, '## Instructions\nYou are a test agent.\n\n{{conversation}}\n\n{{auto_memory}}\n\n{{active_tasks}}\n\n{{flags}}');
   });
 
   const cleanup = () => { try { unlinkSync(tmpPath); } catch { /* already gone */ } };
@@ -272,7 +272,7 @@ describe('runAgent', () => {
   });
 
   test('system prompt includes graph context when present', async () => {
-    const turn = makeTurn({ graph_context: '### Node Title\nsome body text' });
+    const turn = makeTurn({ auto_memory: '### Node Title\nsome body text' });
     turn.agent.promptPath = tmpPath;
     await runAgent(turn, turn.agent);
     cleanup();

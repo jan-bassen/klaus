@@ -1,6 +1,7 @@
 node_modules/
 .env
-auth/
+.auth/
+.files/
 dist/
-bun.lockb
+bun.lock
 *.log

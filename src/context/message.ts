@@ -22,17 +22,25 @@ export const messageQuery: ContextQuery = {
 
     const type = isVoice ? 'voice' : isImage ? 'image' : isDocument ? 'document' : 'text';
 
+    // The display text for the current message: transcript for voice, plain text otherwise.
+    const messageText = isVoice
+      ? (media?.transcription ?? '')
+      : (msg.text ?? '');
+
     return {
       tokenCount: 0,
       truncate: 'never',
       vars: {
+        message_text: messageText,
         message_type: type,
+        message_id: msg.id,
         is_reply: isReply,
         transcript: media?.transcription ?? '',
         voice_caption: media?.voiceCaption ?? '',
         attachment_name: media?.fileName ?? '',
         attachment_mime: isDocument ? (media?.mimeType ?? '') : '',
         quoted_text: msg.quotedMessage?.text ?? '',
+        _currentMessageRef: { externalId: msg.id, role: 'user' },
       },
     };
   },

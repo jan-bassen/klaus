@@ -5,7 +5,7 @@ import type { InferInsertModel } from 'drizzle-orm';
 import { config } from '@/config';
 import type { Node } from '@/types';
 import { db } from './client';
-import { chunks, files, messages, nodeVersions, nodes } from './schema';
+import { chunks, files, messages, nodeVersions, nodes, reactions } from './schema';
 import { log } from '@/logger';
 
 export type NodeInsert = InferInsertModel<typeof nodes>;
@@ -133,6 +133,40 @@ export async function resolveQuotedMessageFile(
   return row && row.mimeType.startsWith('image/')
     ? { fileId: row.id, path: row.path, mimeType: row.mimeType }
     : null;
+}
+
+/**
+ * Upsert an emoji reaction to a message. Pass an empty emoji to remove the reaction.
+ * Uses messageExternalId (Baileys stanza ID) rather than a FK to messages — reactions
+ * may arrive for messages that predate Klaus or before the message row is inserted.
+ */
+export async function persistReaction(
+  chatId: string,
+  messageExternalId: string,
+  emoji: string,
+  senderId: string,
+  fromMe: boolean,
+): Promise<void | Error> {
+  try {
+    if (!emoji) {
+      await db.delete(reactions).where(
+        and(
+          eq(reactions.chatId, chatId),
+          eq(reactions.messageExternalId, messageExternalId),
+          eq(reactions.senderId, senderId),
+        ),
+      );
+    } else {
+      await db.insert(reactions)
+        .values({ chatId, messageExternalId, emoji, senderId, fromMe })
+        .onConflictDoUpdate({
+          target: [reactions.chatId, reactions.messageExternalId, reactions.senderId],
+          set: { emoji, createdAt: new Date() },
+        });
+    }
+  } catch (err) {
+    return err instanceof Error ? err : new Error(String(err));
+  }
 }
 
 export async function updateFileMessageId(

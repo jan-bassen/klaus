@@ -13,11 +13,12 @@ import { assembleContext } from './assemble';
 import { transcribe } from '@/whatsapp/voice';
 import { parseFlags, stripFlags } from '@/whatsapp/flags';
 import { parseCommand, registry as commandRegistry } from '@/commands';
+import { getDefaultAgent } from '@/core/defaults';
 import { enqueueMessage } from '@/whatsapp/send';
+import { startTyping, stopTyping } from '@/whatsapp/presence';
 import { db } from '@/db/client';
 import { messages } from '@/db/schema';
 import { updateFileMessageId, resolveQuotedMessageId, resolveQuotedMessageFile } from '@/db/write';
-import { config } from '@/config';
 import { log } from '@/logger';
 
 const AGENTS_DIR = path.join(import.meta.dir, '..', 'agents');
@@ -87,7 +88,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 
     // Step 4b + 5: Parse @agent route, strip routing prefix from text
     const routeMatch = rawText.match(/^@([\w-]+)\s*/);
-    const agentName = routeMatch ? routeMatch[1]! : config.defaultAgent;
+    const agentName = routeMatch ? routeMatch[1]! : getDefaultAgent(processedMsg.chatId);
     const cleanText = routeMatch ? rawText.slice(routeMatch[0].length) : rawText;
 
     // Parse flags from cleanText BEFORE stripping — strippedText loses the !tokens
@@ -159,7 +160,12 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 
     // Step 8: Execute agent
     log.info('[pipeline] agent execution started', { chatId: effectiveMsg.chatId, agent: agentName });
-    await _agentRunner(turn, def);
+    if (msg.kind === 'whatsapp') await startTyping(effectiveMsg.chatId);
+    try {
+      await _agentRunner(turn, def);
+    } finally {
+      if (msg.kind === 'whatsapp') await stopTyping(effectiveMsg.chatId);
+    }
     log.info('[pipeline] agent execution completed', { chatId: effectiveMsg.chatId, agent: agentName });
   } catch (err) {
     log.error('[pipeline] unhandled error', {

@@ -6,11 +6,11 @@ import { db } from '@/db/client';
 import { nodes } from '@/db/schema';
 
 /**
- * Provides graph_context: pinned nodes (always included) + hybrid search results
+ * Provides auto_memory: pinned nodes (always included) + hybrid search results
  * resolved to parent nodes + 1-hop edge expansion.
  */
 export const graphContextQuery: ContextQuery = {
-  name: 'graph_context',
+  name: 'auto_memory',
   priority: 2,
   run: async (turn: Omit<TurnContext, 'assembled'>): Promise<ContextResult> => {
     // Always include pinned nodes

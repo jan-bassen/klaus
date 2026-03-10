@@ -26,15 +26,18 @@ jobs:
     runs-on: nas
     env:
       COMPOSE: docker compose -f docker-compose.yml -f docker-compose.nas.yml
+      OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: 1password/install-cli-action@v1
 
       - name: Sync agent files to bind mount
         run: cp -r src/agents ./agents
 
       - name: Build app image
-        run: ${{ env.COMPOSE }} build app
+        run: op run --env-file .env -- ${{ env.COMPOSE }} build app
 
       - name: Restart app
-        run: ${{ env.COMPOSE }} up -d app
+        run: op run --env-file .env -- ${{ env.COMPOSE }} up -d app

@@ -2,7 +2,13 @@ import type { ContextQuery, ContextResult, TurnContext } from '@/types';
 
 /** Inline prompt modifiers triggered by !flag tokens in the message. */
 const FLAG_TEXTS: Record<string, string> = {
-  test: 'Dies ist ein Test. Ist dies in den Prompt geraten, bitte erwähnen.',
+  test: 'This is a test. If this is detected in the prompt, please mention it.',
+  voice: "Answer as a voice message, please and make sure the reply text is optimized for tts!",
+  de: "Antworte auf Deutsch, bitte!",
+  en: "Answer in English, please!",
+  verbose: "Answer verbosely, please!",
+  concise: "Answer concisely, please!",
+  formal: "Answer formally, please!",
 };
 
 /** Returns the set of recognized flag names. Used by the message parser. */

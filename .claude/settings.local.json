@@ -54,7 +54,11 @@
       "Bash(grep \"mock.module.*config\" /Users/janbassen/Code/klaus/src/__tests__/db/*.ts)",
       "Bash(bun test src/__tests__/db src/__tests__/tools)",
       "Bash(bun test src/__tests__/context src/__tests__/core src/__tests__/whatsapp src/__tests__/tools src/__tests__/commands src/__tests__/logger.test.ts)",
-      "Bash(bun test src/__tests__/core/agent.test.ts)"
+      "Bash(bun test src/__tests__/core/agent.test.ts)",
+      "Bash(bun test src/__tests__/tools/files.test.ts)",
+      "Bash(bun test src/__tests__/core/defaults.test.ts src/__tests__/commands/status.test.ts src/__tests__/commands/tasks.test.ts src/__tests__/commands/default.test.ts)",
+      "Bash(bun test src/__tests__/whatsapp/confirm.test.ts src/__tests__/whatsapp/reactions.test.ts src/__tests__/whatsapp/presence.test.ts)",
+      "WebFetch(domain:developer.1password.com)"
     ]
   }
 }

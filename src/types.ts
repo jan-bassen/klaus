@@ -120,6 +120,8 @@ export interface AgentDefinition {
   schedule?: string;
   /** Per-query params from the agent's YAML `context:` section, keyed by query name. */
   contextParams?: Record<string, Record<string, unknown>>;
+  /** Anthropic provider tool names (e.g. "web_search", "web_fetch", "code_execution") */
+  providerTools?: string[];
   /** Absolute path to the .md file — used for hot-reload */
   promptPath: string;
 }
@@ -189,4 +191,6 @@ export interface OutboundMessage {
   mimeType?: string;
   /** Dedup key: (task_id, ordinal) for task follow-ups or (message_id, ordinal) for direct replies */
   dedupKey: string;
+  /** When set, the message is sent as a WhatsApp quote-reply to this message. */
+  quoted?: { externalId: string; fromMe: boolean };
 }

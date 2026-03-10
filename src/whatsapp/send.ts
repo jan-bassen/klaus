@@ -78,7 +78,10 @@ async function sendWithRetry(msg: OutboundMessage, attempt = 1): Promise<string 
     if (attempt > 1) {
       log.info('[send] retry attempt', { dedupKey: msg.dedupKey, attempt });
     }
-    const result = await _socket.sendMessage(msg.chatId, waContent);
+    const sendOpts = msg.quoted
+      ? { quoted: { key: { remoteJid: msg.chatId, fromMe: msg.quoted.fromMe, id: msg.quoted.externalId } } }
+      : undefined;
+    const result = await _socket.sendMessage(msg.chatId, waContent, sendOpts);
     log.info('[send] sent', { dedupKey: msg.dedupKey });
     await new Promise<void>((r) => setTimeout(r, config.send.interMessageDelayMs));
     return result?.key?.id ?? null;

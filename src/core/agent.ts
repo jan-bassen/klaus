@@ -7,6 +7,7 @@ import { config } from '@/config';
 import sharp from 'sharp';
 import { hbs } from './hbs';
 import { toolRegistry, toolsetRegistry, generateMetaTool } from '@/core/registry';
+import { buildProviderTool } from '@/tools/provider';
 import { callModel } from './model-router';
 import { log } from '@/logger';
 
@@ -78,6 +79,14 @@ export async function runAgent(
     const sdkName = t.name.replace(/\./g, '_');
     allTools[sdkName] = wrap(t);
     initialActive.push(sdkName);
+  }
+
+  // Provider tools — injected directly (no wrapping), always active
+  for (const name of (def.providerTools ?? [])) {
+    const pt = buildProviderTool(name);
+    if (!pt) { log.warn('[agent] unknown provider tool', { tool: name }); continue; }
+    allTools[name] = pt;
+    initialActive.push(name);
   }
 
   // Toolsets — register meta-tool (active) + all toolset tools (inactive until activated)
@@ -205,6 +214,10 @@ export async function loadAgentDefinition(promptPath: string): Promise<AgentDefi
     ? (front.toolsets as string[])
     : [];
 
+  const providerTools: string[] = Array.isArray(front.providerTools)
+    ? (front.providerTools as string[])
+    : [];
+
   // Optional cron schedule string (e.g. "0 3 * * *")
   const schedule = typeof front.schedule === 'string' ? front.schedule : undefined;
 
@@ -232,6 +245,7 @@ export async function loadAgentDefinition(promptPath: string): Promise<AgentDefi
     modelTier: modelTier as ModelTier,
     tools,
     ...(toolsets.length > 0 ? { toolsets } : {}),
+    ...(providerTools.length > 0 ? { providerTools } : {}),
     ...(schedule ? { schedule } : {}),
     ...(contextParams ? { contextParams } : {}),
     promptPath,

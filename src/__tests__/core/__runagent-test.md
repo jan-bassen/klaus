@@ -8,7 +8,7 @@ You are a test agent.
 
 {{conversation}}
 
-{{graph_context}}
+{{auto_memory}}
 
 {{active_tasks}}
 

@@ -189,6 +189,19 @@ export const files = pgTable('files', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const reactions = pgTable('reactions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  chatId: text('chat_id').notNull(),
+  messageExternalId: text('message_external_id').notNull(),
+  emoji: text('emoji').notNull(),
+  senderId: text('sender_id').notNull(),
+  fromMe: boolean('from_me').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('idx_reactions_chat_msg').on(t.chatId, t.messageExternalId),
+  unique('uq_reactions_sender_msg').on(t.chatId, t.messageExternalId, t.senderId),
+]);
+
 export const agentInvocations = pgTable('agent_invocations', {
   id:               uuid('id').primaryKey().defaultRandom(),
   messageId:        uuid('message_id').references(() => messages.id),

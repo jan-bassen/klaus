@@ -46,7 +46,7 @@ mock.module('@/db/write', () => ({ saveFile: mockSaveFile }));
 
 // ─── import after mocks are registered ───────────────────────────────────────
 
-import { filesDeleteTool, filesDownloadTool, filesListTool, filesUploadTool } from '@/tools/files';
+import { filesDeleteTool, filesDownloadTool, filesListTool, filesUploadTool } from '@/tools/sets/files';
 import type { AssembledContext, TurnContext } from '@/types';
 
 // ─── test fixtures ────────────────────────────────────────────────────────────

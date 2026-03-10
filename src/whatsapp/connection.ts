@@ -30,14 +30,10 @@ export async function startConnection(): Promise<WASocket> {
     let retryCount = 0;
 
     function connect(): void {
-      const allowedJid = process.env.ALLOWED_CHAT_ID ?? '';
       const sock = makeWASocket({
         version,
         auth: state,
         printQRInTerminal: true,
-        // Drop all events for JIDs that aren't the whitelisted chat — fail-closed
-        // when ALLOWED_CHAT_ID is unset (empty string never matches any real JID).
-        shouldIgnoreJid: (jid) => jid !== allowedJid,
       });
 
       sock.ev.on('creds.update', saveCreds);

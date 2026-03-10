@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bun run src/index.ts",
+    "dev": "op run --env-file=.env.secrets -- bun run src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test src/__tests__/context src/__tests__/core src/__tests__/whatsapp src/__tests__/tools src/__tests__/commands src/__tests__/logger.test.ts",
     "test:pipeline": "bun test src/__tests__/pipeline.test.ts",
