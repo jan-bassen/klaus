@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# One-time NAS setup. Run from your Mac, NOT on the NAS.
+# One-time NAS setup. Run from your Mac, inside this repo.
 #
-# Prerequisites (on your Mac):
-#   - gh CLI installed and logged in (brew install gh && gh auth login)
+# Prerequisites:
+#   - .env.secrets filled in with your API keys
 #   - SSH access to your NAS
-#   - A 1Password Service Account token (ops_...) from my.1password.com/developer-tools/service-accounts
+#   - gh CLI (optional — only needed for self-hosted runner auto-setup)
 #
 # Usage:
 #   ./scripts/setup-nas.sh user@nas-host
@@ -20,111 +20,86 @@ if [[ -z "$NAS" ]]; then
   exit 1
 fi
 
-# ── Preflight ─────────────────────────────────────────────────────────────────
+if [[ ! -f .env.secrets ]]; then
+  echo "Error: no .env.secrets found locally."
+  echo "  Create it with your 4 API keys:"
+  echo "    ANTHROPIC_API_KEY=..."
+  echo "    VOYAGE_API_KEY=..."
+  echo "    ELEVENLABS_API_KEY=..."
+  echo "    ALLOWED_CHAT_ID=..."
+  exit 1
+fi
 
-command -v gh  >/dev/null || { echo "Error: gh CLI not found — brew install gh"; exit 1; }
-command -v ssh >/dev/null || { echo "Error: ssh not found"; exit 1; }
-
-gh auth status >/dev/null 2>&1 || { echo "Error: not logged in — gh auth login"; exit 1; }
-
-REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null \
-  || git remote get-url origin | sed 's|.*github\.com[:/]||;s|\.git$||')
-REPO_URL="https://github.com/$REPO"
+REPO_URL=$(git remote get-url origin 2>/dev/null \
+  | sed 's|git@github\.com:|https://github.com/|; s|\.git$||')
 echo "→ Repo: $REPO_URL"
 
-# ── 1Password service account token ──────────────────────────────────────────
+# ── Optional: GitHub Actions runner token ────────────────────────────────────
 
-echo ""
-echo "Paste your 1Password service account token (ops_...) and press Enter:"
-read -rs OP_SERVICE_ACCOUNT_TOKEN
-echo ""
-
-[[ "$OP_SERVICE_ACCOUNT_TOKEN" == ops_* ]] \
-  || { echo "Error: token must start with ops_"; exit 1; }
-
-# ── Propagate to GitHub Actions (so CI can resolve secrets too) ───────────────
-
-echo "→ Setting GitHub Actions secret OP_SERVICE_ACCOUNT_TOKEN..."
-echo "$OP_SERVICE_ACCOUNT_TOKEN" | gh secret set OP_SERVICE_ACCOUNT_TOKEN --repo "$REPO"
-
-# ── Get runner registration token from GitHub API ─────────────────────────────
-
-echo "→ Fetching runner registration token..."
-GITHUB_RUNNER_TOKEN=$(gh api "repos/$REPO/actions/runners/registration-token" -q .token)
-
-# ── Set up the NAS over SSH ───────────────────────────────────────────────────
-
-echo "→ Connecting to $NAS..."
-
-ssh "$NAS" /bin/bash << EOF
-set -euo pipefail
-
-NAS_DIR="$NAS_DIR"
-REPO_URL="$REPO_URL"
-OP_SERVICE_ACCOUNT_TOKEN="$OP_SERVICE_ACCOUNT_TOKEN"
-GITHUB_RUNNER_TOKEN="$GITHUB_RUNNER_TOKEN"
+GITHUB_RUNNER_TOKEN=""
 GITHUB_REPO_URL="$REPO_URL"
 
-# ── Install op CLI if needed ──────────────────────────────────────────────────
-if ! command -v op >/dev/null 2>&1; then
-  echo "→ Installing 1Password CLI..."
-  ARCH=\$(uname -m)
-  curl -sSfL "https://downloads.1password.com/linux/tar/stable/\${ARCH}/1password-cli-latest.tar.gz" \\
-    | tar xzf - -C /tmp op
-  sudo mv /tmp/op /usr/local/bin/op
-  echo "   op \$(op --version)"
-else
-  echo "→ op CLI already installed (\$(op --version))"
-fi
-
-# ── Clone or pull repo ────────────────────────────────────────────────────────
-mkdir -p "\$(dirname "\$NAS_DIR")"
-if [[ -d "\$NAS_DIR/.git" ]]; then
-  echo "→ Updating repo..."
-  git -C "\$NAS_DIR" pull --ff-only
-else
-  echo "→ Cloning repo to \$NAS_DIR..."
-  git clone "\$REPO_URL" "\$NAS_DIR"
-fi
-cd "\$NAS_DIR"
-
-# ── Write .env ────────────────────────────────────────────────────────────────
-echo "→ Writing .env..."
-cp .env.example .env
-
-# Inject secrets (sed handles both commented-out and missing lines)
-set_env() {
-  local key="\$1" val="\$2"
-  if grep -q "^#\?[[:space:]]*\${key}=" .env; then
-    sed -i "s|^#\?[[:space:]]*\${key}=.*|\${key}=\${val}|" .env
-  else
-    echo "\${key}=\${val}" >> .env
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || echo "")
+  if [[ -n "$REPO" ]]; then
+    RUNNER_REGISTERED=$(gh api "repos/$REPO/actions/runners" \
+      -q '.runners[] | select(.name == "nas-runner") | .id' 2>/dev/null || echo "")
+    if [[ -n "$RUNNER_REGISTERED" ]]; then
+      echo "→ Runner 'nas-runner' already registered — skipping token fetch"
+    else
+      echo "→ Fetching runner registration token..."
+      GITHUB_RUNNER_TOKEN=$(gh api "repos/$REPO/actions/runners/registration-token" \
+        -q .token 2>/dev/null || echo "")
+    fi
   fi
-}
+fi
 
-set_env OP_SERVICE_ACCOUNT_TOKEN "\$OP_SERVICE_ACCOUNT_TOKEN"
-set_env GITHUB_RUNNER_TOKEN      "\$GITHUB_RUNNER_TOKEN"
-set_env GITHUB_REPO_URL          "\$GITHUB_REPO_URL"
+# ── Clone/pull repo, write .env, add runner config, start services ────────────
 
-# ── Run DB migrations then start all services ─────────────────────────────────
-echo "→ Starting services..."
-OP_SERVICE_ACCOUNT_TOKEN="\$OP_SERVICE_ACCOUNT_TOKEN" \\
-  op run --env-file .env -- \\
-  docker compose -f docker-compose.yml -f docker-compose.nas.yml up -d
+echo "→ Setting up NAS (you'll be prompted for your password)..."
+ssh "$NAS" "
+  set -e
+  export PATH=/usr/local/bin:\$PATH
 
-echo ""
-echo "✓ NAS setup complete."
-EOF
+  mkdir -p '$(dirname "$NAS_DIR")'
+  if [ -d '$NAS_DIR/.git' ]; then
+    echo '→ Updating repo...'
+    git -C '$NAS_DIR' pull --ff-only
+  else
+    echo '→ Cloning repo...'
+    git clone '$REPO_URL' '$NAS_DIR'
+  fi
+
+  [ -f '$NAS_DIR/.env' ] || cp '$NAS_DIR/.env.example' '$NAS_DIR/.env'
+"
+
+if [[ -n "$GITHUB_RUNNER_TOKEN" ]]; then
+  echo "→ Adding runner config..."
+  ssh "$NAS" "
+    f='$NAS_DIR/.env'
+    grep -q '^GITHUB_REPO_URL=' \"\$f\"    && sed -i 's|^GITHUB_REPO_URL=.*|GITHUB_REPO_URL=$GITHUB_REPO_URL|' \"\$f\"    || echo 'GITHUB_REPO_URL=$GITHUB_REPO_URL'    >> \"\$f\"
+    grep -q '^GITHUB_RUNNER_TOKEN=' \"\$f\" && sed -i 's|^GITHUB_RUNNER_TOKEN=.*|GITHUB_RUNNER_TOKEN=$GITHUB_RUNNER_TOKEN|' \"\$f\" || echo 'GITHUB_RUNNER_TOKEN=$GITHUB_RUNNER_TOKEN' >> \"\$f\"
+  "
+fi
+
+# ── Copy .env.secrets to NAS ──────────────────────────────────────────────────
+
+echo "→ Copying .env.secrets to NAS (you'll be prompted again)..."
+ssh "$NAS" "cat > '$NAS_DIR/.env.secrets'" < .env.secrets
+
+# ── Start services ────────────────────────────────────────────────────────────
+
+echo "→ Starting services (you'll be prompted once more)..."
+ssh "$NAS" "export PATH=/usr/local/bin:\$PATH; docker compose -f '$NAS_DIR/docker-compose.yml' -f '$NAS_DIR/docker-compose.nas.yml' --project-directory '$NAS_DIR' up -d"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 
 echo ""
-echo "✓ Done! Two things left:"
+echo "✓ Done! Scan the WhatsApp QR to finish pairing:"
+echo "  ssh $NAS 'docker compose -f $NAS_DIR/docker-compose.yml -f $NAS_DIR/docker-compose.nas.yml logs -f app'"
 echo ""
-echo "  1. Scan WhatsApp QR (only needed once — auth is persisted in a Docker volume):"
-echo "     ssh $NAS 'cd $NAS_DIR && docker compose -f docker-compose.yml -f docker-compose.nas.yml logs -f app'"
-echo ""
-echo "  2. Check the runner is online:"
-echo "     $REPO_URL/settings/actions/runners"
-echo ""
-echo "  After that, push to main and CI/CD handles everything."
+if [[ -n "$GITHUB_RUNNER_TOKEN" ]]; then
+  echo "CI/CD runner registered: $REPO_URL/settings/actions/runners"
+  echo ""
+fi
+echo "After that, push to main and CI/CD handles everything."

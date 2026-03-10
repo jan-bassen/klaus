@@ -61,9 +61,9 @@ describe('callModel', () => {
     expect(result.usage.completionTokens).toBe(40);
   });
 
-  test('inserts a row into llm_costs after each call', async () => {
+  test('inserts invocation row and cost row after each call', async () => {
     await callModel(BASE_OPTS);
-    expect(mockInsert).toHaveBeenCalledTimes(1);
+    expect(mockInsert).toHaveBeenCalledTimes(2); // 1 for invocations, 1 for costs
   });
 
   test('throws when LLM rate limit is exceeded', async () => {

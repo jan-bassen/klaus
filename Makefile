@@ -2,7 +2,6 @@
 
 COMPOSE     = docker compose -f docker-compose.yml -f docker-compose.nas.yml
 COMPOSE_DEV = docker compose
-OP          = op run --env-file .env --
 
 # ── One-time NAS setup ───────────────────────────────────────────────────────
 # Usage: make setup-nas NAS=admin@192.168.1.100
@@ -13,10 +12,10 @@ setup-nas:
 # ── Local dev ────────────────────────────────────────────────────────────────
 
 dev:
-	$(OP) bun dev
+	bun --env-file .env.secrets dev
 
 dev-up:
-	$(OP) $(COMPOSE_DEV) up -d
+	$(COMPOSE_DEV) up -d
 
 dev-down:
 	$(COMPOSE_DEV) down
@@ -24,10 +23,10 @@ dev-down:
 # ── NAS (production) ─────────────────────────────────────────────────────────
 
 nas-up:
-	$(OP) $(COMPOSE) up -d
+	$(COMPOSE) up -d
 
 nas-build:
-	$(OP) $(COMPOSE) build app
+	$(COMPOSE) build app
 
 nas-logs:
 	$(COMPOSE) logs -f app
@@ -36,7 +35,7 @@ nas-restart:
 	$(COMPOSE) restart app
 
 nas-backup:
-	$(OP) $(COMPOSE) --profile backup run --rm backup
+	$(COMPOSE) --profile backup run --rm backup
 
 nas-down:
 	$(COMPOSE) down

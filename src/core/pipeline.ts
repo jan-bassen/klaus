@@ -61,7 +61,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
     if (msg.media) {
       const { path: filePath, mimeType, fileId } = msg.media;
       if (mimeType.startsWith('audio/')) {
-        const transcript = await transcribe(filePath, mimeType);
+        const transcript = await transcribe(filePath, mimeType, msg.chatId);
         if (!(transcript instanceof Error)) {
           processedMsg = {
             ...msg,
@@ -168,16 +168,21 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
     }
     log.info('[pipeline] agent execution completed', { chatId: effectiveMsg.chatId, agent: agentName });
   } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
     log.error('[pipeline] unhandled error', {
       chatId: msg.chatId,
-      error: err instanceof Error ? err.message : String(err),
+      error: errMsg,
       stack: err instanceof Error ? err.stack : undefined,
     });
     if (msg.kind === 'whatsapp') {
+      const isRateLimit = /rate.?limit/i.test(errMsg);
+      const userMsg = isRateLimit
+        ? 'Too many requests right now — please try again in a moment.'
+        : 'Something went wrong processing your message. Please try again.';
       try {
         enqueueMessage({
           chatId: msg.chatId,
-          content: 'Something went wrong processing your message. Please try again.',
+          content: userMsg,
           dedupKey: `${msg.id}:error`,
         });
       } catch {

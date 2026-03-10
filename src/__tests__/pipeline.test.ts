@@ -16,7 +16,7 @@ mock.module('@/whatsapp/send', () => ({ enqueueMessage: mockEnqueueMessage }));
 
 // @/db/client + @/db/write — keep mocked: require live Postgres
 const mockReturning = mock(async () => [{ id: 'msg-id-1' }]);
-const mockInsert = mock(() => ({ values: () => ({ returning: mockReturning }) }));
+const mockInsert = mock(() => ({ values: () => ({ returning: mockReturning, catch: () => undefined }) }));
 mock.module('@/db/client', () => ({
   db: { insert: mockInsert },
 }));

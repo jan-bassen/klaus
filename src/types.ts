@@ -8,7 +8,7 @@ import type {
   tasks,
   messages,
   files,
-  agentInvocations,
+  invocations,
 } from './db/schema';
 import type { ModelTier } from './config';
 
@@ -21,7 +21,7 @@ export type NodeVersion = InferSelectModel<typeof nodeVersions>;
 export type Task = InferSelectModel<typeof tasks>;
 export type Message = InferSelectModel<typeof messages>;
 export type File = InferSelectModel<typeof files>;
-export type AgentInvocation = InferSelectModel<typeof agentInvocations>;
+export type Invocation = InferSelectModel<typeof invocations>;
 
 // -- WhatsApp / transport --
 

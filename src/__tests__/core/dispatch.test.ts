@@ -27,7 +27,7 @@ const mockDb = {
   })),
 };
 mock.module('@/db/client', () => ({ db: mockDb }));
-mock.module('@/db/schema', () => ({ tasks: {}, agentInvocations: {} }));
+mock.module('@/db/schema', () => ({ tasks: {}, invocations: {}, costs: {} }));
 
 mock.module('@/logger', () => ({
   log: { info: mock(() => {}), warn: mock(() => {}), error: mock(() => {}), debug: mock(() => {}) },

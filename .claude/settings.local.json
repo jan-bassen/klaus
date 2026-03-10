@@ -62,7 +62,9 @@
       "Bash(npx tsc --noEmit)",
       "Bash(bunx tsc --noEmit --pretty)",
       "Bash(bun test --bail)",
-      "Bash(bun run test)"
+      "Bash(bun run test)",
+      "Bash(bun test src/__tests__/whatsapp/tts.test.ts)",
+      "Bash(bun test src/__tests__/whatsapp/send.test.ts src/__tests__/whatsapp/tts.test.ts)"
     ]
   }
 }

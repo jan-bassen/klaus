@@ -10,7 +10,7 @@ export const config = {
     tts:     'eleven_multilingual_v2',     // ElevenLabs TTS
     stt:     'scribe_v1',                  // ElevenLabs Scribe STT
     vision:  'claude-sonnet-4-20250514',   // image analysis (Claude)
-    embed:   'voyage-3',                   // Voyage AI, 1024-dim embeddings
+    embed:   'voyage-4',                   // Voyage AI, 1024-dim embeddings
   },
 
   // Per-model pricing in USD per million tokens. Used by model-router to compute costUsd.
@@ -21,10 +21,11 @@ export const config = {
     'claude-opus-4-20250514':   { inputPerMTok: 15.00, outputPerMTok: 75.00 },
   } as Record<string, { inputPerMTok: number; outputPerMTok: number }>,
 
-  // Per-service pricing for non-LLM API calls. Used to compute costUsd in apiCosts rows.
+  // Per-service pricing for non-LLM API calls. Used to compute costUsd in costs rows.
   apiPricing: {
-    tts:   { perMChars: 30.00 },  // ElevenLabs ~$0.03/1K chars
-    embed: { perMTok:    0.06 },  // Voyage AI voyage-3
+    tts:   { perMChars: 120.00 }, // ElevenLabs $0.12/1K chars
+    embed: { perMTok:     0.06 }, // Voyage AI voyage-4
+    stt:   { perHour:     0.39 }, // ElevenLabs Scribe $0.39/hr
   },
 
   // Token budgets for context assembly. The assembler fills up to totalTokens,

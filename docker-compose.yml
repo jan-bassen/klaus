@@ -31,7 +31,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    env_file: .env
+    env_file:
+      - .env
+      - .env.secrets
     environment:
       # Override DATABASE_URL so the app always reaches the postgres service by name,
       # regardless of what localhost-based URL is set in .env for native dev.

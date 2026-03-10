@@ -21,8 +21,6 @@ toolsets:
 
 Today is {{date}}, {{time}}.
 
----
-
 {{architecture}}
 
 ---
@@ -44,6 +42,8 @@ Today is {{date}}, {{time}}.
 {{/if}}
 
 # Conversation History
+
+#id's are automatically mapped, for you to reference
 
 {{conversation?limit=20&excludeCurrent=1}}
 

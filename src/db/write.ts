@@ -5,7 +5,7 @@ import type { InferInsertModel } from 'drizzle-orm';
 import { config } from '@/config';
 import type { Node } from '@/types';
 import { db } from './client';
-import { apiCosts, chunks, files, messages, nodeVersions, nodes, reactions } from './schema';
+import { costs, chunks, files, messages, nodeVersions, nodes, reactions } from './schema';
 import { log } from '@/logger';
 
 export type NodeInsert = InferInsertModel<typeof nodes>;
@@ -20,7 +20,7 @@ export async function embedText(text: string): Promise<number[]> {
   const { embedding, usage } = await embed({ model: EMBED_MODEL, value: text });
   const tokens = usage?.tokens ?? estimateTokens(text);
   const costUsd = (tokens / 1_000_000) * config.apiPricing.embed.perMTok;
-  db.insert(apiCosts).values({ service: 'embed', units: tokens, costUsd: String(costUsd) })
+  db.insert(costs).values({ service: 'embed', units: tokens, costUsd: String(costUsd) })
     .catch((err) => log.warn('[cost] failed to record embed cost', { error: err instanceof Error ? err.message : String(err) }));
   return embedding;
 }

@@ -4,7 +4,7 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { config, type ModelTier } from '@/config';
 import { checkModelRate } from './rate-limiter';
 import { db } from '@/db/client';
-import { agentInvocations } from '@/db/schema';
+import { invocations, costs } from '@/db/schema';
 import { log } from '@/logger';
 
 export class LlmTimeoutError extends Error {
@@ -166,7 +166,7 @@ export async function callModel(opts: ModelCallOptions): Promise<ModelCallResult
         : JSON.stringify(opts.messages[0]!.content)
       : undefined;
 
-  await db.insert(agentInvocations).values({
+  await db.insert(invocations).values({
     agent: opts.agentName ?? 'unknown',
     model: modelId,
     ...(opts.messageId ? { messageId: opts.messageId } : {}),
@@ -176,10 +176,22 @@ export async function callModel(opts: ModelCallOptions): Promise<ModelCallResult
     steps,
     promptTokens,
     completionTokens,
-    costUsd: String(costUsd),
     durationMs,
     createdAt: new Date(),
   });
+
+  if (costUsd > 0) {
+    db.insert(costs)
+      .values({
+        ...(opts.chatId ? { chatId: opts.chatId } : {}),
+        service: 'llm',
+        units: promptTokens + completionTokens,
+        costUsd: String(costUsd),
+      })
+      .catch((err) => log.warn('[cost] failed to record llm cost', {
+        error: err instanceof Error ? err.message : String(err),
+      }));
+  }
 
   return {
     content: result.text,

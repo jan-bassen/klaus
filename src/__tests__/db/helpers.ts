@@ -92,7 +92,7 @@ export function setupTestDb(): void {
     // Truncate in reverse FK order so CASCADE handles child rows.
     // Exclude __drizzle_migrations so migration state is preserved.
     await cleanupDb.execute(
-      sql`TRUNCATE TABLE agent_invocations, llm_budgets, provenance, node_versions, chunks, edges, files, messages, tasks, nodes RESTART IDENTITY CASCADE`,
+      sql`TRUNCATE TABLE invocations, costs, budgets, reactions, provenance, node_versions, chunks, edges, files, messages, tasks, nodes RESTART IDENTITY CASCADE`,
     );
   });
 

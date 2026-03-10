@@ -3,6 +3,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+// Mock DB before importing voice.ts (which now records STT costs)
+mock.module('@/db/client', () => ({
+  db: { insert: mock(() => ({ values: mock(() => ({ catch: () => undefined })) })) },
+}));
+mock.module('@/db/schema', () => ({ costs: {} }));
+
 import { transcribe } from '@/whatsapp/voice';
 
 let tmpDir: string;

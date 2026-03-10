@@ -66,7 +66,7 @@ export const taskStatusEnum = pgEnum('task_status', [
   'cancelled',
 ]);
 
-export const apiCostService = pgEnum('api_cost_service', ['tts', 'embed']);
+export const costService = pgEnum('cost_service', ['tts', 'embed', 'stt', 'llm']);
 
 // -- tables --
 
@@ -169,7 +169,7 @@ export const tasks = pgTable('tasks', {
 ]);
 
 
-export const llmBudgets = pgTable('llm_budgets', {
+export const budgets = pgTable('budgets', {
   id: uuid('id').primaryKey().defaultRandom(),
   chatId: text('chat_id').notNull(),
   dailyLimitUsd: numeric('daily_limit_usd', { precision: 10, scale: 2 }),
@@ -178,7 +178,7 @@ export const llmBudgets = pgTable('llm_budgets', {
   currentMonthlyUsd: numeric('current_monthly_usd', { precision: 10, scale: 6 }).default('0'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
-  unique('uq_llm_budgets_chat').on(t.chatId),
+  unique('uq_budgets_chat').on(t.chatId),
 ]);
 
 export const files = pgTable('files', {
@@ -207,18 +207,18 @@ export const reactions = pgTable('reactions', {
   unique('uq_reactions_sender_msg').on(t.chatId, t.messageExternalId, t.senderId),
 ]);
 
-export const apiCosts = pgTable('api_costs', {
+export const costs = pgTable('costs', {
   id:        uuid('id').primaryKey().defaultRandom(),
   chatId:    text('chat_id'),
-  service:   apiCostService('service').notNull(),
+  service:   costService('service').notNull(),
   units:     integer('units').notNull(),
   costUsd:   numeric('cost_usd', { precision: 10, scale: 6 }).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
-  index('idx_api_costs_created').on(t.createdAt),
+  index('idx_costs_created').on(t.createdAt),
 ]);
 
-export const agentInvocations = pgTable('agent_invocations', {
+export const invocations = pgTable('invocations', {
   id:               uuid('id').primaryKey().defaultRandom(),
   messageId:        uuid('message_id').references(() => messages.id),
   taskId:           uuid('task_id').references(() => tasks.id),
@@ -229,9 +229,8 @@ export const agentInvocations = pgTable('agent_invocations', {
   steps:            jsonb('steps').notNull().default(sql`'[]'::jsonb`),
   promptTokens:     integer('prompt_tokens'),
   completionTokens: integer('completion_tokens'),
-  costUsd:          numeric('cost_usd', { precision: 10, scale: 6 }),
   durationMs:       integer('duration_ms'),
   createdAt:        timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
-  index('idx_agent_invocations_message').on(t.messageId),
+  index('idx_invocations_message').on(t.messageId),
 ]);
