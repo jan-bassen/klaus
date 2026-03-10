@@ -1,8 +1,14 @@
-.PHONY: dev nas-up nas-build nas-logs nas-restart nas-backup nas-down dev-up dev-down
+.PHONY: dev nas-up nas-build nas-logs nas-restart nas-backup nas-down dev-up dev-down setup-nas
 
 COMPOSE     = docker compose -f docker-compose.yml -f docker-compose.nas.yml
 COMPOSE_DEV = docker compose
 OP          = op run --env-file .env --
+
+# ── One-time NAS setup ───────────────────────────────────────────────────────
+# Usage: make setup-nas NAS=admin@192.168.1.100
+setup-nas:
+	@test -n "$(NAS)" || (echo "Usage: make setup-nas NAS=user@host"; exit 1)
+	bash scripts/setup-nas.sh $(NAS)
 
 # ── Local dev ────────────────────────────────────────────────────────────────
 
