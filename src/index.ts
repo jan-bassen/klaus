@@ -1,4 +1,4 @@
-import path from 'path';
+import path from 'node:path';
 import { initQueue, stopQueue, isQueueReady } from './core/queue';
 import { startWorkers } from './core/worker';
 import { loadAgents, agentRegistry } from './core/agent';
@@ -13,6 +13,9 @@ import { config } from './config';
 import { log } from './logger';
 
 const PORT = Number(process.env.PORT ?? 3000);
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  throw new Error(`Invalid PORT: "${process.env.PORT}" — must be an integer between 1 and 65535`);
+}
 
 // Graceful shutdown — registered before main() so signal handlers are always active.
 let shuttingDown = false;
@@ -42,6 +45,13 @@ process.on('SIGTERM', () => { shutdown('SIGTERM').catch(() => process.exit(1)); 
 process.on('SIGINT',  () => { shutdown('SIGINT').catch(() => process.exit(1)); });
 
 async function main(): Promise<void> {
+  // 0. Validate required env vars — fail fast with a clear message
+  const required = ['ANTHROPIC_API_KEY', 'ALLOWED_CHAT_ID'] as const;
+  const missing = required.filter((k) => !process.env[k]);
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+
   // 1. Load tools, agents, and context queries before any message can arrive
   log.info('[startup] loading tools, agents, and context queries');
   await loadAllTools(path.join(import.meta.dir, 'tools'));

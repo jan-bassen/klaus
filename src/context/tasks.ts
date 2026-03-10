@@ -28,7 +28,7 @@ export const activeTasksQuery: ContextQuery = {
     }
     // Any children whose parent is not itself active (parent already done/failed).
     const topLevelIds = new Set(topLevel.map((t) => t.id));
-    for (const child of children.filter((c) => !topLevelIds.has(c.parentTaskId!))) {
+    for (const child of children.filter((c) => c.parentTaskId && !topLevelIds.has(c.parentTaskId))) {
       lines.push(`- [${child.status}] ${child.objective}`);
     }
 

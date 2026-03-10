@@ -2,7 +2,13 @@ import { describe, expect, test } from 'bun:test';
 import { assembleContext } from '@/core/assemble';
 import { flagsQuery } from '@/context/flags';
 import { snippetsQuery } from '@/context/snippets';
+import { config } from '@/config';
 import type { AgentDefinition, ContextQuery, TurnContext } from '@/types';
+
+// Derive from config so tests don't break when budget changes
+const BUDGET = config.context.totalTokens;
+const UNDER_HALF = Math.floor(BUDGET * 0.45);  // two of these fit under budget
+const OVER_HALF = Math.floor(BUDGET * 0.6);    // two of these exceed budget
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
 
@@ -49,7 +55,6 @@ function makeQuery(
   };
 }
 
-// config.context.totalTokens = 100_000 — use tokenCount values relative to that
 
 describe('assembleContext', () => {
   // ─── basic shape ─────────────────────────────────────────────────────────
@@ -172,36 +177,31 @@ describe('assembleContext', () => {
   // ─── trimming: always ─────────────────────────────────────────────────────
 
   test('under budget → no trimming', async () => {
-    // 50_000 + 40_000 = 90_000 < 100_000 → no trim
     const queries = [
-      makeQuery('auto_memory', 2, 'graph content', 50_000, 'always'),
-      makeQuery('conversation', 3, 'convo', 40_000, 'oldest'),
+      makeQuery('auto_memory', 2, 'graph content', UNDER_HALF, 'always'),
+      makeQuery('conversation', 3, 'convo', UNDER_HALF, 'oldest'),
     ];
     const result = await assembleContext(makeTurn(), queries);
     expect(result.vars['auto_memory']).toBe('graph content');
     expect(result.vars['conversation']).toBe('convo');
-    expect(result.totalTokens).toBe(90_000);
+    expect(result.totalTokens).toBe(UNDER_HALF * 2);
   });
 
   test('over budget: always-truncate query is cleared (priority 2 trimmed before priority 3)', async () => {
-    // 60_000 + 60_000 = 120_000 > 100_000 → excess 20_000
-    // auto_memory (priority 2, always) is trimmed before conversation (priority 3, oldest)
     const queries = [
-      makeQuery('auto_memory', 2, 'graph content', 60_000, 'always'),
-      makeQuery('conversation', 3, 'Turn 1\n\nTurn 2', 60_000, 'oldest'),
+      makeQuery('auto_memory', 2, 'graph content', OVER_HALF, 'always'),
+      makeQuery('conversation', 3, 'Turn 1\n\nTurn 2', OVER_HALF, 'oldest'),
     ];
     const result = await assembleContext(makeTurn(), queries);
     expect(result.vars['auto_memory']).toBe('');
     expect(result.vars['conversation']).toBe('Turn 1\n\nTurn 2'); // untouched
-    expect(result.totalTokens).toBe(60_000);
+    expect(result.totalTokens).toBe(OVER_HALF);
   });
 
   test('over budget: never-truncate is protected even with lowest priority number', async () => {
-    // conversation (priority 1, never) cannot be trimmed
-    // auto_memory (priority 2, always) is trimmed instead
     const queries = [
-      makeQuery('conversation', 1, 'important convo', 60_000, 'never'),
-      makeQuery('auto_memory', 2, 'less important graph', 60_000, 'always'),
+      makeQuery('conversation', 1, 'important convo', OVER_HALF, 'never'),
+      makeQuery('auto_memory', 2, 'less important graph', OVER_HALF, 'always'),
     ];
     const result = await assembleContext(makeTurn(), queries);
     expect(result.vars['conversation']).toBe('important convo'); // protected
@@ -212,23 +212,19 @@ describe('assembleContext', () => {
 
   test('over budget: oldest-truncate removes blocks from front', async () => {
     // Excess = 3 tokens (just enough to remove the first block)
-    // Each block is ~9 chars → Math.ceil((9+2)/4) = 3 tokens
     const queries = [
-      makeQuery('conversation', 3, 'Block 1\n\nBlock 2\n\nBlock 3', 100_003, 'oldest'),
+      makeQuery('conversation', 3, 'Block 1\n\nBlock 2\n\nBlock 3', BUDGET + 3, 'oldest'),
     ];
     const result = await assembleContext(makeTurn(), queries);
-    // First block removed to cover excess of 3
     expect(result.vars['conversation']).not.toContain('Block 1');
     expect(result.vars['conversation']).toContain('Block 2');
     expect(result.vars['conversation']).toContain('Block 3');
   });
 
   test('over budget: oldest clears content if all blocks must be removed', async () => {
-    // 60_000 + 60_000 = 120_000 > 100_000 → excess 20_000
-    // Only conversation (oldest) is trimmable; it gets drained entirely
     const queries = [
-      makeQuery('auto_memory', 2, 'important graph', 60_000, 'never'),
-      makeQuery('conversation', 3, 'Turn 1\n\nTurn 2', 60_000, 'oldest'),
+      makeQuery('auto_memory', 2, 'important graph', OVER_HALF, 'never'),
+      makeQuery('conversation', 3, 'Turn 1\n\nTurn 2', OVER_HALF, 'oldest'),
     ];
     const result = await assembleContext(makeTurn(), queries);
     expect(result.vars['conversation']).toBe('');
@@ -237,12 +233,13 @@ describe('assembleContext', () => {
   // ─── totalTokens reflects post-trim state ────────────────────────────────
 
   test('totalTokens reflects post-trim state', async () => {
+    const protectedTokens = Math.floor(BUDGET * 0.4);
     const queries = [
-      makeQuery('auto_memory', 2, 'stuff', 80_000, 'always'),
-      makeQuery('conversation', 3, 'convo', 40_000, 'never'),
+      makeQuery('auto_memory', 2, 'stuff', BUDGET - protectedTokens + 1, 'always'),
+      makeQuery('conversation', 3, 'convo', protectedTokens, 'never'),
     ];
-    // Pre-trim total: 120_000. auto_memory (priority 2, always) cleared → 40_000.
+    // Pre-trim exceeds budget. auto_memory (priority 2, always) cleared → only protectedTokens remain.
     const result = await assembleContext(makeTurn(), queries);
-    expect(result.totalTokens).toBe(40_000);
+    expect(result.totalTokens).toBe(protectedTokens);
   });
 });

@@ -1,13 +1,14 @@
 import { describe, expect, test } from 'bun:test';
+import type { WAMessage } from '@whiskeysockets/baileys';
 import { normalizeMessage } from '@/whatsapp/receive';
 
-function makeRaw(overrides: Record<string, unknown> = {}): unknown {
+function makeRaw(overrides: Record<string, unknown> = {}): WAMessage {
   return {
     key: {
       remoteJid: 'user@s.whatsapp.net',
       fromMe: false,
       id: 'ABC123',
-      participant: undefined,
+      participant: null,
     },
     message: {
       conversation: 'Hello Klaus!',

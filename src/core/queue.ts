@@ -1,5 +1,6 @@
 import PgBoss from 'pg-boss';
 import type { DispatchMode } from '@/types';
+import { config } from '@/config';
 
 export type JobName = 'agent-run';
 
@@ -21,7 +22,7 @@ let boss: PgBoss | null = null;
 
 export async function initQueue(): Promise<PgBoss> {
   const b = new PgBoss(
-    process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/klaus',
+    config.database.url,
   );
   await b.start();
   await b.createQueue('agent-run');

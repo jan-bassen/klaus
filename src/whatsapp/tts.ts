@@ -41,7 +41,8 @@ export async function textToSpeech(text: string, chatId?: string): Promise<Buffe
 
     const chars = text.length;
     const costUsd = (chars / 1_000_000) * config.apiPricing.tts.perMChars;
-    db.insert(apiCosts).values({ chatId, service: 'tts', units: chars, costUsd: String(costUsd) }).catch(() => {});
+    db.insert(apiCosts).values({ chatId, service: 'tts', units: chars, costUsd: String(costUsd) })
+      .catch((err) => log.warn('[cost] failed to record tts cost', { error: err instanceof Error ? err.message : String(err) }));
 
     return Buffer.from(await res.arrayBuffer());
   } catch (err) {

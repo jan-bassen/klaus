@@ -58,7 +58,11 @@
       "Bash(bun test src/__tests__/tools/files.test.ts)",
       "Bash(bun test src/__tests__/core/defaults.test.ts src/__tests__/commands/status.test.ts src/__tests__/commands/tasks.test.ts src/__tests__/commands/default.test.ts)",
       "Bash(bun test src/__tests__/whatsapp/confirm.test.ts src/__tests__/whatsapp/reactions.test.ts src/__tests__/whatsapp/presence.test.ts)",
-      "WebFetch(domain:developer.1password.com)"
+      "WebFetch(domain:developer.1password.com)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(bunx tsc --noEmit --pretty)",
+      "Bash(bun test --bail)",
+      "Bash(bun run test)"
     ]
   }
 }

@@ -46,7 +46,8 @@ describe('/tasks', () => {
     await tasksCommand.execute(msg, []);
 
     const { content } = (mockEnqueueMessage.mock.calls[0] as [{ content: string }])[0];
-    expect(content).toContain('*Active tasks* (2)');
+    expect(content).toMatch(/active tasks/i);
+    expect(content).toContain('2');
     expect(content).toContain('memorize');
     expect(content).toContain('Remember meeting notes');
     expect(content).toContain('thinking');

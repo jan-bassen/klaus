@@ -17,28 +17,21 @@ beforeEach(() => {
   mockSendPresenceUpdate.mockImplementation(async () => undefined);
 });
 
-describe('startTyping', () => {
-  test('sends composing presence update', async () => {
-    await startTyping('chat@s.whatsapp.net');
+describe('presence', () => {
+  test.each([
+    ['composing', startTyping],
+    ['paused', stopTyping],
+  ] as const)('sends %s presence update', async (presenceType, fn) => {
+    await fn('chat@s.whatsapp.net');
     expect(mockSendPresenceUpdate).toHaveBeenCalledTimes(1);
-    expect(mockSendPresenceUpdate).toHaveBeenCalledWith('composing', 'chat@s.whatsapp.net');
+    expect(mockSendPresenceUpdate).toHaveBeenCalledWith(presenceType, 'chat@s.whatsapp.net');
   });
 
-  test('does not throw when sendPresenceUpdate fails', async () => {
+  test.each([
+    ['composing', startTyping],
+    ['paused', stopTyping],
+  ] as const)('does not throw when %s fails', async (_presenceType, fn) => {
     mockSendPresenceUpdate.mockImplementation(async () => { throw new Error('network error'); });
-    await expect(startTyping('chat@s.whatsapp.net')).resolves.toBeUndefined();
-  });
-});
-
-describe('stopTyping', () => {
-  test('sends paused presence update', async () => {
-    await stopTyping('chat@s.whatsapp.net');
-    expect(mockSendPresenceUpdate).toHaveBeenCalledTimes(1);
-    expect(mockSendPresenceUpdate).toHaveBeenCalledWith('paused', 'chat@s.whatsapp.net');
-  });
-
-  test('does not throw when sendPresenceUpdate fails', async () => {
-    mockSendPresenceUpdate.mockImplementation(async () => { throw new Error('network error'); });
-    await expect(stopTyping('chat@s.whatsapp.net')).resolves.toBeUndefined();
+    await expect(fn('chat@s.whatsapp.net')).resolves.toBeUndefined();
   });
 });

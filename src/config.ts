@@ -44,7 +44,6 @@ export const config = {
     modelCalls: { max: 60, windowMs: 60_000 }, // 60 LLM calls per minute
   },
 
-    
   // ElevenLabs TTS voice to use for outbound voice messages.
   // Find your voice ID at https://elevenlabs.io/voice-library or in your ElevenLabs dashboard.
   tts: {
@@ -80,8 +79,6 @@ export const config = {
     connectionTimeoutMs: 60_000, // 1 minute to establish WhatsApp connection
   },
 
-
-
   // The agent that handles all messages not prefixed with an @route.
   defaultAgent: 'klaus',
 
@@ -99,6 +96,9 @@ export const config = {
   // Override with FILES_DIR env var (e.g. to a mounted volume in production).
   files: {
     get dir() { return process.env.FILES_DIR ?? path.join(process.cwd(), '.files'); },
+  },
+  database: {
+    get url() { return process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/klaus'; },
   },
 } as const;
 

@@ -5,10 +5,10 @@ let _silent = process.env.NODE_ENV === 'test';
 
 function emit(level: Level, msg: string, data?: Record<string, unknown>): void {
   if (_silent) return;
-  const entry = { ts: new Date().toISOString(), level, msg, ...data }
-  ;(level === 'error' || level === 'warn' ? console.error : console.log)(
+  const entry = { ts: new Date().toISOString(), level, msg, ...data };
+  (level === 'error' || level === 'warn' ? console.error : console.log)(
     JSON.stringify(entry)
-  )
+  );
 }
 
 export const log = {

@@ -11,6 +11,22 @@ import { log } from '@/logger';
 
 const AGENTS_DIR = path.join(import.meta.dir, '..', 'agents');
 
+// Test seam — allows dispatch.test.ts to override agent functions without mock.module,
+// which would globally poison @/core/agent for other test files.
+let _runAgent = runAgent;
+let _loadAgentDefinition = loadAgentDefinition;
+/** @internal test-only */ export function _setDispatchSeamsForTest(seams: {
+  runAgent?: typeof runAgent;
+  loadAgentDefinition?: typeof loadAgentDefinition;
+}): void {
+  if (seams.runAgent) _runAgent = seams.runAgent;
+  if (seams.loadAgentDefinition) _loadAgentDefinition = seams.loadAgentDefinition;
+}
+/** @internal test-only */ export function _clearDispatchSeamsForTest(): void {
+  _runAgent = runAgent;
+  _loadAgentDefinition = loadAgentDefinition;
+}
+
 /**
  * Unified dispatch primitive — the only way agents invoke other agents.
  *
@@ -48,7 +64,7 @@ export async function dispatch(opts: DispatchOptions): Promise<string | undefine
   let def = agentRegistry.get(agentName);
   if (!def) {
     const promptPath = path.join(AGENTS_DIR, `${agentName}.md`);
-    def = await loadAgentDefinition(promptPath);
+    def = await _loadAgentDefinition(promptPath);
     agentRegistry.set(def.name, def);
   }
 
@@ -65,7 +81,7 @@ export async function dispatch(opts: DispatchOptions): Promise<string | undefine
     const assembled = await assembleContext(partialTurn);
     const turn: TurnContext = { ...partialTurn, assembled };
 
-    await runAgent(turn, def);
+    await _runAgent(turn, def);
     return undefined;
   }
 

@@ -70,7 +70,7 @@ export async function callModel(opts: ModelCallOptions): Promise<ModelCallResult
   // Retry transient failures (network errors, 5xx) with exponential backoff.
   // Do NOT retry timeouts or rate-limit errors — those are definitive.
   const MAX_ATTEMPTS = 3;
-  let result: Awaited<ReturnType<typeof generateText>>;
+  let result: Awaited<ReturnType<typeof generateText>> | undefined;
   let lastErr: unknown;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
@@ -124,7 +124,7 @@ export async function callModel(opts: ModelCallOptions): Promise<ModelCallResult
       }
     }
   }
-  if (!result!) {
+  if (!result) {
     log.error('[model-router] generateText failed after all retries', {
       model: modelId,
       error: lastErr instanceof Error ? lastErr.message : String(lastErr),

@@ -1,4 +1,4 @@
-import path from 'path';
+import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import type { WAMessage, WASocket } from '@whiskeysockets/baileys';
 import { downloadMediaMessage, normalizeMessageContent } from '@whiskeysockets/baileys';
@@ -95,7 +95,7 @@ export function attachReceiveHandler(socket: WASocket): void {
  *
  * Returns null for outbound, non-media/text, or unsupported message types.
  */
-export async function normalizeMessage(raw: unknown): Promise<InboundMessage | null> {
+export async function normalizeMessage(raw: WAMessage): Promise<InboundMessage | null> {
   const m = raw as {
     key?: { remoteJid?: string; fromMe?: boolean; id?: string; participant?: string };
     message?: {
@@ -130,7 +130,7 @@ export async function normalizeMessage(raw: unknown): Promise<InboundMessage | n
 
   // Unwrap Baileys envelope types (ephemeral, viewOnce, editedMessage, etc.)
   // so the inner extendedTextMessage / imageMessage / etc. are always at the top level.
-  const normalized = normalizeMessageContent((raw as WAMessage).message) ?? m.message;
+  const normalized = normalizeMessageContent(raw.message) ?? m.message;
 
   // Extract text — conversation (1:1) or extendedTextMessage (quoted/formatted).
   // Use || (not ??) because conversation can be an empty string "" when the actual
@@ -181,7 +181,7 @@ export async function normalizeMessage(raw: unknown): Promise<InboundMessage | n
         maxBytes: MAX_DOWNLOAD_BYTES,
       });
     } else try {
-      const buffer = await downloadMediaMessage(raw as WAMessage, 'buffer', {});
+      const buffer = await downloadMediaMessage(raw, 'buffer', {});
 
       const date = new Date().toISOString().slice(0, 10);
       const id = crypto.randomUUID();

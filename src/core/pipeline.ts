@@ -1,4 +1,4 @@
-import path from 'path';
+import path from 'node:path';
 import type { InboundMessage, TurnContext, AgentDefinition } from '@/types';
 import { checkAllowlist } from './middleware';
 import { checkMessageRate } from './rate-limiter';

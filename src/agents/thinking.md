@@ -77,7 +77,7 @@ You are in *deep thinking mode* — invoked for tasks requiring extended reasoni
 {{/if}}
 
 {{#if flags}}
-*Explicity flagged with:*
+*Explicitly flagged with:*
 
 {{flags}}
 {{/if}}

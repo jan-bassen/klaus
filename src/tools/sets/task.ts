@@ -5,6 +5,7 @@ import { dispatch as dispatchAgent } from '@/core/dispatch';
 import { db } from '@/db/client';
 import { tasks } from '@/db/schema';
 import { getQueue } from '@/core/queue';
+import { log } from '@/logger';
 
 // dispatch — surface tool (always available)
 // Wraps the unified dispatch() primitive. Agents use this to invoke other agents.
@@ -55,7 +56,9 @@ export const taskCancelTool: ToolDefinition<typeof taskCancelSchema> = {
     if (!task) return `Task ${input.taskId} not found.`;
     if (['done', 'failed', 'cancelled'].includes(task.status)) return `Task already ${task.status}.`;
     await db.update(tasks).set({ status: 'cancelled' }).where(eq(tasks.id, input.taskId));
-    try { await getQueue().cancel('agent-run', input.taskId); } catch (_) {}
+    try { await getQueue().cancel('agent-run', input.taskId); } catch (err) {
+      log.warn('[task.cancel] pg-boss cancel failed', { taskId: input.taskId, error: err instanceof Error ? err.message : String(err) });
+    }
     return `Cancelled task ${input.taskId}`;
   },
   kind: 'builtin',

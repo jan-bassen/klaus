@@ -5,8 +5,7 @@
   "scripts": {
     "dev": "op run --env-file=.env.secrets -- bun run src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test src/__tests__/context src/__tests__/core src/__tests__/whatsapp src/__tests__/tools src/__tests__/commands src/__tests__/logger.test.ts",
-    "test:pipeline": "bun test src/__tests__/pipeline.test.ts",
+    "test": "for f in $(find src/__tests__ -name '*.test.ts' ! -path '*/db/*' | sort); do bun test \"$f\" || exit 1; done",
     "test:db": "RUN_DB_TESTS=1 bun test --serial src/__tests__/db",
     "test:watch": "bun test --watch",
     "docker:up": "docker compose up -d postgres",

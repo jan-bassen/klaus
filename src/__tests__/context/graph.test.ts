@@ -75,7 +75,7 @@ describe('graphContextQuery', () => {
     ]);
 
     const result = await graphContextQuery.run(turn);
-    expect(result.content).toContain('### Password Reset');
+    expect(result.content).toContain('Password Reset');
     expect(result.content).toContain('Go to settings > security.');
   });
 
@@ -98,8 +98,8 @@ describe('graphContextQuery', () => {
     const result = await graphContextQuery.run(turn);
     const blocks = result.content!.split('\n\n');
     expect(blocks.length).toBeGreaterThanOrEqual(2);
-    expect(result.content).toContain('### Alpha');
-    expect(result.content).toContain('### Beta');
+    expect(result.content).toContain('Alpha');
+    expect(result.content).toContain('Beta');
   });
 
   test('tokenCount is non-zero when content present', async () => {

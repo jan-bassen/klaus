@@ -1,14 +1,13 @@
-import { embed } from 'ai';
-import { voyage } from 'voyage-ai-provider';
 import { inArray, sql } from 'drizzle-orm';
-import { config } from '@/config';
 import type { Node } from '@/types';
 import { db } from './client';
 import { nodes } from './schema';
+import { embedText } from './write';
 import { log } from '@/logger';
 
-const EMBED_MODEL = voyage.textEmbeddingModel(config.models.embed);
+// Reciprocal Rank Fusion constant — standard IR value; higher K reduces the impact of rank differences.
 const RRF_K = 60;
+// Max candidates fetched from each source before fusion and final slicing.
 const CANDIDATE_LIMIT = 50;
 
 export interface SearchOptions {
@@ -26,11 +25,6 @@ export interface SearchResult {
 }
 
 type RankedHit = { nodeId: string; chunkBody: string | null; rank: number };
-
-async function embedText(text: string): Promise<number[]> {
-  const { embedding } = await embed({ model: EMBED_MODEL, value: text });
-  return embedding;
-}
 
 async function ftsSearch(query: string, tags: string[] | undefined): Promise<RankedHit[]> {
   const tagFilter =

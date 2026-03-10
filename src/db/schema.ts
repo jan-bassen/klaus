@@ -189,7 +189,10 @@ export const files = pgTable('files', {
   messageId: uuid('message_id').references(() => messages.id, { onDelete: 'set null' }),
   nodeId: uuid('node_id').references(() => nodes.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  index('idx_files_message').on(t.messageId),
+  index('idx_files_node').on(t.nodeId),
+]);
 
 export const reactions = pgTable('reactions', {
   id: uuid('id').primaryKey().defaultRandom(),

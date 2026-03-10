@@ -68,7 +68,7 @@ Today is {{date}}, {{time}}.
 {{/if}}
 
 {{#if flags}}
-*Explicity flagged with:*
+*Explicitly flagged with:*
 
 {{flags}}
 {{/if}}

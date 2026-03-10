@@ -20,7 +20,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
   inputSchema: replySchema,
   execute: async ({ content, voice, messageRef }, context) => {
     if (!context.message) {
-      throw new Error('reply tool can only be used in a WhatsApp turn context');
+      return { error: 'reply tool can only be used in a WhatsApp turn context' };
     }
     log.info('[reply] enqueuing', { chatId: context.chatId, preview: content.slice(0, 60) });
 
@@ -38,7 +38,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
       if (!ref) return { error: `Unknown message reference: #${messageRef}` };
       quoted = { externalId: ref.externalId, fromMe: ref.role !== 'user' };
       // Resolve to DB UUID for the quotedMessageId FK (best-effort).
-      quotedMessageId = (await resolveQuotedMessageId(context.chatId, ref.externalId)) ?? undefined;
+      quotedMessageId = (await resolveQuotedMessageId(context.chatId, ref.externalId)) ?? undefined; // null → undefined
     }
 
     // Persist to DB first so we have the row ID for the externalId backfill.

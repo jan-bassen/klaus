@@ -1,7 +1,7 @@
 import { parse as parseYaml } from 'yaml';
 import { tool } from 'ai';
 import type { ImagePart, StepResult, TextPart, ToolSet, UserContent } from 'ai';
-import type { AgentDefinition, TurnContext } from '@/types';
+import type { AgentDefinition, ToolDefinition, TurnContext } from '@/types';
 import type { ModelTier } from '@/config';
 import { config } from '@/config';
 import sharp from 'sharp';
@@ -64,7 +64,8 @@ export async function runAgent(
   const system = buildSystemPrompt(body, turn.assembled.vars);
 
   // Build Vercel AI SDK tools — closures over turn so execute receives TurnContext
-  const wrap = (t: { name: string; description: string; inputSchema: any; execute: (...a: any[]) => any }) =>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- heterogeneous registry requires any
+  const wrap = (t: ToolDefinition<any>) =>
     tool({ description: t.description, inputSchema: t.inputSchema, execute: (input) => t.execute(input, turn) });
 
   // All registered tools visible to the model (core tools + meta-tools + all toolset tools).

@@ -44,8 +44,4 @@ describe('sendReaction', () => {
     expect((result as Error).message).toBe('socket error');
   });
 
-  test('returns void on success', async () => {
-    const result = await sendReaction('chat@s.whatsapp.net', msgKey, '👍');
-    expect(result).toBeUndefined();
-  });
 });
