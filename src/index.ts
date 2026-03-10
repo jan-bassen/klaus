@@ -8,7 +8,8 @@ import { loadContextQueries, setContextQueries } from './core/assemble';
 import { startConnection, closeSocket, isConnected } from './whatsapp/connection';
 import { attachReceiveHandler } from './whatsapp/receive';
 import { drainQueue } from './whatsapp/send';
-import { client } from './db/client';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import { client, db } from './db/client';
 import { config } from './config';
 import { log } from './logger';
 
@@ -52,7 +53,11 @@ async function main(): Promise<void> {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
-  // 1. Load tools, agents, and context queries before any message can arrive
+  // 1. Run pending DB migrations — idempotent, safe to run on every startup
+  log.info('[startup] running database migrations');
+  await migrate(db, { migrationsFolder: path.join(import.meta.dir, 'db/migrations') });
+
+  // 2. Load tools, agents, and context queries before any message can arrive
   log.info('[startup] loading tools, agents, and context queries');
   await loadAllTools(path.join(import.meta.dir, 'tools'));
   await loadAgents(path.join(import.meta.dir, 'agents'));
@@ -60,12 +65,12 @@ async function main(): Promise<void> {
   setContextQueries(contextQueries);
   await import('./commands/register');
 
-  // 2. Start pgboss queue
+  // 3. Start pgboss queue
   log.info('[startup] initializing queue and workers');
   await initQueue();
   await startWorkers();
 
-  // 3. Register cron schedules for agents that declare a schedule field
+  // 4. Register cron schedules for agents that declare a schedule field
   for (const def of agentRegistry.values()) {
     if (def.schedule) {
       log.info('[startup] registering cron schedule', { agent: def.name, schedule: def.schedule });
@@ -79,7 +84,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // 4. Start WhatsApp connection with a timeout so the process doesn't hang forever
+  // 5. Start WhatsApp connection with a timeout so the process doesn't hang forever
   log.info('[startup] connecting to WhatsApp');
   const { connectionTimeoutMs } = config.startup;
   const socket = await Promise.race([
@@ -93,7 +98,7 @@ async function main(): Promise<void> {
   ]);
   attachReceiveHandler(socket);
 
-  // 5. Health check
+  // 6. Health check
   Bun.serve({
     port: PORT,
     async fetch(req) {

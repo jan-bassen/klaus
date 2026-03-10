@@ -14,6 +14,7 @@ set -euo pipefail
 
 NAS="${1:-}"
 NAS_DIR="${2:-/volume1/docker/klaus}"
+NAS_USER="${NAS%%@*}"
 
 if [[ -z "$NAS" ]]; then
   echo "Usage: $0 user@nas-host [/path/on/nas]"
@@ -87,6 +88,11 @@ fi
 echo "→ Copying .env.secrets to NAS (you'll be prompted again)..."
 ssh "$NAS" "cat > '$NAS_DIR/.env.secrets'" < .env.secrets
 
+# ── Add NAS user to docker group ──────────────────────────────────────────────
+
+echo "→ Adding $NAS_USER to docker group on NAS (you'll be prompted)..."
+ssh "$NAS" "sudo synogroup --adduser docker '$NAS_USER' 2>/dev/null || sudo usermod -aG docker '$NAS_USER'" || true
+
 # ── Start services ────────────────────────────────────────────────────────────
 
 echo "→ Starting services (you'll be prompted once more)..."
@@ -96,7 +102,7 @@ ssh "$NAS" "export PATH=/usr/local/bin:\$PATH; docker compose -f '$NAS_DIR/docke
 
 echo ""
 echo "✓ Done! Scan the WhatsApp QR to finish pairing:"
-echo "  ssh $NAS 'docker compose -f $NAS_DIR/docker-compose.yml -f $NAS_DIR/docker-compose.nas.yml logs -f app'"
+echo "  ssh $NAS 'export PATH=/usr/local/bin:\$PATH && docker compose -f $NAS_DIR/docker-compose.yml -f $NAS_DIR/docker-compose.nas.yml logs -f app'"
 echo ""
 if [[ -n "$GITHUB_RUNNER_TOKEN" ]]; then
   echo "CI/CD runner registered: $REPO_URL/settings/actions/runners"
