@@ -18,7 +18,11 @@ services:
       -c wal_compression=on
       -c checkpoint_completion_target=0.9
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-klaus}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-klaus}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -35,8 +39,8 @@ services:
       postgres:
         condition: service_healthy
     env_file:
+      - .env.config
       - .env
-      - .env.secrets
     environment:
       # Override DATABASE_URL so the app always reaches the postgres service by name,
       # regardless of what localhost-based URL is set in .env for native dev.
@@ -48,7 +52,11 @@ services:
       - files_data:/app/files
       - vault_data:/app/vault
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:${PORT:-3000}/healthz || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:${PORT:-3000}/healthz || exit 1",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -64,7 +72,16 @@ services:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-klaus}
-    command: ["bunx", "drizzle-kit", "studio", "--host", "0.0.0.0", "--port", "${STUDIO_PORT:-4983}"]
+    command:
+      [
+        "bunx",
+        "drizzle-kit",
+        "studio",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "${STUDIO_PORT:-4983}",
+      ]
     ports:
       - "127.0.0.1:${STUDIO_PORT:-4983}:${STUDIO_PORT:-4983}"
     mem_limit: 256m
@@ -95,7 +112,8 @@ services:
     restart: unless-stopped
     entrypoint: ["sh", "/scripts/obsidian-sync.sh"]
     env_file:
-      - .env.secrets
+      - .env
+      - .env.config
     volumes:
       - vault_data:/vault
       - obsidian_config:/root/.config/obsidian-headless
