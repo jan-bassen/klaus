@@ -1,12 +1,8 @@
 # TODO
 
-# README
-- turn commands into single codeblocks for easy copying
-- Explain Usage a bit better
-- Explain how to extend/change, the whole codebase is setup to be easily extended
-
 # Agents
 - Fitness
+- Daily
 
 ## Skills
 - Add a new primitive for dynamically loaded md content
