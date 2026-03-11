@@ -66,7 +66,9 @@
       "Bash(bun test src/__tests__/whatsapp/tts.test.ts)",
       "Bash(bun test src/__tests__/whatsapp/send.test.ts src/__tests__/whatsapp/tts.test.ts)",
       "WebSearch",
-      "Bash(bun run check)"
+      "Bash(bun run check)",
+      "WebFetch(domain:help.obsidian.md)",
+      "Bash(bun test src/__tests__/logger.test.ts)"
     ]
   }
 }

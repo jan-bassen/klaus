@@ -7,7 +7,6 @@ FROM oven/bun:1
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN chown -R bun:bun /app
-USER bun
+RUN mkdir -p /app/auth && chown -R bun:bun /app
 EXPOSE 3000
 CMD ["bun", "run", "src/index.ts"]

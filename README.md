@@ -78,13 +78,9 @@ docker compose exec app bun run db:migrate
 # 5. Scan the WhatsApp QR code (one-time — auth persists in a Docker volume)
 ./run.sh logs
 
-# 6. (Optional) Set up Obsidian vault sync — auth persists in a Docker volume
-docker compose run --rm obsidian-sync sh
-# Inside the container:
-ob login
-ob sync-setup --vault <your-vault-name> --path /vault
-exit
-./run.sh up   # restart to pick up the vault service
+# 6. (Optional) Set up Obsidian vault sync
+# Fill in OBSIDIAN_EMAIL, OBSIDIAN_PASSWORD, and OBSIDIAN_VAULT_NAME in .env.secrets.
+# The sync service authenticates and configures the vault automatically on first start.
 # Sync is bidirectional and continuous — notes Klaus creates will appear in your Obsidian app.
 ```
 
