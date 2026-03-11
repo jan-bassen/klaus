@@ -6,6 +6,7 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Postgres**.
 
 ## Stack
 
+
 | Layer        | Tech                                          |
 | ------------ | --------------------------------------------- |
 | Runtime      | Bun + TypeScript (strict)                     |
@@ -15,24 +16,42 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Postgres**.
 | WhatsApp     | Baileys (unofficial WA Web API, multi-device) |
 | Database     | Postgres + Drizzle ORM + pgvector + tsvector  |
 | Job queue    | pg-boss (Postgres-native, `SKIP LOCKED`)      |
+| Vault sync   | Obsidian headless (`obsidian-headless`)        |
 | Hosting      | Synology NAS via Docker Compose               |
+
 
 ---
 
 ## Operations
 
-Everything goes through `make`. All commands work the same on laptop and NAS.
+Everything goes through `./run.sh`. All commands work the same on laptop and NAS.
 
-| Command       | What it does                                                    |
-| ------------- | --------------------------------------------------------------- |
-| `make up`     | Start all services (postgres + app)                             |
-| `make down`   | Stop all services                                               |
-| `make logs`   | Follow app logs                                                 |
-| `make restart`| Restart app only (e.g. after editing `.env`)                    |
-| `make pull`   | Deploy: `git pull` + rebuild image + restart app                |
-| `make backup` | One-shot backup: postgres dump + baileys auth (see Backups)     |
-| `make reset`  | **Destructive** — stops everything and deletes all data volumes |
-| `make status` | Show container status                                           |
+
+| Command            | What it does                                                    |
+| ------------------ | --------------------------------------------------------------- |
+| `./run.sh up`      | Start all services (postgres + app + studio)                    |
+| `./run.sh down`    | Stop all services                                               |
+| `./run.sh logs`    | Follow app logs                                                 |
+| `./run.sh restart` | Restart app only (e.g. after editing `.env`)                    |
+| `./run.sh pull`    | Deploy: `git pull` + rebuild image + restart app                |
+| `./run.sh backup`  | One-shot backup: postgres dump + baileys auth (see Backups)     |
+| `./run.sh reset`   | **Destructive** — stops everything and deletes all data volumes |
+| `./run.sh status`  | Show container status                                           |
+
+
+---
+
+## Drizzle Studio
+
+A Drizzle Studio instance runs as part of the stack, bound to `127.0.0.1:4983` on the host (not exposed to the network).
+
+**Accessing it remotely (from your Mac):**
+
+```bash
+ssh -L 4983:localhost:4983 your-nas
+```
+
+Then open `http://localhost:4983` in your browser.
 
 ---
 
@@ -51,16 +70,25 @@ cp .env.example .env
 cp .env.secrets.example .env.secrets   # fill in your 4 API keys
 
 # 3. Start
-make up
+./run.sh up
 
 # 4. Apply database schema
 docker compose exec app bun run db:migrate
 
 # 5. Scan the WhatsApp QR code (one-time — auth persists in a Docker volume)
-make logs
+./run.sh logs
+
+# 6. (Optional) Set up Obsidian vault sync — auth persists in a Docker volume
+docker compose run --rm obsidian-sync sh
+# Inside the container:
+ob login
+ob sync-setup --vault <your-vault-name> --path /vault
+exit
+./run.sh up   # restart to pick up the vault service
+# Sync is bidirectional and continuous — notes Klaus creates will appear in your Obsidian app.
 ```
 
-**NAS-specific:** Set `BACKUP_DIR=/volume1/backups/klaus` in your `.env` before running `make up`.
+**NAS-specific:** Set `BACKUP_DIR=/volume1/backups/klaus` in your `.env` before running `./run.sh up`.
 
 ---
 
@@ -69,7 +97,7 @@ make logs
 SSH to the NAS and run:
 
 ```bash
-make pull
+./run.sh pull
 ```
 
 That's it. This pulls the latest code, rebuilds the Docker image, and restarts the app.
@@ -78,34 +106,41 @@ That's it. This pulls the latest code, rebuilds the Docker image, and restarts t
 
 ## Configuration
 
-**`.env`** — non-secret config, safe to edit freely:
+`**.env**` — non-secret config, safe to edit freely:
 
-| Variable              | Description                                              | Default          |
-| --------------------- | -------------------------------------------------------- | ---------------- |
-| `DATABASE_URL`        | Postgres connection string (localhost for local tools)   | see `.env.example` |
-| `BAILEYS_AUTH_FOLDER` | Auth state directory                                     | `./.auth`        |
-| `PORT`                | Internal app port                                        | `3000`           |
-| `BACKUP_DIR`          | Where `make backup` writes files on the host             | `./backups`      |
 
-**`.env.secrets`** — API keys, gitignored, never committed:
+| Variable              | Description                                            | Default            |
+| --------------------- | ------------------------------------------------------ | ------------------ |
+| `DATABASE_URL`        | Postgres connection string (localhost for local tools) | see `.env.example` |
+| `BAILEYS_AUTH_FOLDER` | Auth state directory                                   | `./.auth`          |
+| `PORT`                | Internal app port                                      | `3000`             |
+| `BACKUP_DIR`          | Where `./run.sh backup` writes files on the host       | `./backups`        |
+| `VAULT_DIR`           | Obsidian vault directory (must match Docker mount)     | `./vault`          |
 
-| Variable             | Description                            |
-| -------------------- | -------------------------------------- |
-| `ANTHROPIC_API_KEY`  | Claude API key                         |
-| `VOYAGE_API_KEY`     | Voyage AI embedding key                |
-| `ELEVENLABS_API_KEY` | ElevenLabs TTS/STT key                 |
-| `ALLOWED_CHAT_ID`    | WhatsApp chat ID to allow (fail-closed)|
+
+`**.env.secrets**` — API keys, gitignored, never committed:
+
+
+| Variable             | Description                             |
+| -------------------- | --------------------------------------- |
+| `ANTHROPIC_API_KEY`  | Claude API key                          |
+| `VOYAGE_API_KEY`     | Voyage AI embedding key                 |
+| `ELEVENLABS_API_KEY` | ElevenLabs TTS/STT key                  |
+| `ALLOWED_CHAT_ID`    | WhatsApp chat ID to allow (fail-closed) |
+| `OBSIDIAN_VAULT_NAME`| Obsidian Sync vault name                |
+
 
 ---
 
 ## Backups
 
 `make backup` runs a one-shot container that:
+
 1. Dumps Postgres to `$BACKUP_DIR/<YYYY-MM-DD>/postgres.dump` (custom format)
 2. Archives the Baileys auth volume to `$BACKUP_DIR/<YYYY-MM-DD>/baileys_auth.tar.gz`
 3. Prunes backups older than 7 days
 
-On a Synology NAS, schedule it via **Control Panel → Task Scheduler** with command `cd /path/to/klaus && make backup`.
+On a Synology NAS, schedule it via **Control Panel → Task Scheduler** with command `cd /path/to/klaus && ./run.sh backup`.
 
 ---
 
@@ -143,16 +178,20 @@ Agent files are hot-loaded on demand — edit a `.md` file and it takes effect o
 
 **Built-in agents:**
 
+
 | Agent        | Purpose                                                                        |
 | ------------ | ------------------------------------------------------------------------------ |
 | `klaus`      | Default conversational agent                                                   |
 | `thinking`   | High-tier agent for research and extended reasoning                            |
 | `memorize`   | Async agent dispatched to extract facts into the knowledge graph               |
 | `reflection` | Daily cron (03:00 UTC) for graph maintenance: dedup, orphan cleanup, synthesis |
+| `vault`      | Obsidian vault specialist — read, search, create, and organize notes           |
+
 
 ### Tools and toolsets
 
 **Tools** are always-available capabilities (e.g. `reply`, `react`, `dispatch`). **Toolsets** are groups of related tools that are lazy-loaded to save context tokens. Each toolset registers a `use_<name>` meta-tool; when the model calls it, the actual tools are injected into the next step.
+
 
 | Toolset  | Tools                                                | Purpose                         |
 | -------- | ---------------------------------------------------- | ------------------------------- |
@@ -160,6 +199,8 @@ Agent files are hot-loaded on demand — edit a `.md` file and it takes effect o
 | `task`   | dispatch, cancel, list                               | Async task management           |
 | `ops`    | cron, cost-tracking                                  | Scheduling and spend monitoring |
 | `files`  | upload, download                                     | File management                 |
+| `vault`  | read, search, list, write, append, backlinks         | Obsidian vault access           |
+
 
 Agents can also use **provider tools** — Anthropic built-in capabilities like `web_search`, `web_fetch`, and `code_execution` that are injected directly via the Vercel AI SDK.
 
@@ -187,11 +228,13 @@ The `memorize` agent writes to the graph after conversations. The `reflection` a
 
 Agents can invoke other agents via three modes:
 
+
 | Mode     | Behavior                                                              |
 | -------- | --------------------------------------------------------------------- |
 | `inline` | Runs synchronously in the current process                             |
 | `async`  | Creates a task row, enqueues via pg-boss, returns task ID immediately |
 | `cron`   | Registers a repeating schedule via pg-boss                            |
+
 
 Max chain depth is enforced to prevent infinite recursive dispatch.
 

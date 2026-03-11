@@ -2,7 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ToolDefinition, ToolsetDefinition } from '@/types';
 import { hybridSearch } from '@/db/search';
-import { writeNode } from '@/db/write';
+import { writeNode, upsertNode } from '@/db/write';
 import { db } from '@/db/client';
 import { edges, nodes } from '@/db/schema';
 
@@ -175,12 +175,39 @@ export const memoryTraverseTool: ToolDefinition<typeof memoryTraverseSchema> = {
   capability: 'resource',
 };
 
+// memory.update
+const memoryUpdateSchema = z.object({
+  id: z.string().uuid().describe('Node ID to update'),
+  title: z.string().optional(),
+  body: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  reason: z.enum(['user_edit', 'contradiction_resolved', 'merged', 'reflection']).default('user_edit'),
+});
+
+export const memoryUpdateTool: ToolDefinition<typeof memoryUpdateSchema> = {
+  name: 'memory.update',
+  description: 'Update an existing node in the knowledge graph. Re-embeds and re-chunks automatically. Preserves version history.',
+  inputSchema: memoryUpdateSchema,
+  execute: async (input) => {
+    const { id, reason, ...update } = input;
+    try {
+      await upsertNode(id, update, reason);
+      return `Updated node ${id}`;
+    } catch (err) {
+      return `Failed to update node: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  },
+  kind: 'builtin',
+  capability: 'tool',
+};
+
 export const memoryToolset: ToolsetDefinition = {
   name: 'memory',
   description: 'Use when you need to search, read, write, or manage nodes and edges in the knowledge graph.',
   tools: [
     memorySearchTool,
     memoryWriteTool,
+    memoryUpdateTool,
     memoryReadTool,
     memoryArchiveTool,
     memoryLinkTool,

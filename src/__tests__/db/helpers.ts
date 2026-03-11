@@ -17,7 +17,7 @@ export const describeDb: typeof describe = DB_AVAILABLE ? describe : describe.sk
 // test:db script sets DATABASE_URL to the test DB (klaus_test).
 // All modules that import db from client.ts will also use that URL.
 const DB_URL =
-  process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/klaus_test';
+  process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5433/klaus_test';
 
 async function startPostgres(): Promise<void> {
   try {

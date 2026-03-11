@@ -98,6 +98,9 @@ export const config = {
   files: {
     get dir() { return process.env.FILES_DIR ?? path.join(process.cwd(), '.files'); },
   },
+  vault: {
+    get dir() { return process.env.VAULT_DIR ?? path.join(process.cwd(), 'vault'); },
+  },
   database: {
     get url() { return process.env.DATABASE_URL ?? 'postgres://postgres:postgres@localhost:5432/klaus'; },
   },

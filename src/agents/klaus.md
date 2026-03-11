@@ -3,6 +3,7 @@ name: klaus
 modelTier: default
 tools:
   - reply
+  - send
   - react
   - dispatch
 providerTools:
@@ -13,6 +14,7 @@ toolsets:
   - task
   - ops
   - files
+  - vault
 ---
 
 {{soul}}

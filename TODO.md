@@ -1,5 +1,11 @@
 # TODO
 
+# Others
+- Refresh keys etc
+
+# Agents
+- Fitness
+
 ## Skills
 - Add a new primitive for dynamically loaded md content
 - Add a new core tool for retrieving said skills

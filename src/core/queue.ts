@@ -55,6 +55,14 @@ export async function scheduleJob(
   await q.schedule(agentName, schedule, payload);
 }
 
+export async function listSchedules(): Promise<unknown[]> {
+  return getQueue().getSchedules();
+}
+
+export async function deleteSchedule(name: string): Promise<void> {
+  await getQueue().unschedule(name);
+}
+
 export async function stopQueue(): Promise<void> {
   if (boss) await boss.stop();
 }

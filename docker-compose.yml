@@ -40,10 +40,12 @@ services:
       # Override DATABASE_URL so the app always reaches the postgres service by name,
       # regardless of what localhost-based URL is set in .env for native dev.
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/klaus
+      - FILES_DIR=/app/files
     volumes:
       - baileys_auth:/app/auth
       - ./src/agents:/app/src/agents:ro
       - files_data:/app/files
+      - vault_data:/app/vault
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/healthz || exit 1"]
       interval: 30s
@@ -52,6 +54,20 @@ services:
       start_period: 30s
     mem_limit: 768m
     memswap_limit: 768m
+
+  studio:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/klaus
+    command: ["bunx", "drizzle-kit", "studio", "--host", "0.0.0.0", "--port", "4983"]
+    ports:
+      - "127.0.0.1:4983:4983"
+    mem_limit: 256m
+    memswap_limit: 256m
 
   backup:
     image: postgres:17-alpine
@@ -63,6 +79,7 @@ services:
       - ./scripts/backup.sh:/backup.sh:ro
       - ${BACKUP_DIR:-./backups}:/backups
       - baileys_auth:/baileys_auth:ro
+      - files_data:/files_data:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,7 +87,25 @@ services:
     mem_limit: 128m
     memswap_limit: 128m
 
+  obsidian-sync:
+    image: node:22-alpine
+    restart: unless-stopped
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        npm install -g obsidian-headless &&
+        ob sync --continuous --vault "$OBSIDIAN_VAULT_NAME" --path /vault
+    env_file:
+      - .env.secrets
+    volumes:
+      - vault_data:/vault
+      - obsidian_config:/root/.config/obsidian-headless
+    mem_limit: 256m
+    memswap_limit: 256m
+
 volumes:
   postgres_data:
   baileys_auth:
   files_data:
+  vault_data:
+  obsidian_config:

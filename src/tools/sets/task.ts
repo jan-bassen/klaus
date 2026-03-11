@@ -86,8 +86,37 @@ export const taskListTool: ToolDefinition<typeof taskListSchema> = {
   capability: 'resource',
 };
 
+// task.get
+const taskGetSchema = z.object({
+  taskId: z.string().uuid().describe('Task ID to inspect'),
+});
+
+export const taskGetTool: ToolDefinition<typeof taskGetSchema> = {
+  name: 'task.get',
+  description: 'Fetch the full details of a task by ID, including status, timing, and result.',
+  inputSchema: taskGetSchema,
+  execute: async (input) => {
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, input.taskId));
+    if (!task) return `Task ${input.taskId} not found.`;
+    const lines = [
+      `ID:         ${task.id}`,
+      `Status:     ${task.status}`,
+      `Agent:      ${task.assignedTo ?? '—'}`,
+      `Caller:     ${task.caller ?? '—'}`,
+      `Objective:  ${task.objective}`,
+      `Parent:     ${task.parentTaskId ?? '—'}`,
+      `Created:    ${task.createdAt.toISOString()}`,
+      `Completed:  ${task.completedAt?.toISOString() ?? '—'}`,
+      `Result:     ${task.result != null ? JSON.stringify(task.result, null, 2) : '—'}`,
+    ];
+    return lines.join('\n');
+  },
+  kind: 'builtin',
+  capability: 'resource',
+};
+
 export const taskToolset: ToolsetDefinition = {
   name: 'task',
   description: 'Use when you need to dispatch agents, cancel tasks, or list running tasks.',
-  tools: [dispatchTool, taskCancelTool, taskListTool],
+  tools: [dispatchTool, taskCancelTool, taskListTool, taskGetTool],
 };

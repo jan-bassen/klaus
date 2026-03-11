@@ -2,6 +2,7 @@ import { and, gte, lte, sql, sum } from 'drizzle-orm';
 import { z } from 'zod';
 import type { ToolDefinition, ToolsetDefinition } from '@/types';
 import { dispatch } from '@/core/dispatch';
+import { listSchedules, deleteSchedule } from '@/core/queue';
 import { db } from '@/db/client';
 import { costs, budgets } from '@/db/schema';
 import { QUERIES } from '@/db/queries';
@@ -105,8 +106,45 @@ export const opsPostgresQueryTool: ToolDefinition<typeof opsPostgresQuerySchema>
   capability: 'resource',
 };
 
+const opsCronListSchema = z.object({});
+
+export const opsCronListTool: ToolDefinition<typeof opsCronListSchema> = {
+  name: 'ops.cron-list',
+  description: 'List all active cron schedules registered with pg-boss.',
+  inputSchema: opsCronListSchema,
+  execute: async () => {
+    const schedules = await listSchedules();
+    if (schedules.length === 0) return 'No active cron schedules.';
+    return schedules
+      .map((s: unknown) => {
+        const r = s as Record<string, unknown>;
+        return `${r['name']} | ${r['cron']} | created: ${r['created_on']}`;
+      })
+      .join('\n');
+  },
+  kind: 'builtin',
+  capability: 'resource',
+};
+
+const opsCronDeleteSchema = z.object({
+  agentName: z.string().describe('Name of the agent whose cron schedule should be removed'),
+});
+
+export const opsCronDeleteTool: ToolDefinition<typeof opsCronDeleteSchema> = {
+  name: 'ops.cron-delete',
+  description: 'Remove a cron schedule for a named agent. Use ops.cron-list to find the name first.',
+  inputSchema: opsCronDeleteSchema,
+  execute: async ({ agentName }) => {
+    await deleteSchedule(agentName);
+    return `Deleted cron schedule for "${agentName}"`;
+  },
+  kind: 'builtin',
+  capability: 'tool',
+  requiresConfirmation: true,
+};
+
 export const opsToolset: ToolsetDefinition = {
   name: 'ops',
   description: 'Use when you need to manage cron schedules, check LLM costs, or run named Postgres queries.',
-  tools: [opsCronTool, opsCostTrackingTool, opsPostgresQueryTool],
+  tools: [opsCronTool, opsCronListTool, opsCronDeleteTool, opsCostTrackingTool, opsPostgresQueryTool],
 };

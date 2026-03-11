@@ -64,7 +64,9 @@
       "Bash(bun test --bail)",
       "Bash(bun run test)",
       "Bash(bun test src/__tests__/whatsapp/tts.test.ts)",
-      "Bash(bun test src/__tests__/whatsapp/send.test.ts src/__tests__/whatsapp/tts.test.ts)"
+      "Bash(bun test src/__tests__/whatsapp/send.test.ts src/__tests__/whatsapp/tts.test.ts)",
+      "WebSearch",
+      "Bash(bun run check)"
     ]
   }
 }
