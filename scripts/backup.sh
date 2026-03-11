@@ -1,6 +1,6 @@
 #!/bin/sh
 # Backup script — runs inside the `backup` service container (postgres:17-alpine image).
-# NOTE: .env.secrets is NOT backed up here — store API keys in a password manager.
+# NOTE: .env is NOT backed up here — store API keys in a password manager.
 # Dumps Postgres + exports baileys_auth volume to /backups/<date>/.
 # Keeps the last 7 daily backups; older ones are pruned.
 set -e

@@ -112,8 +112,8 @@ services:
     restart: unless-stopped
     entrypoint: ["sh", "/scripts/obsidian-sync.sh"]
     env_file:
-      - .env
       - .env.config
+      - .env
     volumes:
       - vault_data:/vault
       - obsidian_config:/root/.config/obsidian-headless

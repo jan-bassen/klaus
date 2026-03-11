@@ -65,8 +65,8 @@ Do this once on any machine (laptop or NAS).
 git clone <repo-url> && cd klaus
 
 # 2. Create env files
-cp .env.example .env
-cp .env.secrets.example .env.secrets   # fill in your 4 API keys
+cp .env.config.example .env.config
+cp .env.example .env   # fill in your 4 API keys
 
 # 3. Start
 docker compose up -d --remove-orphans
@@ -78,12 +78,12 @@ docker compose exec app bun run db:migrate
 docker compose logs -f app
 
 # 6. (Optional) Set up Obsidian vault sync
-# Fill in OBSIDIAN_EMAIL, OBSIDIAN_PASSWORD, and OBSIDIAN_VAULT_NAME in .env.secrets.
+# Fill in OBSIDIAN_EMAIL, OBSIDIAN_PASSWORD, and OBSIDIAN_VAULT_NAME in .env.
 # The sync service authenticates and configures the vault automatically on first start.
 # Sync is bidirectional and continuous — notes Klaus creates will appear in your Obsidian app.
 ```
 
-**NAS-specific:** Set `BACKUP_DIR=/volume1/backups/klaus` in your `.env` before starting.
+**NAS-specific:** Set `BACKUP_DIR=/volume1/backups/klaus` in your `.env.config` before starting.
 
 ---
 
@@ -101,19 +101,19 @@ This pulls the latest code, rebuilds the Docker image, and restarts the app.
 
 ## Configuration
 
-`**.env**` — non-secret config, safe to edit freely:
+`**.env.config**` — non-secret config, safe to edit freely:
 
 
 | Variable              | Description                                            | Default            |
 | --------------------- | ------------------------------------------------------ | ------------------ |
-| `DATABASE_URL`        | Postgres connection string (localhost for local tools) | see `.env.example` |
+| `DATABASE_URL`        | Postgres connection string (localhost for local tools) | see `.env.config.example` |
 | `BAILEYS_AUTH_FOLDER` | Auth state directory                                   | `./.auth`          |
 | `PORT`                | Internal app port                                      | `3000`             |
 | `BACKUP_DIR`          | Where `./run.sh backup` writes files on the host       | `./backups`        |
 | `VAULT_DIR`           | Obsidian vault directory (must match Docker mount)     | `./vault`          |
 
 
-`**.env.secrets**` — API keys, gitignored, never committed:
+`**.env**` — API keys, gitignored, never committed:
 
 
 | Variable             | Description                             |

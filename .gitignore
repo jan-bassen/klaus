@@ -1,6 +1,6 @@
 node_modules/
 .env
-.env.secrets
+.env.config
 .auth/
 .files/
 dist/
