@@ -1,146 +1,183 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
-import type { TurnContext, AgentDefinition, InboundMessage } from '@/types';
+import { beforeEach, describe, expect, mock, test } from "bun:test";
+import type { AgentDefinition, InboundMessage, TurnContext } from "@/types";
 
 // ─── mocks ───────────────────────────────────────────────────────────────────
 
 const mockEnqueueMessage = mock((_msg: unknown, _onSent?: unknown) => {});
-mock.module('@/whatsapp/send', () => ({ enqueueMessage: mockEnqueueMessage }));
+mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 
-const mockTextToSpeech = mock(async (_text: string, _chatId: string): Promise<Buffer | Error> =>
-  Buffer.from('fake-audio'),
+const mockTextToSpeech = mock(
+	async (_text: string, _chatId: string): Promise<Buffer | Error> =>
+		Buffer.from("fake-audio"),
 );
-mock.module('@/whatsapp/tts', () => ({ textToSpeech: mockTextToSpeech }));
+mock.module("@/whatsapp/tts", () => ({ textToSpeech: mockTextToSpeech }));
 
 const mockResolveQuotedMessageId = mock(async () => null);
-mock.module('@/db/write', () => ({ resolveQuotedMessageId: mockResolveQuotedMessageId }));
-
-const mockInsertReturning = mock(async () => [{ id: 'row-uuid-1' }]);
-const mockDb = {
-  insert: mock(() => ({
-    values: mock(() => ({
-      returning: mockInsertReturning,
-    })),
-  })),
-  update: mock(() => ({
-    set: mock(() => ({
-      where: mock(() => ({
-        catch: mock(() => {}),
-      })),
-    })),
-  })),
-};
-mock.module('@/db/client', () => ({ db: mockDb }));
-mock.module('@/db/schema', () => ({ messages: {} }));
-
-mock.module('@/logger', () => ({
-  log: { info: mock(() => {}), warn: mock(() => {}), error: mock(() => {}), debug: mock(() => {}) },
+mock.module("@/db/write", () => ({
+	resolveQuotedMessageId: mockResolveQuotedMessageId,
 }));
 
-const { replyTool } = await import('@/tools/reply');
+const mockInsertReturning = mock(async () => [{ id: "row-uuid-1" }]);
+const mockDb = {
+	insert: mock(() => ({
+		values: mock(() => ({
+			returning: mockInsertReturning,
+		})),
+	})),
+	update: mock(() => ({
+		set: mock(() => ({
+			where: mock(() => ({
+				catch: mock(() => {}),
+			})),
+		})),
+	})),
+};
+mock.module("@/db/client", () => ({ db: mockDb }));
+mock.module("@/db/schema", () => ({ messages: {} }));
+
+mock.module("@/logger", () => ({
+	log: {
+		info: mock(() => {}),
+		warn: mock(() => {}),
+		error: mock(() => {}),
+		debug: mock(() => {}),
+	},
+}));
+
+const { replyTool } = await import("@/tools/reply");
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 const dummyAgent: AgentDefinition = {
-  name: 'test',
-  modelTier: 'default',
-  tools: [],
-  promptPath: '/dev/null',
+	name: "test",
+	modelTier: "default",
+	tools: [],
+	promptPath: "/dev/null",
 };
 
 const dummyMsg: InboundMessage = {
-  kind: 'whatsapp',
-  id: 'msg-ext-1',
-  chatId: 'user@s.whatsapp.net',
-  senderId: 'user@s.whatsapp.net',
-  text: 'hi',
-  timestamp: new Date(),
-  messageKey: {},
+	kind: "whatsapp",
+	id: "msg-ext-1",
+	chatId: "user@s.whatsapp.net",
+	senderId: "user@s.whatsapp.net",
+	text: "hi",
+	timestamp: new Date(),
+	messageKey: {},
 };
 
 function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
-  return {
-    chatId: 'user@s.whatsapp.net',
-    message: dummyMsg,
-    agent: dummyAgent,
-    flags: {},
-    assembled: { vars: {}, totalTokens: 0 },
-    ...overrides,
-  };
+	return {
+		chatId: "user@s.whatsapp.net",
+		message: dummyMsg,
+		agent: dummyAgent,
+		flags: {},
+		assembled: { vars: {}, totalTokens: 0 },
+		...overrides,
+	};
 }
 
 beforeEach(() => {
-  mockEnqueueMessage.mockClear();
-  mockTextToSpeech.mockClear();
-  mockTextToSpeech.mockImplementation(async () => Buffer.from('fake-audio'));
-  mockResolveQuotedMessageId.mockClear();
-  mockInsertReturning.mockClear();
-  mockInsertReturning.mockImplementation(async () => [{ id: 'row-uuid-1' }]);
+	mockEnqueueMessage.mockClear();
+	mockTextToSpeech.mockClear();
+	mockTextToSpeech.mockImplementation(async () => Buffer.from("fake-audio"));
+	mockResolveQuotedMessageId.mockClear();
+	mockInsertReturning.mockClear();
+	mockInsertReturning.mockImplementation(async () => [{ id: "row-uuid-1" }]);
 });
 
 // ─── tests ───────────────────────────────────────────────────────────────────
 
-describe('replyTool', () => {
-  test('enqueues text message and returns "sent"', async () => {
-    const result = await replyTool.execute({ content: 'hello world' }, makeContext());
-    expect(result).toBe('sent');
-    expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
-    const enqueued = mockEnqueueMessage.mock.calls[0]![0] as any;
-    expect(enqueued.content).toBe('hello world');
-    expect(enqueued.chatId).toBe('user@s.whatsapp.net');
-  });
+describe("replyTool", () => {
+	test('enqueues text message and returns "sent"', async () => {
+		const result = await replyTool.execute(
+			{ content: "hello world" },
+			makeContext(),
+		);
+		expect(result).toBe("sent");
+		expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
+		const enqueued = mockEnqueueMessage.mock.calls[0]?.[0] as {
+			content: string;
+			chatId: string;
+		};
+		expect(enqueued.content).toBe("hello world");
+		expect(enqueued.chatId).toBe("user@s.whatsapp.net");
+	});
 
-  test('voice: true calls textToSpeech and enqueues audio', async () => {
-    await replyTool.execute({ content: 'say this', voice: true }, makeContext());
-    expect(mockTextToSpeech).toHaveBeenCalledTimes(1);
-    const enqueued = mockEnqueueMessage.mock.calls[0]![0] as any;
-    expect(enqueued.content).toBeInstanceOf(Buffer);
-    expect(enqueued.mimeType).toBe('audio/mpeg');
-  });
+	test("voice: true calls textToSpeech and enqueues audio", async () => {
+		await replyTool.execute(
+			{ content: "say this", voice: true },
+			makeContext(),
+		);
+		expect(mockTextToSpeech).toHaveBeenCalledTimes(1);
+		const enqueued = mockEnqueueMessage.mock.calls[0]?.[0] as {
+			content: unknown;
+			mimeType: string;
+		};
+		expect(enqueued.content).toBeInstanceOf(Buffer);
+		expect(enqueued.mimeType).toBe("audio/mpeg");
+	});
 
-  test('voice TTS failure falls back to text', async () => {
-    mockTextToSpeech.mockImplementation(async () => new Error('API down'));
-    await replyTool.execute({ content: 'fallback text', voice: true }, makeContext());
-    const enqueued = mockEnqueueMessage.mock.calls[0]![0] as any;
-    expect(enqueued.content).toBe('fallback text');
-  });
+	test("voice TTS failure falls back to text", async () => {
+		mockTextToSpeech.mockImplementation(async () => new Error("API down"));
+		await replyTool.execute(
+			{ content: "fallback text", voice: true },
+			makeContext(),
+		);
+		const enqueued = mockEnqueueMessage.mock.calls[0]?.[0] as {
+			content: string;
+		};
+		expect(enqueued.content).toBe("fallback text");
+	});
 
-  test('messageRef "current" quotes the current message', async () => {
-    await replyTool.execute({ content: 'reply', messageRef: 'current' }, makeContext());
-    const enqueued = mockEnqueueMessage.mock.calls[0]![0] as any;
-    expect(enqueued.quoted).toBeDefined();
-    expect(enqueued.quoted.externalId).toBe(dummyMsg.id);
-    expect(enqueued.quoted.fromMe).toBe(false); // user message
-  });
+	test('messageRef "current" quotes the current message', async () => {
+		await replyTool.execute(
+			{ content: "reply", messageRef: "current" },
+			makeContext(),
+		);
+		const enqueued = mockEnqueueMessage.mock.calls[0]?.[0] as {
+			quoted: { externalId: string; fromMe: boolean };
+		};
+		expect(enqueued.quoted).toBeDefined();
+		expect(enqueued.quoted.externalId).toBe(dummyMsg.id);
+		expect(enqueued.quoted.fromMe).toBe(false); // user message
+	});
 
-  test('messageRef resolves from assembled _messageRefs', async () => {
-    const ctx = makeContext({
-      assembled: {
-        vars: {
-          _messageRefs: {
-            '3': { externalId: 'ext-3', role: 'assistant' },
-          },
-        },
-        totalTokens: 0,
-      },
-    });
-    await replyTool.execute({ content: 'reply', messageRef: '3' }, ctx);
-    const enqueued = mockEnqueueMessage.mock.calls[0]![0] as any;
-    expect(enqueued.quoted.externalId).toBe('ext-3');
-    expect(enqueued.quoted.fromMe).toBe(true); // assistant message
-  });
+	test("messageRef resolves from assembled _messageRefs", async () => {
+		const ctx = makeContext({
+			assembled: {
+				vars: {
+					_messageRefs: {
+						"3": { externalId: "ext-3", role: "assistant" },
+					},
+				},
+				totalTokens: 0,
+			},
+		});
+		await replyTool.execute({ content: "reply", messageRef: "3" }, ctx);
+		const enqueued = mockEnqueueMessage.mock.calls[0]?.[0] as {
+			quoted: { externalId: string; fromMe: boolean };
+		};
+		expect(enqueued.quoted.externalId).toBe("ext-3");
+		expect(enqueued.quoted.fromMe).toBe(true); // assistant message
+	});
 
-  test('unknown messageRef returns error', async () => {
-    const result = await replyTool.execute({ content: 'reply', messageRef: '99' }, makeContext());
-    expect(result).toEqual({ error: 'Unknown message reference: #99' });
-    expect(mockEnqueueMessage).not.toHaveBeenCalled();
-  });
+	test("unknown messageRef returns error", async () => {
+		const result = await replyTool.execute(
+			{ content: "reply", messageRef: "99" },
+			makeContext(),
+		);
+		expect(result).toEqual({ error: "Unknown message reference: #99" });
+		expect(mockEnqueueMessage).not.toHaveBeenCalled();
+	});
 
-  test('returns error when context has no message', async () => {
-    const result = await replyTool.execute(
-      { content: 'hello' },
-      { ...makeContext(), message: undefined } as any,
-    );
-    expect(result).toEqual({ error: 'reply tool can only be used in a WhatsApp turn context' });
-    expect(mockEnqueueMessage).not.toHaveBeenCalled();
-  });
+	test("returns error when context has no message", async () => {
+		const result = await replyTool.execute({ content: "hello" }, {
+			...makeContext(),
+			message: undefined,
+		} as unknown as Parameters<typeof replyTool.execute>[1]);
+		expect(result).toEqual({
+			error: "reply tool can only be used in a WhatsApp turn context",
+		});
+		expect(mockEnqueueMessage).not.toHaveBeenCalled();
+	});
 });

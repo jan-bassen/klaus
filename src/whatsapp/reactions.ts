@@ -1,6 +1,6 @@
-import type { WAMessageKey } from '@whiskeysockets/baileys';
-import { getSocket } from './connection';
-import { log } from '@/logger';
+import type { WAMessageKey } from "@whiskeysockets/baileys";
+import { log } from "@/logger";
+import { getSocket } from "./connection";
 
 /**
  * Send a reaction emoji to a specific message.
@@ -8,16 +8,22 @@ import { log } from '@/logger';
  * Errors are returned as values — reactions are best-effort UX.
  */
 export async function sendReaction(
-  chatId: string,
-  msgKey: WAMessageKey,
-  emoji: string,
-): Promise<void | Error> {
-  try {
-    await getSocket().sendMessage(chatId, { react: { key: msgKey, text: emoji } });
-    log.debug('[reactions] sent', { chatId, emoji });
-  } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
-    log.warn('[reactions] failed to send reaction', { chatId, emoji, error: error.message });
-    return error;
-  }
+	chatId: string,
+	msgKey: WAMessageKey,
+	emoji: string,
+): Promise<undefined | Error> {
+	try {
+		await getSocket().sendMessage(chatId, {
+			react: { key: msgKey, text: emoji },
+		});
+		log.debug("[reactions] sent", { chatId, emoji });
+	} catch (err) {
+		const error = err instanceof Error ? err : new Error(String(err));
+		log.warn("[reactions] failed to send reaction", {
+			chatId,
+			emoji,
+			error: error.message,
+		});
+		return error;
+	}
 }

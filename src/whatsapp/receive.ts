@@ -1,34 +1,37 @@
-import path from 'node:path';
-import { mkdir } from 'node:fs/promises';
-import type { WAMessage, WASocket } from '@whiskeysockets/baileys';
-import { downloadMediaMessage, normalizeMessageContent } from '@whiskeysockets/baileys';
-import type { InboundMessage } from '@/types';
-import { setSocket, enqueueMessage } from './send';
-import { onReaction } from './confirm';
-import { persistReaction } from '@/db/write';
-import { handleTurn } from '@/core/pipeline';
-import { saveFile } from '@/db/write';
-import { log } from '@/logger';
-import { config } from '@/config';
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+import type { WAMessage, WASocket } from "@whiskeysockets/baileys";
+import {
+	downloadMediaMessage,
+	normalizeMessageContent,
+} from "@whiskeysockets/baileys";
+import { config } from "@/config";
+import { handleTurn } from "@/core/pipeline";
+import { persistReaction, saveFile } from "@/db/write";
+import { log } from "@/logger";
+import type { InboundMessage } from "@/types";
+import { onReaction } from "./confirm";
+import { enqueueMessage, setSocket } from "./send";
+
 const MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024; // 64 MB
 const STARTUP_AT = Date.now();
 const OFFLINE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
 const MIME_TO_EXT: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/gif': 'gif',
-  'image/webp': 'webp',
-  'audio/ogg': 'ogg',
-  'audio/mpeg': 'mp3',
-  'audio/mp4': 'm4a',
-  'audio/wav': 'wav',
-  'video/mp4': 'mp4',
-  'application/pdf': 'pdf',
+	"image/jpeg": "jpg",
+	"image/png": "png",
+	"image/gif": "gif",
+	"image/webp": "webp",
+	"audio/ogg": "ogg",
+	"audio/mpeg": "mp3",
+	"audio/mp4": "m4a",
+	"audio/wav": "wav",
+	"video/mp4": "mp4",
+	"application/pdf": "pdf",
 };
 
 function mimeToExt(mime: string): string {
-  return MIME_TO_EXT[mime] ?? mime.split('/')[1] ?? 'bin';
+	return MIME_TO_EXT[mime] ?? mime.split("/")[1] ?? "bin";
 }
 
 /**
@@ -38,55 +41,68 @@ function mimeToExt(mime: string): string {
  * Pure transport — no business logic.
  */
 export function attachReceiveHandler(socket: WASocket): void {
-  setSocket(socket);
+	setSocket(socket);
 
-  socket.ev.on('messages.upsert', async ({ messages: msgs, type }) => {
-    if (type !== 'notify' && type !== 'append') return;
-    for (const raw of msgs) {
-      if (type === 'append') {
-        const rawTs = (raw as { messageTimestamp?: number | bigint }).messageTimestamp;
-        const tsMs = (typeof rawTs === 'bigint' ? Number(rawTs) : (rawTs ?? 0)) * 1000;
-        if (tsMs < STARTUP_AT - OFFLINE_WINDOW_MS) continue;
-      }
-      const msg = await normalizeMessage(raw);
-      if (msg) {
-        log.info('[receive] message', { chatId: msg.chatId, text: msg.text?.slice(0, 40), kind: msg.kind });
-        try {
-          await handleTurn(msg);
-        } catch (err) {
-          // Should not happen — pipeline has its own top-level catch — but guard here
-          // anyway so a bug in the pipeline itself cannot crash the event listener.
-          log.error('[receive] unhandled error from handleTurn', {
-            chatId: msg.chatId,
-            error: err instanceof Error ? err.message : String(err),
-            stack: err instanceof Error ? err.stack : undefined,
-          });
-          // Last-resort notification: pipeline's own catch should have already sent this,
-          // but if it threw itself the user would otherwise get nothing.
-          try {
-            enqueueMessage({
-              chatId: msg.chatId,
-              content: 'Something went wrong. Please try again.',
-              dedupKey: `${msg.id}:receive-error`,
-            });
-          } catch { /* best-effort */ }
-        }
-      }
-    }
-  });
+	socket.ev.on("messages.upsert", async ({ messages: msgs, type }) => {
+		if (type !== "notify" && type !== "append") return;
+		for (const raw of msgs) {
+			if (type === "append") {
+				const rawTs = (raw as { messageTimestamp?: number | bigint })
+					.messageTimestamp;
+				const tsMs =
+					(typeof rawTs === "bigint" ? Number(rawTs) : (rawTs ?? 0)) * 1000;
+				if (tsMs < STARTUP_AT - OFFLINE_WINDOW_MS) continue;
+			}
+			const msg = await normalizeMessage(raw);
+			if (msg) {
+				log.info("[receive] message", {
+					chatId: msg.chatId,
+					text: msg.text?.slice(0, 40),
+					kind: msg.kind,
+				});
+				try {
+					await handleTurn(msg);
+				} catch (err) {
+					// Should not happen — pipeline has its own top-level catch — but guard here
+					// anyway so a bug in the pipeline itself cannot crash the event listener.
+					log.error("[receive] unhandled error from handleTurn", {
+						chatId: msg.chatId,
+						error: err instanceof Error ? err.message : String(err),
+						stack: err instanceof Error ? err.stack : undefined,
+					});
+					// Last-resort notification: pipeline's own catch should have already sent this,
+					// but if it threw itself the user would otherwise get nothing.
+					try {
+						enqueueMessage({
+							chatId: msg.chatId,
+							content: "Something went wrong. Please try again.",
+							dedupKey: `${msg.id}:receive-error`,
+						});
+					} catch {
+						/* best-effort */
+					}
+				}
+			}
+		}
+	});
 
-  socket.ev.on('messages.reaction', (reactions) => {
-    for (const { key: senderKey, reaction } of reactions) {
-      const reactedId = reaction.key?.id;
-      const chatId = reaction.key?.remoteJid ?? senderKey?.remoteJid;
-      const senderId = senderKey?.participant ?? senderKey?.remoteJid ?? 'unknown';
-      const fromMe = senderKey?.fromMe ?? false;
-      if (typeof reactedId === 'string' && typeof reaction.text === 'string' && chatId) {
-        persistReaction(chatId, reactedId, reaction.text, senderId, fromMe); // best-effort
-        onReaction(reactedId, reaction.text);
-      }
-    }
-  });
+	socket.ev.on("messages.reaction", (reactions) => {
+		for (const { key: senderKey, reaction } of reactions) {
+			const reactedId = reaction.key?.id;
+			const chatId = reaction.key?.remoteJid ?? senderKey?.remoteJid;
+			const senderId =
+				senderKey?.participant ?? senderKey?.remoteJid ?? "unknown";
+			const fromMe = senderKey?.fromMe ?? false;
+			if (
+				typeof reactedId === "string" &&
+				typeof reaction.text === "string" &&
+				chatId
+			) {
+				persistReaction(chatId, reactedId, reaction.text, senderId, fromMe); // best-effort
+				onReaction(reactedId, reaction.text);
+			}
+		}
+	});
 }
 
 /**
@@ -95,139 +111,183 @@ export function attachReceiveHandler(socket: WASocket): void {
  *
  * Returns null for outbound, non-media/text, or unsupported message types.
  */
-export async function normalizeMessage(raw: WAMessage): Promise<InboundMessage | null> {
-  const m = raw as {
-    key?: { remoteJid?: string; fromMe?: boolean; id?: string; participant?: string };
-    message?: {
-      conversation?: string;
-      extendedTextMessage?: {
-        text?: string;
-        contextInfo?: {
-          stanzaId?: string;
-          quotedMessage?: {
-            conversation?: string;
-            extendedTextMessage?: { text?: string };
-          };
-        };
-      };
-      imageMessage?: { mimetype?: string; caption?: string; fileLength?: number | bigint };
-      audioMessage?: { mimetype?: string; ptt?: boolean; fileLength?: number | bigint };
-      documentMessage?: { mimetype?: string; fileName?: string; caption?: string; fileLength?: number | bigint };
-    };
-    messageTimestamp?: number | bigint;
-  };
+export async function normalizeMessage(
+	raw: WAMessage,
+): Promise<InboundMessage | null> {
+	const m = raw as {
+		key?: {
+			remoteJid?: string;
+			fromMe?: boolean;
+			id?: string;
+			participant?: string;
+		};
+		message?: {
+			conversation?: string;
+			extendedTextMessage?: {
+				text?: string;
+				contextInfo?: {
+					stanzaId?: string;
+					quotedMessage?: {
+						conversation?: string;
+						extendedTextMessage?: { text?: string };
+					};
+				};
+			};
+			imageMessage?: {
+				mimetype?: string;
+				caption?: string;
+				fileLength?: number | bigint;
+			};
+			audioMessage?: {
+				mimetype?: string;
+				ptt?: boolean;
+				fileLength?: number | bigint;
+			};
+			documentMessage?: {
+				mimetype?: string;
+				fileName?: string;
+				caption?: string;
+				fileLength?: number | bigint;
+			};
+		};
+		messageTimestamp?: number | bigint;
+	};
 
-  // Skip messages we sent and messages without a remote JID
-  if (!m?.key?.remoteJid) return null;
-  if (m.key.fromMe) {
-    log.debug('[receive] skip fromMe', { remoteJid: m.key.remoteJid });
-    return null;
-  }
-  if (!m.message) {
-    log.debug('[receive] skip no-message', { remoteJid: m.key.remoteJid });
-    return null;
-  }
+	// Skip messages we sent and messages without a remote JID
+	if (!m?.key?.remoteJid) return null;
+	if (m.key.fromMe) {
+		log.debug("[receive] skip fromMe", { remoteJid: m.key.remoteJid });
+		return null;
+	}
+	if (!m.message) {
+		log.debug("[receive] skip no-message", { remoteJid: m.key.remoteJid });
+		return null;
+	}
 
-  // Unwrap Baileys envelope types (ephemeral, viewOnce, editedMessage, etc.)
-  // so the inner extendedTextMessage / imageMessage / etc. are always at the top level.
-  const normalized = normalizeMessageContent(raw.message) ?? m.message;
+	// Unwrap Baileys envelope types (ephemeral, viewOnce, editedMessage, etc.)
+	// so the inner extendedTextMessage / imageMessage / etc. are always at the top level.
+	const normalized = normalizeMessageContent(raw.message) ?? m.message;
 
-  // Extract text — conversation (1:1) or extendedTextMessage (quoted/formatted).
-  // Use || (not ??) because conversation can be an empty string "" when the actual
-  // text lives in extendedTextMessage.text.
-  const text =
-    normalized.conversation || normalized.extendedTextMessage?.text || undefined;
+	// Extract text — conversation (1:1) or extendedTextMessage (quoted/formatted).
+	// Use || (not ??) because conversation can be an empty string "" when the actual
+	// text lives in extendedTextMessage.text.
+	const text =
+		normalized.conversation ||
+		normalized.extendedTextMessage?.text ||
+		undefined;
 
-  // Extract quoted message context when this message is a reply
-  const contextInfo = normalized.extendedTextMessage?.contextInfo;
-  let quotedMessage: InboundMessage['quotedMessage'] | undefined;
-  if (contextInfo?.quotedMessage && contextInfo.stanzaId) {
-    const qm = contextInfo.quotedMessage;
-    const quotedText = qm.conversation || qm.extendedTextMessage?.text || undefined;
-    quotedMessage = { externalId: contextInfo.stanzaId, ...(quotedText ? { text: quotedText } : {}) };
-  }
+	// Extract quoted message context when this message is a reply
+	const contextInfo = normalized.extendedTextMessage?.contextInfo;
+	let quotedMessage: InboundMessage["quotedMessage"] | undefined;
+	if (contextInfo?.quotedMessage && contextInfo.stanzaId) {
+		const qm = contextInfo.quotedMessage;
+		const quotedText =
+			qm.conversation || qm.extendedTextMessage?.text || undefined;
+		quotedMessage = {
+			externalId: contextInfo.stanzaId,
+			...(quotedText ? { text: quotedText } : {}),
+		};
+	}
 
-  const imgMsg  = normalized.imageMessage;
-  const audioMsg = normalized.audioMessage;
-  const docMsg  = normalized.documentMessage;
-  const mediaMsg = imgMsg ?? audioMsg ?? docMsg ?? null;
+	const imgMsg = normalized.imageMessage;
+	const audioMsg = normalized.audioMessage;
+	const docMsg = normalized.documentMessage;
+	const mediaMsg = imgMsg ?? audioMsg ?? docMsg ?? null;
 
-  // Skip messages with neither text nor supported media nor a quoted reply
-  if (!text && !mediaMsg && !quotedMessage) {
-    log.debug('[receive] skip no-text no-media', { remoteJid: m.key.remoteJid });
-    return null;
-  }
+	// Skip messages with neither text nor supported media nor a quoted reply
+	if (!text && !mediaMsg && !quotedMessage) {
+		log.debug("[receive] skip no-text no-media", {
+			remoteJid: m.key.remoteJid,
+		});
+		return null;
+	}
 
-  const rawTs = m.messageTimestamp;
-  const tsSeconds = typeof rawTs === 'bigint' ? Number(rawTs) : (rawTs ?? Date.now() / 1000);
+	const rawTs = m.messageTimestamp;
+	const tsSeconds =
+		typeof rawTs === "bigint" ? Number(rawTs) : (rawTs ?? Date.now() / 1000);
 
-  // Caption text from image/document (used if no explicit text field)
-  const effectiveText = text ?? imgMsg?.caption ?? docMsg?.caption ?? undefined;
+	// Caption text from image/document (used if no explicit text field)
+	const effectiveText = text ?? imgMsg?.caption ?? docMsg?.caption ?? undefined;
 
-  let media: InboundMessage['media'] | undefined;
+	let media: InboundMessage["media"] | undefined;
 
-  if (mediaMsg) {
+	if (mediaMsg) {
+		const rawMime =
+			imgMsg?.mimetype ??
+			audioMsg?.mimetype ??
+			docMsg?.mimetype ??
+			"application/octet-stream";
+		// Strip "; codecs=..." suffix if present
+		const mimeType = rawMime.split(";")[0]?.trim() ?? rawMime;
 
-    const rawMime =
-      imgMsg?.mimetype ?? audioMsg?.mimetype ?? docMsg?.mimetype ?? 'application/octet-stream';
-    // Strip "; codecs=..." suffix if present
-    const mimeType = rawMime.split(';')[0]!.trim();
+		const fileLength = Number(
+			imgMsg?.fileLength ?? audioMsg?.fileLength ?? docMsg?.fileLength ?? 0,
+		);
+		if (fileLength > MAX_DOWNLOAD_BYTES) {
+			log.warn("[receive] media too large — skipping download", {
+				remoteJid: m.key.remoteJid,
+				fileLength,
+				maxBytes: MAX_DOWNLOAD_BYTES,
+			});
+		} else
+			try {
+				const buffer = await downloadMediaMessage(raw, "buffer", {});
 
-    const fileLength = Number(imgMsg?.fileLength ?? audioMsg?.fileLength ?? docMsg?.fileLength ?? 0);
-    if (fileLength > MAX_DOWNLOAD_BYTES) {
-      log.warn('[receive] media too large — skipping download', {
-        remoteJid: m.key.remoteJid,
-        fileLength,
-        maxBytes: MAX_DOWNLOAD_BYTES,
-      });
-    } else try {
-      const buffer = await downloadMediaMessage(raw, 'buffer', {});
+				const date = new Date().toISOString().slice(0, 10);
+				const id = crypto.randomUUID();
+				const ext = mimeToExt(mimeType);
+				const dir = path.join(config.files.dir, date);
+				const filePath = path.join(dir, `${id}.${ext}`);
 
-      const date = new Date().toISOString().slice(0, 10);
-      const id = crypto.randomUUID();
-      const ext = mimeToExt(mimeType);
-      const dir = path.join(config.files.dir, date);
-      const filePath = path.join(dir, `${id}.${ext}`);
+				await mkdir(dir, { recursive: true });
+				await Bun.write(filePath, buffer as Buffer);
 
-      await mkdir(dir, { recursive: true });
-      await Bun.write(filePath, buffer as Buffer);
+				const sizeBytes = (buffer as Buffer).byteLength;
+				const saved = await saveFile({ path: filePath, mimeType, sizeBytes });
 
-      const sizeBytes = (buffer as Buffer).byteLength;
-      const saved = await saveFile({ path: filePath, mimeType, sizeBytes });
+				const fileName = docMsg?.fileName;
+				if (saved instanceof Error) {
+					log.warn("[receive] saveFile failed — media not tracked in DB", {
+						remoteJid: m.key.remoteJid,
+						error: saved.message,
+					});
+					media = {
+						fileId: crypto.randomUUID(),
+						path: filePath,
+						mimeType,
+						...(fileName ? { fileName } : {}),
+					};
+				} else {
+					media = {
+						fileId: saved.id,
+						path: filePath,
+						mimeType,
+						...(fileName ? { fileName } : {}),
+					};
+				}
+			} catch (err) {
+				log.warn("[receive] media download failed — continuing as text-only", {
+					remoteJid: m.key.remoteJid,
+					error: err instanceof Error ? err.message : String(err),
+				});
+			}
+	}
 
-      const fileName = docMsg?.fileName;
-      if (saved instanceof Error) {
-        log.warn('[receive] saveFile failed — media not tracked in DB', {
-          remoteJid: m.key.remoteJid,
-          error: saved.message,
-        });
-        media = { fileId: crypto.randomUUID(), path: filePath, mimeType, ...(fileName ? { fileName } : {}) };
-      } else {
-        media = { fileId: saved.id, path: filePath, mimeType, ...(fileName ? { fileName } : {}) };
-      }
-    } catch (err) {
-      log.warn('[receive] media download failed — continuing as text-only', {
-        remoteJid: m.key.remoteJid,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
+	// Nothing actionable — skip
+	if (!effectiveText && !media && !quotedMessage) {
+		log.debug("[receive] skip no content", { remoteJid: m.key.remoteJid });
+		return null;
+	}
 
-  // Nothing actionable — skip
-  if (!effectiveText && !media && !quotedMessage) {
-    log.debug('[receive] skip no content', { remoteJid: m.key.remoteJid });
-    return null;
-  }
-
-  return {
-    kind: 'whatsapp',
-    id: m.key.id ?? crypto.randomUUID(),
-    chatId: m.key.remoteJid,
-    senderId: m.key.participant ?? m.key.remoteJid,
-    ...(effectiveText ? { text: effectiveText } : {}),
-    ...(media ? { media } : {}),
-    ...(quotedMessage ? { quotedMessage } : {}),
-    timestamp: new Date(tsSeconds * 1000),
-    messageKey: m.key as Record<string, unknown>,
-  };
+	return {
+		kind: "whatsapp",
+		id: m.key.id ?? crypto.randomUUID(),
+		chatId: m.key.remoteJid,
+		senderId: m.key.participant ?? m.key.remoteJid,
+		...(effectiveText ? { text: effectiveText } : {}),
+		...(media ? { media } : {}),
+		...(quotedMessage ? { quotedMessage } : {}),
+		timestamp: new Date(tsSeconds * 1000),
+		messageKey: m.key as Record<string, unknown>,
+	};
 }

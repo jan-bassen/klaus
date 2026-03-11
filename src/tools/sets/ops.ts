@@ -1,150 +1,185 @@
-import { and, gte, lte, sql, sum } from 'drizzle-orm';
-import { z } from 'zod';
-import type { ToolDefinition, ToolsetDefinition } from '@/types';
-import { dispatch } from '@/core/dispatch';
-import { listSchedules, deleteSchedule } from '@/core/queue';
-import { db } from '@/db/client';
-import { costs, budgets } from '@/db/schema';
-import { QUERIES } from '@/db/queries';
+import { and, gte, lte, sql, sum } from "drizzle-orm";
+import { z } from "zod";
+import { dispatch } from "@/core/dispatch";
+import { deleteSchedule, listSchedules } from "@/core/queue";
+import { db } from "@/db/client";
+import { QUERIES } from "@/db/queries";
+import { budgets, costs } from "@/db/schema";
+import type { ToolDefinition, ToolsetDefinition } from "@/types";
 
 const opsCronSchema = z.object({
-  pattern: z.string().describe('Cron expression'),
-  agentName: z.string(),
-  label: z.string().describe('Human-readable label for this scheduled job'),
+	pattern: z.string().describe("Cron expression"),
+	agentName: z.string(),
+	label: z.string().describe("Human-readable label for this scheduled job"),
 });
 
 export const opsCronTool: ToolDefinition<typeof opsCronSchema> = {
-  name: 'ops.cron',
-  description: 'Schedule an agent to run on a cron pattern.',
-  inputSchema: opsCronSchema,
-  execute: async (input, context) => {
-    await dispatch({
-      agent: input.agentName,
-      objective: `Scheduled: ${input.label}`,
-      mode: { kind: 'cron', schedule: input.pattern },
-      chatId: context.chatId,
-      caller: context.agent.name,
-    });
-    return `Scheduled ${input.agentName} with pattern "${input.pattern}" (${input.label})`;
-  },
-  kind: 'builtin',
-  capability: 'tool',
+	name: "ops.cron",
+	description: "Schedule an agent to run on a cron pattern.",
+	inputSchema: opsCronSchema,
+	execute: async (input, context) => {
+		await dispatch({
+			agent: input.agentName,
+			objective: `Scheduled: ${input.label}`,
+			mode: { kind: "cron", schedule: input.pattern },
+			chatId: context.chatId,
+			caller: context.agent.name,
+		});
+		return `Scheduled ${input.agentName} with pattern "${input.pattern}" (${input.label})`;
+	},
+	kind: "builtin",
+	capability: "tool",
 };
 
 const opsCostTrackingSchema = z.object({
-  period: z.enum(['today', 'this_month', 'last_month']).default('today'),
+	period: z.enum(["today", "this_month", "last_month"]).default("today"),
 });
 
-export const opsCostTrackingTool: ToolDefinition<typeof opsCostTrackingSchema> = {
-  name: 'ops.cost-tracking',
-  description: 'Query total spend (LLM + TTS + embeddings) and budget status.',
-  inputSchema: opsCostTrackingSchema,
-  execute: async (input, context) => {
-    const now = new Date();
-    let startDate: Date;
-    let endDate: Date | undefined;
+export const opsCostTrackingTool: ToolDefinition<typeof opsCostTrackingSchema> =
+	{
+		name: "ops.cost-tracking",
+		description:
+			"Query total spend (LLM + TTS + embeddings) and budget status.",
+		inputSchema: opsCostTrackingSchema,
+		execute: async (input, context) => {
+			const now = new Date();
+			let startDate: Date;
+			let endDate: Date | undefined;
 
-    if (input.period === 'today') {
-      startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    } else if (input.period === 'this_month') {
-      startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    } else {
-      // last_month
-      const y = now.getUTCMonth() === 0 ? now.getUTCFullYear() - 1 : now.getUTCFullYear();
-      const m = now.getUTCMonth() === 0 ? 11 : now.getUTCMonth() - 1;
-      startDate = new Date(Date.UTC(y, m, 1));
-      endDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    }
+			if (input.period === "today") {
+				startDate = new Date(
+					Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+				);
+			} else if (input.period === "this_month") {
+				startDate = new Date(
+					Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+				);
+			} else {
+				// last_month
+				const y =
+					now.getUTCMonth() === 0
+						? now.getUTCFullYear() - 1
+						: now.getUTCFullYear();
+				const m = now.getUTCMonth() === 0 ? 11 : now.getUTCMonth() - 1;
+				startDate = new Date(Date.UTC(y, m, 1));
+				endDate = new Date(
+					Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+				);
+			}
 
-    const costFilter = endDate
-      ? and(gte(costs.createdAt, startDate), lte(costs.createdAt, endDate))
-      : gte(costs.createdAt, startDate);
+			const costFilter = endDate
+				? and(gte(costs.createdAt, startDate), lte(costs.createdAt, endDate))
+				: gte(costs.createdAt, startDate);
 
-    const [breakdown, [budget]] = await Promise.all([
-      db.select({ service: costs.service, total: sum(costs.costUsd) })
-        .from(costs).where(costFilter).groupBy(costs.service),
-      db.select().from(budgets).where(sql`chat_id = ${context.chatId}`).limit(1),
-    ]);
+			const [breakdown, [budget]] = await Promise.all([
+				db
+					.select({ service: costs.service, total: sum(costs.costUsd) })
+					.from(costs)
+					.where(costFilter)
+					.groupBy(costs.service),
+				db
+					.select()
+					.from(budgets)
+					.where(sql`chat_id = ${context.chatId}`)
+					.limit(1),
+			]);
 
-    const byService = Object.fromEntries(breakdown.map((r) => [r.service, parseFloat(r.total ?? '0')]));
-    const totalSpent = Object.values(byService).reduce((a, b) => a + b, 0);
+			const byService = Object.fromEntries(
+				breakdown.map((r) => [r.service, parseFloat(r.total ?? "0")]),
+			);
+			const totalSpent = Object.values(byService).reduce((a, b) => a + b, 0);
 
-    const lines = [
-      `Period: ${input.period}`,
-      `Total: $${totalSpent.toFixed(4)}`,
-      `  LLM: $${(byService['llm'] ?? 0).toFixed(4)}`,
-      `  TTS: $${(byService['tts'] ?? 0).toFixed(4)}`,
-      `  STT: $${(byService['stt'] ?? 0).toFixed(4)}`,
-      `  Embed: $${(byService['embed'] ?? 0).toFixed(4)}`,
-    ];
-    if (budget) {
-      if (budget.dailyLimitUsd) lines.push(`Daily limit: $${budget.dailyLimitUsd}`);
-      if (budget.monthlyLimitUsd) lines.push(`Monthly limit: $${budget.monthlyLimitUsd}`);
-    }
-    return lines.join('\n');
-  },
-  kind: 'builtin',
-  capability: 'resource',
-};
+			const lines = [
+				`Period: ${input.period}`,
+				`Total: $${totalSpent.toFixed(4)}`,
+				`  LLM: $${(byService.llm ?? 0).toFixed(4)}`,
+				`  TTS: $${(byService.tts ?? 0).toFixed(4)}`,
+				`  STT: $${(byService.stt ?? 0).toFixed(4)}`,
+				`  Embed: $${(byService.embed ?? 0).toFixed(4)}`,
+			];
+			if (budget) {
+				if (budget.dailyLimitUsd)
+					lines.push(`Daily limit: $${budget.dailyLimitUsd}`);
+				if (budget.monthlyLimitUsd)
+					lines.push(`Monthly limit: $${budget.monthlyLimitUsd}`);
+			}
+			return lines.join("\n");
+		},
+		kind: "builtin",
+		capability: "resource",
+	};
 
 const opsPostgresQuerySchema = z.object({
-  queryName: z.string().describe('Name of a static named query in db/queries/'),
-  params: z.record(z.unknown()).optional(),
+	queryName: z.string().describe("Name of a static named query in db/queries/"),
+	params: z.record(z.unknown()).optional(),
 });
 
-export const opsPostgresQueryTool: ToolDefinition<typeof opsPostgresQuerySchema> = {
-  name: 'ops.postgres-query',
-  description: `Run a named read-only Postgres query. Available queries: ${Object.keys(QUERIES).join(', ')}.`,
-  inputSchema: opsPostgresQuerySchema,
-  execute: async (input) => {
-    const fn = QUERIES[input.queryName];
-    if (!fn) return `Unknown query "${input.queryName}". Available: ${Object.keys(QUERIES).join(', ')}`;
-    const result = await fn(input.params ?? {});
-    return JSON.stringify(result, null, 2);
-  },
-  kind: 'builtin',
-  capability: 'resource',
+export const opsPostgresQueryTool: ToolDefinition<
+	typeof opsPostgresQuerySchema
+> = {
+	name: "ops.postgres-query",
+	description: `Run a named read-only Postgres query. Available queries: ${Object.keys(QUERIES).join(", ")}.`,
+	inputSchema: opsPostgresQuerySchema,
+	execute: async (input) => {
+		const fn = QUERIES[input.queryName];
+		if (!fn)
+			return `Unknown query "${input.queryName}". Available: ${Object.keys(QUERIES).join(", ")}`;
+		const result = await fn(input.params ?? {});
+		return JSON.stringify(result, null, 2);
+	},
+	kind: "builtin",
+	capability: "resource",
 };
 
 const opsCronListSchema = z.object({});
 
 export const opsCronListTool: ToolDefinition<typeof opsCronListSchema> = {
-  name: 'ops.cron-list',
-  description: 'List all active cron schedules registered with pg-boss.',
-  inputSchema: opsCronListSchema,
-  execute: async () => {
-    const schedules = await listSchedules();
-    if (schedules.length === 0) return 'No active cron schedules.';
-    return schedules
-      .map((s: unknown) => {
-        const r = s as Record<string, unknown>;
-        return `${r['name']} | ${r['cron']} | created: ${r['created_on']}`;
-      })
-      .join('\n');
-  },
-  kind: 'builtin',
-  capability: 'resource',
+	name: "ops.cron-list",
+	description: "List all active cron schedules registered with pg-boss.",
+	inputSchema: opsCronListSchema,
+	execute: async () => {
+		const schedules = await listSchedules();
+		if (schedules.length === 0) return "No active cron schedules.";
+		return schedules
+			.map((s: unknown) => {
+				const r = s as Record<string, unknown>;
+				return `${r.name} | ${r.cron} | created: ${r.created_on}`;
+			})
+			.join("\n");
+	},
+	kind: "builtin",
+	capability: "resource",
 };
 
 const opsCronDeleteSchema = z.object({
-  agentName: z.string().describe('Name of the agent whose cron schedule should be removed'),
+	agentName: z
+		.string()
+		.describe("Name of the agent whose cron schedule should be removed"),
 });
 
 export const opsCronDeleteTool: ToolDefinition<typeof opsCronDeleteSchema> = {
-  name: 'ops.cron-delete',
-  description: 'Remove a cron schedule for a named agent. Use ops.cron-list to find the name first.',
-  inputSchema: opsCronDeleteSchema,
-  execute: async ({ agentName }) => {
-    await deleteSchedule(agentName);
-    return `Deleted cron schedule for "${agentName}"`;
-  },
-  kind: 'builtin',
-  capability: 'tool',
-  requiresConfirmation: true,
+	name: "ops.cron-delete",
+	description:
+		"Remove a cron schedule for a named agent. Use ops.cron-list to find the name first.",
+	inputSchema: opsCronDeleteSchema,
+	execute: async ({ agentName }) => {
+		await deleteSchedule(agentName);
+		return `Deleted cron schedule for "${agentName}"`;
+	},
+	kind: "builtin",
+	capability: "tool",
+	requiresConfirmation: true,
 };
 
 export const opsToolset: ToolsetDefinition = {
-  name: 'ops',
-  description: 'Use when you need to manage cron schedules, check LLM costs, or run named Postgres queries.',
-  tools: [opsCronTool, opsCronListTool, opsCronDeleteTool, opsCostTrackingTool, opsPostgresQueryTool],
+	name: "ops",
+	description:
+		"Use when you need to manage cron schedules, check LLM costs, or run named Postgres queries.",
+	tools: [
+		opsCronTool,
+		opsCronListTool,
+		opsCronDeleteTool,
+		opsCostTrackingTool,
+		opsPostgresQueryTool,
+	],
 };

@@ -1,9 +1,9 @@
-import { inArray, sql } from 'drizzle-orm';
-import type { Node } from '@/types';
-import { db } from './client';
-import { nodes } from './schema';
-import { embedText } from './write';
-import { log } from '@/logger';
+import { inArray, sql } from "drizzle-orm";
+import { log } from "@/logger";
+import type { Node } from "@/types";
+import { db } from "./client";
+import { nodes } from "./schema";
+import { embedText } from "./write";
 
 // Reciprocal Rank Fusion constant — standard IR value; higher K reduces the impact of rank differences.
 const RRF_K = 60;
@@ -11,28 +11,34 @@ const RRF_K = 60;
 const CANDIDATE_LIMIT = 50;
 
 export interface SearchOptions {
-  query: string;
-  embedding?: number[];
-  tags?: string[];
-  limit?: number;
-  expandEdges?: boolean;
+	query: string;
+	embedding?: number[];
+	tags?: string[];
+	limit?: number;
+	expandEdges?: boolean;
 }
 
 export interface SearchResult {
-  node: Node;
-  score: number;
-  matchingChunk?: string;
+	node: Node;
+	score: number;
+	matchingChunk?: string;
 }
 
 type RankedHit = { nodeId: string; chunkBody: string | null; rank: number };
 
-async function ftsSearch(query: string, tags: string[] | undefined): Promise<RankedHit[]> {
-  const tagFilter =
-    tags && tags.length > 0
-      ? sql`AND n.tags && ARRAY[${sql.join(tags.map((t) => sql`${t}`), sql`, `)}]::text[]`
-      : sql``;
+async function ftsSearch(
+	query: string,
+	tags: string[] | undefined,
+): Promise<RankedHit[]> {
+	const tagFilter =
+		tags && tags.length > 0
+			? sql`AND n.tags && ARRAY[${sql.join(
+					tags.map((t) => sql`${t}`),
+					sql`, `,
+				)}]::text[]`
+			: sql``;
 
-  const rows = await db.execute(sql`
+	const rows = await db.execute(sql`
     SELECT node_id, chunk_body, ROW_NUMBER() OVER (ORDER BY fts_score DESC)::int AS rank
     FROM (
       SELECT n.id AS node_id, NULL::text AS chunk_body, ts_rank(n.search_tsv, q) AS fts_score
@@ -48,20 +54,34 @@ async function ftsSearch(query: string, tags: string[] | undefined): Promise<Ran
     LIMIT ${CANDIDATE_LIMIT}
   `);
 
-  return [...rows].map((r) => {
-    const row = r as { node_id: string; chunk_body: string | null; rank: string };
-    return { nodeId: row.node_id, chunkBody: row.chunk_body, rank: Number(row.rank) };
-  });
+	return [...rows].map((r) => {
+		const row = r as {
+			node_id: string;
+			chunk_body: string | null;
+			rank: string;
+		};
+		return {
+			nodeId: row.node_id,
+			chunkBody: row.chunk_body,
+			rank: Number(row.rank),
+		};
+	});
 }
 
-async function vectorSearch(embedding: number[], tags: string[] | undefined): Promise<RankedHit[]> {
-  const embStr = `[${embedding.join(',')}]`;
-  const tagFilter =
-    tags && tags.length > 0
-      ? sql`AND n.tags && ARRAY[${sql.join(tags.map((t) => sql`${t}`), sql`, `)}]::text[]`
-      : sql``;
+async function vectorSearch(
+	embedding: number[],
+	tags: string[] | undefined,
+): Promise<RankedHit[]> {
+	const embStr = `[${embedding.join(",")}]`;
+	const tagFilter =
+		tags && tags.length > 0
+			? sql`AND n.tags && ARRAY[${sql.join(
+					tags.map((t) => sql`${t}`),
+					sql`, `,
+				)}]::text[]`
+			: sql``;
 
-  const rows = await db.execute(sql`
+	const rows = await db.execute(sql`
     SELECT node_id, chunk_body, ROW_NUMBER() OVER (ORDER BY vec_dist)::int AS rank
     FROM (
       SELECT n.id AS node_id, NULL::text AS chunk_body, n.embedding <=> ${embStr}::vector AS vec_dist
@@ -77,80 +97,107 @@ async function vectorSearch(embedding: number[], tags: string[] | undefined): Pr
     LIMIT ${CANDIDATE_LIMIT}
   `);
 
-  return [...rows].map((r) => {
-    const row = r as { node_id: string; chunk_body: string | null; rank: string };
-    return { nodeId: row.node_id, chunkBody: row.chunk_body, rank: Number(row.rank) };
-  });
+	return [...rows].map((r) => {
+		const row = r as {
+			node_id: string;
+			chunk_body: string | null;
+			rank: string;
+		};
+		return {
+			nodeId: row.node_id,
+			chunkBody: row.chunk_body,
+			rank: Number(row.rank),
+		};
+	});
 }
 
-export async function hybridSearch(opts: SearchOptions): Promise<SearchResult[]> {
-  const { query, embedding: providedEmbedding, tags, limit = 10, expandEdges = false } = opts;
+export async function hybridSearch(
+	opts: SearchOptions,
+): Promise<SearchResult[]> {
+	const {
+		query,
+		embedding: providedEmbedding,
+		tags,
+		limit = 10,
+		expandEdges = false,
+	} = opts;
 
-  let embedding: number[] | undefined = providedEmbedding;
-  if (!embedding) {
-    try {
-      embedding = await embedText(query);
-    } catch (err) {
-      log.warn('[search] embedding failed — falling back to FTS only', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
+	let embedding: number[] | undefined = providedEmbedding;
+	if (!embedding) {
+		try {
+			embedding = await embedText(query);
+		} catch (err) {
+			log.warn("[search] embedding failed — falling back to FTS only", {
+				error: err instanceof Error ? err.message : String(err),
+			});
+		}
+	}
 
-  const [ftsResults, vecResults] = await Promise.all([
-    ftsSearch(query, tags),
-    embedding ? vectorSearch(embedding, tags) : Promise.resolve([]),
-  ]);
+	const [ftsResults, vecResults] = await Promise.all([
+		ftsSearch(query, tags),
+		embedding ? vectorSearch(embedding, tags) : Promise.resolve([]),
+	]);
 
-  // RRF fusion: accumulate 1/(k+rank) per node across both sources
-  const scoreMap = new Map<string, { score: number; matchingChunk: string | null }>();
+	// RRF fusion: accumulate 1/(k+rank) per node across both sources
+	const scoreMap = new Map<
+		string,
+		{ score: number; matchingChunk: string | null }
+	>();
 
-  for (const hits of [ftsResults, vecResults]) {
-    for (const { nodeId, chunkBody, rank } of hits) {
-      const prev = scoreMap.get(nodeId) ?? { score: 0, matchingChunk: null };
-      scoreMap.set(nodeId, {
-        score: prev.score + 1 / (RRF_K + rank),
-        matchingChunk: prev.matchingChunk ?? chunkBody,
-      });
-    }
-  }
+	for (const hits of [ftsResults, vecResults]) {
+		for (const { nodeId, chunkBody, rank } of hits) {
+			const prev = scoreMap.get(nodeId) ?? { score: 0, matchingChunk: null };
+			scoreMap.set(nodeId, {
+				score: prev.score + 1 / (RRF_K + rank),
+				matchingChunk: prev.matchingChunk ?? chunkBody,
+			});
+		}
+	}
 
-  const topEntries = [...scoreMap.entries()]
-    .sort((a, b) => b[1].score - a[1].score)
-    .slice(0, limit);
+	const topEntries = [...scoreMap.entries()]
+		.sort((a, b) => b[1].score - a[1].score)
+		.slice(0, limit);
 
-  if (topEntries.length === 0) return [];
+	if (topEntries.length === 0) return [];
 
-  const topIds = topEntries.map(([id]) => id);
-  let nodeRows = await db.select().from(nodes).where(inArray(nodes.id, topIds));
+	const topIds = topEntries.map(([id]) => id);
+	let nodeRows = await db.select().from(nodes).where(inArray(nodes.id, topIds));
 
-  if (expandEdges && nodeRows.length > 0) {
-    const idArray = sql`ARRAY[${sql.join(topIds.map((id) => sql`${id}`), sql`, `)}]::uuid[]`;
-    const neighborRows = await db.execute(sql`
+	if (expandEdges && nodeRows.length > 0) {
+		const idArray = sql`ARRAY[${sql.join(
+			topIds.map((id) => sql`${id}`),
+			sql`, `,
+		)}]::uuid[]`;
+		const neighborRows = await db.execute(sql`
       SELECT DISTINCT
         CASE WHEN source_id = ANY(${idArray}) THEN target_id ELSE source_id END AS id
       FROM edges
       WHERE source_id = ANY(${idArray}) OR target_id = ANY(${idArray})
     `);
 
-    const existingIds = new Set(topIds);
-    const newIds = [...neighborRows]
-      .map((r) => (r as { id: string }).id)
-      .filter((id) => !existingIds.has(id));
+		const existingIds = new Set(topIds);
+		const newIds = [...neighborRows]
+			.map((r) => (r as { id: string }).id)
+			.filter((id) => !existingIds.has(id));
 
-    if (newIds.length > 0) {
-      const extra = await db.select().from(nodes).where(inArray(nodes.id, newIds));
-      nodeRows = [...nodeRows, ...extra];
-    }
-  }
+		if (newIds.length > 0) {
+			const extra = await db
+				.select()
+				.from(nodes)
+				.where(inArray(nodes.id, newIds));
+			nodeRows = [...nodeRows, ...extra];
+		}
+	}
 
-  const nodeMap = new Map(nodeRows.map((n) => [n.id, n]));
+	const nodeMap = new Map(nodeRows.map((n) => [n.id, n]));
 
-  return topEntries
-    .filter(([id]) => nodeMap.has(id))
-    .map(([id, { score, matchingChunk }]): SearchResult => ({
-      node: nodeMap.get(id) as Node,
-      score,
-      ...(matchingChunk != null ? { matchingChunk } : {}),
-    }));
+	return topEntries
+		.filter(([id]) => nodeMap.has(id))
+		.map(
+			([id, { score, matchingChunk }]): SearchResult => ({
+				node: nodeMap.get(id) as Node,
+				score,
+				...(matchingChunk != null ? { matchingChunk } : {}),
+			}),
+		);
 }
