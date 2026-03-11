@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { unlinkSync } from "node:fs";
 import * as path from "node:path";
 import { z } from "zod";
@@ -296,6 +296,11 @@ describe("runAgent", () => {
 		);
 	});
 
+	afterEach(() => {
+		toolRegistry.clear();
+		toolsetRegistry.clear();
+	});
+
 	const cleanup = () => {
 		try {
 			unlinkSync(tmpPath);
@@ -386,7 +391,6 @@ describe("runAgent", () => {
 		turn.agent = { ...turn.agent, tools: ["test-tool"], promptPath: tmpPath };
 		await runAgent(turn, turn.agent);
 		cleanup();
-		toolRegistry.delete("test-tool");
 		const opts = lastArg(mockCallModel);
 		expect((opts as { tools?: Record<string, unknown> }).tools).toBeDefined();
 		expect(
@@ -414,8 +418,6 @@ describe("runAgent", () => {
 		turn.agent = { ...turn.agent, toolsets: ["ts"], promptPath: tmpPath };
 		await runAgent(turn, turn.agent);
 		cleanup();
-		toolRegistry.delete("ts.alpha");
-		toolsetRegistry.delete("ts");
 		const opts = lastArg(mockCallModel) as {
 			tools?: Record<string, unknown>;
 			activeTools?: string[];
@@ -503,8 +505,6 @@ describe("runAgent", () => {
 		expect(after).not.toContain("use_expand");
 		expect(after).toContain("expand_one");
 
-		toolRegistry.delete("expand.one");
-		toolsetRegistry.delete("expand");
 	});
 
 	test("unknown tools are silently omitted from callModel", async () => {
