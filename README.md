@@ -24,19 +24,18 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Postgres**.
 
 ## Operations
 
-Everything goes through `./run.sh`. All commands work the same on laptop and NAS.
+All commands are standard `docker compose`. Run from the repo root.
 
-
-| Command            | What it does                                                    |
-| ------------------ | --------------------------------------------------------------- |
-| `./run.sh up`      | Start all services (postgres + app + studio)                    |
-| `./run.sh down`    | Stop all services                                               |
-| `./run.sh logs`    | Follow app logs                                                 |
-| `./run.sh restart` | Restart app only (e.g. after editing `.env`)                    |
-| `./run.sh pull`    | Deploy: `git pull` + rebuild image + restart app                |
-| `./run.sh backup`  | One-shot backup: postgres dump + baileys auth (see Backups)     |
-| `./run.sh reset`   | **Destructive** — stops everything and deletes all data volumes |
-| `./run.sh status`  | Show container status                                           |
+| What                             | Command                                                   |
+| -------------------------------- | --------------------------------------------------------- |
+| Start all services               | `docker compose up -d --remove-orphans`                   |
+| Stop all services                | `docker compose down`                                     |
+| Follow app logs                  | `docker compose logs -f app`                              |
+| Restart app (e.g. after .env edit) | `docker compose restart app`                            |
+| Deploy update                    | `git pull && docker compose build app && docker compose up -d app` |
+| Run backup                       | `docker compose --profile backup run --rm backup`         |
+| Show container status            | `docker compose ps`                                       |
+| **Destructive** — wipe all data  | `docker compose down -v && docker compose up -d --remove-orphans` |
 
 
 ---
@@ -70,13 +69,13 @@ cp .env.example .env
 cp .env.secrets.example .env.secrets   # fill in your 4 API keys
 
 # 3. Start
-./run.sh up
+docker compose up -d --remove-orphans
 
 # 4. Apply database schema
 docker compose exec app bun run db:migrate
 
 # 5. Scan the WhatsApp QR code (one-time — auth persists in a Docker volume)
-./run.sh logs
+docker compose logs -f app
 
 # 6. (Optional) Set up Obsidian vault sync
 # Fill in OBSIDIAN_EMAIL, OBSIDIAN_PASSWORD, and OBSIDIAN_VAULT_NAME in .env.secrets.
@@ -84,7 +83,7 @@ docker compose exec app bun run db:migrate
 # Sync is bidirectional and continuous — notes Klaus creates will appear in your Obsidian app.
 ```
 
-**NAS-specific:** Set `BACKUP_DIR=/volume1/backups/klaus` in your `.env` before running `./run.sh up`.
+**NAS-specific:** Set `BACKUP_DIR=/volume1/backups/klaus` in your `.env` before starting.
 
 ---
 
@@ -93,10 +92,10 @@ docker compose exec app bun run db:migrate
 SSH to the NAS and run:
 
 ```bash
-./run.sh pull
+git pull && docker compose build app && docker compose up -d app
 ```
 
-That's it. This pulls the latest code, rebuilds the Docker image, and restarts the app.
+This pulls the latest code, rebuilds the Docker image, and restarts the app.
 
 ---
 
@@ -130,13 +129,13 @@ That's it. This pulls the latest code, rebuilds the Docker image, and restarts t
 
 ## Backups
 
-`make backup` runs a one-shot container that:
+`docker compose --profile backup run --rm backup` runs a one-shot container that:
 
 1. Dumps Postgres to `$BACKUP_DIR/<YYYY-MM-DD>/postgres.dump` (custom format)
 2. Archives the Baileys auth volume to `$BACKUP_DIR/<YYYY-MM-DD>/baileys_auth.tar.gz`
 3. Prunes backups older than 7 days
 
-On a Synology NAS, schedule it via **Control Panel → Task Scheduler** with command `cd /path/to/klaus && ./run.sh backup`.
+On a Synology NAS, schedule it via **Control Panel → Task Scheduler** with command `cd /path/to/klaus && docker compose --profile backup run --rm backup`.
 
 ---
 

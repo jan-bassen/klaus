@@ -21,6 +21,24 @@ export function formatMessageTimestamp(date: Date): string {
   return `${day} ${time}`;
 }
 
+/** Renders the header line for a chat message: [#label | role | timestamp] */
+export function formatChatHeader(label: string, role: string, timestamp: string): string {
+  return `[#${label} | ${role} | ${timestamp}]`;
+}
+
+/** Renders a full chat message block (header + optional quote + body + optional reactions). */
+export function formatChatMessage(opts: {
+  label: string;
+  role: string;
+  timestamp: string;
+  body: string;
+  quoteBlock?: string | undefined;
+  reactionStr?: string | undefined;
+}): string {
+  const header = formatChatHeader(opts.label, opts.role, opts.timestamp);
+  return `${header}\n${opts.quoteBlock ?? ''}${opts.body}${opts.reactionStr ?? ''}`;
+}
+
 /** Provides conversation: last N messages from the messages table for this chatId. */
 export const conversationQuery: ContextQuery = {
   name: 'conversation',
@@ -115,7 +133,14 @@ export const conversationQuery: ContextQuery = {
         const reactionStr = rxns.length > 0
           ? `\n[reactions: ${rxns.map(r => r.fromMe ? `${r.emoji} (you)` : r.emoji).join('  ')}]`
           : '';
-        return `[#${label} | ${role} | ${ts}]\n${quoteBlock}${body}${reactionStr}`;
+        return formatChatMessage({
+          label: String(label),
+          role,
+          timestamp: ts,
+          body: body ?? '',
+          quoteBlock: quoteBlock || undefined,
+          reactionStr: reactionStr || undefined,
+        });
       })
       .join('\n\n');
 

@@ -21,7 +21,7 @@ toolsets:
 
 {{user}}
 
-Today is {{date}}, {{time}}.
+It is {{weekday}} ({{date}}, {{time}}).
 
 {{architecture}}
 
@@ -53,7 +53,7 @@ Today is {{date}}, {{time}}.
 
 # Current Message
 
-[#current | user | now]
+{{current_message_header}}
 {{message_text}}
 
 {{#if (eq message_type "voice")}}

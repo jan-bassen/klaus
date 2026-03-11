@@ -60,7 +60,7 @@ You are in *deep thinking mode* — invoked for tasks requiring extended reasoni
 
 # Current Message
 
-[#current | user | now]
+{{current_message_header}}
 {{message_text}}
 
 {{#if (eq message_type "voice")}}

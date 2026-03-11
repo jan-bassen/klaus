@@ -5,6 +5,11 @@ import { hybridSearch } from '@/db/search';
 import { db } from '@/db/client';
 import { nodes } from '@/db/schema';
 
+/** Renders a single memory node block. */
+function formatMemoryNode(title: string | null, body: string | null): string {
+  return `### ${title ?? '(untitled)'}\n${body ?? ''}`;
+}
+
 /**
  * Provides auto_memory: pinned nodes (always included) + hybrid search results
  * resolved to parent nodes + 1-hop edge expansion.
@@ -44,7 +49,7 @@ export const graphContextQuery: ContextQuery = {
     let tokenCount = 0;
     const included: typeof items = [];
     for (const item of items) {
-      const rendered = `### ${item.title ?? '(untitled)'}\n${item.body ?? ''}`;
+      const rendered = formatMemoryNode(item.title, item.body);
       const tokens = Math.ceil(rendered.length / 4);
       if (tokenCount + tokens > budget) break;
       included.push(item);
@@ -54,7 +59,7 @@ export const graphContextQuery: ContextQuery = {
     if (included.length === 0) return { tokenCount: 0, truncate: 'oldest' };
 
     const content = included
-      .map(({ title, body }) => `### ${title ?? '(untitled)'}\n${body ?? ''}`)
+      .map(({ title, body }) => formatMemoryNode(title, body))
       .join('\n\n');
 
     return { content, tokenCount, truncate: 'oldest' };

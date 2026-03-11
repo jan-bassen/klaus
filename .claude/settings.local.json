@@ -68,7 +68,10 @@
       "WebSearch",
       "Bash(bun run check)",
       "WebFetch(domain:help.obsidian.md)",
-      "Bash(bun test src/__tests__/logger.test.ts)"
+      "Bash(bun test src/__tests__/logger.test.ts)",
+      "Bash(ls:*)",
+      "Bash(bun test src/__tests__/db/conversation.test.ts)",
+      "Bash(bun test src/__tests__/context/)"
     ]
   }
 }
