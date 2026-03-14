@@ -251,7 +251,8 @@ modelTier: high
 tools: [reply, react, dispatch]
 providerTools: [web_search, web_fetch, code_execution]
 toolsets: [memory, task, ops, files]
-schedule: "0 3 * * *"  # optional — makes it a cron agent
+skills: [workout-plan]        # optional — on-demand .md docs from src/skills/
+schedule: "0 3 * * *"         # optional — makes it a cron agent
 ---
 ```
 
@@ -280,6 +281,14 @@ Built-in agents:
 | vault   | read, search, list, write, append, backlinks        | Obsidian vault access          |
 
 Agents can also use **provider tools** — Anthropic built-in capabilities like web_search, web_fetch, and code_execution that are injected directly via the Vercel AI SDK.
+
+### Skills
+
+**Skills** are static `.md` reference documents in `src/skills/` that agents can load on demand via the `skill_get` tool. Unlike context queries (always injected) or knowledge graph nodes (dynamic), skills are for stable reference material that shouldn't waste tokens every turn.
+
+Skill files support optional YAML frontmatter with a `description:` field. The description is included in the tool definition so the model knows what each skill contains before deciding to load it.
+
+Declare `skills: [name1, name2]` in an agent's frontmatter. The tool is scoped to those names via `z.enum` — the model literally cannot request a nonexistent skill. The `{{skills}}` Handlebars var is injected so the prompt can list available skills. Agents without `skills:` see nothing — zero token overhead.
 
 ### Context assembly
 
@@ -324,6 +333,7 @@ src/
 ├── context/       # Context query modules (one file per query)
 ├── core/          # Pipeline, agent runner, dispatch, queue, model router
 ├── db/            # Schema, migrations, search, write path
+├── skills/        # Static .md reference documents (loaded on demand by agents)
 ├── tools/         # Tool definitions and toolsets
 │   └── sets/      # Toolset definitions (memory, task, ops, files, vault)
 └── whatsapp/      # Transport layer (connection, receive, send, TTS, STT)
@@ -444,6 +454,38 @@ Invoke it in chat with /mycommand.
 Create a .ts file in src/tools/sets/ that exports a group of related ToolDefinitions. The toolset registers a use\_\<name\> meta-tool. When the model calls it, the actual tools are injected into the conversation. This keeps the initial context lean — tools are only loaded when needed.
 
 Reference the toolset by name in an agent's frontmatter toolsets list.
+
+### Add a new skill
+
+Create a `.md` file in `src/skills/`. The filename (without `.md`) is the skill name. Add a `description:` in YAML frontmatter so the model knows what the skill contains:
+
+```markdown
+---
+description: Weekly training split with progressive overload
+---
+# Workout Plan
+
+## Monday — Push
+- Bench press 4×8
+- ...
+```
+
+Then add the skill name to an agent's frontmatter:
+
+```yaml
+skills: [workout-plan]
+```
+
+Use the `{{skills}}` Handlebars var in the prompt body to tell the agent what's available:
+
+```handlebars
+{{#if skills}}
+## Available skills
+Load with skill_get when needed: {{#each skills}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}.
+{{/if}}
+```
+
+No restart needed — skill files are read on demand.
 
 ---
 

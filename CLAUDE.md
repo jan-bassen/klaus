@@ -65,6 +65,7 @@ modelTier: default|low|high    # maps to model IDs in config.ts
 tools: [reply, send, react]
 toolsets: [memory, task]       # expands to use_* meta-tools; tools loaded lazily
 providerTools: [web_search]    # Anthropic built-ins
+skills: [workout-plan]        # on-demand .md docs from src/skills/
 schedule: "0 3 * * *"         # optional cron
 ---
 Prompt body with {{contextVar}} Handlebars interpolation.
@@ -73,6 +74,8 @@ Prompt body with {{contextVar}} Handlebars interpolation.
 `agentRegistry` (Map<name, AgentDefinition>) is populated at startup from all `.md` files. The `runAgent()` function loads the prompt, builds system prompt via Handlebars, registers tools, and drives the Vercel AI SDK agentic loop.
 
 **Toolsets** are groups of tools loaded lazily via meta-tools (e.g., `use_memory`). Defined in `src/tools/sets/`.
+
+**Skills** are static `.md` reference documents in `src/skills/` with optional YAML frontmatter (`description:` field). Agents that declare `skills:` in frontmatter get a `skill_get` tool scoped to those names via `z.enum`. Skill descriptions are included in the tool description to help the model decide when to load. The `{{skills}}` Handlebars var is injected so agents can list available skills in the prompt. Zero token overhead for agents without skills.
 
 ### Knowledge graph (db/schema.ts)
 
@@ -97,6 +100,8 @@ Search is hybrid: cosine similarity + full-text, with 1-hop edge expansion.
 | `src/core/model-router.ts` | LLM call routing + cost logging |
 | `src/context/` | Context query modules (inject dynamic content into prompts) |
 | `src/tools/` | Tool definitions + toolset loaders |
+| `src/tools/skill.ts` | `buildSkillTool()` — per-agent skill.get tool builder |
+| `src/skills/` | Static `.md` skill documents (loaded on demand) |
 | `src/commands/` | /command handlers |
 | `src/whatsapp/` | Transport layer (Baileys connection, send, receive, TTS, STT, presence) |
 | `src/db/` | Drizzle schema, client, write path, search |

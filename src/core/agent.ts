@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { ImagePart, StepResult, TextPart, ToolSet, UserContent } from "ai";
 import { tool } from "ai";
 import sharp from "sharp";
@@ -11,6 +12,7 @@ import {
 } from "@/core/registry";
 import { log } from "@/logger";
 import { buildProviderTool } from "@/tools/provider";
+import { buildSkillTool } from "@/tools/skill";
 import type { AgentDefinition, ToolDefinition, TurnContext } from "@/types";
 import { hbs } from "./hbs";
 import { callModel } from "./model-router";
@@ -74,7 +76,11 @@ export async function runAgent(
 	const raw = await Bun.file(def.promptPath).text();
 	const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, "");
 
-	const system = buildSystemPrompt(body, turn.assembled.vars);
+	const vars = { ...turn.assembled.vars };
+	if (def.skills?.length) {
+		vars.skills = def.skills;
+	}
+	const system = buildSystemPrompt(body, vars);
 
 	// Build Vercel AI SDK tools — closures over turn so execute receives TurnContext
 	const wrap = (t: ToolDefinition) =>
@@ -126,6 +132,15 @@ export async function runAgent(
 			allTools[t.name.replace(/\./g, "_")] = wrap(t);
 			// NOT added to initialActive — only visible after use_X is called
 		}
+	}
+
+	// Skills — per-agent scoped tool, registered only when agent declares skills
+	if (def.skills?.length) {
+		const skillsDir = path.resolve(path.dirname(def.promptPath), "../skills");
+		const skillTool = buildSkillTool(def.skills, skillsDir);
+		const sdkName = skillTool.name.replace(/\./g, "_");
+		allTools[sdkName] = wrap(skillTool);
+		initialActive.push(sdkName);
 	}
 
 	// prepareStep: expand activeTools when meta-tools are called in previous steps
@@ -266,6 +281,10 @@ export async function loadAgentDefinition(
 		? (front.providerTools as string[])
 		: [];
 
+	const skills: string[] = Array.isArray(front.skills)
+		? (front.skills as string[])
+		: [];
+
 	// Optional cron schedule string (e.g. "0 3 * * *")
 	const schedule =
 		typeof front.schedule === "string" ? front.schedule : undefined;
@@ -299,6 +318,7 @@ export async function loadAgentDefinition(
 		tools,
 		...(toolsets.length > 0 ? { toolsets } : {}),
 		...(providerTools.length > 0 ? { providerTools } : {}),
+		...(skills.length > 0 ? { skills } : {}),
 		...(schedule ? { schedule } : {}),
 		...(contextParams ? { contextParams } : {}),
 		promptPath,

@@ -122,6 +122,8 @@ export interface AgentDefinition {
 	contextParams?: Record<string, Record<string, unknown>>;
 	/** Anthropic provider tool names (e.g. "web_search", "web_fetch", "code_execution") */
 	providerTools?: string[];
+	/** Skill document names this agent can load on demand (filenames without .md in src/skills/) */
+	skills?: string[];
 	/** Absolute path to the .md file — used for hot-reload */
 	promptPath: string;
 }

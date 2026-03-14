@@ -45,3 +45,4 @@ See `README.md` for project overview and folder structure. Key boundaries:
 - `/tools` — each tool/tool-set in its own file or folder
 - `/context` — one file per context query
 - `/agents` — markdown prompt files with YAML frontmatter
+- `/skills` — static `.md` reference documents loaded on demand via `skill_get`

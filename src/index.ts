@@ -6,6 +6,7 @@ import { loadContextQueries, setContextQueries } from "./core/assemble";
 import { dispatch } from "./core/dispatch";
 import { initQueue, isQueueReady, stopQueue } from "./core/queue";
 import { loadAllTools } from "./core/registry";
+import { loadSkills, skillRegistry } from "./tools/skill";
 import { startWorkers } from "./core/worker";
 import { client, db } from "./db/client";
 import { log } from "./logger";
@@ -79,7 +80,20 @@ async function main(): Promise<void> {
 		path.join(import.meta.dir, "context"),
 	);
 	setContextQueries(contextQueries);
+	await loadSkills(path.join(import.meta.dir, "skills"));
 	await import("./commands/register");
+
+	// Validate skill references — warn about missing skills in registry
+	for (const def of agentRegistry.values()) {
+		for (const skill of def.skills ?? []) {
+			if (!skillRegistry.has(skill)) {
+				log.warn("[startup] agent references unknown skill", {
+					agent: def.name,
+					skill,
+				});
+			}
+		}
+	}
 
 	// 3. Start pgboss queue
 	log.info("[startup] initializing queue and workers");

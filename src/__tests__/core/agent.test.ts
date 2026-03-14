@@ -232,6 +232,29 @@ describe("loadAgentDefinition", () => {
 		);
 	});
 
+	// --- skills ---
+
+	test("skills: YAML key is parsed into skills array", async () => {
+		const fm =
+			"name: skill-agent\nmodelTier: default\ntools: []\nskills: [workout, meal]";
+		await withFixture("skills", fm, "## Hi\n", async (p) => {
+			const def = await loadAgentDefinition(p);
+			expect(def.skills).toEqual(["workout", "meal"]);
+		});
+	});
+
+	test("missing skills produces no skills property", async () => {
+		await withFixture(
+			"no-skills",
+			"name: plain-agent\nmodelTier: default\ntools: []",
+			"## Hi\n",
+			async (p) => {
+				const def = await loadAgentDefinition(p);
+				expect(def.skills).toBeUndefined();
+			},
+		);
+	});
+
 	// --- unknown fields are ignored ---
 
 	test("unknown frontmatter fields are silently ignored", async () => {
