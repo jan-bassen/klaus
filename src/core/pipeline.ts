@@ -109,6 +109,17 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 				chatId: processedMsg.chatId,
 				command: cmd.name,
 			});
+
+			// Persist command message to conversation history
+			await db.insert(messages).values({
+				chatId: processedMsg.chatId,
+				role: "user",
+				content: processedMsg.text ?? null,
+				createdAt: processedMsg.timestamp,
+				externalId: processedMsg.id,
+				command: cmd.name,
+			});
+
 			const command = commandRegistry.get(cmd.name);
 			if (command) await command.execute(processedMsg, cmd.args);
 			return;
@@ -163,6 +174,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		}
 
 		// Persist inbound message to conversation history
+		const flagNames = Object.keys(flags);
 		const [inserted] = await db
 			.insert(messages)
 			.values({
@@ -172,6 +184,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 				createdAt: effectiveMsg.timestamp,
 				externalId: effectiveMsg.id,
 				...(quotedMessageId ? { quotedMessageId } : {}),
+				flags: flagNames.length > 0 ? flagNames : null,
 			})
 			.returning({ id: messages.id });
 
