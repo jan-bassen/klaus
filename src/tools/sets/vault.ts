@@ -1,5 +1,5 @@
 import type { Dirent } from "node:fs";
-import { mkdir, readdir } from "node:fs/promises";
+import { mkdir, readdir, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { config } from "@/config";
@@ -276,6 +276,275 @@ export const vaultBacklinksTool: ToolDefinition<typeof vaultBacklinksSchema> = {
 	capability: "resource",
 };
 
+// ─── move ────────────────────────────────────────────────────────────────────
+
+const vaultMoveSchema = z.object({
+	from: z.string().describe('Source relative path, e.g. "Projects/Old Name.md"'),
+	to: z.string().describe('Destination relative path, e.g. "Archive/Old Name.md"'),
+	updateBacklinks: z
+		.boolean()
+		.optional()
+		.default(false)
+		.describe(
+			"If true, scan all notes and rewrite [[wikilinks]] pointing to the old name",
+		),
+});
+
+export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
+	name: "vault.move",
+	description:
+		"Move or rename a note within the vault. Optionally updates all [[wikilinks]] across the vault that referenced the old name.",
+	inputSchema: vaultMoveSchema,
+	execute: async ({ from, to, updateBacklinks }, _context) => {
+		const srcFull = safePath(from);
+		const dstFull = safePath(to);
+		if (!srcFull) return "Invalid source path — must be inside the vault.";
+		if (!dstFull) return "Invalid destination path — must be inside the vault.";
+
+		try {
+			await mkdir(path.dirname(dstFull), { recursive: true });
+			await rename(srcFull, dstFull);
+		} catch {
+			return `Failed to move "${from}" — file may not exist or destination is occupied.`;
+		}
+
+		if (!updateBacklinks) return `Moved: ${from} → ${to}`;
+
+		const oldName = path.basename(from, ".md");
+		const newName = path.basename(to, ".md");
+		const glob = new Bun.Glob("**/*.md");
+		const pattern = new RegExp(
+			`\\[\\[${oldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\|[^\\]]*)?\\]\\]`,
+			"gi",
+		);
+
+		let updatedCount = 0;
+		for await (const file of glob.scan({ cwd: vaultDir() })) {
+			const filePath = path.join(vaultDir(), file);
+			try {
+				const text = await Bun.file(filePath).text();
+				if (!pattern.test(text)) continue;
+				pattern.lastIndex = 0;
+				const updated = text.replace(pattern, `[[${newName}$1]]`);
+				await Bun.write(filePath, updated);
+				updatedCount++;
+			} catch {
+				// Skip unreadable files
+			}
+		}
+
+		return `Moved: ${from} → ${to}. Updated backlinks in ${updatedCount} note(s).`;
+	},
+	kind: "builtin",
+	capability: "tool",
+};
+
+// ─── delete ──────────────────────────────────────────────────────────────────
+
+const vaultDeleteSchema = z.object({
+	path: z.string().describe("Relative path to the note to delete"),
+	confirm: z
+		.boolean()
+		.describe("Must be true to confirm deletion — prevents accidental data loss"),
+});
+
+export const vaultDeleteTool: ToolDefinition<typeof vaultDeleteSchema> = {
+	name: "vault.delete",
+	description:
+		"Permanently delete a note from the vault. Requires confirm: true to prevent accidents.",
+	inputSchema: vaultDeleteSchema,
+	execute: async ({ path: rel, confirm }, _context) => {
+		if (!confirm) return "Deletion aborted — set confirm: true to proceed.";
+
+		const full = safePath(rel);
+		if (!full) return "Invalid path — must be inside the vault.";
+
+		try {
+			await unlink(full);
+			return `Deleted: ${rel}`;
+		} catch {
+			return `Note not found or could not be deleted: ${rel}`;
+		}
+	},
+	kind: "builtin",
+	capability: "tool",
+};
+
+// ─── patch ───────────────────────────────────────────────────────────────────
+
+const vaultPatchSchema = z.object({
+	path: z.string().describe("Relative path to the note"),
+	heading: z
+		.string()
+		.describe('Exact heading text without # markers, e.g. "Goals" or "Notes"'),
+	newContent: z
+		.string()
+		.describe(
+			"Replacement content for the section body (heading line is preserved)",
+		),
+});
+
+export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
+	name: "vault.patch",
+	description:
+		"Replace the body of a specific section in a note by heading. The heading line is kept; everything beneath it until the next same-or-higher-level heading (or EOF) is replaced.",
+	inputSchema: vaultPatchSchema,
+	execute: async ({ path: rel, heading, newContent }, _context) => {
+		const full = safePath(rel);
+		if (!full) return "Invalid path — must be inside the vault.";
+
+		let text: string;
+		try {
+			text = await Bun.file(full).text();
+		} catch {
+			return `Note not found: ${rel}`;
+		}
+
+		const lines = text.split("\n");
+		const headingPattern = new RegExp(
+			`^(#{1,6})\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`,
+			"i",
+		);
+
+		const headingIdx = lines.findIndex((l) => headingPattern.test(l));
+		if (headingIdx === -1) return `Heading "${heading}" not found in ${rel}.`;
+
+		const headingLine = lines[headingIdx] ?? "";
+		const level = ((headingLine.match(/^(#+)/) ?? ["", ""])[1] ?? "").length;
+		const sameOrHigher = new RegExp(`^#{1,${level}}\\s`);
+		let endIdx = lines.length;
+		for (let i = headingIdx + 1; i < lines.length; i++) {
+			if (sameOrHigher.test(lines[i] ?? "")) {
+				endIdx = i;
+				break;
+			}
+		}
+
+		const updated = [
+			...lines.slice(0, headingIdx + 1),
+			newContent,
+			...lines.slice(endIdx),
+		].join("\n");
+		await Bun.write(full, updated);
+		return `Patched section "${heading}" in ${rel}.`;
+	},
+	kind: "builtin",
+	capability: "tool",
+};
+
+// ─── tags ────────────────────────────────────────────────────────────────────
+
+const vaultTagsSchema = z.object({
+	tags: z
+		.array(z.string())
+		.optional()
+		.describe("Return notes that have any of these tags in their frontmatter"),
+	list: z
+		.boolean()
+		.optional()
+		.default(false)
+		.describe("If true, return all unique tags across the vault instead"),
+});
+
+export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
+	name: "vault.tags",
+	description:
+		"Find notes by frontmatter tag, or list all tags used across the vault. Use list: true to discover available tags.",
+	inputSchema: vaultTagsSchema,
+	execute: async ({ tags, list }, _context) => {
+		const glob = new Bun.Glob("**/*.md");
+		const fmPattern = /^---\n([\s\S]*?)\n---/;
+
+		function extractTags(text: string): string[] {
+			const fm = text.match(fmPattern)?.[1] ?? "";
+			const inline = fm.match(/^tags:\s*\[([^\]]*)\]/m)?.[1];
+			if (inline)
+				return inline
+					.split(",")
+					.map((t) => t.trim().replace(/^['"]|['"]$/g, ""))
+					.filter(Boolean);
+			const block = [...fm.matchAll(/^tags:\s*\n((?:\s+-\s+.+\n?)*)/gm)];
+			if (block.length) {
+				const blockBody = block[0]?.[1] ?? "";
+				return [...blockBody.matchAll(/^\s+-\s+(.+)/gm)].map((m) =>
+					(m[1] ?? "").trim(),
+				);
+			}
+			return [];
+		}
+
+		if (list) {
+			const allTags = new Set<string>();
+			for await (const file of glob.scan({ cwd: vaultDir() })) {
+				try {
+					const text = await Bun.file(path.join(vaultDir(), file)).text();
+					for (const t of extractTags(text)) allTags.add(t);
+				} catch {
+					// Skip unreadable files
+				}
+			}
+			return allTags.size > 0 ? [...allTags].sort().join("\n") : "No tags found.";
+		}
+
+		if (!tags || tags.length === 0)
+			return "Provide tags to search for, or set list: true.";
+
+		const searchTags = new Set(tags.map((t) => t.toLowerCase()));
+		const results: string[] = [];
+		for await (const file of glob.scan({ cwd: vaultDir() })) {
+			try {
+				const text = await Bun.file(path.join(vaultDir(), file)).text();
+				const noteTags = extractTags(text).map((t) => t.toLowerCase());
+				if (noteTags.some((t) => searchTags.has(t))) results.push(file);
+			} catch {
+				// Skip unreadable files
+			}
+		}
+
+		return results.length > 0
+			? results.join("\n")
+			: `No notes tagged with: ${tags.join(", ")}.`;
+	},
+	kind: "builtin",
+	capability: "resource",
+};
+
+// ─── links ───────────────────────────────────────────────────────────────────
+
+const vaultLinksSchema = z.object({
+	path: z.string().describe("Relative path to the note"),
+});
+
+export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
+	name: "vault.links",
+	description:
+		"Extract all outgoing [[wikilinks]] from a note. Complements vault.backlinks for graph traversal.",
+	inputSchema: vaultLinksSchema,
+	execute: async ({ path: rel }, _context) => {
+		const full = safePath(rel);
+		if (!full) return "Invalid path — must be inside the vault.";
+
+		let text: string;
+		try {
+			text = await Bun.file(full).text();
+		} catch {
+			return `Note not found: ${rel}`;
+		}
+
+		const pattern = /\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
+		const targets = new Set<string>();
+		for (const match of text.matchAll(pattern)) {
+			if (match[1]) targets.add(match[1].trim());
+		}
+
+		return targets.size > 0
+			? [...targets].sort().join("\n")
+			: `No outgoing links in "${rel}".`;
+	},
+	kind: "builtin",
+	capability: "resource",
+};
+
 // ─── toolset export ──────────────────────────────────────────────────────────
 
 export const vaultToolset: ToolsetDefinition = {
@@ -289,5 +558,10 @@ export const vaultToolset: ToolsetDefinition = {
 		vaultWriteTool,
 		vaultAppendTool,
 		vaultBacklinksTool,
+		vaultMoveTool,
+		vaultDeleteTool,
+		vaultPatchTool,
+		vaultTagsTool,
+		vaultLinksTool,
 	],
 };
