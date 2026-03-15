@@ -67,6 +67,7 @@ toolsets: [memory, task]       # expands to use_* meta-tools; tools loaded lazil
 providerTools: [web_search]    # Anthropic built-ins
 skills: [workout-plan]        # on-demand .md docs from src/skills/
 schedule: "0 3 * * *"         # optional cron
+vaultScope: "Training"        # optional: restricts all vault tools to this subdirectory
 ---
 Prompt body with {{contextVar}} Handlebars interpolation.
 ```

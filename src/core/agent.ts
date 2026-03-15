@@ -289,6 +289,10 @@ export async function loadAgentDefinition(
 	const schedule =
 		typeof front.schedule === "string" ? front.schedule : undefined;
 
+	// Optional vault subdirectory restriction (e.g. "Training")
+	const vaultScope =
+		typeof front.vaultScope === "string" ? front.vaultScope : undefined;
+
 	// Per-query params from optional `context:` YAML key.
 	// Example: context: { conversation: { limit: 10 } }
 	const yamlParams: Record<
@@ -320,6 +324,7 @@ export async function loadAgentDefinition(
 		...(providerTools.length > 0 ? { providerTools } : {}),
 		...(skills.length > 0 ? { skills } : {}),
 		...(schedule ? { schedule } : {}),
+		...(vaultScope ? { vaultScope } : {}),
 		...(contextParams ? { contextParams } : {}),
 		promptPath,
 	};

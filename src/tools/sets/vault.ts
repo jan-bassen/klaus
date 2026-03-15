@@ -7,10 +7,22 @@ import type { ToolDefinition, ToolsetDefinition } from "@/types";
 
 const vaultDir = () => config.vault.dir;
 
-/** Guard against path traversal — resolved path must stay inside the vault. */
-function safePath(relative: string): string | null {
+/** Guard against path traversal and optional agent scope restriction. */
+function safePath(relative: string, scope?: string): string | null {
 	const resolved = path.resolve(vaultDir(), relative);
-	return resolved.startsWith(vaultDir()) ? resolved : null;
+	if (!resolved.startsWith(vaultDir())) return null;
+	if (scope) {
+		const scopeDir = path.resolve(vaultDir(), scope);
+		if (resolved !== scopeDir && !resolved.startsWith(scopeDir + path.sep))
+			return null;
+	}
+	return resolved;
+}
+
+function scopeError(scope?: string): string {
+	return scope
+		? `Access denied — path must be inside vault scope: ${scope}`
+		: "Invalid path — must be inside the vault.";
 }
 
 // ─── read ────────────────────────────────────────────────────────────────────
@@ -26,9 +38,9 @@ export const vaultReadTool: ToolDefinition<typeof vaultReadSchema> = {
 	description:
 		"Read a note from the Obsidian vault by its relative path. Returns the full markdown content including frontmatter.",
 	inputSchema: vaultReadSchema,
-	execute: async ({ path: rel }, _context) => {
-		const full = safePath(rel);
-		if (!full) return "Invalid path — must be inside the vault.";
+	execute: async ({ path: rel }, context) => {
+		const full = safePath(rel, context.agent.vaultScope);
+		if (!full) return scopeError(context.agent.vaultScope);
 
 		try {
 			return await Bun.file(full).text();
@@ -56,18 +68,21 @@ export const vaultSearchTool: ToolDefinition<typeof vaultSearchSchema> = {
 	description:
 		"Full-text search across all markdown notes in the Obsidian vault. Returns matching file paths with context lines.",
 	inputSchema: vaultSearchSchema,
-	execute: async ({ query, limit }, _context) => {
+	execute: async ({ query, limit }, context) => {
 		const glob = new Bun.Glob("**/*.md");
 		const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
 		if (terms.length === 0) return "Empty query.";
 
+		const scanRoot = context.agent.vaultScope
+			? path.resolve(vaultDir(), context.agent.vaultScope)
+			: vaultDir();
 		const results: string[] = [];
 
-		for await (const file of glob.scan({ cwd: vaultDir() })) {
+		for await (const file of glob.scan({ cwd: scanRoot })) {
 			if (results.length >= limit) break;
 
 			try {
-				const text = await Bun.file(path.join(vaultDir(), file)).text();
+				const text = await Bun.file(path.join(scanRoot, file)).text();
 				const lower = text.toLowerCase();
 				if (terms.every((t) => lower.includes(t))) {
 					// Find first matching line for context
@@ -112,10 +127,11 @@ export const vaultListTool: ToolDefinition<typeof vaultListSchema> = {
 	description:
 		"Browse the directory structure of the Obsidian vault. Returns a tree of folders and .md files.",
 	inputSchema: vaultListSchema,
-	execute: async ({ directory, depth: rawDepth }, _context) => {
+	execute: async ({ directory, depth: rawDepth }, context) => {
 		const depth = Math.min(rawDepth, 5);
-		const base = safePath(directory);
-		if (!base) return "Invalid path — must be inside the vault.";
+		const effectiveDir = directory || context.agent.vaultScope || "";
+		const base = safePath(effectiveDir, context.agent.vaultScope);
+		if (!base) return scopeError(context.agent.vaultScope);
 
 		const MAX_ENTRIES = 200;
 		const lines: string[] = [];
@@ -190,9 +206,9 @@ export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
 	description:
 		"Create or overwrite a note in the Obsidian vault. Parent directories are created automatically.",
 	inputSchema: vaultWriteSchema,
-	execute: async ({ path: rel, content }, _context) => {
-		const full = safePath(rel);
-		if (!full) return "Invalid path — must be inside the vault.";
+	execute: async ({ path: rel, content }, context) => {
+		const full = safePath(rel, context.agent.vaultScope);
+		if (!full) return scopeError(context.agent.vaultScope);
 
 		await mkdir(path.dirname(full), { recursive: true });
 		await Bun.write(full, content);
@@ -214,9 +230,9 @@ export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
 	description:
 		"Append content to an existing note (useful for daily notes, logs, inboxes). Creates the file if it does not exist.",
 	inputSchema: vaultAppendSchema,
-	execute: async ({ path: rel, content }, _context) => {
-		const full = safePath(rel);
-		if (!full) return "Invalid path — must be inside the vault.";
+	execute: async ({ path: rel, content }, context) => {
+		const full = safePath(rel, context.agent.vaultScope);
+		if (!full) return scopeError(context.agent.vaultScope);
 
 		let existing = "";
 		try {
@@ -247,17 +263,20 @@ export const vaultBacklinksTool: ToolDefinition<typeof vaultBacklinksSchema> = {
 	description:
 		"Find all notes that link to a given note via [[wikilinks]]. Returns file paths with the linking line.",
 	inputSchema: vaultBacklinksSchema,
-	execute: async ({ noteName }, _context) => {
+	execute: async ({ noteName }, context) => {
 		const glob = new Bun.Glob("**/*.md");
 		const pattern = new RegExp(
 			`\\[\\[${noteName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\|[^\\]]*)?\\]\\]`,
 			"i",
 		);
+		const scanRoot = context.agent.vaultScope
+			? path.resolve(vaultDir(), context.agent.vaultScope)
+			: vaultDir();
 		const results: string[] = [];
 
-		for await (const file of glob.scan({ cwd: vaultDir() })) {
+		for await (const file of glob.scan({ cwd: scanRoot })) {
 			try {
-				const text = await Bun.file(path.join(vaultDir(), file)).text();
+				const text = await Bun.file(path.join(scanRoot, file)).text();
 				const lines = text.split("\n");
 				const match = lines.find((l) => pattern.test(l));
 				if (match) {
@@ -295,11 +314,17 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 	description:
 		"Move or rename a note within the vault. Optionally updates all [[wikilinks]] across the vault that referenced the old name.",
 	inputSchema: vaultMoveSchema,
-	execute: async ({ from, to, updateBacklinks }, _context) => {
-		const srcFull = safePath(from);
-		const dstFull = safePath(to);
-		if (!srcFull) return "Invalid source path — must be inside the vault.";
-		if (!dstFull) return "Invalid destination path — must be inside the vault.";
+	execute: async ({ from, to, updateBacklinks }, context) => {
+		const srcFull = safePath(from, context.agent.vaultScope);
+		const dstFull = safePath(to, context.agent.vaultScope);
+		if (!srcFull)
+			return context.agent.vaultScope
+				? `Access denied — source path must be inside vault scope: ${context.agent.vaultScope}`
+				: "Invalid source path — must be inside the vault.";
+		if (!dstFull)
+			return context.agent.vaultScope
+				? `Access denied — destination path must be inside vault scope: ${context.agent.vaultScope}`
+				: "Invalid destination path — must be inside the vault.";
 
 		try {
 			await mkdir(path.dirname(dstFull), { recursive: true });
@@ -353,11 +378,11 @@ export const vaultDeleteTool: ToolDefinition<typeof vaultDeleteSchema> = {
 	description:
 		"Permanently delete a note from the vault. Requires confirm: true to prevent accidents.",
 	inputSchema: vaultDeleteSchema,
-	execute: async ({ path: rel, confirm }, _context) => {
+	execute: async ({ path: rel, confirm }, context) => {
 		if (!confirm) return "Deletion aborted — set confirm: true to proceed.";
 
-		const full = safePath(rel);
-		if (!full) return "Invalid path — must be inside the vault.";
+		const full = safePath(rel, context.agent.vaultScope);
+		if (!full) return scopeError(context.agent.vaultScope);
 
 		try {
 			await unlink(full);
@@ -389,9 +414,9 @@ export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
 	description:
 		"Replace the body of a specific section in a note by heading. The heading line is kept; everything beneath it until the next same-or-higher-level heading (or EOF) is replaced.",
 	inputSchema: vaultPatchSchema,
-	execute: async ({ path: rel, heading, newContent }, _context) => {
-		const full = safePath(rel);
-		if (!full) return "Invalid path — must be inside the vault.";
+	execute: async ({ path: rel, heading, newContent }, context) => {
+		const full = safePath(rel, context.agent.vaultScope);
+		if (!full) return scopeError(context.agent.vaultScope);
 
 		let text: string;
 		try {
@@ -451,8 +476,11 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 	description:
 		"Find notes by frontmatter tag, or list all tags used across the vault. Use list: true to discover available tags.",
 	inputSchema: vaultTagsSchema,
-	execute: async ({ tags, list }, _context) => {
+	execute: async ({ tags, list }, context) => {
 		const glob = new Bun.Glob("**/*.md");
+		const scanRoot = context.agent.vaultScope
+			? path.resolve(vaultDir(), context.agent.vaultScope)
+			: vaultDir();
 		const fmPattern = /^---\n([\s\S]*?)\n---/;
 
 		function extractTags(text: string): string[] {
@@ -475,9 +503,9 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 
 		if (list) {
 			const allTags = new Set<string>();
-			for await (const file of glob.scan({ cwd: vaultDir() })) {
+			for await (const file of glob.scan({ cwd: scanRoot })) {
 				try {
-					const text = await Bun.file(path.join(vaultDir(), file)).text();
+					const text = await Bun.file(path.join(scanRoot, file)).text();
 					for (const t of extractTags(text)) allTags.add(t);
 				} catch {
 					// Skip unreadable files
@@ -491,9 +519,9 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 
 		const searchTags = new Set(tags.map((t) => t.toLowerCase()));
 		const results: string[] = [];
-		for await (const file of glob.scan({ cwd: vaultDir() })) {
+		for await (const file of glob.scan({ cwd: scanRoot })) {
 			try {
-				const text = await Bun.file(path.join(vaultDir(), file)).text();
+				const text = await Bun.file(path.join(scanRoot, file)).text();
 				const noteTags = extractTags(text).map((t) => t.toLowerCase());
 				if (noteTags.some((t) => searchTags.has(t))) results.push(file);
 			} catch {
@@ -520,9 +548,9 @@ export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
 	description:
 		"Extract all outgoing [[wikilinks]] from a note. Complements vault.backlinks for graph traversal.",
 	inputSchema: vaultLinksSchema,
-	execute: async ({ path: rel }, _context) => {
-		const full = safePath(rel);
-		if (!full) return "Invalid path — must be inside the vault.";
+	execute: async ({ path: rel }, context) => {
+		const full = safePath(rel, context.agent.vaultScope);
+		if (!full) return scopeError(context.agent.vaultScope);
 
 		let text: string;
 		try {
