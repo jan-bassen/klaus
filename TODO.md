@@ -6,7 +6,7 @@
 - [x] Expose `{{skills}}` Handlebars var so agents can frame their available skills in the prompt
 
 ## Richer vault access
-- [ ] Check vault tools for gaps and ensure they cover all needs
+- [x] Check vault tools for gaps and ensure they cover all needs
 - [ ] Scope agents to specific path in vault
 
 ## Message Pipeline
