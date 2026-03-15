@@ -527,7 +527,6 @@ describe("runAgent", () => {
 		]);
 		expect(after).not.toContain("use_expand");
 		expect(after).toContain("expand_one");
-
 	});
 
 	test("unknown tools are silently omitted from callModel", async () => {
