@@ -69,7 +69,9 @@ export function buildSkillTool(
 					path: filePath,
 					error: err instanceof Error ? err.message : String(err),
 				});
-				return { error: `Failed to load skill "${name}": file not found or unreadable` };
+				return {
+					error: `Failed to load skill "${name}": file not found or unreadable`,
+				};
 			}
 		},
 		kind: "builtin",

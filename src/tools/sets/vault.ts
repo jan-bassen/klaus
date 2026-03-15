@@ -298,8 +298,12 @@ export const vaultBacklinksTool: ToolDefinition<typeof vaultBacklinksSchema> = {
 // ─── move ────────────────────────────────────────────────────────────────────
 
 const vaultMoveSchema = z.object({
-	from: z.string().describe('Source relative path, e.g. "Projects/Old Name.md"'),
-	to: z.string().describe('Destination relative path, e.g. "Archive/Old Name.md"'),
+	from: z
+		.string()
+		.describe('Source relative path, e.g. "Projects/Old Name.md"'),
+	to: z
+		.string()
+		.describe('Destination relative path, e.g. "Archive/Old Name.md"'),
 	updateBacklinks: z
 		.boolean()
 		.optional()
@@ -370,7 +374,9 @@ const vaultDeleteSchema = z.object({
 	path: z.string().describe("Relative path to the note to delete"),
 	confirm: z
 		.boolean()
-		.describe("Must be true to confirm deletion — prevents accidental data loss"),
+		.describe(
+			"Must be true to confirm deletion — prevents accidental data loss",
+		),
 });
 
 export const vaultDeleteTool: ToolDefinition<typeof vaultDeleteSchema> = {
@@ -511,7 +517,9 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 					// Skip unreadable files
 				}
 			}
-			return allTags.size > 0 ? [...allTags].sort().join("\n") : "No tags found.";
+			return allTags.size > 0
+				? [...allTags].sort().join("\n")
+				: "No tags found.";
 		}
 
 		if (!tags || tags.length === 0)

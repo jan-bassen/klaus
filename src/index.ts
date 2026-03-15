@@ -6,10 +6,10 @@ import { loadContextQueries, setContextQueries } from "./core/assemble";
 import { dispatch } from "./core/dispatch";
 import { initQueue, isQueueReady, stopQueue } from "./core/queue";
 import { loadAllTools } from "./core/registry";
-import { loadSkills, skillRegistry } from "./tools/skill";
 import { startWorkers } from "./core/worker";
 import { client, db } from "./db/client";
 import { log } from "./logger";
+import { loadSkills, skillRegistry } from "./tools/skill";
 import {
 	closeSocket,
 	isConnected,
