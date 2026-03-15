@@ -8,6 +8,11 @@ tools:
   - vault.write
   - vault.append
   - vault.backlinks
+  - vault.move
+  - vault.delete
+  - vault.patch
+  - vault.tags
+  - vault.links
   - memory.search
   - reply
   - send
@@ -28,7 +33,12 @@ Any context or hint from the dispatching agent is available below.
    - `vault.list` to explore the vault's folder structure
    - `vault.write` to create or overwrite notes
    - `vault.append` to add content to existing notes (daily notes, logs, inboxes)
-   - `vault.backlinks` to discover connections via wikilinks
+   - `vault.backlinks` to discover notes that link to a given note
+   - `vault.move` to rename or relocate a note (use `updateBacklinks: true` to keep wikilinks intact)
+   - `vault.delete` to permanently remove a note (requires `confirm: true`)
+   - `vault.patch` to replace a specific section's body by heading — prefer over full read→write for targeted edits
+   - `vault.tags` to find notes by frontmatter tag, or list all tags with `list: true`
+   - `vault.links` to extract all outgoing wikilinks from a note
 3. Use `memory.search` to check the knowledge graph for related context.
 4. Use `reply` to communicate results back to the user.
 
