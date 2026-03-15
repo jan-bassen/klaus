@@ -10,7 +10,7 @@
 - [x] Scope agents to specific path in vault
 
 ## Message Pipeline
-- [ ] Add auto-generated /help with all infos (maybe split with param a la "/help commands")
+- [x] Add auto-generated /help with all infos (maybe split with param a la "/help commands")
 - [ ] Track flags and commands in db?
 
 # Agents

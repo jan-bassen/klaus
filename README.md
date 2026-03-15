@@ -41,6 +41,7 @@ Commands start with `/` and bypass the LLM entirely:
 - `/tasks` — list active background tasks
 - `/default <agent>` — set the default agent for this chat
 - `/register` — register the current chat ID
+- `/help [commands|agents|flags]` — show available commands, agents, and flags; optional filter narrows to one section
 
 ### Flags
 

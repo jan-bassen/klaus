@@ -20,6 +20,10 @@ export class CommandRegistry {
 	has(name: string): boolean {
 		return this.commands.has(name);
 	}
+
+	getAll(): Command[] {
+		return [...this.commands.values()];
+	}
 }
 
 export const registry = new CommandRegistry();
