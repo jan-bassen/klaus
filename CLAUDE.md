@@ -37,9 +37,27 @@ docker compose up -d            # Start all services
 docker compose logs -f app      # Follow logs
 ```
 
+## Git workflow
+
+One logical change = one PR = one commit. A change is not done until all of the following are included together:
+
+- The implementation itself
+- Tests for the new/changed behavior (in `src/__tests__/`)
+- Updates to README.md if the change affects setup, architecture, or public-facing behavior
+- Updates to this file (CLAUDE.md) if the change affects conventions, commands, or architecture
+- Any TODO/task list updates if the project tracks open work
+
+Do not split these across multiple PRs or commits. Do not submit a feature and leave tests, docs, or housekeeping for a follow-up — include everything in the same PR.
+
+Before opening a PR, run `bun run typecheck`, `bun run test`, and `bunx biome check --write .` and fix any failures.
+
 ## Architecture
 
 Klaus is a headless personal AI agent: WhatsApp messages → TypeScript pipeline → Postgres + LLM → response.
+
+### Stack
+
+Bun, TypeScript (strict), Postgres (Drizzle ORM, pgvector, pgboss), Baileys, Vercel AI SDK. All containerized via Docker Compose.
 
 ### Message flow (pipeline.ts)
 
@@ -78,6 +96,8 @@ Prompt body with {{contextVar}} Handlebars interpolation.
 
 **Skills** are static `.md` reference documents in `src/skills/` with optional YAML frontmatter (`description:` field). Agents that declare `skills:` in frontmatter get a `skill_get` tool scoped to those names via `z.enum`. Skill descriptions are included in the tool description to help the model decide when to load. The `{{skills}}` Handlebars var is injected so agents can list available skills in the prompt. Zero token overhead for agents without skills.
 
+**Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new context query = new file implementing `ContextQuery`. Extend by adding, not modifying.
+
 ### Knowledge graph (db/schema.ts)
 
 Central data store is a knowledge graph in Postgres:
@@ -88,6 +108,8 @@ Central data store is a knowledge graph in Postgres:
 - **provenance** — source tracking per node
 
 Search is hybrid: cosine similarity + full-text, with 1-hop edge expansion.
+
+Prefer Postgres-native solutions (pgvector, pgboss, tsvector) over adding new infrastructure.
 
 ### Key modules
 
@@ -107,23 +129,38 @@ Search is hybrid: cosine similarity + full-text, with 1-hop edge expansion.
 | `src/whatsapp/` | Transport layer (Baileys connection, send, receive, TTS, STT, presence) |
 | `src/db/` | Drizzle schema, client, write path, search |
 
+### Project boundaries
+
+- `/whatsapp` — pure transport, no business logic
+- `/core` — pipeline, agent engine, queue, middleware
+- `/db` — schema, search, write path, migrations
+- `/tools` — each tool/tool-set in its own file or folder
+- `/context` — one file per context query
+- `/agents` — markdown prompt files with YAML frontmatter
+- `/skills` — static `.md` reference documents loaded on demand via `skill_get`
+
 ### Testing conventions
 
 - Tests mirror source tree under `src/__tests__/`
+- Write tests alongside the code being developed, not after
 - Mocks must be registered **before** importing the module under test (Bun mock hoisting)
 - Use real Postgres for DB tests (`RUN_DB_TESTS=1`); mock at the model-router boundary for unit tests
 - Clean up registries in `afterEach` (agentRegistry, toolRegistry)
+- No coverage targets — optimize for confidence in the critical paths: pipeline, middleware, DB read/write, tool execution
+- Agent evals (`*.eval.ts`) test non-deterministic behavior — not CI-blocking, tracked over time
 - Test timeout: 30s (bunfig.toml)
 
-### Code conventions (from AGENT.md)
+### Code conventions
 
 - No barrel files — import from specific module paths
 - Errors are values — return don't throw (except at true system boundaries)
 - No `any` types; explicit return types on exported functions
-- Prefer `const` and pure functions
+- Prefer `const` and pure functions; minimize mutable state
 - Config lives in `src/config.ts`, not scattered env reads
 - One concern per file
 - Path alias `@/` maps to `src/`
+- No unnecessary comments — code should be self-explanatory; comments explain *why*, never *what*
+- Keep the dependency list short; justify every addition — use `bun add` / `bun update`, no need to check versions manually
 
 ### Environment
 
