@@ -25,9 +25,12 @@ mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 
 // @/db/client + @/db/write — keep mocked: require live Postgres
 const mockReturning = mock(async () => [{ id: "msg-id-1" }]);
-const mockInsert = mock(() => ({
-	values: () => ({ returning: mockReturning, catch: () => undefined }),
-}));
+const capturedInsertValues: Record<string, unknown>[] = [];
+const mockValues = mock((vals: unknown) => {
+	capturedInsertValues.push(vals as Record<string, unknown>);
+	return { returning: mockReturning, catch: () => undefined };
+});
+const mockInsert = mock(() => ({ values: mockValues }));
 mock.module("@/db/client", () => ({
 	db: { insert: mockInsert },
 }));
@@ -137,9 +140,11 @@ beforeEach(() => {
 	mockAgentRunner.mockClear();
 	mockEnqueueMessage.mockClear();
 	mockInsert.mockClear();
+	mockValues.mockClear();
 	mockReturning.mockClear();
 	mockUpdateFileMessageId.mockClear();
 	mockResolveQuotedMessageId.mockClear();
+	capturedInsertValues.length = 0;
 
 	mockReturning.mockImplementation(async () => [{ id: "msg-id-1" }]);
 	mockResolveQuotedMessageId.mockImplementation(async () => null);
@@ -413,5 +418,58 @@ describe("handleTurn — quoted messages", () => {
 		const quoted = { externalId: "id-abc" };
 		await handleTurn(makeMsg({ text: "Yes of course", quotedMessage: quoted }));
 		expect(lastTurn().message?.quotedMessage).toEqual(quoted);
+	});
+});
+
+// ─── Flags and command persistence ────────────────────────────────────────────
+
+describe("handleTurn — flags persistence", () => {
+	test("persists active flags as string array in the message row", async () => {
+		await handleTurn(makeMsg({ text: "@klaus !verbose !en hello" }));
+		const vals = capturedInsertValues[0];
+		expect(vals?.flags).toEqual(expect.arrayContaining(["verbose", "en"]));
+		expect((vals?.flags as string[]).length).toBe(2);
+	});
+
+	test("persists null flags when no flags present", async () => {
+		await handleTurn(makeMsg({ text: "hello" }));
+		const vals = capturedInsertValues[0];
+		expect(vals?.flags).toBeNull();
+	});
+});
+
+describe("handleTurn — command persistence", () => {
+	test("persists command message in DB with command name", async () => {
+		const mockExecute = mock(async () => undefined);
+		registry.register({
+			name: "test-persist",
+			description: "Test",
+			execute: mockExecute,
+		});
+		await handleTurn(makeMsg({ text: "/test-persist arg1" }));
+		expect(capturedInsertValues).toHaveLength(1);
+		const vals = capturedInsertValues[0];
+		expect(vals?.command).toBe("test-persist");
+		expect(vals?.content).toBe("/test-persist arg1");
+		expect(vals?.role).toBe("user");
+	});
+
+	test("command dispatch persists message before executing", async () => {
+		const callOrder: string[] = [];
+		mockValues.mockImplementation((vals: unknown) => {
+			callOrder.push("db-insert");
+			capturedInsertValues.push(vals as Record<string, unknown>);
+			return { returning: mockReturning, catch: () => undefined };
+		});
+		const mockExecute = mock(async () => {
+			callOrder.push("command-execute");
+		});
+		registry.register({
+			name: "test-order",
+			description: "Test",
+			execute: mockExecute,
+		});
+		await handleTurn(makeMsg({ text: "/test-order" }));
+		expect(callOrder).toEqual(["db-insert", "command-execute"]);
 	});
 });

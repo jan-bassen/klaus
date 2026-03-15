@@ -11,7 +11,7 @@
 
 ## Message Pipeline
 - [x] Add auto-generated /help with all infos (maybe split with param a la "/help commands")
-- [ ] Track flags and commands in db?
+- [x] Track flags and commands in db
 
 # Agents
 - [ ] Fitness - An agent that tracks my fitness goals/progress, manage my trainingplan and helps me stay on track. I want to call him directly with @fitness during training sessions and he should be able to provide me with motivation and insights, mostly through random (for me unexpected) dispatches to motivate me. Espescially on training days.

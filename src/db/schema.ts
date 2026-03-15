@@ -196,6 +196,10 @@ export const messages = pgTable(
 			(): AnyPgColumn => messages.id,
 			{ onDelete: "set null" },
 		),
+		/** Active !flags parsed from the message (e.g. ["verbose", "en"]) */
+		flags: text("flags").array(),
+		/** /command name if this message was a command dispatch (e.g. "status") */
+		command: text("command"),
 	},
 	(t) => [
 		index("idx_messages_chat_time").on(t.chatId, t.createdAt),
