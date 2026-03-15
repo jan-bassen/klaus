@@ -124,6 +124,8 @@ export interface AgentDefinition {
 	providerTools?: string[];
 	/** Skill document names this agent can load on demand (filenames without .md in src/skills/) */
 	skills?: string[];
+	/** Optional vault subdirectory this agent is restricted to, e.g. "Training" */
+	vaultScope?: string;
 	/** Absolute path to the .md file — used for hot-reload */
 	promptPath: string;
 }
