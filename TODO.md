@@ -9,16 +9,10 @@ Snippets moved to vault (`Klaus/snippets/`), memory consolidated to `Klaus/memor
 ## Skills
 - [ ] Add skills to the example vault
 
-## Check cron implementation
-We moved from postgres to just files and obsidian, now the agent prompts live in the vault and can be live-edited (which is great), so I am unsure if I change the schedule, that the changes will not be applied automatically.
-- [x] Check implementation for solution to this
-- [x] Implement automatic reloading of cron jobs if possible
-- [x] Search for other issues related to the "hot-loading" of agent files (tools, modelTiers, etc)
-- Implemented: `src/core/watcher.ts` — `fs.watch` on agents/ and skills/ dirs with debounce, reconciles agentRegistry, skillRegistry, and cron schedules on file changes
 
 ## Store Check
-- [ ] Check reply/quote flow after store change
-- [ ] Check tooling around store, so Klaus can retrieve what he needs
+- [x] Check reply/quote flow after store change
+- [x] Check tooling around store, so Klaus can retrieve what he needs
 
 ## Agents
 - [ ] Fitness - An agent that tracks my fitness goals/progress, manage my trainingplan and helps me stay on track. I want to call him directly with @fitness during training sessions and he should be able to provide me with motivation and insights, mostly through random (for me unexpected) dispatches to motivate me. Espescially on training days.
@@ -26,8 +20,8 @@ We moved from postgres to just files and obsidian, now the agent prompts live in
 - [ ] Nicola - Italian teacher
 
 ## Cleanup
-- [ ] volume names cleaner
-- [ ] remove env.config
+- [ ] volume names cleaner (eg. obsidian-sync -> obsidian)
+- [ ] remove env.config (put into docker-compose or config.ts - if nothing fits, use .env.example)
 - [ ] Check for unnecessary files and functions (eg. check src/core/defaults.ts or src/core/middleware.ts)
 - [ ] Check for outdated comments, documentation, or memory files
 - [ ] Rename context queries to just context/context variables

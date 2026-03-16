@@ -241,6 +241,7 @@ export async function normalizeMessage(
 					path: filePath,
 					mimeType,
 					sizeBytes,
+					...(m.key.id ? { externalId: m.key.id } : {}),
 				});
 
 				const fileName = docMsg?.fileName;

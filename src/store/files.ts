@@ -9,6 +9,7 @@ export interface FileMeta {
 	mimeType: string;
 	sizeBytes: number;
 	messageId?: string;
+	externalId?: string;
 	createdAt: string;
 }
 
@@ -16,6 +17,8 @@ export interface FileMeta {
 const fileIndex = new Map<string, FileMeta>();
 /** Reverse index: messageId → fileId */
 const messageFileIndex = new Map<string, string>();
+/** Reverse index: externalId → fileId */
+const externalFileIndex = new Map<string, string>();
 
 function filesDir(): string {
 	return path.join(config.dataDir, "files");
@@ -31,6 +34,7 @@ export async function saveFileMeta(meta: {
 	mimeType: string;
 	sizeBytes: number;
 	messageId?: string;
+	externalId?: string;
 }): Promise<{ id: string; path: string } | Error> {
 	try {
 		await mkdir(filesDir(), { recursive: true });
@@ -41,11 +45,13 @@ export async function saveFileMeta(meta: {
 			mimeType: meta.mimeType,
 			sizeBytes: meta.sizeBytes,
 			...(meta.messageId ? { messageId: meta.messageId } : {}),
+			...(meta.externalId ? { externalId: meta.externalId } : {}),
 			createdAt: new Date().toISOString(),
 		};
 		await appendFile(indexPath(), `${JSON.stringify(record)}\n`);
 		fileIndex.set(id, record);
 		if (meta.messageId) messageFileIndex.set(meta.messageId, id);
+		if (meta.externalId) externalFileIndex.set(meta.externalId, id);
 		return { id, path: meta.path };
 	} catch (err) {
 		return err instanceof Error ? err : new Error(String(err));
@@ -89,6 +95,18 @@ export function findFileByMessageId(
 	return { fileId: meta.id, path: meta.path, mimeType: meta.mimeType };
 }
 
+/** Find the first image file linked to a given WhatsApp externalId. */
+export function findFileByExternalId(
+	externalId: string,
+): { fileId: string; path: string; mimeType: string } | null {
+	const fileId = externalFileIndex.get(externalId);
+	if (!fileId) return null;
+	const meta = fileIndex.get(fileId);
+	if (!meta) return null;
+	if (!meta.mimeType.startsWith("image/")) return null;
+	return { fileId: meta.id, path: meta.path, mimeType: meta.mimeType };
+}
+
 /** List all files, optionally filtered by path prefix. */
 export function listFiles(prefix?: string): FileMeta[] {
 	const all = [...fileIndex.values()];
@@ -102,6 +120,7 @@ export function deleteFile(fileId: string): boolean {
 	if (!meta) return false;
 	fileIndex.delete(fileId);
 	if (meta.messageId) messageFileIndex.delete(meta.messageId);
+	if (meta.externalId) externalFileIndex.delete(meta.externalId);
 	return true;
 }
 
@@ -112,6 +131,7 @@ export function deleteFile(fileId: string): boolean {
 export async function rebuildFileIndex(): Promise<void> {
 	fileIndex.clear();
 	messageFileIndex.clear();
+	externalFileIndex.clear();
 
 	try {
 		const text = await Bun.file(indexPath()).text();
@@ -125,9 +145,12 @@ export async function rebuildFileIndex(): Promise<void> {
 				mimeType: record.mimeType,
 				sizeBytes: record.sizeBytes,
 				...(record.messageId ? { messageId: record.messageId } : {}),
+				...(record.externalId ? { externalId: record.externalId } : {}),
 				createdAt: record.createdAt,
 			});
 			if (record.messageId) messageFileIndex.set(record.messageId, record.id);
+			if (record.externalId)
+				externalFileIndex.set(record.externalId, record.id);
 		}
 	} catch {
 		// No index file yet
@@ -140,4 +163,5 @@ export async function rebuildFileIndex(): Promise<void> {
 export function _clearFileIndexForTest(): void {
 	fileIndex.clear();
 	messageFileIndex.clear();
+	externalFileIndex.clear();
 }

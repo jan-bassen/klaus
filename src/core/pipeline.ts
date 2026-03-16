@@ -21,7 +21,11 @@ import { config } from "@/config";
 import { getDefaultAgent } from "@/core/defaults";
 import { log } from "@/logger";
 import { appendMessage, findByExternalId } from "@/store/conversation";
-import { findFileByMessageId, updateFileMessageId } from "@/store/files";
+import {
+	findFileByExternalId,
+	findFileByMessageId,
+	updateFileMessageId,
+} from "@/store/files";
 import { parseFlags, stripFlags } from "@/whatsapp/flags";
 import { startTyping, stopTyping } from "@/whatsapp/presence";
 import { enqueueMessage } from "@/whatsapp/send";
@@ -147,18 +151,29 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 
 		// Resolve quoted message media if this is a reply
 		if (effectiveMsg.quotedMessage) {
+			let quotedMedia: {
+				fileId: string;
+				path: string;
+				mimeType: string;
+			} | null = null;
 			const found = findByExternalId(effectiveMsg.quotedMessage.externalId);
 			if (found) {
-				const quotedMedia = findFileByMessageId(found.messageId);
-				if (quotedMedia) {
-					effectiveMsg = {
-						...effectiveMsg,
-						quotedMessage: {
-							...effectiveMsg.quotedMessage,
-							media: quotedMedia,
-						},
-					};
-				}
+				quotedMedia = findFileByMessageId(found.messageId);
+			}
+			// Fallback: look up file directly by externalId (works for archived messages)
+			if (!quotedMedia) {
+				quotedMedia = findFileByExternalId(
+					effectiveMsg.quotedMessage.externalId,
+				);
+			}
+			if (quotedMedia) {
+				effectiveMsg = {
+					...effectiveMsg,
+					quotedMessage: {
+						...effectiveMsg.quotedMessage,
+						media: quotedMedia,
+					},
+				};
 			}
 		}
 

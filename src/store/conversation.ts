@@ -1,4 +1,4 @@
-import { appendFile, mkdir, rename } from "node:fs/promises";
+import { appendFile, mkdir, readdir, rename } from "node:fs/promises";
 import path from "node:path";
 import { config } from "@/config";
 import { log } from "@/logger";
@@ -294,6 +294,157 @@ export async function rebuildIndexes(): Promise<void> {
 	log.info("[conversation] indexes rebuilt", {
 		messages: idToExternal.size,
 	});
+}
+
+/** Read and merge all JSONL files (current + archive), returning messages sorted by createdAt. */
+export async function readAllMessages(): Promise<ConversationMessage[]> {
+	const files: string[] = [];
+
+	// Archive files first (oldest to newest)
+	try {
+		const archiveFiles = await readdir(archiveDir());
+		for (const f of archiveFiles.sort()) {
+			if (f.endsWith(".jsonl")) {
+				files.push(path.join(archiveDir(), f));
+			}
+		}
+	} catch {
+		// No archive dir yet
+	}
+
+	// Current file last
+	files.push(currentFilePath());
+
+	const allMessages: ConversationMessage[] = [];
+
+	for (const filePath of files) {
+		let text: string;
+		try {
+			text = await Bun.file(filePath).text();
+		} catch {
+			continue;
+		}
+
+		const messages = new Map<string, ConversationMessage>();
+		const acks = new Map<string, string>();
+		const reactions: ConversationReactionEvent[] = [];
+		const order: string[] = [];
+
+		for (const line of text.split("\n")) {
+			if (!line.trim()) continue;
+			const event = JSON.parse(line) as ConversationEvent;
+
+			if (event.kind === "msg") {
+				messages.set(event.id, {
+					id: event.id,
+					role: event.role,
+					content: event.content,
+					createdAt: event.createdAt,
+					...(event.externalId ? { externalId: event.externalId } : {}),
+					...(event.quotedText ? { quotedText: event.quotedText } : {}),
+					...(event.quotedRole ? { quotedRole: event.quotedRole } : {}),
+					...(event.flags ? { flags: event.flags } : {}),
+					...(event.command != null ? { command: event.command } : {}),
+					reactions: [],
+				});
+				order.push(event.id);
+			} else if (event.kind === "ack") {
+				acks.set(event.messageId, event.externalId);
+			} else if (event.kind === "reaction") {
+				reactions.push(event);
+			}
+		}
+
+		for (const [messageId, externalId] of acks) {
+			const msg = messages.get(messageId);
+			if (msg) msg.externalId = externalId;
+		}
+
+		const extToMsg = new Map<string, string>();
+		for (const msg of messages.values()) {
+			if (msg.externalId) extToMsg.set(msg.externalId, msg.id);
+		}
+
+		for (const r of reactions) {
+			const msgId = extToMsg.get(r.messageExternalId);
+			if (!msgId) continue;
+			const msg = messages.get(msgId);
+			if (!msg) continue;
+			const existing = msg.reactions.findIndex(
+				(rx) => rx.senderId === r.senderId,
+			);
+			if (r.emoji === "") {
+				if (existing >= 0) msg.reactions.splice(existing, 1);
+			} else if (existing >= 0) {
+				msg.reactions[existing] = {
+					emoji: r.emoji,
+					senderId: r.senderId,
+					fromMe: r.fromMe,
+				};
+			} else {
+				msg.reactions.push({
+					emoji: r.emoji,
+					senderId: r.senderId,
+					fromMe: r.fromMe,
+				});
+			}
+		}
+
+		for (const id of order) {
+			const msg = messages.get(id);
+			if (msg) allMessages.push(msg);
+		}
+	}
+
+	return allMessages;
+}
+
+/** Search conversation history across current + archived JSONL files. */
+export async function searchConversation(opts: {
+	query?: string;
+	around?: string;
+	before?: string;
+	after?: string;
+	limit?: number;
+	contextWindow?: number;
+}): Promise<ConversationMessage[]> {
+	const limit = opts.limit ?? 20;
+	const contextWindow = opts.contextWindow ?? 5;
+	const all = await readAllMessages();
+
+	// "around" mode: find target message and return context window around it
+	if (opts.around) {
+		const idx = all.findIndex((m) => m.externalId === opts.around);
+		if (idx === -1) return [];
+		const start = Math.max(0, idx - contextWindow);
+		const end = Math.min(all.length, idx + contextWindow + 1);
+		return all.slice(start, end);
+	}
+
+	// Filter mode
+	let filtered = all;
+
+	if (opts.after) {
+		const afterDate = new Date(opts.after).getTime();
+		filtered = filtered.filter(
+			(m) => new Date(m.createdAt).getTime() >= afterDate,
+		);
+	}
+
+	if (opts.before) {
+		const beforeDate = new Date(opts.before).getTime();
+		filtered = filtered.filter(
+			(m) => new Date(m.createdAt).getTime() <= beforeDate,
+		);
+	}
+
+	if (opts.query) {
+		const q = opts.query.toLowerCase();
+		filtered = filtered.filter((m) => m.content?.toLowerCase().includes(q));
+	}
+
+	// Return most recent matches
+	return filtered.slice(-limit);
 }
 
 /** Clear in-memory indexes. Used by rotate() and tests. */

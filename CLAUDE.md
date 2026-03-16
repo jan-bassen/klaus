@@ -124,6 +124,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/context/` | Context query modules (inject dynamic content into prompts) |
 | `src/tools/` | Tool definitions + toolset loaders |
 | `src/tools/skill.ts` | `buildSkillTool()` — per-agent skill.get tool builder |
+| `src/tools/conversation.ts` | Standalone tool: search conversation history (text, around message, time range) |
 | `src/commands/` | /command handlers |
 | `src/whatsapp/` | Transport layer (Baileys connection, send, receive, TTS, STT, presence) |
 

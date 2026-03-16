@@ -29,6 +29,7 @@ const {
 	saveFileMeta,
 	findFile,
 	findFileByMessageId,
+	findFileByExternalId,
 	listFiles,
 	deleteFile,
 	updateFileMessageId,
@@ -128,6 +129,38 @@ describe("deleteFile", () => {
 	});
 });
 
+describe("saveFileMeta with externalId", () => {
+	test("stores externalId and makes it findable via findFileByExternalId", async () => {
+		const result = await saveFileMeta({
+			path: "/tmp/photo.jpg",
+			mimeType: "image/jpeg",
+			sizeBytes: 200,
+			externalId: "wa-ext-1",
+		});
+		expect(result).not.toBeInstanceOf(Error);
+		const saved = result as { id: string; path: string };
+
+		const found = findFileByExternalId("wa-ext-1");
+		expect(found).not.toBeNull();
+		expect(found?.fileId).toBe(saved.id);
+		expect(found?.mimeType).toBe("image/jpeg");
+	});
+
+	test("findFileByExternalId returns null for non-image files", async () => {
+		await saveFileMeta({
+			path: "/tmp/doc.pdf",
+			mimeType: "application/pdf",
+			sizeBytes: 100,
+			externalId: "wa-ext-pdf",
+		});
+		expect(findFileByExternalId("wa-ext-pdf")).toBeNull();
+	});
+
+	test("findFileByExternalId returns null for unknown externalId", () => {
+		expect(findFileByExternalId("unknown-ext")).toBeNull();
+	});
+});
+
 describe("rebuildFileIndex", () => {
 	test("restores in-memory index from JSONL", async () => {
 		const result = await saveFileMeta({
@@ -144,5 +177,23 @@ describe("rebuildFileIndex", () => {
 		const found = findFile(saved.id);
 		expect(found).not.toBeNull();
 		expect(found?.sizeBytes).toBe(42);
+	});
+
+	test("restores externalFileIndex from JSONL", async () => {
+		const result = await saveFileMeta({
+			path: "/tmp/rebuild.jpg",
+			mimeType: "image/jpeg",
+			sizeBytes: 300,
+			externalId: "wa-rebuild-ext",
+		});
+		const saved = result as { id: string };
+
+		_clearFileIndexForTest();
+		expect(findFileByExternalId("wa-rebuild-ext")).toBeNull();
+
+		await rebuildFileIndex();
+		const found = findFileByExternalId("wa-rebuild-ext");
+		expect(found).not.toBeNull();
+		expect(found?.fileId).toBe(saved.id);
 	});
 });

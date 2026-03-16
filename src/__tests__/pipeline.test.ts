@@ -45,9 +45,14 @@ const mockFindFileByMessageId = mock(
 	(_msgId: string) =>
 		null as { fileId: string; path: string; mimeType: string } | null,
 );
+const mockFindFileByExternalId = mock(
+	(_extId: string) =>
+		null as { fileId: string; path: string; mimeType: string } | null,
+);
 mock.module("@/store/files", () => ({
 	updateFileMessageId: mockUpdateFileMessageId,
 	findFileByMessageId: mockFindFileByMessageId,
+	findFileByExternalId: mockFindFileByExternalId,
 	saveFileMeta: mock(async () => ({ id: "f-1", path: "/tmp/f" })),
 	findFile: mock(() => null),
 	listFiles: mock(() => []),
@@ -167,6 +172,7 @@ beforeEach(() => {
 	mockUpdateFileMessageId.mockClear();
 	mockFindByExternalId.mockClear();
 	mockFindFileByMessageId.mockClear();
+	mockFindFileByExternalId.mockClear();
 
 	mockAppendMessage.mockImplementation(async (msg: unknown) => {
 		capturedAppendMessages.push(msg as Record<string, unknown>);
@@ -442,6 +448,33 @@ describe("handleTurn — quoted messages", () => {
 		const quoted = { externalId: "id-abc" };
 		await handleTurn(makeMsg({ text: "Yes of course", quotedMessage: quoted }));
 		expect(lastTurn().message?.quotedMessage).toEqual(quoted);
+	});
+
+	test("falls back to findFileByExternalId when findByExternalId returns null (archived message)", async () => {
+		mockFindByExternalId.mockImplementation(() => null);
+		mockFindFileByExternalId.mockImplementation((extId: string) =>
+			extId === "archived-ext-id"
+				? {
+						fileId: "file-archived",
+						path: "/tmp/old-photo.jpg",
+						mimeType: "image/jpeg",
+					}
+				: null,
+		);
+
+		await handleTurn(
+			makeMsg({
+				text: "look at this old photo",
+				quotedMessage: { externalId: "archived-ext-id" },
+			}),
+		);
+
+		expect(mockFindFileByExternalId).toHaveBeenCalledWith("archived-ext-id");
+		expect(lastTurn().message?.quotedMessage?.media).toEqual({
+			fileId: "file-archived",
+			path: "/tmp/old-photo.jpg",
+			mimeType: "image/jpeg",
+		});
 	});
 });
 

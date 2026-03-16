@@ -259,6 +259,12 @@ Built-in agents:
 | ops     | cron, cost-tracking                                 | Scheduling and spend monitoring|
 | files   | upload, download, list, delete                      | File management                |
 
+**Standalone tools** are opt-in per agent via `tools:` in frontmatter:
+
+| Tool                 | Purpose                                                                 |
+| -------------------- | ----------------------------------------------------------------------- |
+| conversation         | Search conversation history by text, around a message, or time range    |
+
 Agents can also use **provider tools** — Anthropic built-in capabilities like web_search, web_fetch, and code_execution that are injected directly via the Vercel AI SDK.
 
 ### Skills

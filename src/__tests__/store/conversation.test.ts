@@ -36,6 +36,7 @@ const {
 	resolveMessageId,
 	rotate,
 	rebuildIndexes,
+	searchConversation,
 	_clearIndexesForTest,
 } = await import("@/store/conversation");
 
@@ -44,10 +45,23 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-	// Clean current.jsonl between tests
+	// Clean current.jsonl and archive between tests
+	const {
+		unlink,
+		readdir: readdirAsync,
+		rm: rmAsync,
+	} = await import("node:fs/promises");
 	try {
-		const { unlink } = await import("node:fs/promises");
 		await unlink(join(tmpDir, "conversations", "current.jsonl"));
+	} catch {
+		// doesn't exist
+	}
+	try {
+		const archiveDir = join(tmpDir, "conversations", "archive");
+		const files = await readdirAsync(archiveDir);
+		for (const f of files) {
+			await rmAsync(join(archiveDir, f));
+		}
 	} catch {
 		// doesn't exist
 	}
@@ -199,5 +213,85 @@ describe("rebuildIndexes", () => {
 		await rebuildIndexes();
 		expect(findByExternalId("wa-rebuild-1")?.messageId).toBe(id);
 		expect(resolveExternalId("wa-ack-1")).toBe(ackId);
+	});
+});
+
+describe("searchConversation", () => {
+	test("searches by query text across current + archive", async () => {
+		// Write messages to current, rotate to archive, then write more
+		await appendMessage({
+			role: "user",
+			content: "I love pizza",
+			externalId: "wa-s1",
+		});
+		await appendMessage({
+			role: "assistant",
+			content: "Me too!",
+			externalId: "wa-s2",
+		});
+		await rotate();
+
+		await appendMessage({
+			role: "user",
+			content: "Pizza is the best food",
+			externalId: "wa-s3",
+		});
+
+		const results = await searchConversation({ query: "pizza" });
+		expect(results).toHaveLength(2);
+		expect(results[0]?.content).toBe("I love pizza");
+		expect(results[1]?.content).toBe("Pizza is the best food");
+	});
+
+	test("around mode returns context window", async () => {
+		for (let i = 0; i < 10; i++) {
+			await appendMessage({
+				role: i % 2 === 0 ? "user" : "assistant",
+				content: `message ${i}`,
+				externalId: `wa-around-${i}`,
+			});
+		}
+
+		const results = await searchConversation({
+			around: "wa-around-5",
+			contextWindow: 2,
+		});
+		expect(results).toHaveLength(5); // 2 before + target + 2 after
+		expect(results[2]?.content).toBe("message 5");
+	});
+
+	test("around mode returns empty for unknown externalId", async () => {
+		await appendMessage({
+			role: "user",
+			content: "test",
+			externalId: "wa-x",
+		});
+		const results = await searchConversation({ around: "wa-unknown" });
+		expect(results).toHaveLength(0);
+	});
+
+	test("filters by before/after timestamps", async () => {
+		await appendMessage({
+			role: "user",
+			content: "early message",
+			externalId: "wa-t1",
+		});
+		// Delay to ensure distinct timestamps
+		await new Promise((r) => setTimeout(r, 20));
+		const cutoff = new Date().toISOString();
+		await new Promise((r) => setTimeout(r, 20));
+		await appendMessage({
+			role: "user",
+			content: "late message",
+			externalId: "wa-t2",
+		});
+
+		const before = await searchConversation({ before: cutoff });
+		expect(before).toHaveLength(1);
+		expect(before[0]?.content).toBe("early message");
+
+		const after = await searchConversation({ after: cutoff });
+		expect(after).toHaveLength(1);
+		expect(after[0]?.content).toBe("late message");
 	});
 });
