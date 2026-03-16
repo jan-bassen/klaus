@@ -80,6 +80,11 @@ export const config = {
 		maxChainDepth: 10,
 	},
 
+	// File watcher settings for hot-reloading agent and skill definitions.
+	watcher: {
+		debounceMs: 1_000,
+	},
+
 	// Directory where uploaded and downloaded media files are stored.
 	files: {
 		get dir() {

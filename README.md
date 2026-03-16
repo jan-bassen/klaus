@@ -237,7 +237,7 @@ schedule: "0 3 * * *"         # optional — makes it a cron agent
 ---
 ```
 
-Agent files are hot-loaded on demand — edit a .md file and it takes effect on the next message, no restart needed.
+Agent and skill files are watched for changes at runtime — edits to prompt text, YAML frontmatter (model tier, tools, toolsets, schedule, etc.), or adding/removing files take effect automatically with no restart needed. Schedule changes are reconciled immediately (old cron removed, new one registered).
 
 Built-in agents:
 
@@ -358,7 +358,7 @@ It is {{weekday}} ({{date}}, {{time}}).
 {{message_text}}
 ```
 
-No restart needed — agent files are hot-loaded on the next message.
+No restart needed — agent files are watched and hot-reloaded automatically.
 
 ### Add a new tool
 
@@ -461,7 +461,7 @@ Then add the skill name to an agent's frontmatter:
 skills: [workout-plan]
 ```
 
-No restart needed — skill files are read on demand.
+No restart needed — skill files are watched and hot-reloaded automatically.
 
 ---
 

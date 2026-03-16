@@ -119,6 +119,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/core/dispatch.ts` | async/inline/cron dispatch modes |
 | `src/core/model-router.ts` | LLM call routing + cost logging |
 | `src/core/queue.ts` | In-memory job queue with file-based persistence |
+| `src/core/watcher.ts` | File watcher for hot-reloading agent and skill definitions |
 | `src/store/` | Flat-file storage modules (conversations, tasks, costs, files, etc.) |
 | `src/context/` | Context query modules (inject dynamic content into prompts) |
 | `src/tools/` | Tool definitions + toolset loaders |

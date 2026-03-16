@@ -6,6 +6,7 @@ import { loadContextQueries, setContextQueries } from "./core/assemble";
 import { dispatch } from "./core/dispatch";
 import { initQueue, registerCronCallback } from "./core/queue";
 import { loadAllTools } from "./core/registry";
+import { startWatching, stopWatching } from "./core/watcher";
 import { startWorkers } from "./core/worker";
 import { log } from "./logger";
 import { loadBudgets } from "./store/budgets";
@@ -49,7 +50,10 @@ async function shutdown(signal: string): Promise<void> {
 	const { stopQueue } = await import("./core/queue");
 	await stopQueue();
 
-	// 4. Stop cron schedules.
+	// 4. Stop file watchers.
+	stopWatching();
+
+	// 5. Stop cron schedules.
 	const { stopAllSchedules } = await import("./store/schedules");
 	stopAllSchedules();
 
@@ -170,7 +174,10 @@ async function main(): Promise<void> {
 		});
 	});
 
-	// 6. Start WhatsApp connection
+	// 6. Watch agent and skill directories for hot-reload
+	startWatching(agentsDir, skillsDir);
+
+	// 7. Start WhatsApp connection
 	log.info("[startup] connecting to WhatsApp");
 	const { connectionTimeoutMs } = config.startup;
 	const socket = await Promise.race([
@@ -189,7 +196,7 @@ async function main(): Promise<void> {
 	]);
 	attachReceiveHandler(socket);
 
-	// 7. Health check
+	// 8. Health check
 	Bun.serve({
 		port: PORT,
 		async fetch(req) {
