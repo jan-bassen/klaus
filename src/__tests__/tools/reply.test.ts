@@ -12,28 +12,17 @@ const mockTextToSpeech = mock(
 );
 mock.module("@/whatsapp/tts", () => ({ textToSpeech: mockTextToSpeech }));
 
-const mockResolveQuotedMessageId = mock(async () => null);
-mock.module("@/db/write", () => ({
-	resolveQuotedMessageId: mockResolveQuotedMessageId,
+const mockAppendMessage = mock(async () => "row-uuid-1");
+const mockAppendAck = mock(async () => {});
+mock.module("@/store/conversation", () => ({
+	appendMessage: mockAppendMessage,
+	appendAck: mockAppendAck,
+	resolveExternalId: mock(() => null),
+	findByExternalId: mock(() => null),
+	getConversation: mock(async () => []),
+	rebuildIndexes: mock(async () => {}),
+	_clearIndexesForTest: mock(() => {}),
 }));
-
-const mockInsertReturning = mock(async () => [{ id: "row-uuid-1" }]);
-const mockDb = {
-	insert: mock(() => ({
-		values: mock(() => ({
-			returning: mockInsertReturning,
-		})),
-	})),
-	update: mock(() => ({
-		set: mock(() => ({
-			where: mock(() => ({
-				catch: mock(() => {}),
-			})),
-		})),
-	})),
-};
-mock.module("@/db/client", () => ({ db: mockDb }));
-mock.module("@/db/schema", () => ({ messages: {} }));
 
 mock.module("@/logger", () => ({
 	log: {
@@ -80,9 +69,9 @@ beforeEach(() => {
 	mockEnqueueMessage.mockClear();
 	mockTextToSpeech.mockClear();
 	mockTextToSpeech.mockImplementation(async () => Buffer.from("fake-audio"));
-	mockResolveQuotedMessageId.mockClear();
-	mockInsertReturning.mockClear();
-	mockInsertReturning.mockImplementation(async () => [{ id: "row-uuid-1" }]);
+	mockAppendMessage.mockClear();
+	mockAppendMessage.mockImplementation(async () => "row-uuid-1");
+	mockAppendAck.mockClear();
 });
 
 // ─── tests ───────────────────────────────────────────────────────────────────

@@ -4,9 +4,8 @@
  */
 
 import { config } from "@/config";
-import { db } from "@/db/client";
-import { costs } from "@/db/schema";
 import { log } from "@/logger";
+import { recordCost } from "@/store/costs";
 
 const TTS_BASE = "https://api.elevenlabs.io/v1/text-to-speech";
 
@@ -44,18 +43,11 @@ export async function textToSpeech(
 
 		const chars = text.length;
 		const costUsd = (chars / 1_000_000) * config.apiPricing.tts.perMChars;
-		db.insert(costs)
-			.values({
-				chatId,
-				service: "tts",
-				units: chars,
-				costUsd: String(costUsd),
-			})
-			.catch((err) =>
-				log.warn("[cost] failed to record tts cost", {
-					error: err instanceof Error ? err.message : String(err),
-				}),
-			);
+		recordCost("tts", chars, costUsd, chatId).catch((err) =>
+			log.warn("[cost] failed to record tts cost", {
+				error: err instanceof Error ? err.message : String(err),
+			}),
+		);
 
 		return Buffer.from(await res.arrayBuffer());
 	} catch (err) {

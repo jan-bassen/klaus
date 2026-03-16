@@ -586,7 +586,7 @@ export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
 export const vaultToolset: ToolsetDefinition = {
 	name: "vault",
 	description:
-		"Use when the request involves Jan's Obsidian vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. Distinct from memory (the knowledge graph DB) and files (arbitrary filesystem). Use this for anything that sounds like a note, a document, or something Jan would have written down.",
+		"Use when the request involves Jan's Obsidian vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. This is the primary knowledge interface: notes are memory, [[wikilinks]] are relationships, frontmatter tags enable discovery. Klaus writes its own notes to Klaus/memory/. Use for anything that sounds like a note, a document, something to remember, or something Jan would have written down.",
 	tools: [
 		vaultReadTool,
 		vaultSearchTool,

@@ -16,20 +16,15 @@ mock.module("@/core/queue", () => ({
 	scheduleJob: mockScheduleJob,
 }));
 
-const mockInsertReturning = mock(async () => [{ id: "task-uuid-1" }]);
-const mockUpdateSet = mock(() => ({ where: mock(async () => {}) }));
-const mockDb = {
-	insert: mock(() => ({
-		values: mock(() => ({
-			returning: mockInsertReturning,
-		})),
-	})),
-	update: mock(() => ({
-		set: mockUpdateSet,
-	})),
-};
-mock.module("@/db/client", () => ({ db: mockDb }));
-mock.module("@/db/schema", () => ({ tasks: {}, invocations: {}, costs: {} }));
+const mockCreateTask = mock(async () => "task-uuid-1");
+const mockMoveTask = mock(async () => {});
+mock.module("@/store/tasks", () => ({
+	createTask: mockCreateTask,
+	moveTask: mockMoveTask,
+	getTask: mock(async () => null),
+	listTasks: mock(async () => []),
+	recoverRunningTasks: mock(async () => {}),
+}));
 
 mock.module("@/logger", () => ({
 	log: {
@@ -88,8 +83,9 @@ beforeEach(() => {
 	mockAssembleContext.mockClear();
 	mockEnqueueJob.mockClear();
 	mockScheduleJob.mockClear();
-	mockInsertReturning.mockClear();
-	mockInsertReturning.mockImplementation(async () => [{ id: "task-uuid-1" }]);
+	mockCreateTask.mockClear();
+	mockCreateTask.mockImplementation(async () => "task-uuid-1");
+	mockMoveTask.mockClear();
 	agentRegistry.clear();
 });
 
@@ -111,9 +107,10 @@ describe("dispatch", () => {
 		expect(mockEnqueueJob).not.toHaveBeenCalled();
 	});
 
-	test("async mode inserts task, enqueues job, returns task ID", async () => {
+	test("async mode creates task, enqueues job, returns task ID", async () => {
 		const result = await dispatch(makeOpts({ mode: { kind: "async" } }));
 		expect(result).toBe("task-uuid-1");
+		expect(mockCreateTask).toHaveBeenCalledTimes(1);
 		expect(mockEnqueueJob).toHaveBeenCalledTimes(1);
 		expect(mockRunAgent).not.toHaveBeenCalled();
 	});
@@ -167,18 +164,36 @@ describe("dispatch", () => {
 });
 
 describe("task status transitions", () => {
-	test("markTaskRunning updates task status", async () => {
+	test("markTaskRunning calls moveTask with 'running'", async () => {
 		await markTaskRunning("task-1");
-		expect(mockDb.update).toHaveBeenCalled();
+		expect(mockMoveTask).toHaveBeenCalledTimes(1);
+		const [id, status] = mockMoveTask.mock.calls[0] as unknown as [
+			string,
+			string,
+		];
+		expect(id).toBe("task-1");
+		expect(status).toBe("running");
 	});
 
-	test("markTaskDone updates task status", async () => {
+	test("markTaskDone calls moveTask with 'done'", async () => {
 		await markTaskDone("task-1");
-		expect(mockDb.update).toHaveBeenCalled();
+		expect(mockMoveTask).toHaveBeenCalledTimes(1);
+		const [id, status] = mockMoveTask.mock.calls[0] as unknown as [
+			string,
+			string,
+		];
+		expect(id).toBe("task-1");
+		expect(status).toBe("done");
 	});
 
-	test("markTaskFailed updates task status", async () => {
+	test("markTaskFailed calls moveTask with 'failed'", async () => {
 		await markTaskFailed("task-1");
-		expect(mockDb.update).toHaveBeenCalled();
+		expect(mockMoveTask).toHaveBeenCalledTimes(1);
+		const [id, status] = mockMoveTask.mock.calls[0] as unknown as [
+			string,
+			string,
+		];
+		expect(id).toBe("task-1");
+		expect(status).toBe("failed");
 	});
 });

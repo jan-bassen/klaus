@@ -7,8 +7,9 @@ import {
 } from "@whiskeysockets/baileys";
 import { config } from "@/config";
 import { handleTurn } from "@/core/pipeline";
-import { persistReaction, saveFile } from "@/db/write";
 import { log } from "@/logger";
+import { appendReaction } from "@/store/conversation";
+import { saveFileMeta } from "@/store/files";
 import type { InboundMessage } from "@/types";
 import { onReaction } from "./confirm";
 import { enqueueMessage, setSocket } from "./send";
@@ -63,15 +64,11 @@ export function attachReceiveHandler(socket: WASocket): void {
 				try {
 					await handleTurn(msg);
 				} catch (err) {
-					// Should not happen — pipeline has its own top-level catch — but guard here
-					// anyway so a bug in the pipeline itself cannot crash the event listener.
 					log.error("[receive] unhandled error from handleTurn", {
 						chatId: msg.chatId,
 						error: err instanceof Error ? err.message : String(err),
 						stack: err instanceof Error ? err.stack : undefined,
 					});
-					// Last-resort notification: pipeline's own catch should have already sent this,
-					// but if it threw itself the user would otherwise get nothing.
 					try {
 						enqueueMessage({
 							chatId: msg.chatId,
@@ -98,7 +95,12 @@ export function attachReceiveHandler(socket: WASocket): void {
 				typeof reaction.text === "string" &&
 				chatId
 			) {
-				persistReaction(chatId, reactedId, reaction.text, senderId, fromMe); // best-effort
+				appendReaction({
+					messageExternalId: reactedId,
+					emoji: reaction.text,
+					senderId,
+					fromMe,
+				}).catch(() => {}); // best-effort
 				onReaction(reactedId, reaction.text);
 			}
 		}
@@ -164,13 +166,8 @@ export async function normalizeMessage(
 		return null;
 	}
 
-	// Unwrap Baileys envelope types (ephemeral, viewOnce, editedMessage, etc.)
-	// so the inner extendedTextMessage / imageMessage / etc. are always at the top level.
 	const normalized = normalizeMessageContent(raw.message) ?? m.message;
 
-	// Extract text — conversation (1:1) or extendedTextMessage (quoted/formatted).
-	// Use || (not ??) because conversation can be an empty string "" when the actual
-	// text lives in extendedTextMessage.text.
 	const text =
 		normalized.conversation ||
 		normalized.extendedTextMessage?.text ||
@@ -194,7 +191,6 @@ export async function normalizeMessage(
 	const docMsg = normalized.documentMessage;
 	const mediaMsg = imgMsg ?? audioMsg ?? docMsg ?? null;
 
-	// Skip messages with neither text nor supported media nor a quoted reply
 	if (!text && !mediaMsg && !quotedMessage) {
 		log.debug("[receive] skip no-text no-media", {
 			remoteJid: m.key.remoteJid,
@@ -206,7 +202,6 @@ export async function normalizeMessage(
 	const tsSeconds =
 		typeof rawTs === "bigint" ? Number(rawTs) : (rawTs ?? Date.now() / 1000);
 
-	// Caption text from image/document (used if no explicit text field)
 	const effectiveText = text ?? imgMsg?.caption ?? docMsg?.caption ?? undefined;
 
 	let media: InboundMessage["media"] | undefined;
@@ -217,7 +212,6 @@ export async function normalizeMessage(
 			audioMsg?.mimetype ??
 			docMsg?.mimetype ??
 			"application/octet-stream";
-		// Strip "; codecs=..." suffix if present
 		const mimeType = rawMime.split(";")[0]?.trim() ?? rawMime;
 
 		const fileLength = Number(
@@ -243,11 +237,15 @@ export async function normalizeMessage(
 				await Bun.write(filePath, buffer as Buffer);
 
 				const sizeBytes = (buffer as Buffer).byteLength;
-				const saved = await saveFile({ path: filePath, mimeType, sizeBytes });
+				const saved = await saveFileMeta({
+					path: filePath,
+					mimeType,
+					sizeBytes,
+				});
 
 				const fileName = docMsg?.fileName;
 				if (saved instanceof Error) {
-					log.warn("[receive] saveFile failed — media not tracked in DB", {
+					log.warn("[receive] saveFileMeta failed — media not tracked", {
 						remoteJid: m.key.remoteJid,
 						error: saved.message,
 					});
@@ -273,7 +271,6 @@ export async function normalizeMessage(
 			}
 	}
 
-	// Nothing actionable — skip
 	if (!effectiveText && !media && !quotedMessage) {
 		log.debug("[receive] skip no content", { remoteJid: m.key.remoteJid });
 		return null;

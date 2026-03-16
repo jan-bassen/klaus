@@ -1,8 +1,6 @@
-import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "@/db/client";
-import { messages } from "@/db/schema";
 import { log } from "@/logger";
+import { appendAck, appendMessage } from "@/store/conversation";
 import type { ToolDefinition } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 import { textToSpeech } from "@/whatsapp/tts";
@@ -28,18 +26,12 @@ export const sendTool: ToolDefinition<typeof sendSchema> = {
 
 		let rowId: string | undefined;
 		try {
-			const [row] = await db
-				.insert(messages)
-				.values({
-					chatId: context.chatId,
-					role: "assistant",
-					content,
-					createdAt: new Date(),
-				})
-				.returning({ id: messages.id });
-			rowId = row?.id;
+			rowId = await appendMessage({
+				role: "assistant",
+				content,
+			});
 		} catch (err) {
-			log.warn("[send] failed to persist assistant message to DB", {
+			log.warn("[send] failed to persist assistant message", {
 				chatId: context.chatId,
 				error: err instanceof Error ? err.message : String(err),
 			});
@@ -47,15 +39,12 @@ export const sendTool: ToolDefinition<typeof sendSchema> = {
 
 		const onSent = rowId
 			? (waId: string) => {
-					db.update(messages)
-						.set({ externalId: waId })
-						.where(eq(messages.id, rowId))
-						.catch((err: unknown) => {
-							log.warn("[send] failed to backfill externalId", {
-								chatId: context.chatId,
-								error: err instanceof Error ? err.message : String(err),
-							});
+					appendAck(rowId, waId).catch((err: unknown) => {
+						log.warn("[send] failed to backfill externalId", {
+							chatId: context.chatId,
+							error: err instanceof Error ? err.message : String(err),
 						});
+					});
 				}
 			: undefined;
 

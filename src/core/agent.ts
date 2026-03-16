@@ -136,7 +136,7 @@ export async function runAgent(
 
 	// Skills — per-agent scoped tool, registered only when agent declares skills
 	if (def.skills?.length) {
-		const skillsDir = path.resolve(path.dirname(def.promptPath), "../skills");
+		const skillsDir = path.resolve(config.vault.dir, "Klaus", "skills");
 		const skillTool = buildSkillTool(def.skills, skillsDir);
 		const sdkName = skillTool.name.replace(/\./g, "_");
 		allTools[sdkName] = wrap(skillTool);

@@ -2,9 +2,9 @@ import { anthropic } from "@ai-sdk/anthropic";
 import type { ModelMessage, StepResult, ToolSet } from "ai";
 import { generateText, stepCountIs } from "ai";
 import { config, type ModelTier } from "@/config";
-import { db } from "@/db/client";
-import { costs, invocations } from "@/db/schema";
 import { log } from "@/logger";
+import { recordCost } from "@/store/costs";
+import { recordInvocation } from "@/store/invocations";
 import { checkModelRate } from "./rate-limiter";
 
 export class LlmTimeoutError extends Error {
@@ -73,7 +73,6 @@ export async function callModel(
 	const timeoutMs = config.llm.timeoutMs;
 
 	// Retry transient failures (network errors, 5xx) with exponential backoff.
-	// Do NOT retry timeouts or rate-limit errors — those are definitive.
 	const MAX_ATTEMPTS = 3;
 	let result: Awaited<ReturnType<typeof generateText>> | undefined;
 	let lastErr: unknown;
@@ -149,8 +148,7 @@ export async function callModel(
 
 	const durationMs = Date.now() - startTime;
 
-	// Aggregate token usage across all steps (maxSteps may run multiple LLM calls).
-	// ai@6 uses inputTokens/outputTokens on LanguageModelUsage.
+	// Aggregate token usage across all steps.
 	const promptTokens = result.steps.reduce(
 		(s, st) => s + (st.usage.inputTokens ?? 0),
 		0,
@@ -170,8 +168,7 @@ export async function callModel(
 		});
 	}
 
-	// Serialize steps: pick only the fields useful for debugging.
-	// reasoning is populated when extended thinking is enabled (providerOptions.thinking).
+	// Serialize steps for debugging.
 	const steps = result.steps.map((s) => ({
 		text: s.text,
 		reasoning: s.reasoning,
@@ -188,7 +185,7 @@ export async function callModel(
 				: JSON.stringify(opts.messages[0]?.content)
 			: undefined;
 
-	await db.insert(invocations).values({
+	recordInvocation({
 		agent: opts.agentName ?? "unknown",
 		model: modelId,
 		...(opts.messageId ? { messageId: opts.messageId } : {}),
@@ -199,22 +196,23 @@ export async function callModel(
 		promptTokens,
 		completionTokens,
 		durationMs,
-		createdAt: new Date(),
-	});
+	}).catch((err) =>
+		log.warn("[model-router] failed to record invocation", {
+			error: err instanceof Error ? err.message : String(err),
+		}),
+	);
 
 	if (costUsd > 0) {
-		db.insert(costs)
-			.values({
-				...(opts.chatId ? { chatId: opts.chatId } : {}),
-				service: "llm",
-				units: promptTokens + completionTokens,
-				costUsd: String(costUsd),
-			})
-			.catch((err) =>
-				log.warn("[cost] failed to record llm cost", {
-					error: err instanceof Error ? err.message : String(err),
-				}),
-			);
+		recordCost(
+			"llm",
+			promptTokens + completionTokens,
+			costUsd,
+			opts.chatId,
+		).catch((err) =>
+			log.warn("[cost] failed to record llm cost", {
+				error: err instanceof Error ? err.message : String(err),
+			}),
+		);
 	}
 
 	return {

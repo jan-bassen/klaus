@@ -1,7 +1,7 @@
 import type { WAMessageKey } from "@whiskeysockets/baileys";
 import { z } from "zod";
-import { persistReaction } from "@/db/write";
 import { log } from "@/logger";
+import { appendReaction } from "@/store/conversation";
 import type { ToolDefinition } from "@/types";
 import { getSocket } from "@/whatsapp/connection";
 import { sendReaction } from "@/whatsapp/reactions";
@@ -54,7 +54,12 @@ export const reactTool: ToolDefinition<typeof reactSchema> = {
 			return { error: result.message };
 		}
 		const botId = getSocket().user?.id ?? "bot";
-		await persistReaction(chatId, externalId, emoji, botId, true);
+		await appendReaction({
+			messageExternalId: externalId,
+			emoji,
+			senderId: botId,
+			fromMe: true,
+		});
 		return "reacted";
 	},
 	kind: "builtin",

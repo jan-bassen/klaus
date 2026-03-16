@@ -5,7 +5,6 @@ import { checkAllowlist } from "./middleware";
 import { checkMessageRate } from "./rate-limiter";
 
 // ─── Test seam ────────────────────────────────────────────────────────────────
-// Allows pipeline tests to capture turns without mock.module pollution.
 let _agentRunner: (turn: TurnContext, def: AgentDefinition) => Promise<void> =
 	runAgent;
 export function _setAgentRunnerForTest(
@@ -18,22 +17,20 @@ export function _clearAgentRunnerForTest(): void {
 }
 
 import { registry as commandRegistry, parseCommand } from "@/commands";
+import { config } from "@/config";
 import { getDefaultAgent } from "@/core/defaults";
-import { db } from "@/db/client";
-import { messages } from "@/db/schema";
-import {
-	resolveQuotedMessageFile,
-	resolveQuotedMessageId,
-	updateFileMessageId,
-} from "@/db/write";
 import { log } from "@/logger";
+import { appendMessage, findByExternalId } from "@/store/conversation";
+import { findFileByMessageId, updateFileMessageId } from "@/store/files";
 import { parseFlags, stripFlags } from "@/whatsapp/flags";
 import { startTyping, stopTyping } from "@/whatsapp/presence";
 import { enqueueMessage } from "@/whatsapp/send";
 import { transcribe } from "@/whatsapp/voice";
 import { assembleContext } from "./assemble";
 
-const AGENTS_DIR = path.join(import.meta.dir, "..", "agents");
+function agentsDir(): string {
+	return path.join(config.vault.dir, "Klaus", "agents");
+}
 
 /**
  * The single orchestrator for all user-initiated messages.
@@ -97,7 +94,6 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 					});
 				}
 			}
-			// Images and documents: no text enrichment — metadata exposed via message context query
 		}
 
 		const rawText = processedMsg.text ?? "";
@@ -110,12 +106,10 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 				command: cmd.name,
 			});
 
-			// Persist command message to conversation history
-			await db.insert(messages).values({
-				chatId: processedMsg.chatId,
+			// Persist command message to conversation
+			await appendMessage({
 				role: "user",
 				content: processedMsg.text ?? null,
-				createdAt: processedMsg.timestamp,
 				externalId: processedMsg.id,
 				command: cmd.name,
 			});
@@ -132,17 +126,17 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			? rawText.slice(routeMatch[0].length)
 			: rawText;
 
-		// Parse flags from cleanText BEFORE stripping — strippedText loses the !tokens
+		// Parse flags from cleanText BEFORE stripping
 		const flags = parseFlags({ ...processedMsg, text: cleanText });
 		const strippedText = stripFlags(cleanText);
 
-		// Strip flags and routing prefix from msg text so downstream context sees clean text
+		// Strip flags and routing prefix from msg text
 		let effectiveMsg: InboundMessage = { ...processedMsg, text: strippedText };
 
 		// Step 6: Resolve agent definition
 		let def = agentRegistry.get(agentName);
 		if (!def) {
-			const promptPath = path.join(AGENTS_DIR, `${agentName}.md`);
+			const promptPath = path.join(agentsDir(), `${agentName}.md`);
 			def = await loadAgentDefinition(promptPath);
 			agentRegistry.set(def.name, def);
 		}
@@ -151,16 +145,11 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			agent: agentName,
 		});
 
-		// Resolve quoted message FK if this is a reply
-		let quotedMessageId: string | null = null;
+		// Resolve quoted message media if this is a reply
 		if (effectiveMsg.quotedMessage) {
-			quotedMessageId = await resolveQuotedMessageId(
-				effectiveMsg.chatId,
-				effectiveMsg.quotedMessage.externalId,
-			);
-			// Look up image file linked to the quoted message so the agent can see it
-			if (quotedMessageId) {
-				const quotedMedia = await resolveQuotedMessageFile(quotedMessageId);
+			const found = findByExternalId(effectiveMsg.quotedMessage.externalId);
+			if (found) {
+				const quotedMedia = findFileByMessageId(found.messageId);
 				if (quotedMedia) {
 					effectiveMsg = {
 						...effectiveMsg,
@@ -173,25 +162,22 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			}
 		}
 
-		// Persist inbound message to conversation history
+		// Persist inbound message to conversation
 		const flagNames = Object.keys(flags);
-		const [inserted] = await db
-			.insert(messages)
-			.values({
-				chatId: effectiveMsg.chatId,
-				role: "user",
-				content: effectiveMsg.text ?? null,
-				createdAt: effectiveMsg.timestamp,
-				externalId: effectiveMsg.id,
-				...(quotedMessageId ? { quotedMessageId } : {}),
-				flags: flagNames.length > 0 ? flagNames : null,
-			})
-			.returning({ id: messages.id });
+		const messageId = await appendMessage({
+			role: "user",
+			content: effectiveMsg.text ?? null,
+			externalId: effectiveMsg.id,
+			...(effectiveMsg.quotedMessage?.text
+				? { quotedText: effectiveMsg.quotedMessage.text, quotedRole: "user" }
+				: {}),
+			...(flagNames.length > 0 ? { flags: flagNames } : {}),
+		});
 
-		if (effectiveMsg.media?.fileId && inserted?.id) {
+		if (effectiveMsg.media?.fileId && messageId) {
 			const backfill = await updateFileMessageId(
 				effectiveMsg.media.fileId,
-				inserted.id,
+				messageId,
 			);
 			if (backfill instanceof Error) {
 				log.warn("[pipeline] updateFileMessageId failed", {
@@ -206,7 +192,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			message: effectiveMsg,
 			agent: def,
 			flags,
-			...(inserted ? { messageId: inserted.id } : {}),
+			messageId,
 		};
 
 		// Step 7: Assemble context (all queries in parallel)

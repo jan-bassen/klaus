@@ -1,0 +1,143 @@
+import { appendFile, mkdir } from "node:fs/promises";
+import path from "node:path";
+import { config } from "@/config";
+import { log } from "@/logger";
+
+export interface FileMeta {
+	id: string;
+	path: string;
+	mimeType: string;
+	sizeBytes: number;
+	messageId?: string;
+	createdAt: string;
+}
+
+/** In-memory index: fileId → FileMeta */
+const fileIndex = new Map<string, FileMeta>();
+/** Reverse index: messageId → fileId */
+const messageFileIndex = new Map<string, string>();
+
+function filesDir(): string {
+	return path.join(config.dataDir, "files");
+}
+
+function indexPath(): string {
+	return path.join(filesDir(), "files-index.jsonl");
+}
+
+/** Save file metadata to the index. Returns the file record. */
+export async function saveFileMeta(meta: {
+	path: string;
+	mimeType: string;
+	sizeBytes: number;
+	messageId?: string;
+}): Promise<{ id: string; path: string } | Error> {
+	try {
+		await mkdir(filesDir(), { recursive: true });
+		const id = crypto.randomUUID();
+		const record: FileMeta = {
+			id,
+			path: meta.path,
+			mimeType: meta.mimeType,
+			sizeBytes: meta.sizeBytes,
+			...(meta.messageId ? { messageId: meta.messageId } : {}),
+			createdAt: new Date().toISOString(),
+		};
+		await appendFile(indexPath(), `${JSON.stringify(record)}\n`);
+		fileIndex.set(id, record);
+		if (meta.messageId) messageFileIndex.set(meta.messageId, id);
+		return { id, path: meta.path };
+	} catch (err) {
+		return err instanceof Error ? err : new Error(String(err));
+	}
+}
+
+/** Update the messageId for a file (backfill after message insert). */
+export async function updateFileMessageId(
+	fileId: string,
+	messageId: string,
+): Promise<undefined | Error> {
+	const meta = fileIndex.get(fileId);
+	if (!meta) return new Error(`File not found: ${fileId}`);
+	meta.messageId = messageId;
+	messageFileIndex.set(messageId, fileId);
+	// Append an update record to the index
+	try {
+		await appendFile(
+			indexPath(),
+			`${JSON.stringify({ ...meta, _update: true })}\n`,
+		);
+	} catch (err) {
+		return err instanceof Error ? err : new Error(String(err));
+	}
+}
+
+/** Find a file by ID. */
+export function findFile(fileId: string): FileMeta | null {
+	return fileIndex.get(fileId) ?? null;
+}
+
+/** Find the first image file linked to a given message. */
+export function findFileByMessageId(
+	messageId: string,
+): { fileId: string; path: string; mimeType: string } | null {
+	const fileId = messageFileIndex.get(messageId);
+	if (!fileId) return null;
+	const meta = fileIndex.get(fileId);
+	if (!meta) return null;
+	if (!meta.mimeType.startsWith("image/")) return null;
+	return { fileId: meta.id, path: meta.path, mimeType: meta.mimeType };
+}
+
+/** List all files, optionally filtered by path prefix. */
+export function listFiles(prefix?: string): FileMeta[] {
+	const all = [...fileIndex.values()];
+	if (!prefix) return all;
+	return all.filter((f) => f.path.includes(prefix));
+}
+
+/** Delete a file from the index (does not remove the blob). */
+export function deleteFile(fileId: string): boolean {
+	const meta = fileIndex.get(fileId);
+	if (!meta) return false;
+	fileIndex.delete(fileId);
+	if (meta.messageId) messageFileIndex.delete(meta.messageId);
+	return true;
+}
+
+/**
+ * Rebuild in-memory indexes from files-index.jsonl.
+ * Call once at startup.
+ */
+export async function rebuildFileIndex(): Promise<void> {
+	fileIndex.clear();
+	messageFileIndex.clear();
+
+	try {
+		const text = await Bun.file(indexPath()).text();
+		for (const line of text.split("\n")) {
+			if (!line.trim()) continue;
+			const record = JSON.parse(line) as FileMeta & { _update?: boolean };
+			// Later entries overwrite earlier ones (handles updates)
+			fileIndex.set(record.id, {
+				id: record.id,
+				path: record.path,
+				mimeType: record.mimeType,
+				sizeBytes: record.sizeBytes,
+				...(record.messageId ? { messageId: record.messageId } : {}),
+				createdAt: record.createdAt,
+			});
+			if (record.messageId) messageFileIndex.set(record.messageId, record.id);
+		}
+	} catch {
+		// No index file yet
+	}
+
+	log.info("[files] index rebuilt", { files: fileIndex.size });
+}
+
+/** Clear indexes. Test-only. */
+export function _clearFileIndexForTest(): void {
+	fileIndex.clear();
+	messageFileIndex.clear();
+}

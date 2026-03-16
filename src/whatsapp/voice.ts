@@ -4,9 +4,8 @@
 
 import path from "node:path";
 import { config } from "@/config";
-import { db } from "@/db/client";
-import { costs } from "@/db/schema";
 import { log } from "@/logger";
+import { recordCost } from "@/store/costs";
 
 const SCRIBE_URL = "https://api.elevenlabs.io/v1/speech-to-text";
 
@@ -51,18 +50,12 @@ export async function transcribe(
 		// Estimate audio duration from file size (OGG Opus ~16 kbps for WhatsApp voice messages).
 		const estimatedSeconds = (blob.size * 8) / 16_000;
 		const costUsd = (estimatedSeconds / 3600) * config.apiPricing.stt.perHour;
-		db.insert(costs)
-			.values({
-				...(chatId ? { chatId } : {}),
-				service: "stt",
-				units: Math.round(estimatedSeconds),
-				costUsd: String(costUsd),
-			})
-			.catch((err) =>
+		recordCost("stt", Math.round(estimatedSeconds), costUsd, chatId).catch(
+			(err) =>
 				log.warn("[cost] failed to record stt cost", {
 					error: err instanceof Error ? err.message : String(err),
 				}),
-			);
+		);
 
 		return json.text ?? "";
 	} catch (err) {

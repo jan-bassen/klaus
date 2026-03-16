@@ -1,55 +1,89 @@
-import { eq } from "drizzle-orm";
+import path from "node:path";
 import { config } from "@/config";
-import { db } from "@/db/client";
-import { nodes } from "@/db/schema";
-import { hybridSearch } from "@/db/search";
 import type { ContextQuery, ContextResult, TurnContext } from "@/types";
 
-/** Renders a single memory node block. */
-function formatMemoryNode(title: string | null, body: string | null): string {
-	return `### ${title ?? "(untitled)"}\n${body ?? ""}`;
+/** Renders a single vault note block for context injection. */
+function formatMemoryNote(filePath: string, body: string): string {
+	const name = path.basename(filePath, ".md");
+	return `### ${name}\n${body}`;
 }
 
 /**
- * Provides auto_memory: pinned nodes (always included) + hybrid search results
- * resolved to parent nodes + 1-hop edge expansion.
+ * Provides auto_memory: pinned vault notes + keyword search across the whole vault.
+ * Replaces the DB-backed hybrid search with vault file scanning.
  */
 export const graphContextQuery: ContextQuery = {
 	name: "auto_memory",
 	priority: 2,
 	run: async (turn: Omit<TurnContext, "assembled">): Promise<ContextResult> => {
-		// Always include pinned nodes
-		const pinned = await db.select().from(nodes).where(eq(nodes.pinned, true));
+		const vaultDir = config.vault.dir;
+		const glob = new Bun.Glob("**/*.md");
+		const fmPattern = /^---\n([\s\S]*?)\n---/;
 
-		// Hybrid search: use message text for WhatsApp turns, objective for dispatched agents
-		const query = turn.message?.text ?? turn.dispatchContext?.objective ?? "";
-		const searchResults = query
-			? await hybridSearch({ query, limit: 10, expandEdges: true })
-			: [];
+		const items: { filePath: string; body: string }[] = [];
 
-		// Merge: pinned first, then search hits (dedup by id)
-		const seen = new Set<string>();
-		const items: { title: string | null; body: string | null }[] = [];
-
-		for (const node of pinned) {
-			seen.add(node.id);
-			items.push({ title: node.title, body: node.body });
+		// Phase 1: Scan for pinned notes (frontmatter: pinned: true)
+		for await (const file of glob.scan({ cwd: vaultDir })) {
+			try {
+				const text = await Bun.file(path.join(vaultDir, file)).text();
+				const fm = text.match(fmPattern)?.[1] ?? "";
+				if (/^pinned:\s*true/m.test(fm)) {
+					// Strip frontmatter for context
+					const body = text.replace(fmPattern, "").trim();
+					items.push({ filePath: file, body });
+				}
+			} catch {
+				// Skip unreadable files
+			}
 		}
-		for (const { node, matchingChunk } of searchResults) {
-			if (!seen.has(node.id)) {
-				seen.add(node.id);
-				items.push({ title: node.title, body: matchingChunk ?? node.body });
+
+		// Phase 2: Keyword search using message text or dispatch objective
+		const query = turn.message?.text ?? turn.dispatchContext?.objective ?? "";
+		if (query) {
+			const terms = query
+				.toLowerCase()
+				.split(/\s+/)
+				.filter((t) => t.length > 2); // Skip very short words
+
+			if (terms.length > 0) {
+				const seen = new Set(items.map((i) => i.filePath));
+				const searchResults: {
+					filePath: string;
+					body: string;
+					matches: number;
+				}[] = [];
+
+				for await (const file of glob.scan({ cwd: vaultDir })) {
+					if (seen.has(file)) continue;
+					try {
+						const text = await Bun.file(path.join(vaultDir, file)).text();
+						const lower = text.toLowerCase();
+						const matchCount = terms.filter((t) => lower.includes(t)).length;
+						if (matchCount > 0) {
+							const body = text.replace(fmPattern, "").trim();
+							searchResults.push({ filePath: file, body, matches: matchCount });
+						}
+					} catch {
+						// Skip unreadable files
+					}
+				}
+
+				// Sort by match count descending, take top 10
+				searchResults.sort((a, b) => b.matches - a.matches);
+				for (const result of searchResults.slice(0, 10)) {
+					items.push({ filePath: result.filePath, body: result.body });
+				}
 			}
 		}
 
 		if (items.length === 0) return { tokenCount: 0, truncate: "oldest" };
 
-		// Trim items from the tail until within the per-source budget.
+		// Trim items to fit within budget
 		const budget = config.context.graphContextTokens;
 		let tokenCount = 0;
 		const included: typeof items = [];
 		for (const item of items) {
-			const rendered = formatMemoryNode(item.title, item.body);
+			const rendered = formatMemoryNote(item.filePath, item.body);
 			const tokens = Math.ceil(rendered.length / 4);
 			if (tokenCount + tokens > budget) break;
 			included.push(item);
@@ -59,7 +93,7 @@ export const graphContextQuery: ContextQuery = {
 		if (included.length === 0) return { tokenCount: 0, truncate: "oldest" };
 
 		const content = included
-			.map(({ title, body }) => formatMemoryNode(title, body))
+			.map(({ filePath, body }) => formatMemoryNote(filePath, body))
 			.join("\n\n");
 
 		return { content, tokenCount, truncate: "oldest" };

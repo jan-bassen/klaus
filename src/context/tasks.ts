@@ -1,6 +1,4 @@
-import { inArray } from "drizzle-orm";
-import { db } from "@/db/client";
-import { tasks } from "@/db/schema";
+import { listTasks } from "@/store/tasks";
 import type { ContextQuery, ContextResult, TurnContext } from "@/types";
 
 /** Renders a single task list item with optional indentation. */
@@ -9,17 +7,14 @@ function formatTaskItem(status: string, objective: string, indent = 0): string {
 	return `${prefix}- [${status}] ${objective}`;
 }
 
-/** Provides active_tasks: all non-terminal tasks from the tasks table, showing chain structure. */
+/** Provides active_tasks: all non-terminal tasks, showing chain structure. */
 export const activeTasksQuery: ContextQuery = {
 	name: "active_tasks",
 	priority: 4,
 	run: async (
 		_turn: Omit<TurnContext, "assembled">,
 	): Promise<ContextResult> => {
-		const rows = await db
-			.select()
-			.from(tasks)
-			.where(inArray(tasks.status, ["pending", "running"]));
+		const rows = await listTasks({ status: ["pending", "running"] });
 
 		if (rows.length === 0)
 			return { content: "", tokenCount: 0, truncate: "always" };
@@ -35,7 +30,7 @@ export const activeTasksQuery: ContextQuery = {
 				lines.push(formatTaskItem(child.status, child.objective, 1));
 			}
 		}
-		// Any children whose parent is not itself active (parent already done/failed).
+		// Any children whose parent is not itself active.
 		const topLevelIds = new Set(topLevel.map((t) => t.id));
 		for (const child of children.filter(
 			(c) => c.parentTaskId && !topLevelIds.has(c.parentTaskId),

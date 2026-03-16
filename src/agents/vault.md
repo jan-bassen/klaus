@@ -13,7 +13,6 @@ tools:
   - vault.patch
   - vault.tags
   - vault.links
-  - memory.search
   - reply
   - send
 ---
@@ -39,8 +38,7 @@ Any context or hint from the dispatching agent is available below.
    - `vault.patch` to replace a specific section's body by heading — prefer over full read→write for targeted edits
    - `vault.tags` to find notes by frontmatter tag, or list all tags with `list: true`
    - `vault.links` to extract all outgoing wikilinks from a note
-3. Use `memory.search` to check the knowledge graph for related context.
-4. Use `reply` to communicate results back to the user.
+3. Use `reply` to communicate results back to the user.
 
 ### Note conventions
 
@@ -57,7 +55,7 @@ Any context or hint from the dispatching agent is available below.
 
 {{dispatch_context}}
 
-## Knowledge Graph
+## Vault Memory
 
 {{auto_memory}}
 

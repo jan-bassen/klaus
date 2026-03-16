@@ -10,11 +10,10 @@ providerTools:
   - web_search
   - web_fetch
 toolsets:
-  - memory
+  - vault
   - task
   - ops
   - files
-  - vault
 ---
 
 {{soul}}

@@ -1,14 +1,10 @@
-import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { dispatch as dispatchAgent } from "@/core/dispatch";
-import { getQueue } from "@/core/queue";
-import { db } from "@/db/client";
-import { tasks } from "@/db/schema";
 import { log } from "@/logger";
+import { getTask, listTasks, moveTask, type TaskRecord } from "@/store/tasks";
 import type { ToolDefinition, ToolsetDefinition } from "@/types";
 
 // dispatch — surface tool (always available)
-// Wraps the unified dispatch() primitive. Agents use this to invoke other agents.
 const dispatchSchema = z.object({
 	agent: z.string().describe("Name of the agent to invoke"),
 	objective: z.string().describe("What the agent should accomplish"),
@@ -59,25 +55,11 @@ export const taskCancelTool: ToolDefinition<typeof taskCancelSchema> = {
 	description: "Cancel a pending or running task.",
 	inputSchema: taskCancelSchema,
 	execute: async (input) => {
-		const [task] = await db
-			.select({ id: tasks.id, status: tasks.status })
-			.from(tasks)
-			.where(eq(tasks.id, input.taskId));
+		const task = await getTask(input.taskId);
 		if (!task) return `Task ${input.taskId} not found.`;
 		if (["done", "failed", "cancelled"].includes(task.status))
 			return `Task already ${task.status}.`;
-		await db
-			.update(tasks)
-			.set({ status: "cancelled" })
-			.where(eq(tasks.id, input.taskId));
-		try {
-			await getQueue().cancel("agent-run", input.taskId);
-		} catch (err) {
-			log.warn("[task.cancel] pg-boss cancel failed", {
-				taskId: input.taskId,
-				error: err instanceof Error ? err.message : String(err),
-			});
-		}
+		await moveTask(input.taskId, "cancelled");
 		return `Cancelled task ${input.taskId}`;
 	},
 	kind: "builtin",
@@ -96,17 +78,13 @@ export const taskListTool: ToolDefinition<typeof taskListSchema> = {
 	description: "List tasks, optionally filtered by status.",
 	inputSchema: taskListSchema,
 	execute: async (input, context) => {
-		const filter = input.status
-			? and(eq(tasks.chatId, context.chatId), eq(tasks.status, input.status))
-			: eq(tasks.chatId, context.chatId);
-		const rows = await db
-			.select()
-			.from(tasks)
-			.where(filter)
-			.orderBy(desc(tasks.createdAt))
-			.limit(20);
+		const rows = await listTasks({
+			...(input.status ? { status: input.status } : {}),
+			chatId: context.chatId,
+		});
 		if (rows.length === 0) return "No tasks found.";
 		return rows
+			.slice(0, 20)
 			.map(
 				(t) => `[${t.id}] ${t.assignedTo ?? "?"} — ${t.status}: ${t.objective}`,
 			)
@@ -127,10 +105,7 @@ export const taskGetTool: ToolDefinition<typeof taskGetSchema> = {
 		"Fetch the full details of a task by ID, including status, timing, and result.",
 	inputSchema: taskGetSchema,
 	execute: async (input) => {
-		const [task] = await db
-			.select()
-			.from(tasks)
-			.where(eq(tasks.id, input.taskId));
+		const task = await getTask(input.taskId);
 		if (!task) return `Task ${input.taskId} not found.`;
 		const lines = [
 			`ID:         ${task.id}`,
@@ -139,8 +114,8 @@ export const taskGetTool: ToolDefinition<typeof taskGetSchema> = {
 			`Caller:     ${task.caller ?? "—"}`,
 			`Objective:  ${task.objective}`,
 			`Parent:     ${task.parentTaskId ?? "—"}`,
-			`Created:    ${task.createdAt.toISOString()}`,
-			`Completed:  ${task.completedAt?.toISOString() ?? "—"}`,
+			`Created:    ${task.createdAt}`,
+			`Completed:  ${task.completedAt ?? "—"}`,
 			`Result:     ${task.result != null ? JSON.stringify(task.result, null, 2) : "—"}`,
 		];
 		return lines.join("\n");

@@ -1,27 +1,5 @@
-import type { InferSelectModel } from "drizzle-orm";
 import type { z } from "zod";
 import type { ModelTier } from "./config";
-import type {
-	chunks,
-	edges,
-	files,
-	invocations,
-	messages,
-	nodes,
-	nodeVersions,
-	tasks,
-} from "./db/schema";
-
-// -- DB row types --
-
-export type Node = InferSelectModel<typeof nodes>;
-export type Edge = InferSelectModel<typeof edges>;
-export type Chunk = InferSelectModel<typeof chunks>;
-export type NodeVersion = InferSelectModel<typeof nodeVersions>;
-export type Task = InferSelectModel<typeof tasks>;
-export type Message = InferSelectModel<typeof messages>;
-export type File = InferSelectModel<typeof files>;
-export type Invocation = InferSelectModel<typeof invocations>;
 
 // -- WhatsApp / transport --
 
@@ -44,7 +22,7 @@ export interface InboundMessage {
 	};
 	/** Set by receive.ts when this message is a reply to another message */
 	quotedMessage?: {
-		/** Baileys stanzaId — used to resolve the quotedMessageId FK in the DB */
+		/** Baileys stanzaId — used to find the quoted message */
 		externalId: string;
 		/** Text of the quoted message, extracted from Baileys contextInfo at receive time */
 		text?: string;
@@ -86,7 +64,7 @@ export interface TurnContext {
 	agent: AgentDefinition;
 	flags: Record<string, boolean>;
 	assembled: AssembledContext;
-	/** DB ID of the persisted inbound message row — set in pipeline after insert */
+	/** Internal message ID — set in pipeline after insert */
 	messageId?: string;
 	/** Injected for dispatched agents; undefined for direct @agent WhatsApp calls */
 	dispatchContext?: {
@@ -122,7 +100,7 @@ export interface AgentDefinition {
 	contextParams?: Record<string, Record<string, unknown>>;
 	/** Anthropic provider tool names (e.g. "web_search", "web_fetch", "code_execution") */
 	providerTools?: string[];
-	/** Skill document names this agent can load on demand (filenames without .md in src/skills/) */
+	/** Skill document names this agent can load on demand (filenames without .md in skills/) */
 	skills?: string[];
 	/** Optional vault subdirectory this agent is restricted to, e.g. "Training" */
 	vaultScope?: string;

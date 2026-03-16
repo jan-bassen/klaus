@@ -1,9 +1,10 @@
-import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "@/db/client";
-import { messages } from "@/db/schema";
-import { resolveQuotedMessageId } from "@/db/write";
 import { log } from "@/logger";
+import {
+	appendAck,
+	appendMessage,
+	resolveExternalId,
+} from "@/store/conversation";
 import type { ToolDefinition } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 import { textToSpeech } from "@/whatsapp/tts";
@@ -42,7 +43,6 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 
 		// Resolve the quoted message reference if provided.
 		let quoted: { externalId: string; fromMe: boolean } | undefined;
-		let quotedMessageId: string | undefined;
 		if (messageRef) {
 			let ref: { externalId: string; role: string } | undefined;
 			if (messageRef === "current") {
@@ -55,28 +55,17 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			}
 			if (!ref) return { error: `Unknown message reference: #${messageRef}` };
 			quoted = { externalId: ref.externalId, fromMe: ref.role !== "user" };
-			// Resolve to DB UUID for the quotedMessageId FK (best-effort).
-			quotedMessageId =
-				(await resolveQuotedMessageId(context.chatId, ref.externalId)) ??
-				undefined; // null → undefined
 		}
 
-		// Persist to DB first so we have the row ID for the externalId backfill.
+		// Persist assistant message to conversation
 		let rowId: string | undefined;
 		try {
-			const [row] = await db
-				.insert(messages)
-				.values({
-					chatId: context.chatId,
-					role: "assistant",
-					content,
-					createdAt: new Date(),
-					...(quotedMessageId ? { quotedMessageId } : {}),
-				})
-				.returning({ id: messages.id });
-			rowId = row?.id;
+			rowId = await appendMessage({
+				role: "assistant",
+				content,
+			});
 		} catch (err) {
-			log.warn("[reply] failed to persist assistant message to DB", {
+			log.warn("[reply] failed to persist assistant message", {
 				chatId: context.chatId,
 				error: err instanceof Error ? err.message : String(err),
 			});
@@ -84,15 +73,12 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 
 		const onSent = rowId
 			? (waId: string) => {
-					db.update(messages)
-						.set({ externalId: waId })
-						.where(eq(messages.id, rowId))
-						.catch((err: unknown) => {
-							log.warn("[reply] failed to backfill externalId", {
-								chatId: context.chatId,
-								error: err instanceof Error ? err.message : String(err),
-							});
+					appendAck(rowId, waId).catch((err: unknown) => {
+						log.warn("[reply] failed to backfill externalId", {
+							chatId: context.chatId,
+							error: err instanceof Error ? err.message : String(err),
 						});
+					});
 				}
 			: undefined;
 

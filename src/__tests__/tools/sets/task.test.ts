@@ -8,41 +8,19 @@ const mockDispatch = mock(
 );
 mock.module("@/core/dispatch", () => ({ dispatch: mockDispatch }));
 
-const mockCancel = mock(async () => {});
-mock.module("@/core/queue", () => ({
-	getQueue: () => ({ cancel: mockCancel }),
-}));
+const mockGetTask = mock(
+	async (_id: string) => null as { id: string; status: string } | null,
+);
+const mockListTasks = mock(async () => [] as unknown[]);
+const mockMoveTask = mock(async () => {});
 
-// Drizzle query builders are thenable AND chainable. This mock handles both:
-//   cancel: `const [task] = await db.select().from().where(...)` — awaits directly
-//   list:   `db.select().from().where(...).orderBy(...).limit(20)` — chains then awaits
-type ChainableQuery = Promise<unknown[]> & {
-	orderBy: () => { limit: () => Promise<unknown[]> };
-};
-function makeChainableQuery(rows: unknown[] = []): ChainableQuery {
-	const p = Promise.resolve(rows) as ChainableQuery;
-	p.orderBy = () => ({ limit: mock(async () => []) });
-	return p;
-}
-const mockSelectFromWhere = mock(() => makeChainableQuery());
-const mockUpdateSetWhere = mock(async () => {});
-const mockDb = {
-	select: mock(() => ({
-		from: mock(() => ({
-			where: mockSelectFromWhere,
-			orderBy: mock(() => ({
-				limit: mock(async () => []),
-			})),
-		})),
-	})),
-	update: mock(() => ({
-		set: mock(() => ({
-			where: mockUpdateSetWhere,
-		})),
-	})),
-};
-mock.module("@/db/client", () => ({ db: mockDb }));
-mock.module("@/db/schema", () => ({ tasks: {} }));
+mock.module("@/store/tasks", () => ({
+	getTask: mockGetTask,
+	listTasks: mockListTasks,
+	moveTask: mockMoveTask,
+	createTask: mock(async () => "id"),
+	recoverRunningTasks: mock(async () => {}),
+}));
 
 mock.module("@/logger", () => ({
 	log: {
@@ -88,9 +66,11 @@ function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
 beforeEach(() => {
 	mockDispatch.mockClear();
 	mockDispatch.mockImplementation(async () => "task-uuid-1");
-	mockCancel.mockClear();
-	mockSelectFromWhere.mockImplementation(() => makeChainableQuery());
-	mockUpdateSetWhere.mockClear();
+	mockGetTask.mockClear();
+	mockGetTask.mockImplementation(async () => null);
+	mockListTasks.mockClear();
+	mockListTasks.mockImplementation(async () => []);
+	mockMoveTask.mockClear();
 });
 
 // ─── tests ───────────────────────────────────────────────────────────────────
@@ -132,19 +112,20 @@ describe("dispatchTool", () => {
 
 describe("taskCancelTool", () => {
 	test("cancels a pending task", async () => {
-		mockSelectFromWhere.mockImplementation(() =>
-			makeChainableQuery([{ id: "task-1", status: "pending" }]),
-		);
+		mockGetTask.mockImplementation(async () => ({
+			id: "task-1",
+			status: "pending",
+		}));
 		const result = await taskCancelTool.execute(
 			{ taskId: "task-1" },
 			makeContext(),
 		);
 		expect(result).toContain("Cancelled");
-		expect(mockUpdateSetWhere).toHaveBeenCalled();
+		expect(mockMoveTask).toHaveBeenCalled();
 	});
 
 	test("returns not found for missing task", async () => {
-		mockSelectFromWhere.mockImplementation(() => makeChainableQuery([]));
+		mockGetTask.mockImplementation(async () => null);
 		const result = await taskCancelTool.execute(
 			{ taskId: "missing" },
 			makeContext(),
@@ -153,9 +134,10 @@ describe("taskCancelTool", () => {
 	});
 
 	test("returns already-terminal for done task", async () => {
-		mockSelectFromWhere.mockImplementation(() =>
-			makeChainableQuery([{ id: "task-1", status: "done" }]),
-		);
+		mockGetTask.mockImplementation(async () => ({
+			id: "task-1",
+			status: "done",
+		}));
 		const result = await taskCancelTool.execute(
 			{ taskId: "task-1" },
 			makeContext(),

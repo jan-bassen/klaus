@@ -1,10 +1,8 @@
-import { and, gte, lte, sql, sum } from "drizzle-orm";
 import { z } from "zod";
 import { dispatch } from "@/core/dispatch";
 import { deleteSchedule, listSchedules } from "@/core/queue";
-import { db } from "@/db/client";
-import { QUERIES } from "@/db/queries";
-import { budgets, costs } from "@/db/schema";
+import { getBudget } from "@/store/budgets";
+import { getCostSummary } from "@/store/costs";
 import type { ToolDefinition, ToolsetDefinition } from "@/types";
 
 const opsCronSchema = z.object({
@@ -38,64 +36,18 @@ const opsCostTrackingSchema = z.object({
 export const opsCostTrackingTool: ToolDefinition<typeof opsCostTrackingSchema> =
 	{
 		name: "ops.cost-tracking",
-		description:
-			"Query total spend (LLM + TTS + embeddings) and budget status.",
+		description: "Query total spend (LLM + TTS + STT) and budget status.",
 		inputSchema: opsCostTrackingSchema,
 		execute: async (input, context) => {
-			const now = new Date();
-			let startDate: Date;
-			let endDate: Date | undefined;
-
-			if (input.period === "today") {
-				startDate = new Date(
-					Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-				);
-			} else if (input.period === "this_month") {
-				startDate = new Date(
-					Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
-				);
-			} else {
-				// last_month
-				const y =
-					now.getUTCMonth() === 0
-						? now.getUTCFullYear() - 1
-						: now.getUTCFullYear();
-				const m = now.getUTCMonth() === 0 ? 11 : now.getUTCMonth() - 1;
-				startDate = new Date(Date.UTC(y, m, 1));
-				endDate = new Date(
-					Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
-				);
-			}
-
-			const costFilter = endDate
-				? and(gte(costs.createdAt, startDate), lte(costs.createdAt, endDate))
-				: gte(costs.createdAt, startDate);
-
-			const [breakdown, [budget]] = await Promise.all([
-				db
-					.select({ service: costs.service, total: sum(costs.costUsd) })
-					.from(costs)
-					.where(costFilter)
-					.groupBy(costs.service),
-				db
-					.select()
-					.from(budgets)
-					.where(sql`chat_id = ${context.chatId}`)
-					.limit(1),
-			]);
-
-			const byService = Object.fromEntries(
-				breakdown.map((r) => [r.service, parseFloat(r.total ?? "0")]),
-			);
-			const totalSpent = Object.values(byService).reduce((a, b) => a + b, 0);
+			const summary = await getCostSummary(input.period);
+			const budget = getBudget(context.chatId);
 
 			const lines = [
-				`Period: ${input.period}`,
-				`Total: $${totalSpent.toFixed(4)}`,
-				`  LLM: $${(byService.llm ?? 0).toFixed(4)}`,
-				`  TTS: $${(byService.tts ?? 0).toFixed(4)}`,
-				`  STT: $${(byService.stt ?? 0).toFixed(4)}`,
-				`  Embed: $${(byService.embed ?? 0).toFixed(4)}`,
+				`Period: ${summary.periodLabel}`,
+				`Total: $${summary.total.toFixed(4)}`,
+				`  LLM: $${(summary.byService.llm ?? 0).toFixed(4)}`,
+				`  TTS: $${(summary.byService.tts ?? 0).toFixed(4)}`,
+				`  STT: $${(summary.byService.stt ?? 0).toFixed(4)}`,
 			];
 			if (budget) {
 				if (budget.dailyLimitUsd)
@@ -109,42 +61,17 @@ export const opsCostTrackingTool: ToolDefinition<typeof opsCostTrackingSchema> =
 		capability: "resource",
 	};
 
-const opsPostgresQuerySchema = z.object({
-	queryName: z.string().describe("Name of a static named query in db/queries/"),
-	params: z.record(z.unknown()).optional(),
-});
-
-export const opsPostgresQueryTool: ToolDefinition<
-	typeof opsPostgresQuerySchema
-> = {
-	name: "ops.postgres-query",
-	description: `Run a named read-only Postgres query. Available queries: ${Object.keys(QUERIES).join(", ")}.`,
-	inputSchema: opsPostgresQuerySchema,
-	execute: async (input) => {
-		const fn = QUERIES[input.queryName];
-		if (!fn)
-			return `Unknown query "${input.queryName}". Available: ${Object.keys(QUERIES).join(", ")}`;
-		const result = await fn(input.params ?? {});
-		return JSON.stringify(result, null, 2);
-	},
-	kind: "builtin",
-	capability: "resource",
-};
-
 const opsCronListSchema = z.object({});
 
 export const opsCronListTool: ToolDefinition<typeof opsCronListSchema> = {
 	name: "ops.cron-list",
-	description: "List all active cron schedules registered with pg-boss.",
+	description: "List all active cron schedules.",
 	inputSchema: opsCronListSchema,
 	execute: async () => {
 		const schedules = await listSchedules();
 		if (schedules.length === 0) return "No active cron schedules.";
 		return schedules
-			.map((s: unknown) => {
-				const r = s as Record<string, unknown>;
-				return `${r.name} | ${r.cron} | created: ${r.created_on}`;
-			})
+			.map((s) => `${s.name} | ${s.pattern} | created: ${s.createdAt}`)
 			.join("\n");
 	},
 	kind: "builtin",
@@ -173,13 +100,6 @@ export const opsCronDeleteTool: ToolDefinition<typeof opsCronDeleteSchema> = {
 
 export const opsToolset: ToolsetDefinition = {
 	name: "ops",
-	description:
-		"Use when you need to manage cron schedules, check LLM costs, or run named Postgres queries.",
-	tools: [
-		opsCronTool,
-		opsCronListTool,
-		opsCronDeleteTool,
-		opsCostTrackingTool,
-		opsPostgresQueryTool,
-	],
+	description: "Use when you need to manage cron schedules or check LLM costs.",
+	tools: [opsCronTool, opsCronListTool, opsCronDeleteTool, opsCostTrackingTool],
 };

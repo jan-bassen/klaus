@@ -10,7 +10,6 @@ export const config = {
 		tts: "eleven_multilingual_v2", // ElevenLabs TTS
 		stt: "scribe_v1", // ElevenLabs Scribe STT
 		vision: "claude-sonnet-4-20250514", // image analysis (Claude)
-		embed: "voyage-4", // Voyage AI, 1024-dim embeddings
 	},
 
 	// Per-model pricing in USD per million tokens. Used by model-router to compute costUsd.
@@ -21,10 +20,9 @@ export const config = {
 		"claude-opus-4-20250514": { inputPerMTok: 15.0, outputPerMTok: 75.0 },
 	} as Record<string, { inputPerMTok: number; outputPerMTok: number }>,
 
-	// Per-service pricing for non-LLM API calls. Used to compute costUsd in costs rows.
+	// Per-service pricing for non-LLM API calls. Used to compute costUsd.
 	apiPricing: {
 		tts: { perMChars: 120.0 }, // ElevenLabs $0.12/1K chars
-		embed: { perMTok: 0.06 }, // Voyage AI voyage-4
 		stt: { perHour: 0.39 }, // ElevenLabs Scribe $0.39/hr
 	},
 
@@ -33,7 +31,7 @@ export const config = {
 	context: {
 		totalTokens: 100_000, // hard cap passed to the model
 		conversationTokens: 20_000, // recent message history (trimmed oldest-first)
-		graphContextTokens: 40_000, // pinned nodes + search results + edge expansion
+		graphContextTokens: 40_000, // pinned vault notes + search results
 		activeTasksTokens: 5_000, // in-flight async tasks
 	},
 
@@ -46,15 +44,8 @@ export const config = {
 	},
 
 	// ElevenLabs TTS voice to use for outbound voice messages.
-	// Find your voice ID at https://elevenlabs.io/voice-library or in your ElevenLabs dashboard.
 	tts: {
 		voiceId: "z1EhmmPwF0ENGYE8dBE6",
-	},
-
-	// Nodes whose body exceeds this threshold are split into chunks for embedding.
-	// Chunks are a search optimization — search hits are always resolved back to the parent node.
-	chunking: {
-		thresholdTokens: 800,
 	},
 
 	// Retry policy for transient failures in async task jobs.
@@ -64,13 +55,11 @@ export const config = {
 	},
 
 	// Minimum pause after each outbound message before the next one is sent.
-	// Prevents consecutive replies from arriving simultaneously.
 	send: {
 		interMessageDelayMs: 1_500,
 	},
 
-	// Timeout for a single LLM generateText() call. If the Anthropic API hangs
-	// longer than this, the call is aborted and an LlmTimeoutError is thrown.
+	// Timeout for a single LLM generateText() call.
 	llm: {
 		timeoutMs: 120_000, // 2 minutes
 	},
@@ -87,31 +76,32 @@ export const config = {
 	locale: "de-DE",
 	timezone: "Europe/Berlin",
 
-	// Dispatch chain limits. Prevents runaway recursive chains from agents that
-	// keep dispatching further agents without bound.
+	// Dispatch chain limits.
 	dispatch: {
 		maxChainDepth: 10,
 	},
 
 	// Directory where uploaded and downloaded media files are stored.
-	// Override with FILES_DIR env var (e.g. to a mounted volume in production).
 	files: {
 		get dir() {
 			return process.env.FILES_DIR ?? path.join(process.cwd(), ".files");
 		},
 	},
+
+	// Obsidian vault directory — agents, skills, and memory all live here.
 	vault: {
 		get dir() {
 			return process.env.VAULT_DIR ?? path.join(process.cwd(), "vault");
 		},
 	},
-	database: {
-		get url() {
-			return (
-				process.env.DATABASE_URL ??
-				"postgres://postgres:postgres@localhost:5432/klaus"
-			);
-		},
+
+	// Data directory for operational data (conversations, costs, tasks, etc.).
+	// Outside the vault — not synced.
+	get dataDir() {
+		return (
+			process.env.DATA_DIR ??
+			path.join(process.env.HOME ?? process.cwd(), ".klaus", "data")
+		);
 	},
 } as const;
 

@@ -1,18 +1,17 @@
 import path from "node:path";
-import { eq } from "drizzle-orm";
 import { config } from "@/config";
-import { db } from "@/db/client";
-import { tasks } from "@/db/schema";
 import { log } from "@/logger";
+import { createTask, moveTask } from "@/store/tasks";
 import type { DispatchOptions, TurnContext } from "@/types";
 import { agentRegistry, loadAgentDefinition, runAgent } from "./agent";
 import { assembleContext } from "./assemble";
 import { enqueueJob, scheduleJob } from "./queue";
 
-const AGENTS_DIR = path.join(import.meta.dir, "..", "agents");
+function agentsDir(): string {
+	return path.join(config.vault.dir, "Klaus", "agents");
+}
 
-// Test seam — allows dispatch.test.ts to override agent functions without mock.module,
-// which would globally poison @/core/agent for other test files.
+// Test seam — allows dispatch.test.ts to override agent functions without mock.module.
 let _runAgent = runAgent;
 let _loadAgentDefinition = loadAgentDefinition;
 /** @internal test-only */ export function _setDispatchSeamsForTest(seams: {
@@ -33,8 +32,8 @@ let _loadAgentDefinition = loadAgentDefinition;
  *
  * Modes:
  *   inline — runs the agent synchronously in the current process; returns undefined (output via reply tool).
- *   async  — creates a task row and enqueues a pg-boss job; returns the task ID.
- *   cron   — registers a pg-boss schedule for the agent; returns undefined.
+ *   async  — creates a task file and enqueues a job; returns the task ID.
+ *   cron   — registers a schedule for the agent; returns undefined.
  */
 export async function dispatch(
 	opts: DispatchOptions,
@@ -81,7 +80,7 @@ export async function dispatch(
 	// For inline and async: load agent definition
 	let def = agentRegistry.get(agentName);
 	if (!def) {
-		const promptPath = path.join(AGENTS_DIR, `${agentName}.md`);
+		const promptPath = path.join(agentsDir(), `${agentName}.md`);
 		def = await _loadAgentDefinition(promptPath);
 		agentRegistry.set(def.name, def);
 	}
@@ -103,62 +102,47 @@ export async function dispatch(
 		return undefined;
 	}
 
-	// async mode: create task row + enqueue
-	const [task] = await db
-		.insert(tasks)
-		.values({
-			chatId,
-			objective,
-			assignedTo: agentName,
-			caller,
-			status: "pending",
-			...(parentTaskId ? { parentTaskId } : {}),
-		})
-		.returning({ id: tasks.id });
-
-	if (!task) {
-		log.error("[dispatch] task insert returned no row", { agentName });
-		return undefined;
-	}
+	// async mode: create task file + enqueue
+	const taskId = await createTask({
+		chatId,
+		objective,
+		assignedTo: agentName,
+		caller,
+		...(parentTaskId ? { parentTaskId } : {}),
+	});
 
 	log.info("[dispatch] async dispatch", {
 		agentName,
 		caller,
-		taskId: task.id,
+		taskId,
 		depth,
 	});
 
 	await enqueueJob(
 		{
-			taskId: task.id,
+			taskId,
 			agentName,
 			chatId,
 			dispatchContext,
 			depth: depth + 1,
 		},
-		task.id,
+		taskId,
 	);
 
-	return task.id;
+	return taskId;
 }
 
-/** Update a task row to 'running' status. */
+/** Update a task to 'running' status. */
 export async function markTaskRunning(taskId: string): Promise<void> {
-	await db.update(tasks).set({ status: "running" }).where(eq(tasks.id, taskId));
+	await moveTask(taskId, "running");
 }
 
-/** Update a task row to 'done' status. */
+/** Update a task to 'done' status. */
 export async function markTaskDone(taskId: string): Promise<void> {
-	await db
-		.update(tasks)
-		.set({ status: "done", completedAt: new Date() })
-		.where(eq(tasks.id, taskId));
+	await moveTask(taskId, "done", { completedAt: new Date().toISOString() });
 }
 
-/** Update a task row to 'failed' status. */
+/** Update a task to 'failed' status. */
 export async function markTaskFailed(taskId: string): Promise<void> {
-	await db
-		.update(tasks)
-		.set({ status: "failed", completedAt: new Date() })
-		.where(eq(tasks.id, taskId));
+	await moveTask(taskId, "failed", { completedAt: new Date().toISOString() });
 }
