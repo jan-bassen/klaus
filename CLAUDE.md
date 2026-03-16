@@ -135,6 +135,9 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - `/context` — one file per context query
 - `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter
 - `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
+- `{vault}/Klaus/snippets/` — static prompt content (soul.md, architecture.md) injected as template vars
+- `{vault}/Klaus/user.md` — user profile, updated by memorize agent
+- `{vault}/Klaus/memory.md` — working memory/facts/preferences, updated by memorize agent
 
 ### Testing conventions
 

@@ -245,8 +245,7 @@ Built-in agents:
 | ---------- | -------------------------------------------------------------------- |
 | klaus      | Default conversational agent                                         |
 | thinking   | High-tier agent for research and extended reasoning                  |
-| memorize   | Async agent dispatched to extract facts into vault memory notes      |
-| reflection | Daily cron (03:00 UTC) for memory maintenance: dedup, cleanup, synth |
+| memorize   | Async agent dispatched to extract facts into memory.md and user.md   |
 | vault      | Obsidian vault specialist — read, search, create, and organize notes |
 
 ### Tools and toolsets
@@ -276,7 +275,7 @@ The prompt body uses {{variable}} placeholders filled by **context queries** —
 
 Queries run in parallel. Inline params are supported: {{conversation?limit=20\&excludeCurrent=1}}.
 
-Key context queries: conversation (chat history with message refs), auto_memory (pinned vault notes + keyword search), datetime, message (current message metadata), active_tasks, flags, dispatch_context.
+Key context queries: snippets (soul, architecture, user, memory from vault files), conversation (chat history with message refs), datetime, message (current message metadata), active_tasks, flags, dispatch_context.
 
 ### Storage
 
@@ -320,7 +319,9 @@ src/
 vault/Klaus/       # Klaus's own directory in the Obsidian vault
 ├── agents/        # Agent prompt files (.md with YAML frontmatter)
 ├── skills/        # Static .md reference documents (loaded on demand by agents)
-└── memory/        # Klaus's own notes (long-term memory)
+├── snippets/      # Static prompt content (soul.md, architecture.md)
+├── user.md        # User profile (updated by memorize agent)
+└── memory.md      # Working memory, facts, preferences (updated by memorize agent)
 ```
 
 ---

@@ -55,9 +55,9 @@ Any context or hint from the dispatching agent is available below.
 
 {{dispatch_context}}
 
-## Vault Memory
+## Memory
 
-{{auto_memory}}
+{{memory}}
 
 ## Conversation History
 

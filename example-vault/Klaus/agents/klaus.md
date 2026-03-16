@@ -1,14 +1,14 @@
 ---
-name: thinking
-modelTier: high
+name: klaus
+modelTier: default
 tools:
   - reply
+  - send
   - react
   - dispatch
 providerTools:
   - web_search
   - web_fetch
-  - code_execution
 toolsets:
   - vault
   - task
@@ -20,26 +20,16 @@ toolsets:
 
 {{user}}
 
-Today is {{date}}, {{time}}.
-
----
+It is {{weekday}} ({{date}}, {{time}}).
 
 {{architecture}}
 
-You are in *deep thinking mode* — invoked for tasks requiring extended reasoning, research, or multi-step analysis.
-
-- Break complex questions into sub-problems before answering.
-- Search vault memory and the web before relying on general knowledge.
-- When researching, gather multiple sources and cross-reference.
-- Structure longer answers with clear sections; prefer concise over exhaustive.
-- Dispatch the memorize agent (async) when your research surfaces facts worth retaining.
-
 ---
 
-{{#if auto_memory}}
+{{#if memory}}
 # Memory
 
-{{auto_memory}}
+{{memory}}
 
 ---
 
@@ -53,6 +43,8 @@ You are in *deep thinking mode* — invoked for tasks requiring extended reasoni
 {{/if}}
 
 # Conversation History
+
+#id's are automatically mapped, for you to reference
 
 {{conversation?limit=20&excludeCurrent=1}}
 
@@ -81,5 +73,3 @@ You are in *deep thinking mode* — invoked for tasks requiring extended reasoni
 
 {{flags}}
 {{/if}}
-
-{{dispatch_context}}

@@ -184,11 +184,11 @@ describe("loadAgentDefinition", () => {
 		await withFixture(
 			"ctx-num",
 			fm,
-			"{{auto_memory?limit=20&offset=5}}\n",
+			"{{memory?limit=20&offset=5}}\n",
 			async (p) => {
 				const def = await loadAgentDefinition(p);
-				expect(def.contextParams?.auto_memory?.limit).toBe(20);
-				expect(def.contextParams?.auto_memory?.offset).toBe(5);
+				expect(def.contextParams?.memory?.limit).toBe(20);
+				expect(def.contextParams?.memory?.offset).toBe(5);
 			},
 		);
 	});
@@ -315,7 +315,7 @@ describe("runAgent", () => {
 		}));
 		await writeAgentFile(
 			tmpPath,
-			"## Instructions\nYou are a test agent.\n\n{{conversation}}\n\n{{auto_memory}}\n\n{{active_tasks}}\n\n{{flags}}",
+			"## Instructions\nYou are a test agent.\n\n{{conversation}}\n\n{{memory}}\n\n{{active_tasks}}\n\n{{flags}}",
 		);
 	});
 
@@ -383,8 +383,8 @@ describe("runAgent", () => {
 		expect(system).not.toContain("?limit=5");
 	});
 
-	test("system prompt includes graph context when present", async () => {
-		const turn = makeTurn({ auto_memory: "### Node Title\nsome body text" });
+	test("system prompt includes memory when present", async () => {
+		const turn = makeTurn({ memory: "### Node Title\nsome body text" });
 		turn.agent.promptPath = tmpPath;
 		await runAgent(turn, turn.agent);
 		cleanup();

@@ -31,7 +31,6 @@ export const config = {
 	context: {
 		totalTokens: 100_000, // hard cap passed to the model
 		conversationTokens: 20_000, // recent message history (trimmed oldest-first)
-		graphContextTokens: 40_000, // pinned vault notes + search results
 		activeTasksTokens: 5_000, // in-flight async tasks
 	},
 
@@ -45,7 +44,7 @@ export const config = {
 
 	// ElevenLabs TTS voice to use for outbound voice messages.
 	tts: {
-		voiceId: "z1EhmmPwF0ENGYE8dBE6",
+		voiceId: "b8LIQ0QhJtoYJJMO947e",
 	},
 
 	// Retry policy for transient failures in async task jobs.

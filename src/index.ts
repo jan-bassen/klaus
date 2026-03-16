@@ -106,6 +106,9 @@ async function main(): Promise<void> {
 	);
 	setContextQueries(contextQueries);
 
+	const snippetsDir = path.join(config.vault.dir, "Klaus", "snippets");
+	await mkdir(snippetsDir, { recursive: true });
+
 	const skillsDir = path.join(config.vault.dir, "Klaus", "skills");
 	await mkdir(skillsDir, { recursive: true });
 	await loadSkills(skillsDir);
