@@ -1,4 +1,4 @@
-import { mkdir, readdir, rename } from "node:fs/promises";
+import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { config } from "@/config";
 import { log } from "@/logger";

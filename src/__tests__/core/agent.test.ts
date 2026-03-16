@@ -213,10 +213,10 @@ describe("loadAgentDefinition", () => {
 
 	test("toolsets: YAML key is parsed into toolsets array", async () => {
 		const fm =
-			"name: ts-agent\nmodelTier: default\ntools: []\ntoolsets: [memory, files]";
+			"name: ts-agent\nmodelTier: default\ntools: []\ntoolsets: [vault, files]";
 		await withFixture("toolsets", fm, "## Hi\n", async (p) => {
 			const def = await loadAgentDefinition(p);
-			expect(def.toolsets).toEqual(["memory", "files"]);
+			expect(def.toolsets).toEqual(["vault", "files"]);
 		});
 	});
 

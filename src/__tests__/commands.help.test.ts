@@ -54,7 +54,7 @@ beforeAll(() => {
 	});
 	agentRegistry.set(
 		TEST_AGENT_NAME,
-		makeAgent(TEST_AGENT_NAME, ["reply"], ["memory"]),
+		makeAgent(TEST_AGENT_NAME, ["reply"], ["vault"]),
 	);
 });
 
@@ -120,7 +120,7 @@ describe("/help", () => {
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
 		)[0];
 		expect(content).toContain("tools: reply");
-		expect(content).toContain("toolsets: memory");
+		expect(content).toContain("toolsets: vault");
 	});
 
 	test("uses dedupKey based on message id", async () => {
