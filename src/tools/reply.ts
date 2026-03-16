@@ -1,10 +1,6 @@
 import { z } from "zod";
 import { log } from "@/logger";
-import {
-	appendAck,
-	appendMessage,
-	resolveExternalId,
-} from "@/store/conversation";
+import { appendAck, appendMessage } from "@/store/conversation";
 import type { ToolDefinition } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 import { textToSpeech } from "@/whatsapp/tts";

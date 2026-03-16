@@ -1,4 +1,3 @@
-import path from "node:path";
 import type { Command } from "@/commands";
 import { config } from "@/config";
 import { getDefaultAgent } from "@/core/defaults";

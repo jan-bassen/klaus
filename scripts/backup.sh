@@ -1,7 +1,7 @@
 #!/bin/sh
-# Backup script — runs inside the `backup` service container (postgres:17-alpine image).
+# Backup script — runs inside the `backup` service container.
 # NOTE: .env is NOT backed up here — store API keys in a password manager.
-# Dumps Postgres + exports baileys_auth volume to /backups/<date>/.
+# Archives data, vault, baileys_auth, and files volumes to /backups/<date>/.
 # Keeps the last 7 daily backups; older ones are pruned.
 set -e
 
@@ -9,8 +9,11 @@ DATE=$(date +%Y-%m-%d)
 DEST=/backups/$DATE
 mkdir -p "$DEST"
 
-echo "==> Dumping Postgres to $DEST/postgres.dump"
-pg_dump -h postgres -U postgres -d klaus -Fc -f "$DEST/postgres.dump"
+echo "==> Archiving data volume to $DEST/data.tar.gz"
+tar czf "$DEST/data.tar.gz" -C /data .
+
+echo "==> Archiving vault volume to $DEST/vault_data.tar.gz"
+tar czf "$DEST/vault_data.tar.gz" -C /vault_data .
 
 echo "==> Archiving baileys_auth volume to $DEST/baileys_auth.tar.gz"
 tar czf "$DEST/baileys_auth.tar.gz" -C /baileys_auth .

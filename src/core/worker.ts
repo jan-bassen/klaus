@@ -4,12 +4,7 @@ import { log } from "@/logger";
 import type { TurnContext } from "@/types";
 import { agentRegistry, loadAgentDefinition, runAgent } from "./agent";
 import { assembleContext } from "./assemble";
-import {
-	dispatch,
-	markTaskDone,
-	markTaskFailed,
-	markTaskRunning,
-} from "./dispatch";
+import { markTaskDone, markTaskFailed, markTaskRunning } from "./dispatch";
 import type { AgentRunPayload } from "./queue";
 import { setWorker } from "./queue";
 

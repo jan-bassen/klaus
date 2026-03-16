@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { dispatch as dispatchAgent } from "@/core/dispatch";
-import { log } from "@/logger";
-import { getTask, listTasks, moveTask, type TaskRecord } from "@/store/tasks";
+import { getTask, listTasks, moveTask } from "@/store/tasks";
 import type { ToolDefinition, ToolsetDefinition } from "@/types";
 
 // dispatch — surface tool (always available)

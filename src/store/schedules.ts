@@ -44,18 +44,6 @@ export async function loadSchedules(): Promise<void> {
 	}
 }
 
-/**
- * Parse a cron expression and return the interval in ms.
- * Only supports simple patterns: "M H * * *" (daily at H:M).
- * For more complex patterns, uses a 60s polling interval.
- */
-function cronToNextMs(pattern: string): number {
-	// Simple daily cron: "M H * * *"
-	const parts = pattern.split(/\s+/);
-	if (parts.length !== 5) return 60_000;
-	return 60_000; // Check every minute
-}
-
 function matchesCron(pattern: string, date: Date): boolean {
 	const parts = pattern.split(/\s+/);
 	if (parts.length !== 5) return false;
