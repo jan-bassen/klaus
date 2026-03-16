@@ -56,7 +56,8 @@
 			"Bash(bun test src/__tests__/logger.test.ts)",
 			"Bash(ls:*)",
 			"Bash(bun test src/__tests__/context/)",
-			"Bash(bun test:*)"
+			"Bash(bun test:*)",
+			"Bash(bunx biome:*)"
 		]
 	}
 }

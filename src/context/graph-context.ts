@@ -22,8 +22,14 @@ export const graphContextQuery: ContextQuery = {
 
 		const items: { filePath: string; body: string }[] = [];
 
+		// Directories that contain system files (agent prompts, skill docs), not user content.
+		const excludeDirs = ["Klaus/agents", "Klaus/skills"];
+		const isExcluded = (f: string): boolean =>
+			excludeDirs.some((d) => f.startsWith(`${d}/`));
+
 		// Phase 1: Scan for pinned notes (frontmatter: pinned: true)
 		for await (const file of glob.scan({ cwd: vaultDir })) {
+			if (isExcluded(file)) continue;
 			try {
 				const text = await Bun.file(path.join(vaultDir, file)).text();
 				const fm = text.match(fmPattern)?.[1] ?? "";
@@ -54,7 +60,7 @@ export const graphContextQuery: ContextQuery = {
 				}[] = [];
 
 				for await (const file of glob.scan({ cwd: vaultDir })) {
-					if (seen.has(file)) continue;
+					if (isExcluded(file) || seen.has(file)) continue;
 					try {
 						const text = await Bun.file(path.join(vaultDir, file)).text();
 						const lower = text.toLowerCase();
