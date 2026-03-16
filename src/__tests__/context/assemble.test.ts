@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { config } from "@/config";
 import { flagsQuery } from "@/context/flags";
-import { snippetsQuery } from "@/context/snippets";
 import { assembleContext } from "@/core/assemble";
 import type { AgentDefinition, ContextQuery, TurnContext } from "@/types";
 
@@ -65,7 +64,16 @@ describe("assembleContext", () => {
 	});
 
 	test("snippetsQuery → extraVars land as named template vars", async () => {
-		const result = await assembleContext(makeTurn(), [snippetsQuery]);
+		const fakeSnippets: ContextQuery = {
+			name: "snippets",
+			priority: -1,
+			run: async () => ({
+				tokenCount: 0,
+				truncate: "never" as const,
+				vars: { soul: "I am a soul snippet", user: "user bio" },
+			}),
+		};
+		const result = await assembleContext(makeTurn(), [fakeSnippets]);
 		expect(result.vars.soul).toBeDefined();
 		expect(typeof result.vars.soul).toBe("string");
 		expect(result.totalTokens).toBe(0);

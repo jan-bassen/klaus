@@ -8,7 +8,7 @@ import {
 	mock,
 	test,
 } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentDefinition, InboundMessage, TurnContext } from "@/types";
@@ -100,20 +100,12 @@ beforeAll(async () => {
 	fakeImagePath = join(tmpDir, "photo.jpg");
 	await writeFile(fakeImagePath, Buffer.from([0xff, 0xd8, 0xff, 0xe0])); // JPEG magic
 
-	// Set up vault dir with agent files so loadAgentDefinition works
 	const agentsDir = join(tmpDir, "vault", "Klaus", "agents");
-	const { mkdir: mkdirSync } = await import("node:fs/promises");
-	await mkdirSync(agentsDir, { recursive: true });
-	// Copy real agent .md files from src/agents/ to the vault agents dir
-	const srcAgents = join(import.meta.dir, "..", "agents");
-	const { readdir } = await import("node:fs/promises");
-	const agentFiles = await readdir(srcAgents);
-	for (const f of agentFiles) {
-		if (f.endsWith(".md")) {
-			const content = await Bun.file(join(srcAgents, f)).text();
-			await writeFile(join(agentsDir, f), content);
-		}
-	}
+	await mkdir(agentsDir, { recursive: true });
+	const minimalFrontmatter = (name: string, tier: string) =>
+		`---\nname: ${name}\nmodelTier: ${tier}\ntools: []\n---\n`;
+	await writeFile(join(agentsDir, "klaus.md"), minimalFrontmatter("klaus", "default"));
+	await writeFile(join(agentsDir, "thinking.md"), minimalFrontmatter("thinking", "high"));
 	savedVaultDir = process.env.VAULT_DIR;
 	process.env.VAULT_DIR = join(tmpDir, "vault");
 
@@ -374,7 +366,7 @@ describe("handleTurn — agent routing", () => {
 			name: "__cached__",
 			modelTier: "default",
 			tools: [],
-			promptPath: join(import.meta.dir, "..", "agents", "thinking.md"),
+			promptPath: join(tmpDir, "vault", "Klaus", "agents", "thinking.md"),
 		};
 		agentRegistry.set("__cached__", cachedDef);
 		await handleTurn(makeMsg({ text: "@__cached__ run it" }));

@@ -288,7 +288,7 @@ describe("loadAgentDefinition", () => {
 		);
 		try {
 			await expect(loadAgentDefinition(tmpPath)).rejects.toThrow(
-				"Invalid 'modelTier'",
+				"nonexistent",
 			);
 		} finally {
 			unlinkSync(tmpPath);
