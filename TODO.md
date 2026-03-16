@@ -7,7 +7,7 @@ Snippets moved to vault (`Klaus/snippets/`), memory consolidated to `Klaus/memor
 - [x] Revalidate if the memory agents (memorize and reflection + even the vault agent) even serve a big enough purpose that make them worth keeping
 
 ## Skills
-- [ ] Add skills to the example vault
+- [x] Add skills to the example vault
 
 
 ## Store Check
