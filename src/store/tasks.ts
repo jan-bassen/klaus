@@ -2,6 +2,7 @@ import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { config } from "@/config";
 import { log } from "@/logger";
+import { TaskRecordSchema } from "./schemas";
 
 export type TaskStatus =
 	| "pending"
@@ -116,7 +117,7 @@ export async function getTask(id: string): Promise<TaskRecord | null> {
 		const filePath = path.join(statusDir(status), `${id}.json`);
 		try {
 			const text = await Bun.file(filePath).text();
-			return JSON.parse(text) as TaskRecord;
+			return TaskRecordSchema.parse(JSON.parse(text)) as TaskRecord;
 		} catch {
 			// Not in this directory
 		}
@@ -149,7 +150,7 @@ export async function listTasks(filter?: {
 			if (!file.endsWith(".json")) continue;
 			try {
 				const text = await Bun.file(path.join(dir, file)).text();
-				const task = JSON.parse(text) as TaskRecord;
+				const task = TaskRecordSchema.parse(JSON.parse(text)) as TaskRecord;
 				if (filter?.chatId && task.chatId !== filter.chatId) continue;
 				results.push(task);
 			} catch {
@@ -184,7 +185,7 @@ export async function recoverRunningTasks(): Promise<void> {
 		try {
 			const fromPath = path.join(runningDir, file);
 			const text = await Bun.file(fromPath).text();
-			const task = JSON.parse(text) as TaskRecord;
+			const task = TaskRecordSchema.parse(JSON.parse(text)) as TaskRecord;
 			task.status = "pending";
 			await Bun.write(
 				path.join(pendingDir, file),

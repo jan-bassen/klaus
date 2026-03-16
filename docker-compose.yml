@@ -4,9 +4,11 @@ services:
     user: root
     restart: unless-stopped
     env_file:
-      - .env.config
       - .env
     environment:
+      - PORT=3000
+      - LOG_FORMAT=pretty
+      - BAILEYS_AUTH_FOLDER=/app/auth
       - FILES_DIR=/app/files
       - DATA_DIR=/app/data
       - VAULT_DIR=/app/vault
@@ -19,7 +21,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget -qO- http://localhost:${PORT:-3000}/healthz || exit 1",
+          "wget -qO- http://localhost:3000/healthz || exit 1",
         ]
       interval: 30s
       timeout: 5s
@@ -28,14 +30,13 @@ services:
     mem_limit: 768m
     memswap_limit: 768m
 
-  obsidian-sync:
+  sync:
     build:
       context: .
       dockerfile: Dockerfile.obsidian-sync
     restart: unless-stopped
     entrypoint: ["sh", "/scripts/obsidian-sync.sh"]
     env_file:
-      - .env.config
       - .env
     volumes:
       - vault_data:/vault

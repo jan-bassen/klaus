@@ -166,9 +166,10 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 
 ### Environment
 
-Two env files (see README for full list of vars):
-- `.env.config` — non-secret config (ports, directories)
+One env file (see README for full list of vars):
 - `.env` — secrets (API keys); loaded via 1Password CLI in dev
+
+Non-secret config (PORT, LOG_FORMAT, paths) is set directly in `docker-compose.yml` for Docker and has sensible defaults in code for local dev.
 
 Required at startup: `ANTHROPIC_API_KEY`, `ALLOWED_CHAT_ID`.
 

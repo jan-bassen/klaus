@@ -3,7 +3,6 @@ import type { ImagePart, StepResult, TextPart, ToolSet, UserContent } from "ai";
 import { tool } from "ai";
 import sharp from "sharp";
 import { parse as parseYaml } from "yaml";
-import type { ModelTier } from "@/config";
 import { config } from "@/config";
 import {
 	generateMetaTool,
@@ -16,6 +15,7 @@ import { buildSkillTool } from "@/tools/skill";
 import type { AgentDefinition, ToolDefinition, TurnContext } from "@/types";
 import { hbs } from "./hbs";
 import { callModel } from "./model-router";
+import { AgentFrontmatterSchema } from "./schemas";
 
 // Max long-edge dimension for vision images. A 2048px image → at most 4×4 = 16 tiles ≈ 24k tokens.
 const MAX_IMAGE_DIMENSION = 2048;
@@ -251,58 +251,22 @@ export async function loadAgentDefinition(
 	const match = raw.match(/^---\n([\s\S]*?)\n---/);
 	if (!match) throw new Error(`No YAML frontmatter found in: ${promptPath}`);
 
-	const front = parseYaml(match[1] ?? "") as Record<string, unknown>;
+	const rawFront = parseYaml(match[1] ?? "");
+	const front = AgentFrontmatterSchema.parse(rawFront);
 
-	const name = front.name;
-	if (typeof name !== "string" || !name) {
-		throw new Error(`Missing or invalid 'name' in: ${promptPath}`);
-	}
-
-	const modelTier = front.modelTier;
-	const validTiers = Object.keys(config.models) as ModelTier[];
-	if (
-		typeof modelTier !== "string" ||
-		!validTiers.includes(modelTier as ModelTier)
-	) {
-		throw new Error(
-			`Invalid 'modelTier' "${String(modelTier)}" in: ${promptPath}`,
-		);
-	}
-
-	const tools: string[] = Array.isArray(front.tools)
-		? (front.tools as string[])
-		: [];
-
-	const toolsets: string[] = Array.isArray(front.toolsets)
-		? (front.toolsets as string[])
-		: [];
-
-	const providerTools: string[] = Array.isArray(front.providerTools)
-		? (front.providerTools as string[])
-		: [];
-
-	const skills: string[] = Array.isArray(front.skills)
-		? (front.skills as string[])
-		: [];
-
-	// Optional cron schedule string (e.g. "0 3 * * *")
-	const schedule =
-		typeof front.schedule === "string" ? front.schedule : undefined;
-
-	// Optional vault subdirectory restriction (e.g. "Training")
-	const vaultScope =
-		typeof front.vaultScope === "string" ? front.vaultScope : undefined;
+	const {
+		name,
+		modelTier,
+		tools,
+		toolsets,
+		providerTools,
+		skills,
+		schedule,
+		vaultScope,
+	} = front;
 
 	// Per-query params from optional `context:` YAML key.
-	// Example: context: { conversation: { limit: 10 } }
-	const yamlParams: Record<
-		string,
-		Record<string, unknown>
-	> = typeof front.context === "object" &&
-	front.context !== null &&
-	!Array.isArray(front.context)
-		? (front.context as Record<string, Record<string, unknown>>)
-		: {};
+	const yamlParams = front.context ?? {};
 
 	// Inline params parsed from {{name?key=val}} placeholders in the prompt body.
 	// Merged on top of YAML params (inline wins per-key).
@@ -318,7 +282,7 @@ export async function loadAgentDefinition(
 
 	return {
 		name,
-		modelTier: modelTier as ModelTier,
+		modelTier,
 		tools,
 		...(toolsets.length > 0 ? { toolsets } : {}),
 		...(providerTools.length > 0 ? { providerTools } : {}),

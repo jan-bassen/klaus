@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { config } from "@/config";
 import { log } from "@/logger";
 import type {
@@ -135,15 +136,14 @@ export async function loadContextQueries(
 	return queries;
 }
 
+const ContextQueryShape = z
+	.object({
+		name: z.string(),
+		priority: z.number(),
+		run: z.function(),
+	})
+	.passthrough();
+
 function isContextQuery(x: unknown): x is ContextQuery {
-	return (
-		typeof x === "object" &&
-		x !== null &&
-		"name" in x &&
-		typeof (x as Record<string, unknown>).name === "string" &&
-		"priority" in x &&
-		typeof (x as Record<string, unknown>).priority === "number" &&
-		"run" in x &&
-		typeof (x as Record<string, unknown>).run === "function"
-	);
+	return ContextQueryShape.safeParse(x).success;
 }

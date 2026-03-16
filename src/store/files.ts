@@ -2,6 +2,7 @@ import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { config } from "@/config";
 import { log } from "@/logger";
+import { FileMetaSchema } from "./schemas";
 
 export interface FileMeta {
 	id: string;
@@ -137,7 +138,9 @@ export async function rebuildFileIndex(): Promise<void> {
 		const text = await Bun.file(indexPath()).text();
 		for (const line of text.split("\n")) {
 			if (!line.trim()) continue;
-			const record = JSON.parse(line) as FileMeta & { _update?: boolean };
+			const record = FileMetaSchema.passthrough().parse(
+				JSON.parse(line),
+			) as FileMeta & { _update?: boolean };
 			// Later entries overwrite earlier ones (handles updates)
 			fileIndex.set(record.id, {
 				id: record.id,

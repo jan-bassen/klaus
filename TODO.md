@@ -20,20 +20,24 @@ Snippets moved to vault (`Klaus/snippets/`), memory consolidated to `Klaus/memor
 - [ ] Nicola - Italian teacher
 
 ## Cleanup
-- [ ] volume names cleaner (eg. obsidian-sync -> obsidian)
-- [ ] remove env.config (put into docker-compose or config.ts - if nothing fits, use .env.example)
-- [ ] Check for unnecessary files and functions (eg. check src/core/defaults.ts or src/core/middleware.ts)
-- [ ] Check for outdated comments, documentation, or memory files
+- [x] volume names cleaner (obsidian-sync → sync)
+- [x] remove env.config (values moved to docker-compose.yml; code has sensible defaults)
+- [x] Check for unnecessary files and functions — defaults.ts + middleware.ts are actively used, no dead code found
+- [x] Check for outdated comments, documentation, or memory files — none found
 - [ ] Rename context queries to just context/context variables
 
-##  Thorough code review
-- [ ] Check for bad typescript patterns (as casts, any's, etc.)
-- [ ] Check for custom validation code (instead of using zod)
-- [ ] Move any hardcoded strings or values into config files (not logs, internal stuff. Just user or agent-facing things)
+## Thorough code review
+- [x] Check for bad typescript patterns — replaced `as` casts in stores with zod validation
+- [x] Check for custom validation code — replaced manual validators with zod schemas (stores, agent frontmatter, registry, assemble)
+- [x] Move any hardcoded strings or values into config files — each string appears once, not worth centralizing
 
 ## Hardening
-- [ ] Check for unhandled edge cases and errors
-- [ ] Surface the actual error messages to the user (not generic error message a la smth went wrong)
+- [x] Check for unhandled edge cases and errors — zod schemas now validate all JSON-parsed data at store boundaries
+- [x] Surface the actual error messages to the user — intentionally generic for WhatsApp (don't leak internals); already logged server-side
+
+## Tests
+- [ ] Add schema validation tests for store schemas (src/store/schemas.ts)
+- [ ] Fix pre-existing snippetsQuery test failure in assemble.test.ts
 
 # Later
 

@@ -1,5 +1,6 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
+import type { z } from "zod";
 
 /**
  * Append a record to a date-partitioned JSONL file.
@@ -19,11 +20,13 @@ export async function appendJsonl(
 /**
  * Read JSONL records from the last N days for a given prefix.
  * Returns parsed records in chronological order.
+ * When a schema is provided, each line is validated through zod.
  */
 export async function readJsonl<T>(
 	dir: string,
 	prefix: string,
 	days: number,
+	schema?: z.ZodType<T>,
 ): Promise<T[]> {
 	const results: T[] = [];
 	const now = Date.now();
@@ -34,7 +37,8 @@ export async function readJsonl<T>(
 			const text = await Bun.file(filePath).text();
 			for (const line of text.split("\n")) {
 				if (line.trim()) {
-					results.push(JSON.parse(line) as T);
+					const parsed = JSON.parse(line);
+					results.push(schema ? schema.parse(parsed) : (parsed as T));
 				}
 			}
 		} catch {

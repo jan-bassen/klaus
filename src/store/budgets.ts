@@ -1,6 +1,8 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
 import { config } from "@/config";
+import { BudgetConfigSchema } from "./schemas";
 
 export interface BudgetConfig {
 	chatId: string;
@@ -19,7 +21,9 @@ function budgetsPath(): string {
 export async function loadBudgets(): Promise<void> {
 	try {
 		const text = await Bun.file(budgetsPath()).text();
-		const entries = JSON.parse(text) as BudgetConfig[];
+		const entries = z
+			.array(BudgetConfigSchema)
+			.parse(JSON.parse(text)) as BudgetConfig[];
 		for (const entry of entries) {
 			budgetConfigs.set(entry.chatId, entry);
 		}

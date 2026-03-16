@@ -78,10 +78,9 @@ Do this once on any machine (laptop or NAS).
 git clone <repo-url> && cd klaus
 ```
 
-2. Create env files:
+2. Create env file:
 
 ```bash
-cp .env.config.example .env.config
 cp .env.example .env
 ```
 
@@ -101,7 +100,7 @@ docker compose logs -f app
 
 5. (Optional) Set up Obsidian vault sync. Fill in OBSIDIAN_EMAIL, OBSIDIAN_PASSWORD, and OBSIDIAN_VAULT_NAME in .env. The sync service authenticates and configures the vault automatically on first start. Sync is bidirectional and continuous — notes Klaus creates will appear in your Obsidian app.
 
-**NAS-specific:** Set BACKUP_DIR=/volume1/backups/klaus in your .env.config before starting.
+**NAS-specific:** Set BACKUP_DIR=/volume1/backups/klaus in your .env before starting.
 
 ---
 
@@ -161,21 +160,9 @@ docker compose down -v && docker compose up -d --remove-orphans
 
 ## Configuration
 
-### .env.config
-
-Non-secret config, safe to edit freely.
-
-| Variable           | Description                                       | Default                   |
-| ------------------ | ------------------------------------------------- | ------------------------- |
-| BAILEYS_AUTH_FOLDER| Auth state directory                               | ./.auth                   |
-| PORT               | Internal app port                                  | 3000                      |
-| BACKUP_DIR         | Where backups are written on the host              | ./backups                 |
-| VAULT_DIR          | Obsidian vault directory (must match Docker mount) | ./vault                   |
-| DATA_DIR           | Operational data dir (conversations, tasks, costs) | ~/.klaus/data             |
-
 ### .env
 
-API keys, gitignored, never committed.
+API keys and host-specific settings, gitignored, never committed.
 
 | Variable            | Description                             |
 | ------------------- | --------------------------------------- |
@@ -183,6 +170,9 @@ API keys, gitignored, never committed.
 | ELEVENLABS_API_KEY  | ElevenLabs TTS/STT key                  |
 | ALLOWED_CHAT_ID     | WhatsApp chat ID to allow (fail-closed) |
 | OBSIDIAN_VAULT_NAME | Obsidian Sync vault name                |
+| BACKUP_DIR          | Where backups are written on the host (default: ./backups) |
+
+Non-secret config (PORT, LOG_FORMAT, BAILEYS_AUTH_FOLDER, path overrides) is set directly in `docker-compose.yml` for Docker. For local dev, all values have sensible defaults in code — no extra env file needed.
 
 ---
 

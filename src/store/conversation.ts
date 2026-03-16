@@ -2,6 +2,7 @@ import { appendFile, mkdir, readdir, rename } from "node:fs/promises";
 import path from "node:path";
 import { config } from "@/config";
 import { log } from "@/logger";
+import { ConversationEventSchema } from "./schemas";
 
 // -- Event types --
 
@@ -159,7 +160,7 @@ export async function getConversation(): Promise<ConversationMessage[]> {
 
 	for (const line of text.split("\n")) {
 		if (!line.trim()) continue;
-		const event = JSON.parse(line) as ConversationEvent;
+		const event = ConversationEventSchema.parse(JSON.parse(line));
 
 		if (event.kind === "msg") {
 			messages.set(event.id, {
@@ -278,7 +279,7 @@ export async function rebuildIndexes(): Promise<void> {
 
 	for (const line of text.split("\n")) {
 		if (!line.trim()) continue;
-		const event = JSON.parse(line) as ConversationEvent;
+		const event = ConversationEventSchema.parse(JSON.parse(line));
 
 		if (event.kind === "msg") {
 			if (event.externalId) {
@@ -332,7 +333,7 @@ export async function readAllMessages(): Promise<ConversationMessage[]> {
 
 		for (const line of text.split("\n")) {
 			if (!line.trim()) continue;
-			const event = JSON.parse(line) as ConversationEvent;
+			const event = ConversationEventSchema.parse(JSON.parse(line));
 
 			if (event.kind === "msg") {
 				messages.set(event.id, {

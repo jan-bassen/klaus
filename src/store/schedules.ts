@@ -1,7 +1,9 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
 import { config } from "@/config";
 import { log } from "@/logger";
+import { ScheduleEntrySchema } from "./schemas";
 
 export interface ScheduleEntry {
 	name: string;
@@ -34,7 +36,7 @@ async function persist(): Promise<void> {
 export async function loadSchedules(): Promise<void> {
 	try {
 		const text = await Bun.file(schedulesPath()).text();
-		const entries = JSON.parse(text) as ScheduleEntry[];
+		const entries = z.array(ScheduleEntrySchema).parse(JSON.parse(text));
 		for (const entry of entries) {
 			schedules.set(entry.name, entry);
 		}
