@@ -1,28 +1,24 @@
 import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
 import { config } from "@/config";
 import { log } from "@/logger";
-import { TaskRecordSchema } from "./schemas";
 
-export type TaskStatus =
-	| "pending"
-	| "running"
-	| "done"
-	| "failed"
-	| "cancelled";
+export const TaskRecordSchema = z.object({
+	id: z.string(),
+	chatId: z.string(),
+	objective: z.string(),
+	assignedTo: z.string().optional(),
+	caller: z.string().optional(),
+	status: z.enum(["pending", "running", "done", "failed", "cancelled"]),
+	result: z.unknown().optional(),
+	parentTaskId: z.string().optional(),
+	createdAt: z.string(),
+	completedAt: z.string().optional(),
+});
 
-export interface TaskRecord {
-	id: string;
-	chatId: string;
-	objective: string;
-	assignedTo?: string;
-	caller?: string;
-	status: TaskStatus;
-	result?: unknown;
-	parentTaskId?: string;
-	createdAt: string;
-	completedAt?: string;
-}
+export type TaskRecord = z.infer<typeof TaskRecordSchema>;
+export type TaskStatus = TaskRecord["status"];
 
 function tasksDir(): string {
 	return path.join(config.dataDir, "tasks");
@@ -117,7 +113,7 @@ export async function getTask(id: string): Promise<TaskRecord | null> {
 		const filePath = path.join(statusDir(status), `${id}.json`);
 		try {
 			const text = await Bun.file(filePath).text();
-			return TaskRecordSchema.parse(JSON.parse(text)) as TaskRecord;
+			return TaskRecordSchema.parse(JSON.parse(text));
 		} catch {
 			// Not in this directory
 		}
@@ -150,7 +146,7 @@ export async function listTasks(filter?: {
 			if (!file.endsWith(".json")) continue;
 			try {
 				const text = await Bun.file(path.join(dir, file)).text();
-				const task = TaskRecordSchema.parse(JSON.parse(text)) as TaskRecord;
+				const task = TaskRecordSchema.parse(JSON.parse(text));
 				if (filter?.chatId && task.chatId !== filter.chatId) continue;
 				results.push(task);
 			} catch {
@@ -185,7 +181,7 @@ export async function recoverRunningTasks(): Promise<void> {
 		try {
 			const fromPath = path.join(runningDir, file);
 			const text = await Bun.file(fromPath).text();
-			const task = TaskRecordSchema.parse(JSON.parse(text)) as TaskRecord;
+			const task = TaskRecordSchema.parse(JSON.parse(text));
 			task.status = "pending";
 			await Bun.write(
 				path.join(pendingDir, file),

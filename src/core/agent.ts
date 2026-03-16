@@ -3,6 +3,7 @@ import type { ImagePart, StepResult, TextPart, ToolSet, UserContent } from "ai";
 import { tool } from "ai";
 import sharp from "sharp";
 import { parse as parseYaml } from "yaml";
+import { z } from "zod";
 import { config } from "@/config";
 import {
 	generateMetaTool,
@@ -15,7 +16,18 @@ import { buildSkillTool } from "@/tools/skill";
 import type { AgentDefinition, ToolDefinition, TurnContext } from "@/types";
 import { hbs } from "./hbs";
 import { callModel } from "./model-router";
-import { AgentFrontmatterSchema } from "./schemas";
+
+const AgentFrontmatterSchema = z.object({
+	name: z.string().min(1),
+	modelTier: z.enum(["default", "low", "high"]),
+	tools: z.array(z.string()).default([]),
+	toolsets: z.array(z.string()).default([]),
+	providerTools: z.array(z.string()).default([]),
+	skills: z.array(z.string()).default([]),
+	schedule: z.string().optional(),
+	vaultScope: z.string().optional(),
+	context: z.record(z.record(z.unknown())).optional(),
+});
 
 // Max long-edge dimension for vision images. A 2048px image → at most 4×4 = 16 tiles ≈ 24k tokens.
 const MAX_IMAGE_DIMENSION = 2048;

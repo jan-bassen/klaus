@@ -2,13 +2,14 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { config } from "@/config";
-import { BudgetConfigSchema } from "./schemas";
 
-export interface BudgetConfig {
-	chatId: string;
-	dailyLimitUsd?: number;
-	monthlyLimitUsd?: number;
-}
+export const BudgetConfigSchema = z.object({
+	chatId: z.string(),
+	dailyLimitUsd: z.number().optional(),
+	monthlyLimitUsd: z.number().optional(),
+});
+
+export type BudgetConfig = z.infer<typeof BudgetConfigSchema>;
 
 /** In-memory budget configs */
 const budgetConfigs = new Map<string, BudgetConfig>();
@@ -21,9 +22,7 @@ function budgetsPath(): string {
 export async function loadBudgets(): Promise<void> {
 	try {
 		const text = await Bun.file(budgetsPath()).text();
-		const entries = z
-			.array(BudgetConfigSchema)
-			.parse(JSON.parse(text)) as BudgetConfig[];
+		const entries = z.array(BudgetConfigSchema).parse(JSON.parse(text));
 		for (const entry of entries) {
 			budgetConfigs.set(entry.chatId, entry);
 		}

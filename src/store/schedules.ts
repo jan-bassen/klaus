@@ -3,16 +3,17 @@ import path from "node:path";
 import { z } from "zod";
 import { config } from "@/config";
 import { log } from "@/logger";
-import { ScheduleEntrySchema } from "./schemas";
 
-export interface ScheduleEntry {
-	name: string;
-	agentName: string;
-	pattern: string;
-	chatId: string;
-	payload: Record<string, unknown>;
-	createdAt: string;
-}
+export const ScheduleEntrySchema = z.object({
+	name: z.string(),
+	agentName: z.string(),
+	pattern: z.string(),
+	chatId: z.string(),
+	payload: z.record(z.unknown()),
+	createdAt: z.string(),
+});
+
+export type ScheduleEntry = z.infer<typeof ScheduleEntrySchema>;
 
 /** In-memory schedule store */
 const schedules = new Map<string, ScheduleEntry>();

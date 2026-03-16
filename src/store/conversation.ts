@@ -1,42 +1,52 @@
 import { appendFile, mkdir, readdir, rename } from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
 import { config } from "@/config";
 import { log } from "@/logger";
-import { ConversationEventSchema } from "./schemas";
 
-// -- Event types --
+// -- Event schemas & types --
 
-export interface ConversationMessageEvent {
-	kind: "msg";
-	id: string;
-	role: "user" | "assistant";
-	content: string | null;
-	createdAt: string;
-	externalId?: string;
-	quotedText?: string;
-	quotedRole?: string;
-	flags?: string[];
-	command?: string | null;
-}
+const ConversationMessageEventSchema = z.object({
+	kind: z.literal("msg"),
+	id: z.string(),
+	role: z.enum(["user", "assistant"]),
+	content: z.string().nullable(),
+	createdAt: z.string(),
+	externalId: z.string().optional(),
+	quotedText: z.string().optional(),
+	quotedRole: z.string().optional(),
+	flags: z.array(z.string()).optional(),
+	command: z.string().nullable().optional(),
+});
 
-export interface ConversationAckEvent {
-	kind: "ack";
-	messageId: string;
-	externalId: string;
-}
+const ConversationAckEventSchema = z.object({
+	kind: z.literal("ack"),
+	messageId: z.string(),
+	externalId: z.string(),
+});
 
-export interface ConversationReactionEvent {
-	kind: "reaction";
-	messageExternalId: string;
-	emoji: string;
-	senderId: string;
-	fromMe: boolean;
-}
+const ConversationReactionEventSchema = z.object({
+	kind: z.literal("reaction"),
+	messageExternalId: z.string(),
+	emoji: z.string(),
+	senderId: z.string(),
+	fromMe: z.boolean(),
+});
 
-type ConversationEvent =
-	| ConversationMessageEvent
-	| ConversationAckEvent
-	| ConversationReactionEvent;
+export const ConversationEventSchema = z.discriminatedUnion("kind", [
+	ConversationMessageEventSchema,
+	ConversationAckEventSchema,
+	ConversationReactionEventSchema,
+]);
+
+export type ConversationMessageEvent = z.infer<
+	typeof ConversationMessageEventSchema
+>;
+export type ConversationAckEvent = z.infer<typeof ConversationAckEventSchema>;
+export type ConversationReactionEvent = z.infer<
+	typeof ConversationReactionEventSchema
+>;
+type ConversationEvent = z.infer<typeof ConversationEventSchema>;
 
 // -- Merged message type returned by getConversation --
 
@@ -224,7 +234,7 @@ export async function getConversation(): Promise<ConversationMessage[]> {
 
 	return order
 		.map((id) => messages.get(id))
-		.filter(Boolean) as ConversationMessage[];
+		.filter((x): x is ConversationMessage => Boolean(x));
 }
 
 /** Find a message by its WhatsApp externalId (in-memory lookup). */

@@ -1,18 +1,20 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
 import { config } from "@/config";
 import { log } from "@/logger";
-import { FileMetaSchema } from "./schemas";
 
-export interface FileMeta {
-	id: string;
-	path: string;
-	mimeType: string;
-	sizeBytes: number;
-	messageId?: string;
-	externalId?: string;
-	createdAt: string;
-}
+export const FileMetaSchema = z.object({
+	id: z.string(),
+	path: z.string(),
+	mimeType: z.string(),
+	sizeBytes: z.number(),
+	messageId: z.string().optional(),
+	externalId: z.string().optional(),
+	createdAt: z.string(),
+});
+
+export type FileMeta = z.infer<typeof FileMetaSchema>;
 
 /** In-memory index: fileId → FileMeta */
 const fileIndex = new Map<string, FileMeta>();
@@ -138,9 +140,9 @@ export async function rebuildFileIndex(): Promise<void> {
 		const text = await Bun.file(indexPath()).text();
 		for (const line of text.split("\n")) {
 			if (!line.trim()) continue;
-			const record = FileMetaSchema.passthrough().parse(
-				JSON.parse(line),
-			) as FileMeta & { _update?: boolean };
+			const record = FileMetaSchema.extend({
+				_update: z.boolean().optional(),
+			}).parse(JSON.parse(line));
 			// Later entries overwrite earlier ones (handles updates)
 			fileIndex.set(record.id, {
 				id: record.id,
