@@ -3,8 +3,8 @@ import { dispatch as dispatchAgent } from "@/core/dispatch";
 import { getTask, listTasks, moveTask } from "@/store/tasks";
 import type { ToolDefinition, ToolsetDefinition } from "@/types";
 
-// dispatch — surface tool (always available)
-const dispatchSchema = z.object({
+// dispatch
+const taskDispatchSchema = z.object({
 	agent: z.string().describe("Name of the agent to invoke"),
 	objective: z.string().describe("What the agent should accomplish"),
 	hint: z
@@ -19,11 +19,11 @@ const dispatchSchema = z.object({
 		),
 });
 
-export const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
-	name: "dispatch",
+export const taskDispatchTool: ToolDefinition<typeof taskDispatchSchema> = {
+	name: "task.dispatch",
 	description:
 		"Invoke another agent with an objective. Use async for background work, inline to await the result.",
-	inputSchema: dispatchSchema,
+	inputSchema: taskDispatchSchema,
 	execute: async (input, context) => {
 		const result = await dispatchAgent({
 			agent: input.agent,
@@ -41,7 +41,6 @@ export const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 	},
 	kind: "builtin",
 	capability: "tool",
-	surface: true,
 };
 
 // task.cancel
@@ -127,5 +126,5 @@ export const taskToolset: ToolsetDefinition = {
 	name: "task",
 	description:
 		"Use when you need to dispatch agents, cancel tasks, or list running tasks.",
-	tools: [dispatchTool, taskCancelTool, taskListTool, taskGetTool],
+	tools: [taskDispatchTool, taskCancelTool, taskListTool, taskGetTool],
 };

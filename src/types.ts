@@ -117,8 +117,6 @@ export interface ToolDefinition<TInput extends z.ZodTypeAny = z.ZodTypeAny> {
 	execute(input: z.infer<TInput>, context: TurnContext): Promise<unknown>;
 	kind: "builtin" | "integration";
 	capability: "tool" | "resource";
-	/** Promoted to always-available even when its toolset is not loaded */
-	surface?: boolean | undefined;
 	requiresConfirmation?: boolean | undefined;
 }
 

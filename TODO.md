@@ -1,11 +1,9 @@
 # TODO
 
-## Unify Memory Layer
-- [ ] 
-
 ## Cleanup
 - [ ] rename docker volumes to data, files, vault, and config (with baileys auth and obsidian sync config)
 - [ ] rename sync container to obsidian
+- [ ] Make all toolset names plural when fitting (tasks, notes, ...)
 - [ ] Make logs in console pretty, store structured still
 
 ## Agents
@@ -22,5 +20,4 @@
 - [ ] Add `*.eval.ts` files for non-deterministic behavior (pipeline end-to-end, agent tool selection, memory search relevance)
 - [ ] See `AGENT.md` for eval conventions
 
-I just simplified the memory system drastically. It is now colocated in my vault instead of a postgres. I genuenly like that change as the whole project is build under the goal of maximum simplicity. Now, I do wonder if the memory is a bit too limited now. Most important things for the context sit directly in instructions and prompts, as they are easy to change, but I also always liked the idea that Klaus can build his own personality a bit (self-improvement, character development) and be more personalized by remembering our past interactions while not having all the valuable context be gobbled up by it. Can you explore our options for a somewhat more sophisticated auto-adjustment/memory system? Something that fits nicely in here?
-Don't plan any implementation yet! I want one or a few good conceptual ideas (what's the primitive long-term memory in this context) first, before diving into details!
+I just simplified the memory system drastically. It is now colocated in my vault instead of a postgres. I genuenly like that change as the whole project is build under the goal of maximum simplicity. Now, I do wonder if the memory is a bit too limited now. I have snippets that are always fully loaded when included in the prompt, and I have skills which are dynamically loaded instructions. But I feel like one primitive is missing: Auto-managed and on-demand things (less important instructions, personality adaptations that go beyond the snippet, ...). What do you think could we add to fix this gap?

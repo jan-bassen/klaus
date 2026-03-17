@@ -248,6 +248,7 @@ Built-in agents:
 | task    | dispatch, cancel, list, get                         | Async task management          |
 | ops     | cron, cost-tracking                                 | Scheduling and spend monitoring|
 | files   | upload, download, list, delete                      | File management                |
+| note    | search, write, edit, delete                         | Auto-managed knowledge notes   |
 
 **Standalone tools** are opt-in per agent via `tools:` in frontmatter:
 
@@ -264,6 +265,18 @@ Agents can also use **provider tools** — Anthropic built-in capabilities like 
 Skill files support optional YAML frontmatter with a `description:` field. The description is included in the tool definition so the model knows what each skill contains before deciding to load it.
 
 Declare `skills: [name1, name2]` in an agent's frontmatter. The tool is scoped to those names via `z.enum` — the model literally cannot request a nonexistent skill. The `{{skills}}` Handlebars var is injected so the prompt can list available skills. Agents without `skills:` see nothing — zero token overhead.
+
+### Notes
+
+**Notes** are auto-managed, topic-keyed `.md` files in `Klaus/notes/` that agents write and search at runtime. They fill the gap between snippets (static, always loaded) and skills (static, on-demand) — notes are for knowledge the system learns over time that is too numerous or low-priority to always inject.
+
+Four tools in the `note` toolset:
+- `note.search` — substring match across filenames, frontmatter descriptions, and body; returns full content
+- `note.write` — create or overwrite a kebab-case-named note with optional `description:` frontmatter
+- `note.edit` — find-and-replace within an existing note (more token-efficient than rewriting)
+- `note.delete` — delete a note (requires `confirm: true`)
+
+Agents opt in by adding `note` to their `toolsets:` list in frontmatter.
 
 ### Context assembly
 
@@ -314,6 +327,7 @@ src/
 
 vault/Klaus/       # Klaus's own directory in the Obsidian vault
 ├── agents/        # Agent prompt files (.md with YAML frontmatter)
+├── notes/         # Auto-managed knowledge notes (written/searched by agents at runtime)
 ├── skills/        # Static .md reference documents (loaded on demand by agents)
 ├── snippets/      # Static prompt content (soul.md, architecture.md)
 ├── user.md        # User profile (updated by memorize agent)

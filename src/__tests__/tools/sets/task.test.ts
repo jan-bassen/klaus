@@ -31,9 +31,11 @@ mock.module("@/logger", () => ({
 	},
 }));
 
-const { dispatchTool, taskCancelTool, taskListTool } = await import(
-	"@/tools/sets/task"
-);
+const {
+	taskDispatchTool: dispatchTool,
+	taskCancelTool,
+	taskListTool,
+} = await import("@/tools/sets/task");
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 

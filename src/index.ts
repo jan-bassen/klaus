@@ -117,6 +117,9 @@ async function main(): Promise<void> {
 	await mkdir(skillsDir, { recursive: true });
 	await loadSkills(skillsDir);
 
+	const notesDir = path.join(config.vault.dir, "Klaus", "notes");
+	await mkdir(notesDir, { recursive: true });
+
 	await import("./commands/register");
 
 	// Validate skill references
