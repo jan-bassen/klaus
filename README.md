@@ -172,7 +172,7 @@ API keys and host-specific settings, gitignored, never committed.
 | OBSIDIAN_VAULT_NAME | Obsidian Sync vault name                |
 | BACKUP_DIR          | Where backups are written on the host (default: ./backups) |
 
-Non-secret config (PORT, LOG_FORMAT, BAILEYS_AUTH_FOLDER, path overrides) is set directly in `docker-compose.yml` for Docker. For local dev, all values have sensible defaults in code — no extra env file needed.
+Non-secret config (PORT, BAILEYS_AUTH_FOLDER, path overrides) is set directly in `docker-compose.yml` for Docker. For local dev, all values have sensible defaults in code — no extra env file needed.
 
 ---
 

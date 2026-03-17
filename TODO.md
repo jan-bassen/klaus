@@ -4,6 +4,8 @@
 - [x] rename docker volumes to data, files, vault, and config (with baileys auth and obsidian sync config)
 - [x] rename sync container to obsidian
 - [x] Make all toolset names plural when fitting (tasks, notes, ...)
+
+## Logs
 - [ ] Make logs in console pretty, store structured still
 
 ## Agents

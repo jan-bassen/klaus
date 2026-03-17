@@ -7,7 +7,6 @@ services:
       - .env
     environment:
       - PORT=3000
-      - LOG_FORMAT=pretty
       - BAILEYS_AUTH_FOLDER=/app/config/baileys
       - FILES_DIR=/app/files
       - DATA_DIR=/app/data

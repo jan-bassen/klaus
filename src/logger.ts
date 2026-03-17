@@ -1,8 +1,10 @@
+import { config } from "@/config";
+
 type Level = "debug" | "info" | "warn" | "error";
 
-// Pretty by default; set LOG_FORMAT=json for newline-delimited JSON (e.g. log aggregators).
+// Pretty by default; tests always get JSON (test assertions parse JSON output).
 const PRETTY =
-	process.env.NODE_ENV !== "test" && process.env.LOG_FORMAT !== "json";
+	process.env.NODE_ENV !== "test" && config.log.format === "pretty";
 
 const RESET = "\x1b[0m";
 const DIM = "\x1b[2m";
