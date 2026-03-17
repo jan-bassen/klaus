@@ -287,9 +287,7 @@ describe("loadAgentDefinition", () => {
 			"---\nname: bad\nmodelTier: nonexistent\ntools: []\n---\n## hi\n",
 		);
 		try {
-			await expect(loadAgentDefinition(tmpPath)).rejects.toThrow(
-				"nonexistent",
-			);
+			await expect(loadAgentDefinition(tmpPath)).rejects.toThrow("nonexistent");
 		} finally {
 			unlinkSync(tmpPath);
 		}

@@ -24,14 +24,9 @@ const replySchema = z.object({
 export const replyTool: ToolDefinition<typeof replySchema> = {
 	name: "reply",
 	description:
-		'Send a message or follow-up question via WhatsApp. Formatting: *bold* (yes, only *one* asterisk) _italic_ ~strikethrough~ ```monospace``` > blockquote. Lists: "1." ordered, "-" unordered. Use messageRef to quote-reply to a specific message from the conversation history.',
+		'Send a WhatsApp message — works both as a reply to an inbound message and as a proactive/scheduled send. Formatting: *bold* (yes, only *one* asterisk) _italic_ ~strikethrough~ ```monospace``` > blockquote. Lists: "1." ordered, "-" unordered. Use messageRef to quote-reply to a specific message from the conversation history.',
 	inputSchema: replySchema,
 	execute: async ({ content, voice, messageRef }, context) => {
-		if (!context.message) {
-			return {
-				error: "reply tool can only be used in a WhatsApp turn context",
-			};
-		}
 		log.info("[reply] enqueuing", {
 			chatId: context.chatId,
 			preview: content.slice(0, 60),
@@ -42,6 +37,11 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 		if (messageRef) {
 			let ref: { externalId: string; role: string } | undefined;
 			if (messageRef === "current") {
+				if (!context.message) {
+					return {
+						error: 'messageRef "current" requires an inbound message context',
+					};
+				}
 				ref = { externalId: context.message.id, role: "user" };
 			} else {
 				const refs = context.assembled?.vars?._messageRefs as
@@ -78,7 +78,9 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 				}
 			: undefined;
 
-		const dedupBase = `${context.message.id}:reply:${crypto.randomUUID()}`;
+		const dedupBase = context.message
+			? `${context.message.id}:reply:${crypto.randomUUID()}`
+			: `${context.chatId}:reply:${crypto.randomUUID()}`;
 		const quotedPart = quoted ? { quoted } : {};
 		if (voice) {
 			const audio = await textToSpeech(content, context.chatId);
@@ -102,7 +104,9 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 						chatId: context.chatId,
 						content: audio,
 						mimeType: "audio/mpeg",
-						dedupKey: `${context.message.id}:reply-voice:${crypto.randomUUID()}`,
+						dedupKey: context.message
+							? `${context.message.id}:reply-voice:${crypto.randomUUID()}`
+							: `${context.chatId}:reply-voice:${crypto.randomUUID()}`,
 						...quotedPart,
 					},
 					onSent,

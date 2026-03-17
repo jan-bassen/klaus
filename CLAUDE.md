@@ -141,6 +141,8 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - `{vault}/Klaus/user.md` — user profile, updated by memorize agent
 - `{vault}/Klaus/memory.md` — working memory/facts/preferences, updated by memorize agent
 
+Live Vault is located at /Users/janbassen/Vaults/Jan/Klaus on this pc
+
 ### Testing conventions
 
 - Tests mirror source tree under `src/__tests__/`
@@ -163,14 +165,3 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - Path alias `@/` maps to `src/`
 - No unnecessary comments — code should be self-explanatory; comments explain *why*, never *what*
 - Keep the dependency list short; justify every addition — use `bun add` / `bun update`, no need to check versions manually
-
-### Environment
-
-One env file (see README for full list of vars):
-- `.env` — secrets (API keys); loaded via 1Password CLI in dev
-
-Non-secret config (PORT, LOG_FORMAT, paths) is set directly in `docker-compose.yml` for Docker and has sensible defaults in code for local dev.
-
-Required at startup: `ANTHROPIC_API_KEY`, `ALLOWED_CHAT_ID`.
-
-Optional: `VAULT_DIR` (default: `./vault`), `DATA_DIR` (default: `~/.klaus/data`), `FILES_DIR` (default: `./.files`).

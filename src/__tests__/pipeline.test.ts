@@ -104,8 +104,14 @@ beforeAll(async () => {
 	await mkdir(agentsDir, { recursive: true });
 	const minimalFrontmatter = (name: string, tier: string) =>
 		`---\nname: ${name}\nmodelTier: ${tier}\ntools: []\n---\n`;
-	await writeFile(join(agentsDir, "klaus.md"), minimalFrontmatter("klaus", "default"));
-	await writeFile(join(agentsDir, "thinking.md"), minimalFrontmatter("thinking", "high"));
+	await writeFile(
+		join(agentsDir, "klaus.md"),
+		minimalFrontmatter("klaus", "default"),
+	);
+	await writeFile(
+		join(agentsDir, "thinking.md"),
+		minimalFrontmatter("thinking", "high"),
+	);
 	savedVaultDir = process.env.VAULT_DIR;
 	process.env.VAULT_DIR = join(tmpDir, "vault");
 

@@ -159,13 +159,33 @@ describe("replyTool", () => {
 		expect(mockEnqueueMessage).not.toHaveBeenCalled();
 	});
 
-	test("returns error when context has no message", async () => {
-		const result = await replyTool.execute({ content: "hello" }, {
+	test("sends without inbound message context (proactive/scheduled)", async () => {
+		const result = await replyTool.execute({ content: "proactive hello" }, {
 			...makeContext(),
 			message: undefined,
 		} as unknown as Parameters<typeof replyTool.execute>[1]);
+		expect(result).toBe("sent");
+		expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
+		const enqueued = mockEnqueueMessage.mock.calls[0]?.[0] as {
+			content: string;
+			chatId: string;
+			dedupKey: string;
+		};
+		expect(enqueued.content).toBe("proactive hello");
+		expect(enqueued.chatId).toBe("user@s.whatsapp.net");
+		expect(enqueued.dedupKey).toContain("user@s.whatsapp.net:reply:");
+	});
+
+	test('messageRef "current" without inbound message returns error', async () => {
+		const result = await replyTool.execute(
+			{ content: "reply", messageRef: "current" },
+			{
+				...makeContext(),
+				message: undefined,
+			} as unknown as Parameters<typeof replyTool.execute>[1],
+		);
 		expect(result).toEqual({
-			error: "reply tool can only be used in a WhatsApp turn context",
+			error: 'messageRef "current" requires an inbound message context',
 		});
 		expect(mockEnqueueMessage).not.toHaveBeenCalled();
 	});

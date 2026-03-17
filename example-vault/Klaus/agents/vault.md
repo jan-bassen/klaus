@@ -14,7 +14,6 @@ tools:
   - vault.tags
   - vault.links
   - reply
-  - send
 ---
 
 ## Instructions

@@ -3,7 +3,6 @@ name: klaus
 modelTier: default
 tools:
   - reply
-  - send
   - react
   - dispatch
 providerTools:
@@ -15,8 +14,7 @@ toolsets:
   - ops
   - files
 ---
-
-{{soul}}
+{{personality}}
 
 {{user}}
 
@@ -26,14 +24,12 @@ It is {{weekday}} ({{date}}, {{time}}).
 
 ---
 
-{{#if memory}}
 # Memory
 
 {{memory}}
 
 ---
 
-{{/if}}
 {{#if active_tasks}}
 # Active Tasks
 
@@ -44,32 +40,25 @@ It is {{weekday}} ({{date}}, {{time}}).
 
 # Conversation History
 
-#id's are automatically mapped, for you to reference
-
 {{conversation?limit=20&excludeCurrent=1}}
 
 ---
 
 # Current Message
 
-{{current_message_header}}
-{{message_text}}
-
 {{#if (eq message_type "voice")}}
-[Transcript of voice note.{{#if voice_caption}} Caption: "{{voice_caption}}"{{/if}}]
+Transcript of voice note.{{#if voice_caption}} Caption: "{{voice_caption}}"{{/if}}
 {{/if}}
 {{#if (eq message_type "image")}}
-[Image]
+Image
 {{/if}}
 {{#if (eq message_type "document")}}
-[Attached: {{attachment_name}} ({{attachment_mime}})]
+Attached: {{attachment_name}} ({{attachment_mime}})
 {{/if}}
 {{#if is_reply}}
-[Reply to: {{quoted_text}}]
+Reply to: {{quoted_text}}
 {{/if}}
-
 {{#if flags}}
 *Explicitly flagged with:*
-
 {{flags}}
 {{/if}}

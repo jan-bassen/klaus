@@ -57,7 +57,8 @@
 			"Bash(ls:*)",
 			"Bash(bun test src/__tests__/context/)",
 			"Bash(bun test:*)",
-			"Bash(bunx biome:*)"
+			"Bash(bunx biome:*)",
+			"Bash(find /Users/janbassen/Vaults/Jan/Klaus/agents -name *.md -type f)"
 		]
 	}
 }
