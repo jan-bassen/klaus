@@ -1,13 +1,5 @@
 # TODO
 
-## Cleanup
-- [x] rename docker volumes to data, files, vault, and config (with baileys auth and obsidian sync config)
-- [x] rename sync container to obsidian
-- [x] Make all toolset names plural when fitting (tasks, notes, ...)
-
-## Logs
-- [ ] Make logs in console pretty, store structured still
-
 ## Agents
 - [ ] Fitness - An agent that tracks my fitness goals/progress, manage my trainingplan and helps me stay on track. I want to call him directly with @fitness during training sessions and he should be able to provide me with motivation and insights, mostly through random (for me unexpected) dispatches to motivate me. Espescially on training days.
 - [ ] Daily - An agent that runs every day in the morning to create a daily report in the daily note of the obsidian vault and a short voice message (in german). The daily report should include the weather, the most important few news (local, national, global), a quick check of one or two science news websites. 

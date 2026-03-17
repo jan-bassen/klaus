@@ -1,7 +1,6 @@
 services:
   app:
     build: .
-    user: root
     restart: unless-stopped
     env_file:
       - .env
@@ -17,11 +16,7 @@ services:
       - vault:/app/vault
       - data:/app/data
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget -qO- http://localhost:3000/healthz || exit 1",
-        ]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/healthz || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

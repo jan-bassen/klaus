@@ -77,13 +77,14 @@ export async function callModel(
 	let result: Awaited<ReturnType<typeof generateText>> | undefined;
 	let lastErr: unknown;
 	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+		let timeoutId: ReturnType<typeof setTimeout> | undefined;
 		try {
-			const timeoutPromise = new Promise<never>((_, reject) =>
-				setTimeout(
+			const timeoutPromise = new Promise<never>((_, reject) => {
+				timeoutId = setTimeout(
 					() => reject(new LlmTimeoutError(modelId, timeoutMs)),
 					timeoutMs,
-				),
-			);
+				);
+			});
 			result = await Promise.race([
 				generateText({
 					model,
@@ -114,8 +115,10 @@ export async function callModel(
 				}),
 				timeoutPromise,
 			]);
+			clearTimeout(timeoutId);
 			break; // success — exit retry loop
 		} catch (err) {
+			clearTimeout(timeoutId);
 			lastErr = err;
 			if (!isRetryable(err)) {
 				log.error("[model-router] generateText failed (non-retryable)", {
@@ -157,7 +160,11 @@ export async function callModel(
 		(s, st) => s + (st.usage.outputTokens ?? 0),
 		0,
 	);
-	const modelPricing = config.pricing[modelId];
+	const pricing = config.pricing as Record<
+		string,
+		{ inputPerMTok: number; outputPerMTok: number } | undefined
+	>;
+	const modelPricing = pricing[modelId];
 	const costUsd = modelPricing
 		? (promptTokens / 1_000_000) * modelPricing.inputPerMTok +
 			(completionTokens / 1_000_000) * modelPricing.outputPerMTok

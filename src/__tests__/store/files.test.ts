@@ -108,7 +108,7 @@ describe("listFiles", () => {
 			mimeType: "application/pdf",
 			sizeBytes: 2,
 		});
-		expect(listFiles("photos")).toHaveLength(1);
+		expect(listFiles("/photos")).toHaveLength(1);
 	});
 });
 

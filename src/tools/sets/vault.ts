@@ -352,11 +352,11 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 			const filePath = path.join(vaultDir(), file);
 			try {
 				const text = await Bun.file(filePath).text();
-				if (!pattern.test(text)) continue;
-				pattern.lastIndex = 0;
 				const updated = text.replace(pattern, `[[${newName}$1]]`);
-				await Bun.write(filePath, updated);
-				updatedCount++;
+				if (updated !== text) {
+					await Bun.write(filePath, updated);
+					updatedCount++;
+				}
 			} catch {
 				// Skip unreadable files
 			}

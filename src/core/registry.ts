@@ -65,13 +65,10 @@ async function loadToolModule(filePath: string): Promise<void> {
 				registerToolset(exported);
 			} else if (isToolDefinition(exported)) {
 				registerTool(exported);
-			} else if (
-				Array.isArray(exported) &&
-				exported.length > 0 &&
-				isToolDefinition(exported[0])
-			) {
-				for (const t of exported)
-					registerTool(t as ToolDefinition<z.ZodTypeAny>);
+			} else if (Array.isArray(exported)) {
+				for (const t of exported) {
+					if (isToolDefinition(t)) registerTool(t);
+				}
 			}
 		}
 	} catch (err) {

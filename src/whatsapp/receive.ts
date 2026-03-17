@@ -100,7 +100,12 @@ export function attachReceiveHandler(socket: WASocket): void {
 					emoji: reaction.text,
 					senderId,
 					fromMe,
-				}).catch(() => {}); // best-effort
+				}).catch((err) => {
+					log.warn("[receive] appendReaction failed", {
+						messageExternalId: reactedId,
+						error: err instanceof Error ? err.message : String(err),
+					});
+				});
 				onReaction(reactedId, reaction.text);
 			}
 		}
@@ -234,35 +239,44 @@ export async function normalizeMessage(
 				const filePath = path.join(dir, `${id}.${ext}`);
 
 				await mkdir(dir, { recursive: true });
-				await Bun.write(filePath, buffer as Buffer);
-
-				const sizeBytes = (buffer as Buffer).byteLength;
-				const saved = await saveFileMeta({
-					path: filePath,
-					mimeType,
-					sizeBytes,
-					...(m.key.id ? { externalId: m.key.id } : {}),
-				});
-
-				const fileName = docMsg?.fileName;
-				if (saved instanceof Error) {
-					log.warn("[receive] saveFileMeta failed — media not tracked", {
-						remoteJid: m.key.remoteJid,
-						error: saved.message,
-					});
-					media = {
-						fileId: crypto.randomUUID(),
-						path: filePath,
-						mimeType,
-						...(fileName ? { fileName } : {}),
-					};
+				if (!Buffer.isBuffer(buffer)) {
+					log.warn(
+						"[receive] downloadMediaMessage returned non-Buffer — skipping",
+						{
+							remoteJid: m.key.remoteJid,
+						},
+					);
 				} else {
-					media = {
-						fileId: saved.id,
+					await Bun.write(filePath, buffer);
+
+					const sizeBytes = buffer.byteLength;
+					const saved = await saveFileMeta({
 						path: filePath,
 						mimeType,
-						...(fileName ? { fileName } : {}),
-					};
+						sizeBytes,
+						...(m.key.id ? { externalId: m.key.id } : {}),
+					});
+
+					const fileName = docMsg?.fileName;
+					if (saved instanceof Error) {
+						log.warn("[receive] saveFileMeta failed — media not tracked", {
+							remoteJid: m.key.remoteJid,
+							error: saved.message,
+						});
+						media = {
+							fileId: crypto.randomUUID(),
+							path: filePath,
+							mimeType,
+							...(fileName ? { fileName } : {}),
+						};
+					} else {
+						media = {
+							fileId: saved.id,
+							path: filePath,
+							mimeType,
+							...(fileName ? { fileName } : {}),
+						};
+					}
 				}
 			} catch (err) {
 				log.warn("[receive] media download failed — continuing as text-only", {

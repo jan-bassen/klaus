@@ -1,6 +1,7 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { z } from "zod";
+import { log } from "@/logger";
 
 /**
  * Append a record to a date-partitioned JSONL file.
@@ -20,7 +21,8 @@ export async function appendJsonl(
 /**
  * Read JSONL records from the last N days for a given prefix.
  * Returns parsed records in chronological order.
- * When a schema is provided, each line is validated through zod.
+ *
+ * @param schema — If omitted, parsed JSON is cast to T without runtime validation.
  */
 export async function readJsonl<T>(
 	dir: string,
@@ -36,9 +38,15 @@ export async function readJsonl<T>(
 		try {
 			const text = await Bun.file(filePath).text();
 			for (const line of text.split("\n")) {
-				if (line.trim()) {
+				if (!line.trim()) continue;
+				try {
 					const parsed = JSON.parse(line);
 					results.push(schema ? schema.parse(parsed) : (parsed as T));
+				} catch {
+					log.warn("[jsonl] skipping corrupt line", {
+						prefix,
+						line: line.slice(0, 100),
+					});
 				}
 			}
 		} catch {

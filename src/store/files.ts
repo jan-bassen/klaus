@@ -114,7 +114,7 @@ export function findFileByExternalId(
 export function listFiles(prefix?: string): FileMeta[] {
 	const all = [...fileIndex.values()];
 	if (!prefix) return all;
-	return all.filter((f) => f.path.includes(prefix));
+	return all.filter((f) => f.path.startsWith(prefix));
 }
 
 /** Delete a file from the index (does not remove the blob). */
@@ -140,22 +140,28 @@ export async function rebuildFileIndex(): Promise<void> {
 		const text = await Bun.file(indexPath()).text();
 		for (const line of text.split("\n")) {
 			if (!line.trim()) continue;
-			const record = FileMetaSchema.extend({
-				_update: z.boolean().optional(),
-			}).parse(JSON.parse(line));
-			// Later entries overwrite earlier ones (handles updates)
-			fileIndex.set(record.id, {
-				id: record.id,
-				path: record.path,
-				mimeType: record.mimeType,
-				sizeBytes: record.sizeBytes,
-				...(record.messageId ? { messageId: record.messageId } : {}),
-				...(record.externalId ? { externalId: record.externalId } : {}),
-				createdAt: record.createdAt,
-			});
-			if (record.messageId) messageFileIndex.set(record.messageId, record.id);
-			if (record.externalId)
-				externalFileIndex.set(record.externalId, record.id);
+			try {
+				const record = FileMetaSchema.extend({
+					_update: z.boolean().optional(),
+				}).parse(JSON.parse(line));
+				// Later entries overwrite earlier ones (handles updates)
+				fileIndex.set(record.id, {
+					id: record.id,
+					path: record.path,
+					mimeType: record.mimeType,
+					sizeBytes: record.sizeBytes,
+					...(record.messageId ? { messageId: record.messageId } : {}),
+					...(record.externalId ? { externalId: record.externalId } : {}),
+					createdAt: record.createdAt,
+				});
+				if (record.messageId) messageFileIndex.set(record.messageId, record.id);
+				if (record.externalId)
+					externalFileIndex.set(record.externalId, record.id);
+			} catch {
+				log.warn("[files] skipping corrupt line in index rebuild", {
+					line: line.slice(0, 100),
+				});
+			}
 		}
 	} catch {
 		// No index file yet

@@ -78,6 +78,88 @@ function currentFilePath(): string {
 	return path.join(conversationsDir(), "current.jsonl");
 }
 
+/** Parse JSONL lines, merge acks + reactions into ordered messages. */
+function mergeEvents(text: string): ConversationMessage[] {
+	const messages = new Map<string, ConversationMessage>();
+	const acks = new Map<string, string>(); // messageId → externalId
+	const reactions: ConversationReactionEvent[] = [];
+	const order: string[] = [];
+
+	for (const line of text.split("\n")) {
+		if (!line.trim()) continue;
+		try {
+			const event = ConversationEventSchema.parse(JSON.parse(line));
+
+			if (event.kind === "msg") {
+				messages.set(event.id, {
+					id: event.id,
+					role: event.role,
+					content: event.content,
+					createdAt: event.createdAt,
+					...(event.externalId ? { externalId: event.externalId } : {}),
+					...(event.quotedText ? { quotedText: event.quotedText } : {}),
+					...(event.quotedRole ? { quotedRole: event.quotedRole } : {}),
+					...(event.flags ? { flags: event.flags } : {}),
+					...(event.command != null ? { command: event.command } : {}),
+					reactions: [],
+				});
+				order.push(event.id);
+			} else if (event.kind === "ack") {
+				acks.set(event.messageId, event.externalId);
+			} else if (event.kind === "reaction") {
+				reactions.push(event);
+			}
+		} catch {
+			log.warn("[conversation] skipping corrupt line", {
+				line: line.slice(0, 100),
+			});
+		}
+	}
+
+	// Apply acks
+	for (const [messageId, externalId] of acks) {
+		const msg = messages.get(messageId);
+		if (msg) msg.externalId = externalId;
+	}
+
+	// Build externalId → messageId map for reaction attachment
+	const extToMsg = new Map<string, string>();
+	for (const msg of messages.values()) {
+		if (msg.externalId) extToMsg.set(msg.externalId, msg.id);
+	}
+
+	// Apply reactions (latest per sender wins)
+	for (const r of reactions) {
+		const msgId = extToMsg.get(r.messageExternalId);
+		if (!msgId) continue;
+		const msg = messages.get(msgId);
+		if (!msg) continue;
+		const existing = msg.reactions.findIndex(
+			(rx) => rx.senderId === r.senderId,
+		);
+		if (r.emoji === "") {
+			// Removal
+			if (existing >= 0) msg.reactions.splice(existing, 1);
+		} else if (existing >= 0) {
+			msg.reactions[existing] = {
+				emoji: r.emoji,
+				senderId: r.senderId,
+				fromMe: r.fromMe,
+			};
+		} else {
+			msg.reactions.push({
+				emoji: r.emoji,
+				senderId: r.senderId,
+				fromMe: r.fromMe,
+			});
+		}
+	}
+
+	return order
+		.map((id) => messages.get(id))
+		.filter((x): x is ConversationMessage => Boolean(x));
+}
+
 function archiveDir(): string {
 	return path.join(conversationsDir(), "archive");
 }
@@ -163,78 +245,7 @@ export async function getConversation(): Promise<ConversationMessage[]> {
 		return [];
 	}
 
-	const messages = new Map<string, ConversationMessage>();
-	const acks = new Map<string, string>(); // messageId → externalId
-	const reactions: ConversationReactionEvent[] = [];
-	const order: string[] = [];
-
-	for (const line of text.split("\n")) {
-		if (!line.trim()) continue;
-		const event = ConversationEventSchema.parse(JSON.parse(line));
-
-		if (event.kind === "msg") {
-			messages.set(event.id, {
-				id: event.id,
-				role: event.role,
-				content: event.content,
-				createdAt: event.createdAt,
-				...(event.externalId ? { externalId: event.externalId } : {}),
-				...(event.quotedText ? { quotedText: event.quotedText } : {}),
-				...(event.quotedRole ? { quotedRole: event.quotedRole } : {}),
-				...(event.flags ? { flags: event.flags } : {}),
-				...(event.command != null ? { command: event.command } : {}),
-				reactions: [],
-			});
-			order.push(event.id);
-		} else if (event.kind === "ack") {
-			acks.set(event.messageId, event.externalId);
-		} else if (event.kind === "reaction") {
-			reactions.push(event);
-		}
-	}
-
-	// Apply acks
-	for (const [messageId, externalId] of acks) {
-		const msg = messages.get(messageId);
-		if (msg) msg.externalId = externalId;
-	}
-
-	// Build externalId → messageId map for reaction attachment
-	const extToMsg = new Map<string, string>();
-	for (const msg of messages.values()) {
-		if (msg.externalId) extToMsg.set(msg.externalId, msg.id);
-	}
-
-	// Apply reactions (latest per sender wins)
-	for (const r of reactions) {
-		const msgId = extToMsg.get(r.messageExternalId);
-		if (!msgId) continue;
-		const msg = messages.get(msgId);
-		if (!msg) continue;
-		const existing = msg.reactions.findIndex(
-			(rx) => rx.senderId === r.senderId,
-		);
-		if (r.emoji === "") {
-			// Removal
-			if (existing >= 0) msg.reactions.splice(existing, 1);
-		} else if (existing >= 0) {
-			msg.reactions[existing] = {
-				emoji: r.emoji,
-				senderId: r.senderId,
-				fromMe: r.fromMe,
-			};
-		} else {
-			msg.reactions.push({
-				emoji: r.emoji,
-				senderId: r.senderId,
-				fromMe: r.fromMe,
-			});
-		}
-	}
-
-	return order
-		.map((id) => messages.get(id))
-		.filter((x): x is ConversationMessage => Boolean(x));
+	return mergeEvents(text);
 }
 
 /** Find a message by its WhatsApp externalId (in-memory lookup). */
@@ -289,16 +300,22 @@ export async function rebuildIndexes(): Promise<void> {
 
 	for (const line of text.split("\n")) {
 		if (!line.trim()) continue;
-		const event = ConversationEventSchema.parse(JSON.parse(line));
+		try {
+			const event = ConversationEventSchema.parse(JSON.parse(line));
 
-		if (event.kind === "msg") {
-			if (event.externalId) {
-				idToExternal.set(event.id, event.externalId);
-				externalToId.set(event.externalId, event.id);
+			if (event.kind === "msg") {
+				if (event.externalId) {
+					idToExternal.set(event.id, event.externalId);
+					externalToId.set(event.externalId, event.id);
+				}
+			} else if (event.kind === "ack") {
+				idToExternal.set(event.messageId, event.externalId);
+				externalToId.set(event.externalId, event.messageId);
 			}
-		} else if (event.kind === "ack") {
-			idToExternal.set(event.messageId, event.externalId);
-			externalToId.set(event.externalId, event.messageId);
+		} catch {
+			log.warn("[conversation] skipping corrupt line in index rebuild", {
+				line: line.slice(0, 100),
+			});
 		}
 	}
 
@@ -336,75 +353,7 @@ export async function readAllMessages(): Promise<ConversationMessage[]> {
 			continue;
 		}
 
-		const messages = new Map<string, ConversationMessage>();
-		const acks = new Map<string, string>();
-		const reactions: ConversationReactionEvent[] = [];
-		const order: string[] = [];
-
-		for (const line of text.split("\n")) {
-			if (!line.trim()) continue;
-			const event = ConversationEventSchema.parse(JSON.parse(line));
-
-			if (event.kind === "msg") {
-				messages.set(event.id, {
-					id: event.id,
-					role: event.role,
-					content: event.content,
-					createdAt: event.createdAt,
-					...(event.externalId ? { externalId: event.externalId } : {}),
-					...(event.quotedText ? { quotedText: event.quotedText } : {}),
-					...(event.quotedRole ? { quotedRole: event.quotedRole } : {}),
-					...(event.flags ? { flags: event.flags } : {}),
-					...(event.command != null ? { command: event.command } : {}),
-					reactions: [],
-				});
-				order.push(event.id);
-			} else if (event.kind === "ack") {
-				acks.set(event.messageId, event.externalId);
-			} else if (event.kind === "reaction") {
-				reactions.push(event);
-			}
-		}
-
-		for (const [messageId, externalId] of acks) {
-			const msg = messages.get(messageId);
-			if (msg) msg.externalId = externalId;
-		}
-
-		const extToMsg = new Map<string, string>();
-		for (const msg of messages.values()) {
-			if (msg.externalId) extToMsg.set(msg.externalId, msg.id);
-		}
-
-		for (const r of reactions) {
-			const msgId = extToMsg.get(r.messageExternalId);
-			if (!msgId) continue;
-			const msg = messages.get(msgId);
-			if (!msg) continue;
-			const existing = msg.reactions.findIndex(
-				(rx) => rx.senderId === r.senderId,
-			);
-			if (r.emoji === "") {
-				if (existing >= 0) msg.reactions.splice(existing, 1);
-			} else if (existing >= 0) {
-				msg.reactions[existing] = {
-					emoji: r.emoji,
-					senderId: r.senderId,
-					fromMe: r.fromMe,
-				};
-			} else {
-				msg.reactions.push({
-					emoji: r.emoji,
-					senderId: r.senderId,
-					fromMe: r.fromMe,
-				});
-			}
-		}
-
-		for (const id of order) {
-			const msg = messages.get(id);
-			if (msg) allMessages.push(msg);
-		}
+		allMessages.push(...mergeEvents(text));
 	}
 
 	return allMessages;

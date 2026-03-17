@@ -118,16 +118,13 @@ export async function dispatch(
 		depth,
 	});
 
-	await enqueueJob(
-		{
-			taskId,
-			agentName,
-			chatId,
-			dispatchContext,
-			depth: depth + 1,
-		},
+	await enqueueJob({
 		taskId,
-	);
+		agentName,
+		chatId,
+		dispatchContext,
+		depth: depth + 1,
+	});
 
 	return taskId;
 }

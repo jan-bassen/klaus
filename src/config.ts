@@ -18,7 +18,7 @@ export const config = {
 		"claude-sonnet-4-20250514": { inputPerMTok: 3.0, outputPerMTok: 15.0 },
 		"claude-haiku-3-20250307": { inputPerMTok: 0.25, outputPerMTok: 1.25 },
 		"claude-opus-4-20250514": { inputPerMTok: 15.0, outputPerMTok: 75.0 },
-	} as Record<string, { inputPerMTok: number; outputPerMTok: number }>,
+	},
 
 	// Per-service pricing for non-LLM API calls. Used to compute costUsd.
 	apiPricing: {

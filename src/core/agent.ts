@@ -318,7 +318,14 @@ export const agentRegistry = new Map<string, AgentDefinition>();
 export async function loadAgents(agentsDir: string): Promise<void> {
 	const glob = new Bun.Glob("*.md");
 	for await (const file of glob.scan({ cwd: agentsDir })) {
-		const def = await loadAgentDefinition(`${agentsDir}/${file}`);
-		agentRegistry.set(def.name, def);
+		try {
+			const def = await loadAgentDefinition(`${agentsDir}/${file}`);
+			agentRegistry.set(def.name, def);
+		} catch (err) {
+			log.error("[agent] failed to load agent definition", {
+				file,
+				error: err instanceof Error ? err.message : String(err),
+			});
+		}
 	}
 }

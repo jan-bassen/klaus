@@ -68,10 +68,7 @@ export async function initQueue(): Promise<void> {
 }
 
 /** Enqueue an agent run job. */
-export async function enqueueJob(
-	payload: AgentRunPayload,
-	_jobId: string,
-): Promise<void> {
+export async function enqueueJob(payload: AgentRunPayload): Promise<void> {
 	pending.push(payload);
 	// Trigger immediate drain
 	drain().catch((err) =>
@@ -92,7 +89,7 @@ export async function scheduleJob(
 		agentName,
 		pattern: schedule,
 		chatId: payload.chatId,
-		payload: payload as unknown as Record<string, unknown>,
+		payload: { ...payload },
 		createdAt: new Date().toISOString(),
 	});
 }

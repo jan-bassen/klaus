@@ -92,6 +92,10 @@ export function setOnCronFire(
 
 /** Start evaluating a schedule. */
 function startEvaluating(entry: ScheduleEntry): void {
+	// Clear any existing interval to prevent leaks on re-registration
+	const existing = intervals.get(entry.name);
+	if (existing) clearInterval(existing);
+
 	// Track last-fired minute to avoid double-firing
 	let lastFired = "";
 
