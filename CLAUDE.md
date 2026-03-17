@@ -74,7 +74,7 @@ Agents are defined as `.md` files in `{vault}/Klaus/agents/` with YAML frontmatt
 name: agentName
 modelTier: default|low|high    # maps to model IDs in config.ts
 tools: [reply, send, react]
-toolsets: [vault, task]        # expands to use_* meta-tools; tools loaded lazily
+toolsets: [vault, tasks]       # expands to use_* meta-tools; tools loaded lazily
 providerTools: [web_search]    # Anthropic built-ins
 skills: [workout-plan]        # on-demand .md docs from {vault}/Klaus/skills/
 schedule: "0 3 * * *"         # optional cron
@@ -89,7 +89,7 @@ Prompt body with {{contextVar}} Handlebars interpolation.
 
 **Skills** are static `.md` reference documents in `{vault}/Klaus/skills/` with optional YAML frontmatter (`description:` field). Agents that declare `skills:` in frontmatter get a `skill_get` tool scoped to those names via `z.enum`. Skill descriptions are included in the tool description to help the model decide when to load. The `{{skills}}` Handlebars var is injected so agents can list available skills in the prompt. Zero token overhead for agents without skills.
 
-**Notes** are auto-managed, topic-keyed `.md` files in `{vault}/Klaus/notes/`. Unlike snippets (always loaded) or skills (static, on-demand), notes are written and updated by agents at runtime — learned knowledge that is too numerous or low-priority to always inject. The `note` toolset (`src/tools/sets/note.ts`) provides four tools: `note.search` (substring match across filenames, descriptions, body), `note.write` (create/overwrite with optional frontmatter description), `note.edit` (find-and-replace within an existing note), `note.delete` (with confirm guard). Agents opt in by adding `note` to their `toolsets:` list.
+**Notes** are auto-managed, topic-keyed `.md` files in `{vault}/Klaus/notes/`. Unlike snippets (always loaded) or skills (static, on-demand), notes are written and updated by agents at runtime — learned knowledge that is too numerous or low-priority to always inject. The `notes` toolset (`src/tools/sets/notes.ts`) provides four tools: `notes.search` (substring match across filenames, descriptions, body), `notes.write` (create/overwrite with optional frontmatter description), `notes.edit` (find-and-replace within an existing note), `notes.delete` (with confirm guard). Agents opt in by adding `notes` to their `toolsets:` list.
 
 **Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new context query = new file implementing `ContextQuery`. Extend by adding, not modifying.
 
@@ -126,7 +126,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/context/` | Context query modules (inject dynamic content into prompts) |
 | `src/tools/` | Tool definitions + toolset loaders |
 | `src/tools/skill.ts` | `buildSkillTool()` — per-agent skill.get tool builder |
-| `src/tools/sets/note.ts` | `note` toolset: `note.search`, `note.write`, `note.edit`, `note.delete` — auto-managed knowledge notes |
+| `src/tools/sets/notes.ts` | `notes` toolset: `notes.search`, `notes.write`, `notes.edit`, `notes.delete` — auto-managed knowledge notes |
 | `src/tools/conversation.ts` | Standalone tool: search conversation history (text, around message, time range) |
 | `src/commands/` | /command handlers |
 | `src/whatsapp/` | Transport layer (Baileys connection, send, receive, TTS, STT, presence) |
@@ -140,7 +140,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - `/context` — one file per context query
 - `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter
 - `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
-- `{vault}/Klaus/notes/` — auto-managed knowledge notes, written/searched by agents at runtime via `note.*` tools
+- `{vault}/Klaus/notes/` — auto-managed knowledge notes, written/searched by agents at runtime via `notes.*` tools
 - `{vault}/Klaus/snippets/` — static prompt content (soul.md, architecture.md) injected as template vars
 - `{vault}/Klaus/user.md` — user profile, updated by memorize agent
 - `{vault}/Klaus/memory.md` — working memory/facts/preferences, updated by memorize agent

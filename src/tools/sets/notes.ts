@@ -19,7 +19,7 @@ const noteSearchSchema = z.object({
 });
 
 export const noteSearchTool: ToolDefinition<typeof noteSearchSchema> = {
-	name: "note.search",
+	name: "notes.search",
 	description:
 		"Search auto-managed knowledge notes in Klaus/notes/. Matches query against filenames, frontmatter description, and body. Returns full content of matching notes.",
 	inputSchema: noteSearchSchema,
@@ -70,7 +70,7 @@ const noteWriteSchema = z.object({
 });
 
 export const noteWriteTool: ToolDefinition<typeof noteWriteSchema> = {
-	name: "note.write",
+	name: "notes.write",
 	description:
 		"Create or overwrite a knowledge note in Klaus/notes/. Use for auto-managed, topic-keyed knowledge that agents learn over time.",
 	inputSchema: noteWriteSchema,
@@ -91,7 +91,7 @@ export const noteWriteTool: ToolDefinition<typeof noteWriteSchema> = {
 
 		const filePath = path.join(dir, `${name}.md`);
 		await Bun.write(filePath, body);
-		log.debug("[note.write] written", { name });
+		log.debug("[notes.write] written", { name });
 		return `Written note: ${name}`;
 	},
 	kind: "builtin",
@@ -107,9 +107,9 @@ const noteEditSchema = z.object({
 });
 
 export const noteEditTool: ToolDefinition<typeof noteEditSchema> = {
-	name: "note.edit",
+	name: "notes.edit",
 	description:
-		"Find-and-replace within an existing knowledge note. More token-efficient than rewriting the whole note with note.write.",
+		"Find-and-replace within an existing knowledge note. More token-efficient than rewriting the whole note with notes.write.",
 	inputSchema: noteEditSchema,
 	execute: async ({ name, old_string, new_string }) => {
 		if (!KEBAB_CASE.test(name)) {
@@ -130,7 +130,7 @@ export const noteEditTool: ToolDefinition<typeof noteEditSchema> = {
 
 		const updated = text.replace(old_string, new_string);
 		await Bun.write(filePath, updated);
-		log.debug("[note.edit] updated", { name });
+		log.debug("[notes.edit] updated", { name });
 		return `Edited note: ${name}`;
 	},
 	kind: "builtin",
@@ -149,7 +149,7 @@ const noteDeleteSchema = z.object({
 });
 
 export const noteDeleteTool: ToolDefinition<typeof noteDeleteSchema> = {
-	name: "note.delete",
+	name: "notes.delete",
 	description:
 		"Delete a knowledge note from Klaus/notes/. Requires confirm: true.",
 	inputSchema: noteDeleteSchema,
@@ -159,7 +159,7 @@ export const noteDeleteTool: ToolDefinition<typeof noteDeleteSchema> = {
 		const filePath = path.join(notesDir(), `${name}.md`);
 		try {
 			await unlink(filePath);
-			log.debug("[note.delete] removed", { name });
+			log.debug("[notes.delete] removed", { name });
 			return `Deleted note: ${name}`;
 		} catch {
 			return `Note not found or could not be deleted: ${name}`;
@@ -172,7 +172,7 @@ export const noteDeleteTool: ToolDefinition<typeof noteDeleteSchema> = {
 // ─── toolset ─────────────────────────────────────────────────────────────────
 
 export const noteToolset: ToolsetDefinition = {
-	name: "note",
+	name: "notes",
 	description:
 		"Use when you need to search, write, edit, or delete auto-managed knowledge notes.",
 	tools: [noteSearchTool, noteWriteTool, noteEditTool, noteDeleteTool],

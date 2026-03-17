@@ -35,7 +35,7 @@ const {
 	taskDispatchTool: dispatchTool,
 	taskCancelTool,
 	taskListTool,
-} = await import("@/tools/sets/task");
+} = await import("@/tools/sets/tasks");
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 

@@ -21,12 +21,12 @@ afterAll(async () => {
 
 // Import after env is set
 const { noteSearchTool, noteWriteTool, noteEditTool, noteDeleteTool } =
-	await import("@/tools/sets/note");
+	await import("@/tools/sets/notes");
 
 // Minimal context stub — note tools don't use TurnContext
 const ctx = {} as Parameters<typeof noteWriteTool.execute>[1];
 
-describe("note.write", () => {
+describe("notes.write", () => {
 	test("creates a note with frontmatter when description provided", async () => {
 		const result = await noteWriteTool.execute(
 			{
@@ -80,7 +80,7 @@ describe("note.write", () => {
 	});
 });
 
-describe("note.edit", () => {
+describe("notes.edit", () => {
 	test("replaces matching text in an existing note", async () => {
 		await noteWriteTool.execute(
 			{ name: "edit-target", content: "Hello world, this is a test." },
@@ -152,7 +152,7 @@ describe("note.edit", () => {
 	});
 });
 
-describe("note.search", () => {
+describe("notes.search", () => {
 	test("matches by filename", async () => {
 		await noteWriteTool.execute(
 			{ name: "alpha-search", content: "unrelated body" },
@@ -228,7 +228,7 @@ describe("note.search", () => {
 	});
 });
 
-describe("note.delete", () => {
+describe("notes.delete", () => {
 	test("deletes an existing note", async () => {
 		await noteWriteTool.execute({ name: "to-delete", content: "bye" }, ctx);
 

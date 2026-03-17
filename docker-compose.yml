@@ -8,14 +8,14 @@ services:
     environment:
       - PORT=3000
       - LOG_FORMAT=pretty
-      - BAILEYS_AUTH_FOLDER=/app/auth
+      - BAILEYS_AUTH_FOLDER=/app/config/baileys
       - FILES_DIR=/app/files
       - DATA_DIR=/app/data
       - VAULT_DIR=/app/vault
     volumes:
-      - baileys_auth:/app/auth
-      - files_data:/app/files
-      - vault_data:/app/vault
+      - config:/app/config
+      - files:/app/files
+      - vault:/app/vault
       - data:/app/data
     healthcheck:
       test:
@@ -30,7 +30,7 @@ services:
     mem_limit: 768m
     memswap_limit: 768m
 
-  sync:
+  obsidian:
     build:
       context: .
       dockerfile: Dockerfile.obsidian-sync
@@ -39,8 +39,8 @@ services:
     env_file:
       - .env
     volumes:
-      - vault_data:/vault
-      - obsidian_config:/root/.config/obsidian-headless
+      - vault:/vault
+      - config:/root/.config
       - ./scripts/obsidian-sync.sh:/scripts/obsidian-sync.sh:ro
     mem_limit: 256m
     memswap_limit: 256m
@@ -52,17 +52,16 @@ services:
     volumes:
       - ./scripts/backup.sh:/backup.sh:ro
       - ${BACKUP_DIR:-./backups}:/backups
-      - baileys_auth:/baileys_auth:ro
-      - files_data:/files_data:ro
+      - config:/config:ro
+      - files:/files:ro
       - data:/data:ro
-      - vault_data:/vault_data:ro
+      - vault:/vault:ro
     command: ["sh", "/backup.sh"]
     mem_limit: 128m
     memswap_limit: 128m
 
 volumes:
-  baileys_auth:
-  files_data:
-  vault_data:
   data:
-  obsidian_config:
+  files:
+  vault:
+  config:

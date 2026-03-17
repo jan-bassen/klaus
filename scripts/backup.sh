@@ -1,7 +1,7 @@
 #!/bin/sh
 # Backup script — runs inside the `backup` service container.
 # NOTE: .env is NOT backed up here — store API keys in a password manager.
-# Archives data, vault, baileys_auth, and files volumes to /backups/<date>/.
+# Archives data, vault, config, and files volumes to /backups/<date>/.
 # Keeps the last 7 daily backups; older ones are pruned.
 set -e
 
@@ -12,14 +12,14 @@ mkdir -p "$DEST"
 echo "==> Archiving data volume to $DEST/data.tar.gz"
 tar czf "$DEST/data.tar.gz" -C /data .
 
-echo "==> Archiving vault volume to $DEST/vault_data.tar.gz"
-tar czf "$DEST/vault_data.tar.gz" -C /vault_data .
+echo "==> Archiving vault volume to $DEST/vault.tar.gz"
+tar czf "$DEST/vault.tar.gz" -C /vault .
 
-echo "==> Archiving baileys_auth volume to $DEST/baileys_auth.tar.gz"
-tar czf "$DEST/baileys_auth.tar.gz" -C /baileys_auth .
+echo "==> Archiving config volume to $DEST/config.tar.gz"
+tar czf "$DEST/config.tar.gz" -C /config .
 
-echo "==> Archiving files_data volume to $DEST/files_data.tar.gz"
-tar czf "$DEST/files_data.tar.gz" -C /files_data .
+echo "==> Archiving files volume to $DEST/files.tar.gz"
+tar czf "$DEST/files.tar.gz" -C /files .
 
 echo "==> Pruning backups older than 7 days"
 find /backups -maxdepth 1 -type d -name "????-??-??" -mtime +7 -exec rm -rf {} +

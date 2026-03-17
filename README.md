@@ -15,7 +15,7 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Obsidian Va
 | Knowledge    | Obsidian vault (notes, wikilinks, tags)       |
 | Storage      | JSONL flat files (conversations, costs, etc.) |
 | Task queue   | In-memory queue + file-based task persistence |
-| Vault sync   | Obsidian headless (obsidian-headless)        |
+| Vault sync   | Obsidian headless (obsidian service)         |
 | Hosting      | Synology NAS via Docker Compose              |
 
 ---
@@ -184,8 +184,8 @@ docker compose --profile backup run --rm backup
 
 This runs a one-shot container that:
 
-1. Archives the Baileys auth volume to $BACKUP_DIR/\<YYYY-MM-DD\>/baileys_auth.tar.gz
-2. Archives file blobs and data dir
+1. Archives the config volume (Baileys auth + Obsidian config) to $BACKUP_DIR/\<YYYY-MM-DD\>/config.tar.gz
+2. Archives file blobs, vault, and data dir
 3. Prunes backups older than 7 days
 
 On a Synology NAS, schedule it via **Control Panel → Task Scheduler** with command:
@@ -245,10 +245,10 @@ Built-in agents:
 | Toolset | Tools                                               | Purpose                        |
 | ------- | --------------------------------------------------- | ------------------------------ |
 | vault   | read, search, list, write, append, backlinks, etc.  | Obsidian vault + memory        |
-| task    | dispatch, cancel, list, get                         | Async task management          |
+| tasks   | dispatch, cancel, list, get                         | Async task management          |
 | ops     | cron, cost-tracking                                 | Scheduling and spend monitoring|
 | files   | upload, download, list, delete                      | File management                |
-| note    | search, write, edit, delete                         | Auto-managed knowledge notes   |
+| notes   | search, write, edit, delete                         | Auto-managed knowledge notes   |
 
 **Standalone tools** are opt-in per agent via `tools:` in frontmatter:
 
@@ -270,13 +270,13 @@ Declare `skills: [name1, name2]` in an agent's frontmatter. The tool is scoped t
 
 **Notes** are auto-managed, topic-keyed `.md` files in `Klaus/notes/` that agents write and search at runtime. They fill the gap between snippets (static, always loaded) and skills (static, on-demand) — notes are for knowledge the system learns over time that is too numerous or low-priority to always inject.
 
-Four tools in the `note` toolset:
-- `note.search` — substring match across filenames, frontmatter descriptions, and body; returns full content
-- `note.write` — create or overwrite a kebab-case-named note with optional `description:` frontmatter
-- `note.edit` — find-and-replace within an existing note (more token-efficient than rewriting)
-- `note.delete` — delete a note (requires `confirm: true`)
+Four tools in the `notes` toolset:
+- `notes.search` — substring match across filenames, frontmatter descriptions, and body; returns full content
+- `notes.write` — create or overwrite a kebab-case-named note with optional `description:` frontmatter
+- `notes.edit` — find-and-replace within an existing note (more token-efficient than rewriting)
+- `notes.delete` — delete a note (requires `confirm: true`)
 
-Agents opt in by adding `note` to their `toolsets:` list in frontmatter.
+Agents opt in by adding `notes` to their `toolsets:` list in frontmatter.
 
 ### Context assembly
 

@@ -20,7 +20,7 @@ const taskDispatchSchema = z.object({
 });
 
 export const taskDispatchTool: ToolDefinition<typeof taskDispatchSchema> = {
-	name: "task.dispatch",
+	name: "tasks.dispatch",
 	description:
 		"Invoke another agent with an objective. Use async for background work, inline to await the result.",
 	inputSchema: taskDispatchSchema,
@@ -43,13 +43,13 @@ export const taskDispatchTool: ToolDefinition<typeof taskDispatchSchema> = {
 	capability: "tool",
 };
 
-// task.cancel
+// tasks.cancel
 const taskCancelSchema = z.object({
 	taskId: z.string().uuid(),
 });
 
 export const taskCancelTool: ToolDefinition<typeof taskCancelSchema> = {
-	name: "task.cancel",
+	name: "tasks.cancel",
 	description: "Cancel a pending or running task.",
 	inputSchema: taskCancelSchema,
 	execute: async (input) => {
@@ -64,7 +64,7 @@ export const taskCancelTool: ToolDefinition<typeof taskCancelSchema> = {
 	capability: "tool",
 };
 
-// task.list
+// tasks.list
 const taskListSchema = z.object({
 	status: z
 		.enum(["pending", "running", "done", "failed", "cancelled"])
@@ -72,7 +72,7 @@ const taskListSchema = z.object({
 });
 
 export const taskListTool: ToolDefinition<typeof taskListSchema> = {
-	name: "task.list",
+	name: "tasks.list",
 	description: "List tasks, optionally filtered by status.",
 	inputSchema: taskListSchema,
 	execute: async (input, context) => {
@@ -92,13 +92,13 @@ export const taskListTool: ToolDefinition<typeof taskListSchema> = {
 	capability: "resource",
 };
 
-// task.get
+// tasks.get
 const taskGetSchema = z.object({
 	taskId: z.string().uuid().describe("Task ID to inspect"),
 });
 
 export const taskGetTool: ToolDefinition<typeof taskGetSchema> = {
-	name: "task.get",
+	name: "tasks.get",
 	description:
 		"Fetch the full details of a task by ID, including status, timing, and result.",
 	inputSchema: taskGetSchema,
@@ -123,7 +123,7 @@ export const taskGetTool: ToolDefinition<typeof taskGetSchema> = {
 };
 
 export const taskToolset: ToolsetDefinition = {
-	name: "task",
+	name: "tasks",
 	description:
 		"Use when you need to dispatch agents, cancel tasks, or list running tasks.",
 	tools: [taskDispatchTool, taskCancelTool, taskListTool, taskGetTool],
