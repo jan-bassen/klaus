@@ -32,6 +32,7 @@ export const config = {
 		totalTokens: 100_000, // hard cap passed to the model
 		conversationTokens: 20_000, // recent message history (trimmed oldest-first)
 		activeTasksTokens: 5_000, // in-flight async tasks
+		defaultConversationLimit: 20, // max messages in conversation history
 	},
 
 	// Sliding-window rate limits. Two independent gates:

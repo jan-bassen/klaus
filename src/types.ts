@@ -73,11 +73,17 @@ export interface TurnContext {
 		hint?: string;
 		mode: DispatchMode;
 	};
+	/** @internal — collects reply content for inline-dispatched agents instead of sending to WhatsApp */
+	_replyCollector?: string[];
 }
 
 export interface AssembledContext {
 	/** Context variables keyed by query name — directly available as {{variable}} in prompts */
 	vars: Record<string, unknown>;
+	/** Conversation history as structured messages for the SDK messages array */
+	conversationMessages: Array<{ role: "user" | "assistant"; content: string }>;
+	/** Label → externalId mapping for message references (reply/react tools) */
+	messageRefs: Record<string, { externalId: string; role: string }>;
 	totalTokens: number;
 }
 
@@ -96,8 +102,8 @@ export interface AgentDefinition {
 	toolsets?: string[];
 	/** cron schedule string (e.g. "0 3 * * *") for scheduled agents */
 	schedule?: string;
-	/** Per-query params from the agent's YAML `context:` section, keyed by query name. */
-	contextParams?: Record<string, Record<string, unknown>>;
+	/** Override the default conversation history limit for this agent */
+	conversationLimit?: number;
 	/** Anthropic provider tool names (e.g. "web_search", "web_fetch", "code_execution") */
 	providerTools?: string[];
 	/** Skill document names this agent can load on demand (filenames without .md in skills/) */
@@ -135,10 +141,7 @@ export interface ContextQuery {
 	name: string;
 	/** Lower number = trimmed first on overflow */
 	priority: number;
-	run(
-		turn: Omit<TurnContext, "assembled">,
-		params?: Record<string, unknown>,
-	): Promise<ContextResult>;
+	run(turn: Omit<TurnContext, "assembled">): Promise<ContextResult>;
 }
 
 export interface ContextResult {

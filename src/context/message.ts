@@ -1,4 +1,3 @@
-import { formatChatHeader } from "@/context/conversation";
 import type { ContextQuery, ContextResult, TurnContext } from "@/types";
 
 /**
@@ -47,8 +46,6 @@ export const messageQuery: ContextQuery = {
 				attachment_name: media?.fileName ?? "",
 				attachment_mime: isDocument ? (media?.mimeType ?? "") : "",
 				quoted_text: msg.quotedMessage?.text ?? "",
-				current_message_header: formatChatHeader("current", "user", "now"),
-				_currentMessageRef: { externalId: msg.id, role: "user" },
 			},
 		};
 	},

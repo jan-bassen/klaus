@@ -47,26 +47,23 @@ export function formatChatMessage(opts: {
 	return `${header}\n${opts.quoteBlock ?? ""}${opts.body}${opts.reactionStr ?? ""}`;
 }
 
-/** Provides conversation: last N messages from the conversation JSONL. */
+/** Provides conversation: structured messages for the SDK messages array. */
 export const conversationQuery: ContextQuery = {
 	name: "conversation",
 	priority: 3,
-	run: async (
-		turn: Omit<TurnContext, "assembled">,
-		params?: Record<string, unknown>,
-	): Promise<ContextResult> => {
+	run: async (turn: Omit<TurnContext, "assembled">): Promise<ContextResult> => {
 		// Skip for dispatched agents — no WhatsApp conversation context.
 		if (!turn.message) {
-			return { content: "", tokenCount: 0, truncate: "oldest" };
+			return { tokenCount: 0, truncate: "never" };
 		}
 
-		const limit = typeof params?.limit === "number" ? params.limit : 100;
-		const excludeCurrent = !!params?.excludeCurrent && !!turn.message?.id;
+		const limit =
+			turn.agent.conversationLimit ?? config.context.defaultConversationLimit;
 
 		const allMessages = await getConversation();
 
-		// Optionally exclude the current message
-		const filtered = excludeCurrent
+		// Exclude the current inbound message from history
+		const filtered = turn.message?.id
 			? allMessages.filter((m) => m.externalId !== turn.message?.id)
 			: allMessages;
 
@@ -94,48 +91,51 @@ export const conversationQuery: ContextQuery = {
 		const agentLabel = turn.agent?.name ?? "assistant";
 		const messageRefs: Record<string, { externalId: string; role: string }> =
 			{};
-		const content = included
-			.map((row, i) => {
-				const label = i + 1;
-				const role = row.role === "user" ? "user" : agentLabel;
-				if (row.externalId) {
-					messageRefs[String(label)] = {
-						externalId: row.externalId,
-						role: row.role,
-					};
-				}
-				const ts = formatMessageTimestamp(new Date(row.createdAt));
-				const quotedRaw = row.quotedText?.slice(0, MAX_QUOTED_CHARS) ?? null;
-				const ellipsis =
-					row.quotedText && row.quotedText.length > MAX_QUOTED_CHARS ? "…" : "";
-				const quoteBlock = quotedRaw
-					? `> ${row.quotedRole === "user" ? "user" : agentLabel}: ${quotedRaw}${ellipsis}\n`
+		const conversationMessages: Array<{
+			role: "user" | "assistant";
+			content: string;
+		}> = [];
+
+		for (let i = 0; i < included.length; i++) {
+			const row = included[i];
+			if (!row) continue;
+			const label = i + 1;
+			if (row.externalId) {
+				messageRefs[String(label)] = {
+					externalId: row.externalId,
+					role: row.role,
+				};
+			}
+			const ts = formatMessageTimestamp(new Date(row.createdAt));
+			const quotedRaw = row.quotedText?.slice(0, MAX_QUOTED_CHARS) ?? null;
+			const ellipsis =
+				row.quotedText && row.quotedText.length > MAX_QUOTED_CHARS ? "…" : "";
+			const quoteBlock = quotedRaw
+				? `> ${row.quotedRole === "user" ? "user" : agentLabel}: ${quotedRaw}${ellipsis}\n`
+				: "";
+			const body =
+				row.content && row.content.length > MAX_MESSAGE_CHARS
+					? `${row.content.slice(0, MAX_MESSAGE_CHARS)}…`
+					: row.content;
+			const rxns = row.reactions ?? [];
+			const reactionStr =
+				rxns.length > 0
+					? `\n[reactions: ${rxns.map((r) => (r.fromMe ? `${r.emoji} (you)` : r.emoji)).join("  ")}]`
 					: "";
-				const body =
-					row.content && row.content.length > MAX_MESSAGE_CHARS
-						? `${row.content.slice(0, MAX_MESSAGE_CHARS)}…`
-						: row.content;
-				const rxns = row.reactions ?? [];
-				const reactionStr =
-					rxns.length > 0
-						? `\n[reactions: ${rxns.map((r) => (r.fromMe ? `${r.emoji} (you)` : r.emoji)).join("  ")}]`
-						: "";
-				return formatChatMessage({
-					label: String(label),
-					role,
-					timestamp: ts,
-					body: body ?? "",
-					quoteBlock: quoteBlock || undefined,
-					reactionStr: reactionStr || undefined,
-				});
-			})
-			.join("\n\n");
+			const content = `[#${label} | ${ts}]\n${quoteBlock}${body ?? ""}${reactionStr}`;
+			conversationMessages.push({
+				role: row.role === "user" ? "user" : "assistant",
+				content,
+			});
+		}
 
 		return {
-			content,
 			tokenCount,
-			truncate: "oldest",
-			vars: { _messageRefs: messageRefs },
+			truncate: "never",
+			vars: {
+				_conversationMessages: conversationMessages,
+				_messageRefs: messageRefs,
+			},
 		};
 	},
 };

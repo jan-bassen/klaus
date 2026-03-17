@@ -1,5 +1,12 @@
 import path from "node:path";
-import type { ImagePart, StepResult, TextPart, ToolSet, UserContent } from "ai";
+import type {
+	ImagePart,
+	ModelMessage,
+	StepResult,
+	TextPart,
+	ToolSet,
+	UserContent,
+} from "ai";
 import { tool } from "ai";
 import sharp from "sharp";
 import { parse as parseYaml } from "yaml";
@@ -26,53 +33,66 @@ const AgentFrontmatterSchema = z.object({
 	skills: z.array(z.string()).default([]),
 	schedule: z.string().optional(),
 	vaultScope: z.string().optional(),
-	context: z.record(z.record(z.unknown())).optional(),
+	conversationLimit: z.number().optional(),
 });
 
 // Max long-edge dimension for vision images. A 2048px image → at most 4×4 = 16 tiles ≈ 24k tokens.
 const MAX_IMAGE_DIMENSION = 2048;
 
-/** Strip inline query params from {{name?key=val}} → {{name}} before Handlebars compilation. */
-function stripInlineParams(body: string): string {
-	return body.replace(/\{\{(\w+)\?[^}]*\}\}/g, "{{$1}}");
-}
-
 function buildSystemPrompt(
 	body: string,
 	vars: Record<string, unknown>,
 ): string {
-	const template = hbs.compile(stripInlineParams(body), { noEscape: true });
+	const template = hbs.compile(body, { noEscape: true });
 	return template(vars)
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
 }
 
 /**
- * Scan a prompt body for {{name?key=val&key2=val2}} placeholders and return
- * a contextParams map. Values that parse as numbers become numbers; rest stay strings.
+ * Build the rich user message content from turn context vars + message data.
+ * Includes message type prefix, quoted text, flags, and the actual message text.
  */
-function parseInlineParams(
-	body: string,
-): Record<string, Record<string, unknown>> {
-	const result: Record<string, Record<string, unknown>> = {};
-	const re = /\{\{(\w+)\?([^}]+)\}\}/g;
-	let m = re.exec(body);
-	while (m !== null) {
-		const name = m[1] ?? "";
-		const qs = m[2] ?? "";
-		result[name] ??= {};
-		for (const pair of qs.split("&")) {
-			const eq = pair.indexOf("=");
-			if (eq === -1) continue;
-			const k = pair.slice(0, eq).trim();
-			const raw = pair.slice(eq + 1).trim();
-			const num = Number(raw);
-			(result[name] as Record<string, unknown>)[k] =
-				raw !== "" && !Number.isNaN(num) ? num : raw;
-		}
-		m = re.exec(body);
+function buildUserMessageText(turn: TurnContext): string {
+	const vars = turn.assembled.vars;
+	const parts: string[] = [];
+
+	// Message type prefix
+	const messageType = vars.message_type as string | undefined;
+	if (messageType === "voice") {
+		const voiceCaption = vars.voice_caption as string | undefined;
+		const line = voiceCaption
+			? `Transcript of voice note. Caption: "${voiceCaption}"`
+			: "Transcript of voice note.";
+		parts.push(line);
+	} else if (messageType === "image") {
+		parts.push("Image");
+	} else if (messageType === "document") {
+		const name = vars.attachment_name as string | undefined;
+		const mime = vars.attachment_mime as string | undefined;
+		if (name) parts.push(`Attached: ${name} (${mime ?? ""})`);
 	}
-	return result;
+
+	// Quoted message
+	const isReply = vars.is_reply as boolean | undefined;
+	const quotedText = vars.quoted_text as string | undefined;
+	if (isReply && quotedText) {
+		parts.push(`> Quoted: ${quotedText}`);
+	}
+
+	// Flags
+	const flags = vars.flags as string | undefined;
+	if (flags) {
+		parts.push(flags);
+	}
+
+	// Actual message text
+	const messageText = vars.message_text as string | undefined;
+	if (messageText) {
+		parts.push(messageText);
+	}
+
+	return parts.join("\n");
 }
 
 /**
@@ -180,6 +200,13 @@ export async function runAgent(
 	});
 
 	try {
+		// Build conversation history messages
+		const historyMessages: ModelMessage[] =
+			turn.assembled.conversationMessages.map((m) => ({
+				role: m.role,
+				content: m.content,
+			}));
+
 		// Build user content — include raw image bytes for vision if applicable.
 		// Prefer the current message's image; fall back to quoted message's image if this is a reply.
 		let userContent: UserContent;
@@ -191,7 +218,7 @@ export async function runAgent(
 				? quotedMedia
 				: null;
 		if (visionMedia) {
-			const imageText = turn.message?.text?.trim();
+			const textContent = buildUserMessageText(turn);
 
 			// Downscale large images to prevent token overflow (Anthropic tiles at 512×512 px, ~1500 tokens/tile)
 			const rawBytes = await Bun.file(visionMedia.path).arrayBuffer();
@@ -210,14 +237,19 @@ export async function runAgent(
 					undefined
 				>,
 			};
-			userContent = imageText
-				? [imagePart, { type: "text", text: imageText } as TextPart]
+			userContent = textContent
+				? [imagePart, { type: "text", text: textContent } as TextPart]
 				: [imagePart];
+		} else if (turn.message) {
+			userContent = buildUserMessageText(turn);
 		} else {
-			const msgText =
-				turn.message?.text?.trim() || turn.dispatchContext?.objective || "";
-			userContent = msgText;
+			userContent = turn.dispatchContext?.objective || "";
 		}
+
+		const messages: ModelMessage[] = [
+			...historyMessages,
+			{ role: "user" as const, content: userContent },
+		];
 
 		const result = await callModel({
 			tier: def.modelTier,
@@ -226,7 +258,7 @@ export async function runAgent(
 			...(turn.messageId ? { messageId: turn.messageId } : {}),
 			...(turn.taskId ? { taskId: turn.taskId } : {}),
 			system,
-			messages: [{ role: "user", content: userContent }],
+			messages,
 			...(Object.keys(allTools).length > 0
 				? {
 						tools: allTools,
@@ -275,20 +307,8 @@ export async function loadAgentDefinition(
 		skills,
 		schedule,
 		vaultScope,
+		conversationLimit,
 	} = front;
-
-	// Per-query params from optional `context:` YAML key.
-	const yamlParams = front.context ?? {};
-
-	// Inline params parsed from {{name?key=val}} placeholders in the prompt body.
-	// Merged on top of YAML params (inline wins per-key).
-	const body = raw.slice(match[0].length);
-	const inlineParams = parseInlineParams(body);
-	const merged: Record<string, Record<string, unknown>> = { ...yamlParams };
-	for (const [qName, params] of Object.entries(inlineParams)) {
-		merged[qName] = { ...(merged[qName] ?? {}), ...params };
-	}
-	const contextParams = Object.keys(merged).length > 0 ? merged : undefined;
 
 	log.info("[agent] loaded definition", { name, modelTier, tools });
 
@@ -301,7 +321,7 @@ export async function loadAgentDefinition(
 		...(skills.length > 0 ? { skills } : {}),
 		...(schedule ? { schedule } : {}),
 		...(vaultScope ? { vaultScope } : {}),
-		...(contextParams ? { contextParams } : {}),
+		...(conversationLimit !== undefined ? { conversationLimit } : {}),
 		promptPath,
 	};
 }

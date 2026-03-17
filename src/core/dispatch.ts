@@ -88,18 +88,20 @@ export async function dispatch(
 	if (mode.kind === "inline") {
 		log.info("[dispatch] inline dispatch", { agentName, caller, depth });
 
+		const replyCollector: string[] = [];
 		const partialTurn: Omit<TurnContext, "assembled"> = {
 			chatId,
 			agent: def,
 			flags: {},
 			dispatchContext,
+			_replyCollector: replyCollector,
 		};
 
 		const assembled = await assembleContext(partialTurn);
 		const turn: TurnContext = { ...partialTurn, assembled };
 
 		await _runAgent(turn, def);
-		return undefined;
+		return replyCollector.join("\n\n") || undefined;
 	}
 
 	// async mode: create task file + enqueue

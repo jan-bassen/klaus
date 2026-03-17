@@ -33,10 +33,7 @@ export const reactTool: ToolDefinition<typeof reactSchema> = {
 		let key: WAMessageKey;
 
 		if (messageRef && messageRef !== "current") {
-			const refs = context.assembled?.vars?._messageRefs as
-				| Record<string, { externalId: string; role: string }>
-				| undefined;
-			const ref = refs?.[messageRef];
+			const ref = context.assembled?.messageRefs?.[messageRef];
 			if (!ref) return { error: `Unknown message reference: #${messageRef}` };
 			externalId = ref.externalId;
 			key = { remoteJid: chatId, fromMe: ref.role !== "user", id: externalId };

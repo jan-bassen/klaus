@@ -27,6 +27,12 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 		'Send a WhatsApp message — works both as a reply to an inbound message and as a proactive/scheduled send. Formatting: *bold* (yes, only *one* asterisk) _italic_ ~strikethrough~ ```monospace``` > blockquote. Lists: "1." ordered, "-" unordered. Use messageRef to quote-reply to a specific message from the conversation history.',
 	inputSchema: replySchema,
 	execute: async ({ content, voice, messageRef }, context) => {
+		// Inline dispatch: capture reply for caller instead of sending to WhatsApp
+		if (context._replyCollector) {
+			context._replyCollector.push(content);
+			return "sent";
+		}
+
 		log.info("[reply] enqueuing", {
 			chatId: context.chatId,
 			preview: content.slice(0, 60),
@@ -44,10 +50,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 				}
 				ref = { externalId: context.message.id, role: "user" };
 			} else {
-				const refs = context.assembled?.vars?._messageRefs as
-					| Record<string, { externalId: string; role: string }>
-					| undefined;
-				ref = refs?.[messageRef];
+				ref = context.assembled?.messageRefs?.[messageRef];
 			}
 			if (!ref) return { error: `Unknown message reference: #${messageRef}` };
 			quoted = { externalId: ref.externalId, fromMe: ref.role !== "user" };

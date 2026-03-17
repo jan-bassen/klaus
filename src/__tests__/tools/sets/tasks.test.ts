@@ -51,7 +51,12 @@ function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
 		chatId: "user@s.whatsapp.net",
 		agent: dummyAgent,
 		flags: {},
-		assembled: { vars: {}, totalTokens: 0 },
+		assembled: {
+			vars: {},
+			conversationMessages: [],
+			messageRefs: {},
+			totalTokens: 0,
+		},
 		message: {
 			kind: "whatsapp",
 			id: "msg-1",
@@ -89,7 +94,7 @@ describe("dispatchTool", () => {
 		expect(opts.mode).toEqual({ kind: "async" });
 	});
 
-	test('inline mode returns "done"', async () => {
+	test('inline mode returns "done" when subagent produces no reply', async () => {
 		mockDispatch.mockImplementation(async () => undefined);
 		const result = await dispatchTool.execute(
 			{ agent: "helper", objective: "Do stuff", mode: "inline" },
@@ -98,6 +103,15 @@ describe("dispatchTool", () => {
 		expect(result).toBe("done");
 		const [opts] = mockDispatch.mock.calls[0] as unknown as [{ mode: unknown }];
 		expect(opts.mode).toEqual({ kind: "inline" });
+	});
+
+	test("inline mode returns subagent reply content", async () => {
+		mockDispatch.mockImplementation(async () => "Here is the answer.");
+		const result = await dispatchTool.execute(
+			{ agent: "helper", objective: "Do stuff", mode: "inline" },
+			makeContext(),
+		);
+		expect(result).toBe("Here is the answer.");
 	});
 
 	test("passes caller from context agent name", async () => {

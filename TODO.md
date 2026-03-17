@@ -1,9 +1,6 @@
 # TODO
 
 ## Fixes
-- [ ] Task sync responses should go back to calling agent, not directly to user (I tested and I got one message from the subagent and then from the main one too)
-- [ ] Conversation history can't be in system prompt (ai sdk has it's own messages, see https://ai-sdk.dev/docs/foundations/prompts#message-prompts). Quote should then go directly in the message itself (plus media i think is already auto-loaded)
-- [ ] Then we can also remove params from the context queries (we used to have pg in the stack). Conversation limit should be in the agent frontmatter
 - [ ] Check Voice message skip. A voice message I sent was ignored for some reason (logs: 12:29:29.690 DBG [receive] skip no content  remoteJid=36911083159745@lid 12:29:29.690 WRN [receive] media download failed — continuing as text-only  remoteJid=36911083159745@lid error "error:1e000065:Cipher functions:OPENSSL_internal:BAD_DECRYPT")
 
 ## Exploration

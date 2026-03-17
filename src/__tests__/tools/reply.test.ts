@@ -60,7 +60,12 @@ function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
 		message: dummyMsg,
 		agent: dummyAgent,
 		flags: {},
-		assembled: { vars: {}, totalTokens: 0 },
+		assembled: {
+			vars: {},
+			conversationMessages: [],
+			messageRefs: {},
+			totalTokens: 0,
+		},
 		...overrides,
 	};
 }
@@ -131,13 +136,13 @@ describe("replyTool", () => {
 		expect(enqueued.quoted.fromMe).toBe(false); // user message
 	});
 
-	test("messageRef resolves from assembled _messageRefs", async () => {
+	test("messageRef resolves from assembled messageRefs", async () => {
 		const ctx = makeContext({
 			assembled: {
-				vars: {
-					_messageRefs: {
-						"3": { externalId: "ext-3", role: "assistant" },
-					},
+				vars: {},
+				conversationMessages: [],
+				messageRefs: {
+					"3": { externalId: "ext-3", role: "assistant" },
 				},
 				totalTokens: 0,
 			},
@@ -174,6 +179,27 @@ describe("replyTool", () => {
 		expect(enqueued.content).toBe("proactive hello");
 		expect(enqueued.chatId).toBe("user@s.whatsapp.net");
 		expect(enqueued.dedupKey).toContain("user@s.whatsapp.net:reply:");
+	});
+
+	test("_replyCollector captures content instead of sending to WhatsApp", async () => {
+		const collector: string[] = [];
+		const result = await replyTool.execute(
+			{ content: "captured reply" },
+			makeContext({ _replyCollector: collector }),
+		);
+		expect(result).toBe("sent");
+		expect(collector).toEqual(["captured reply"]);
+		expect(mockEnqueueMessage).not.toHaveBeenCalled();
+		expect(mockAppendMessage).not.toHaveBeenCalled();
+	});
+
+	test("_replyCollector collects multiple replies", async () => {
+		const collector: string[] = [];
+		const ctx = makeContext({ _replyCollector: collector });
+		await replyTool.execute({ content: "first" }, ctx);
+		await replyTool.execute({ content: "second" }, ctx);
+		expect(collector).toEqual(["first", "second"]);
+		expect(mockEnqueueMessage).not.toHaveBeenCalled();
 	});
 
 	test('messageRef "current" without inbound message returns error', async () => {

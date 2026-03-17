@@ -29,8 +29,7 @@ export async function assembleContext(
 ): Promise<AssembledContext> {
 	const settled = await Promise.allSettled(
 		queries.map((q) => {
-			const params = turn.agent.contextParams?.[q.name];
-			return q.run(turn, params).then((result) => ({ query: q, result }));
+			return q.run(turn).then((result) => ({ query: q, result }));
 		}),
 	);
 
@@ -99,7 +98,24 @@ export async function assembleContext(
 		if (result.vars) Object.assign(vars, result.vars);
 	}
 
-	return { vars, totalTokens: Math.max(0, totalTokens) };
+	// Extract structured conversation data into dedicated fields
+	const conversationMessages = (vars._conversationMessages ?? []) as Array<{
+		role: "user" | "assistant";
+		content: string;
+	}>;
+	const messageRefs = (vars._messageRefs ?? {}) as Record<
+		string,
+		{ externalId: string; role: string }
+	>;
+	delete vars._conversationMessages;
+	delete vars._messageRefs;
+
+	return {
+		vars,
+		conversationMessages,
+		messageRefs,
+		totalTokens: Math.max(0, totalTokens),
+	};
 }
 
 /**

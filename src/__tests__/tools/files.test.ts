@@ -89,7 +89,12 @@ const dummyContext = {
 		promptPath: "/dev/null",
 	},
 	flags: {},
-	assembled: { vars: {}, totalTokens: 0 } as AssembledContext,
+	assembled: {
+		vars: {},
+		conversationMessages: [],
+		messageRefs: {},
+		totalTokens: 0,
+	} as AssembledContext,
 } as TurnContext;
 
 const TEST_FILE_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
