@@ -7,6 +7,7 @@ import { initQueue, registerCronCallback } from "./core/queue";
 import { loadAllTools } from "./core/registry";
 import { startWatching, stopWatching } from "./core/watcher";
 import { startWorkers } from "./core/worker";
+import { loadFlags } from "./flags";
 import { log } from "./logger";
 import { settings } from "./settings";
 import { loadBudgets } from "./store/budgets";
@@ -99,8 +100,10 @@ async function main(): Promise<void> {
 		await mkdir(dir, { recursive: true });
 	}
 
-	// 2. Load tools, agents (from vault), context queries, skills (from vault)
-	log.info("[startup] loading tools, agents, context queries, and skills");
+	// 2. Load tools, agents (from vault), context queries, skills, flags (from vault)
+	log.info(
+		"[startup] loading tools, agents, context queries, skills, and flags",
+	);
 	await loadAllTools(path.join(import.meta.dir, "tools"));
 
 	const agentsDir = path.join(settings.vault.dir, "Klaus", "agents");
@@ -118,6 +121,10 @@ async function main(): Promise<void> {
 	const skillsDir = path.join(settings.vault.dir, "Klaus", "skills");
 	await mkdir(skillsDir, { recursive: true });
 	await loadSkills(skillsDir);
+
+	const flagsDir = path.join(settings.vault.dir, "Klaus", "flags");
+	await mkdir(flagsDir, { recursive: true });
+	await loadFlags(flagsDir);
 
 	const notesDir = path.join(settings.vault.dir, "Klaus", "notes");
 	await mkdir(notesDir, { recursive: true });
@@ -179,8 +186,8 @@ async function main(): Promise<void> {
 		});
 	});
 
-	// 6. Watch agent and skill directories for hot-reload
-	startWatching(agentsDir, skillsDir);
+	// 6. Watch agent, skill, and flag directories for hot-reload
+	startWatching(agentsDir, skillsDir, flagsDir);
 
 	// 7. Start WhatsApp connection
 	log.info("[startup] connecting to WhatsApp");

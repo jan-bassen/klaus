@@ -10,6 +10,7 @@ mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 import { registry } from "@/commands";
 import { helpCommand } from "@/commands/help";
 import { agentRegistry } from "@/core/agent";
+import { flagRegistry } from "@/flags";
 import type { AgentDefinition, InboundMessage } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -56,6 +57,11 @@ beforeAll(() => {
 		TEST_AGENT_NAME,
 		makeAgent(TEST_AGENT_NAME, ["reply"], ["vault"]),
 	);
+	flagRegistry.set("voice", {
+		name: "voice",
+		description: "reply as a voice note",
+		prompt: "Answer as a voice message.",
+	});
 });
 
 afterEach(() => {

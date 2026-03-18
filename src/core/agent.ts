@@ -250,7 +250,12 @@ export async function buildConversationMessages(
 
 					if (pairedCalls.length > 0) {
 						const toolParts: ToolContent = pairedCalls.map((tc) => {
-							const tr = resultMap.get(tc.toolCallId)!;
+							// pairedCalls is pre-filtered to IDs present in resultMap
+							const tr = resultMap.get(tc.toolCallId) ?? {
+								toolCallId: tc.toolCallId,
+								toolName: tc.toolName,
+								result: "",
+							};
 							return {
 								type: "tool-result" as const,
 								toolCallId: tr.toolCallId,
@@ -292,9 +297,7 @@ function toTraceSteps(steps: ModelCallStep[]): TraceStep[] {
 
 	for (const step of steps) {
 		const allCalls = step.toolCalls.filter((tc) => tc.toolName !== "reply");
-		const allResults = step.toolResults.filter(
-			(tr) => tr.toolName !== "reply",
-		);
+		const allResults = step.toolResults.filter((tr) => tr.toolName !== "reply");
 
 		// Only keep calls that have a matching result — orphaned calls corrupt replay
 		const resultIds = new Set(allResults.map((tr) => tr.toolCallId));
@@ -306,7 +309,12 @@ function toTraceSteps(steps: ModelCallStep[]): TraceStep[] {
 			args: JSON.stringify(tc.args),
 		}));
 		const toolResults = pairedCalls.map((tc) => {
-			const tr = allResults.find((r) => r.toolCallId === tc.toolCallId)!;
+			// pairedCalls is pre-filtered to IDs present in allResults
+			const tr = allResults.find((r) => r.toolCallId === tc.toolCallId) ?? {
+				toolCallId: tc.toolCallId,
+				toolName: tc.toolName,
+				result: null,
+			};
 			return {
 				toolCallId: tr.toolCallId,
 				toolName: tr.toolName,

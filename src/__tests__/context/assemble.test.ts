@@ -1,8 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import { flagsQuery } from "@/context/flags";
 import { assembleContext } from "@/core/assemble";
+import { flagRegistry } from "@/flags";
 import { settings } from "@/settings";
 import type { AgentDefinition, ContextQuery, TurnContext } from "@/types";
+
+// Pre-populate flag registry so flagsQuery tests work without vault I/O
+flagRegistry.set("test", {
+	name: "test",
+	description: "mark as a test message",
+	prompt:
+		"This is a test. If this is detected in the prompt, please mention it.",
+});
 
 // Derive from config so tests don't break when budget changes
 const BUDGET = settings.context.totalTokens;

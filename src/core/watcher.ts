@@ -1,6 +1,7 @@
 import type { FSWatcher } from "node:fs";
 import { existsSync, watch } from "node:fs";
 import { parse as parseYaml } from "yaml";
+import { type FlagMeta, flagRegistry } from "@/flags";
 import { log } from "@/logger";
 import { settings } from "@/settings";
 import { removeSchedule } from "@/store/schedules";
@@ -138,7 +139,50 @@ async function handleSkillChange(
 	}
 }
 
-export function startWatching(agentsDir: string, skillsDir: string): void {
+async function handleFlagChange(
+	flagsDir: string,
+	filename: string,
+): Promise<void> {
+	const filePath = `${flagsDir}/${filename}`;
+	const name = filename.replace(/\.md$/, "");
+	const exists = existsSync(filePath);
+
+	if (!exists) {
+		flagRegistry.delete(name);
+		log.info("[watcher] flag removed", { name });
+		return;
+	}
+
+	try {
+		const raw = await Bun.file(filePath).text();
+		const match = raw.match(/^---\n([\s\S]*?)\n---\n?/);
+
+		let description = name;
+		let prompt = raw.trim();
+
+		if (match) {
+			const front = parseYaml(match[1] ?? "") as Record<string, unknown>;
+			if (typeof front.description === "string" && front.description) {
+				description = front.description;
+			}
+			prompt = raw.slice(match[0].length).trim();
+		}
+
+		flagRegistry.set(name, { name, description, prompt } satisfies FlagMeta);
+		log.info("[watcher] flag reloaded", { name });
+	} catch (err) {
+		log.warn("[watcher] failed to reload flag", {
+			file: filename,
+			error: err instanceof Error ? err.message : String(err),
+		});
+	}
+}
+
+export function startWatching(
+	agentsDir: string,
+	skillsDir: string,
+	flagsDir: string,
+): void {
 	const agentWatcher = watch(agentsDir, (_event, filename) => {
 		if (!filename || !filename.endsWith(".md")) return;
 		debounce(`agent:${filename}`, () => {
@@ -163,7 +207,23 @@ export function startWatching(agentsDir: string, skillsDir: string): void {
 	});
 	watchers.push(skillWatcher);
 
-	log.info("[watcher] watching for changes", { agentsDir, skillsDir });
+	const flagWatcher = watch(flagsDir, (_event, filename) => {
+		if (!filename || !filename.endsWith(".md")) return;
+		debounce(`flag:${filename}`, () => {
+			handleFlagChange(flagsDir, filename).catch((err) =>
+				log.error("[watcher] unhandled error in flag handler", {
+					error: err instanceof Error ? err.message : String(err),
+				}),
+			);
+		});
+	});
+	watchers.push(flagWatcher);
+
+	log.info("[watcher] watching for changes", {
+		agentsDir,
+		skillsDir,
+		flagsDir,
+	});
 }
 
 export function stopWatching(): void {

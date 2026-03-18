@@ -1,18 +1,9 @@
 import type { Command } from "@/commands";
 import { registry } from "@/commands";
 import { agentRegistry } from "@/core/agent";
+import { flagRegistry } from "@/flags";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
-
-const FLAG_DESCRIPTIONS: Record<string, string> = {
-	verbose: "verbose response",
-	concise: "concise response",
-	voice: "reply as a voice note",
-	de: "respond in German",
-	en: "respond in English",
-	formal: "use formal tone",
-	test: "mark as a test message",
-};
 
 function buildCommandsSection(): string {
 	const lines = registry
@@ -34,8 +25,8 @@ function buildAgentsSection(): string {
 }
 
 function buildFlagsSection(): string {
-	const lines = Object.entries(FLAG_DESCRIPTIONS).map(
-		([flag, desc]) => `• !${flag} — ${desc}`,
+	const lines = [...flagRegistry.values()].map(
+		({ name, description }) => `• !${name} — ${description}`,
 	);
 	return `*Flags*\n${lines.join("\n")}`;
 }

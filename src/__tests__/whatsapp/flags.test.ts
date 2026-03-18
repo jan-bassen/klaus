@@ -1,7 +1,39 @@
-import { describe, expect, test } from "bun:test";
-import { getKnownFlags } from "@/context/flags";
+import { afterEach, beforeAll, describe, expect, test } from "bun:test";
+import { flagRegistry } from "@/flags";
 import type { InboundMessage } from "@/types";
 import { parseFlags, stripFlags } from "@/whatsapp/flags";
+
+// Pre-populate registry before deriving test flag names
+beforeAll(() => {
+	flagRegistry.set("test", {
+		name: "test",
+		description: "mark as a test message",
+		prompt: "This is a test.",
+	});
+	flagRegistry.set("voice", {
+		name: "voice",
+		description: "reply as a voice note",
+		prompt: "Answer as a voice message.",
+	});
+});
+
+afterEach(() => {
+	// Restore to baseline after each test (in case a test mutates the registry)
+	if (!flagRegistry.has("test")) {
+		flagRegistry.set("test", {
+			name: "test",
+			description: "mark as a test message",
+			prompt: "This is a test.",
+		});
+	}
+	if (!flagRegistry.has("voice")) {
+		flagRegistry.set("voice", {
+			name: "voice",
+			description: "reply as a voice note",
+			prompt: "Answer as a voice message.",
+		});
+	}
+});
 
 function makeMsg(text?: string): InboundMessage {
 	const base = {
@@ -16,10 +48,8 @@ function makeMsg(text?: string): InboundMessage {
 	return base;
 }
 
-// Derive flag names from context/flags so tests never break when flags are added/removed
-const knownFlags = getKnownFlags();
-const flagA = knownFlags[0] ?? "test";
-const flagB = knownFlags[1] ?? knownFlags[0] ?? "test"; // same as flagA when only one flag exists
+const flagA = "test";
+const flagB = "voice";
 
 describe("parseFlags", () => {
 	test("returns {} when text is undefined", () => {
@@ -81,9 +111,10 @@ describe("parseFlags", () => {
 		expect(parseFlags(makeMsg("hey ! what"))).toEqual({});
 	});
 
-	test("parses all flags defined in config", () => {
-		const text = knownFlags.map((f) => `!${f}`).join(" ");
-		const expected = Object.fromEntries(knownFlags.map((f) => [f, true]));
+	test("parses all flags loaded in registry", () => {
+		const names = [...flagRegistry.keys()];
+		const text = names.map((f) => `!${f}`).join(" ");
+		const expected = Object.fromEntries(names.map((f) => [f, true]));
 		expect(parseFlags(makeMsg(text))).toEqual(expected);
 	});
 });

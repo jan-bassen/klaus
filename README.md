@@ -55,6 +55,8 @@ Flags start with `!` and can appear anywhere in your message. They modify how Kl
 
 Flags are stripped from the message text before it reaches the agent, so they don't interfere with your actual message. Combine freely: `@think !verbose !en Explain quantum computing`.
 
+Flags are defined as `.md` files in `{vault}/Klaus/flags/` with a `description:` frontmatter field (shown in `/help flags`) and a body that is injected into the prompt when the flag is active. The watcher hot-reloads flag changes without restart.
+
 ### Media
 
 Klaus handles more than text:

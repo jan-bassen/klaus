@@ -72,6 +72,7 @@ import {
 	handleTurn,
 } from "@/core/pipeline";
 import { _resetForTest, checkMessageRate } from "@/core/rate-limiter";
+import { flagRegistry } from "@/flags";
 import { settings } from "@/settings";
 
 // ─── Test seam — captures agent turns without mock.module pollution ──────────
@@ -116,6 +117,18 @@ beforeAll(async () => {
 	process.env.VAULT_DIR = join(tmpDir, "vault");
 
 	savedAllowedChatId = process.env.ALLOWED_CHAT_ID;
+
+	// Pre-populate flag registry so flag parsing works in pipeline tests
+	flagRegistry.set("verbose", {
+		name: "verbose",
+		description: "verbose response",
+		prompt: "Answer verbosely, please!",
+	});
+	flagRegistry.set("en", {
+		name: "en",
+		description: "respond in English",
+		prompt: "Answer in English, please!",
+	});
 
 	// Use no context queries so assembleContext always returns { vars: {}, totalTokens: 0 }
 	setContextQueries([]);
