@@ -223,7 +223,16 @@ export async function buildConversationMessages(
 						});
 					}
 
-					for (const tc of step.toolCalls) {
+					// Only include tool calls that have a matching result — unpaired calls
+					// cause the API to throw "Tool result is missing for tool call …"
+					const resultMap = new Map(
+						step.toolResults.map((tr) => [tr.toolCallId, tr]),
+					);
+					const pairedCalls = step.toolCalls.filter((tc) =>
+						resultMap.has(tc.toolCallId),
+					);
+
+					for (const tc of pairedCalls) {
 						assistantParts.push({
 							type: "tool-call",
 							toolCallId: tc.toolCallId,
@@ -239,16 +248,19 @@ export async function buildConversationMessages(
 						});
 					}
 
-					if (step.toolResults.length > 0) {
-						const toolParts: ToolContent = step.toolResults.map((tr) => ({
-							type: "tool-result" as const,
-							toolCallId: tr.toolCallId,
-							toolName: tr.toolName,
-							output: {
-								type: "text" as const,
-								value: tr.result.slice(0, MAX_TOOL_RESULT_CHARS),
-							},
-						}));
+					if (pairedCalls.length > 0) {
+						const toolParts: ToolContent = pairedCalls.map((tc) => {
+							const tr = resultMap.get(tc.toolCallId)!;
+							return {
+								type: "tool-result" as const,
+								toolCallId: tr.toolCallId,
+								toolName: tr.toolName,
+								output: {
+									type: "text" as const,
+									value: tr.result.slice(0, MAX_TOOL_RESULT_CHARS),
+								},
+							};
+						});
 						messages.push({ role: "tool", content: toolParts });
 					}
 				}
@@ -272,29 +284,38 @@ export async function buildConversationMessages(
 
 /**
  * Convert model call steps to trace steps for persistence.
- * Filters out reply tool calls and empty steps.
+ * Filters out reply tool calls and ensures every tool call has a matching result
+ * so replayed traces never produce "Tool result is missing" API errors.
  */
 function toTraceSteps(steps: ModelCallStep[]): TraceStep[] {
 	const result: TraceStep[] = [];
 
 	for (const step of steps) {
-		const toolCalls = step.toolCalls
-			.filter((tc) => tc.toolName !== "reply")
-			.map((tc) => ({
-				toolCallId: tc.toolCallId,
-				toolName: tc.toolName,
-				args: JSON.stringify(tc.args),
-			}));
-		const toolResults = step.toolResults
-			.filter((tr) => tr.toolName !== "reply")
-			.map((tr) => ({
+		const allCalls = step.toolCalls.filter((tc) => tc.toolName !== "reply");
+		const allResults = step.toolResults.filter(
+			(tr) => tr.toolName !== "reply",
+		);
+
+		// Only keep calls that have a matching result — orphaned calls corrupt replay
+		const resultIds = new Set(allResults.map((tr) => tr.toolCallId));
+		const pairedCalls = allCalls.filter((tc) => resultIds.has(tc.toolCallId));
+
+		const toolCalls = pairedCalls.map((tc) => ({
+			toolCallId: tc.toolCallId,
+			toolName: tc.toolName,
+			args: JSON.stringify(tc.args),
+		}));
+		const toolResults = pairedCalls.map((tc) => {
+			const tr = allResults.find((r) => r.toolCallId === tc.toolCallId)!;
+			return {
 				toolCallId: tr.toolCallId,
 				toolName: tr.toolName,
 				result: JSON.stringify(tr.result),
-			}));
+			};
+		});
 		const reasoning = step.reasoning || undefined;
 
-		if (reasoning || toolCalls.length > 0 || toolResults.length > 0) {
+		if (reasoning || toolCalls.length > 0) {
 			result.push({ reasoning, toolCalls, toolResults });
 		}
 	}

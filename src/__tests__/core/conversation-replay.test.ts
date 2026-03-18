@@ -179,6 +179,74 @@ describe("buildConversationMessages", () => {
 		expect(finalMsg?.role).toBe("assistant");
 		expect(finalMsg?.content).toBe("Here are the results.");
 	});
+
+	test("drops orphaned tool calls (no matching result) to prevent API errors", async () => {
+		const userMsgId = await appendMessage({
+			role: "user",
+			content: "do something",
+			externalId: "ext-u2",
+		});
+		await appendMessage({
+			role: "assistant",
+			content: "Done.",
+			externalId: "ext-a2",
+		});
+
+		// Simulate corrupt trace: tc-2 has no result
+		await appendTrace(userMsgId, [
+			{
+				reasoning: undefined,
+				toolCalls: [
+					{
+						toolCallId: "tc-1",
+						toolName: "vault_search",
+						args: '{"query":"X"}',
+					},
+					{
+						toolCallId: "tc-2",
+						toolName: "notes_write",
+						args: '{"title":"foo","body":"bar"}',
+					},
+				],
+				toolResults: [
+					{
+						toolCallId: "tc-1",
+						toolName: "vault_search",
+						result: '"Found 1 match"',
+					},
+					// tc-2 result is missing
+				],
+			},
+		]);
+
+		const { messages } = await buildConversationMessages(makeTurn());
+
+		// Find the assistant step with tool calls
+		const assistantStep = messages.find(
+			(m) =>
+				m.role === "assistant" &&
+				Array.isArray(m.content) &&
+				(m.content as Array<{ type: string }>).some(
+					(p) => p.type === "tool-call",
+				),
+		);
+		const toolCallParts = (
+			assistantStep?.content as Array<{ type: string; toolCallId?: string }>
+		)?.filter((p) => p.type === "tool-call");
+
+		// Only tc-1 (paired) should appear; tc-2 (orphaned) must be dropped
+		expect(toolCallParts?.length).toBe(1);
+		expect(toolCallParts?.[0]?.toolCallId).toBe("tc-1");
+
+		// The tool result message should exist and contain only tc-1
+		const toolMsg = messages.find((m) => m.role === "tool");
+		const resultParts = toolMsg?.content as Array<{
+			type: string;
+			toolCallId?: string;
+		}>;
+		expect(resultParts?.length).toBe(1);
+		expect(resultParts?.[0]?.toolCallId).toBe("tc-1");
+	});
 });
 
 describe("trace persistence", () => {

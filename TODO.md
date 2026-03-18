@@ -5,10 +5,10 @@
 - [x] Schedules Base: Fixed timezone-aware cron matching (was using UTC instead of Europe/Berlin)
 - [x] Schedules Agent Interface: Added oneTime support so agents can schedule one-shot runs
 - [x] Schedules Conversation History: Verified already correct — scheduled runs don't get conversation history (buildConversationMessages returns empty when turn.message is undefined)
-- [ ] Tool Results in Conversation history: That the tool-calls and results get injected into the conversation history is intended in a minimal way. But in testing this lead to many errors a la "Something went wrong: Tool result is missing for tool call toolu_01JwqrzJ5RfKFEZucCH6jypG.". This is bad on multiple levels: First why are they failing so often. Second that should never happen, either it is still in progress (then mark it as such) or it failed (then mark it also + give a reason + give a hint to fix if possible)
+- [x] Tool Results in Conversation history: That the tool-calls and results get injected into the conversation history is intended in a minimal way. But in testing this lead to many errors a la "Something went wrong: Tool result is missing for tool call toolu_01JwqrzJ5RfKFEZucCH6jypG.". This is bad on multiple levels: First why are they failing so often. Second that should never happen, either it is still in progress (then mark it as such) or it failed (then mark it also + give a reason + give a hint to fix if possible)
 
 ## Move Flags to Vault
-- [ ] Move all flags also into the vault (eg. /Klaus/flags/voice.md)
+- [ ] Move all flags also into the vault (eg. /Klaus/flags/voice.md with short description for help in frontmatter)
 - [ ] Make sure they are also live-handled as the rest
 
 ## Simplify Context Queries
