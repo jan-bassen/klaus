@@ -5,7 +5,7 @@ import { enqueueMessage } from "@/whatsapp/send";
 
 export const newCommand: Command = {
 	name: "new",
-	description: "Start a new conversation (rotates current history to archive)",
+	description: "Start a new conversation",
 	async execute(msg: InboundMessage, _args: string[]): Promise<void> {
 		await rotate();
 		enqueueMessage({

@@ -1,8 +1,11 @@
 # TODO
 
-## Exploration
-- [x] Surface actual error messages to user, not just "there went something wrong ..."
-- [x] Can we preserve thought processes between runs somehow and should we?
+## Fixes
+- [ ] Logs: Remove the complexity of "pretty" logs, and just make them as good as can be for the current setup. This part: " [agent] calling model " is rendered white on white for me currently
+- [ ] Schedules Base: Don't seem to work at all. Agent calls tool correctly, but nothing happens at the time
+- [ ] Schedules Agent Interface: When I told the agent to test it once at XX:XX, her schedules it daily. Make this a better AX!
+- [ ] Schedules Conversation History: I think schedules agents also get the "current conversation" even if it is probably unrelated most of the time (rethink, but maybe just take out there?)
+- [ ] Tool Results in Conversation history: That the tool-calls and results get injected into the conversation history is intended in a minimal way. But in testing this lead to many errors a la "Something went wrong: Tool result is missing for tool call toolu_01JwqrzJ5RfKFEZucCH6jypG.". This is bad on multiple levels: First why are they failing so often. Second that should never happen, either it is still in progress (then mark it as such) or it failed (then mark it also + give a reason + give a hint to fix if possible)
 
 ## Agents
 - [ ] Fitness - An agent that tracks my fitness goals/progress, manage my trainingplan and helps me stay on track. I want to call him directly with @fitness during training sessions and he should be able to provide me with motivation and insights, mostly through random (for me unexpected) dispatches to motivate me. Espescially on training days.
@@ -16,6 +19,7 @@
 ## UX/DX improvements
 - [ ] Add commands for direct control over model tier etc
 - [ ] Add config entry for switching between default logs or full logs
+- [ ] Show command [params] in /help
 
 ## Internationalization (only when simple)
 - [ ] Add support for multiple languages for all user-facing (and probably even agent-facing) strings
