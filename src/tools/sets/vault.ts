@@ -2,10 +2,10 @@ import type { Dirent } from "node:fs";
 import { mkdir, readdir, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { config } from "@/config";
+import { settings } from "@/settings";
 import type { ToolDefinition, ToolsetDefinition } from "@/types";
 
-const vaultDir = () => config.vault.dir;
+const vaultDir = () => settings.vault.dir;
 
 /** Guard against path traversal and optional agent scope restriction. */
 function safePath(relative: string, scope?: string): string | null {

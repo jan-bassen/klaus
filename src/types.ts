@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { ModelTier } from "./config";
+import type { ModelTier } from "./settings";
 
 // -- WhatsApp / transport --
 

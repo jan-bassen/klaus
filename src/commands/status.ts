@@ -1,6 +1,6 @@
 import type { Command } from "@/commands";
-import { config } from "@/config";
 import { getDefaultAgent } from "@/core/defaults";
+import { settings } from "@/settings";
 import { listTasks } from "@/store/tasks";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
@@ -35,7 +35,7 @@ export const statusCommand: Command = {
 async function countVaultNotes(): Promise<number> {
 	const glob = new Bun.Glob("**/*.md");
 	let count = 0;
-	for await (const _ of glob.scan({ cwd: config.vault.dir })) {
+	for await (const _ of glob.scan({ cwd: settings.vault.dir })) {
 		count++;
 	}
 	return count;

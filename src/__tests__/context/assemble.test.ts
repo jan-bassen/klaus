@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { config } from "@/config";
 import { flagsQuery } from "@/context/flags";
 import { assembleContext } from "@/core/assemble";
+import { settings } from "@/settings";
 import type { AgentDefinition, ContextQuery, TurnContext } from "@/types";
 
 // Derive from config so tests don't break when budget changes
-const BUDGET = config.context.totalTokens;
+const BUDGET = settings.context.totalTokens;
 const UNDER_HALF = Math.floor(BUDGET * 0.45); // two of these fit under budget
 const OVER_HALF = Math.floor(BUDGET * 0.6); // two of these exceed budget
 

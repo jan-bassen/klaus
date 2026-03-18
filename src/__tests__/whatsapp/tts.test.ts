@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { config } from "@/config";
+import { settings } from "@/settings";
 import { textToSpeech } from "@/whatsapp/tts";
 
 describe("textToSpeech", () => {
@@ -67,7 +67,7 @@ describe("textToSpeech", () => {
 		}) as unknown as typeof fetch;
 
 		await textToSpeech("hello");
-		expect(capturedUrl).toContain(config.tts.voiceId);
+		expect(capturedUrl).toContain(settings.tts.voiceId);
 	});
 
 	test("sends xi-api-key header", async () => {

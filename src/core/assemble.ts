@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { config } from "@/config";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import type {
 	AssembledContext,
 	ContextQuery,
@@ -53,7 +53,7 @@ export async function assembleContext(
 		0,
 	);
 
-	const excess = totalTokens - config.context.totalTokens;
+	const excess = totalTokens - settings.context.totalTokens;
 	if (excess > 0) {
 		let remaining = excess;
 		// Lower priority number = trimmed first (per ContextQuery type comment)

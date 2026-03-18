@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { ModelMessage } from "ai";
-import { config } from "@/config";
+import { settings } from "@/settings";
 
 // ---- Mocks (must be set up before any import of the module under test) ----
 
@@ -101,7 +101,7 @@ describe("callModel", () => {
 	});
 
 	test("throws when LLM rate limit is exceeded", async () => {
-		for (let i = 0; i < config.rateLimits.modelCalls.max; i++) {
+		for (let i = 0; i < settings.rateLimits.modelCalls.max; i++) {
 			await callModel(BASE_OPTS);
 		}
 		await expect(callModel(BASE_OPTS)).rejects.toThrow(
@@ -115,15 +115,15 @@ describe("callModel", () => {
 			await callModel({ ...BASE_OPTS, tier });
 			const [modelArg] = mockGenerateText.mock.calls[0] ?? [];
 			expect((modelArg as { model: { id: string } }).model.id).toBe(
-				config.models[tier],
+				settings.models[tier],
 			);
 		}
 	});
 
 	test("each tier resolves to a distinct model ID", () => {
-		expect(config.models.default).not.toBe(config.models.high);
-		expect(config.models.default).not.toBe(config.models.low);
-		expect(config.models.high).not.toBe(config.models.low);
+		expect(settings.models.default).not.toBe(settings.models.high);
+		expect(settings.models.default).not.toBe(settings.models.low);
+		expect(settings.models.high).not.toBe(settings.models.low);
 	});
 
 	test("passes system prompt when provided", async () => {

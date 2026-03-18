@@ -1,4 +1,4 @@
-import { config } from "@/config";
+import { settings } from "@/settings";
 import { appendJsonl } from "./jsonl";
 
 export interface InvocationRecord {
@@ -19,7 +19,7 @@ export interface InvocationRecord {
 export async function recordInvocation(
 	record: Omit<InvocationRecord, "createdAt">,
 ): Promise<void> {
-	await appendJsonl(`${config.dataDir}/invocations`, "invocations", {
+	await appendJsonl(`${settings.dataDir}/invocations`, "invocations", {
 		...record,
 		createdAt: new Date().toISOString(),
 	});

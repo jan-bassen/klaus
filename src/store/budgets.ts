@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { config } from "@/config";
+import { settings } from "@/settings";
 
 export const BudgetConfigSchema = z.object({
 	chatId: z.string(),
@@ -15,7 +15,7 @@ export type BudgetConfig = z.infer<typeof BudgetConfigSchema>;
 const budgetConfigs = new Map<string, BudgetConfig>();
 
 function budgetsPath(): string {
-	return path.join(config.dataDir, "budgets.json");
+	return path.join(settings.dataDir, "budgets.json");
 }
 
 /** Load budget configs from disk. Call at startup. */
@@ -38,7 +38,7 @@ export function getBudget(chatId: string): BudgetConfig | null {
 
 /** Save budget configs to disk. */
 async function persist(): Promise<void> {
-	await mkdir(config.dataDir, { recursive: true });
+	await mkdir(settings.dataDir, { recursive: true });
 	await Bun.write(
 		budgetsPath(),
 		JSON.stringify([...budgetConfigs.values()], null, 2),

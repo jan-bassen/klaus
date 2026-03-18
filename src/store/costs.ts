@@ -1,4 +1,4 @@
-import { config } from "@/config";
+import { settings } from "@/settings";
 import { appendJsonl, readJsonl } from "./jsonl";
 
 interface CostRecord {
@@ -27,7 +27,7 @@ export async function recordCost(
 }
 
 function costsDir(): string {
-	return `${config.dataDir}/costs`;
+	return `${settings.dataDir}/costs`;
 }
 
 /** Sum costs by service for a given period. */

@@ -1,8 +1,8 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { config } from "@/config";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 
 export const ScheduleEntrySchema = z.object({
 	name: z.string(),
@@ -21,12 +21,12 @@ const schedules = new Map<string, ScheduleEntry>();
 const intervals = new Map<string, ReturnType<typeof setInterval>>();
 
 function schedulesPath(): string {
-	return path.join(config.dataDir, "schedules.json");
+	return path.join(settings.dataDir, "schedules.json");
 }
 
 /** Persist schedules to disk. */
 async function persist(): Promise<void> {
-	await mkdir(config.dataDir, { recursive: true });
+	await mkdir(settings.dataDir, { recursive: true });
 	await Bun.write(
 		schedulesPath(),
 		JSON.stringify([...schedules.values()], null, 2),

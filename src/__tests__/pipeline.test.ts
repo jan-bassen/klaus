@@ -64,7 +64,6 @@ mock.module("@/store/files", () => ({
 // ─── Import after mocks ───────────────────────────────────────────────────────
 
 import { registry } from "@/commands";
-import { config } from "@/config";
 import { agentRegistry } from "@/core/agent";
 import { setContextQueries } from "@/core/assemble";
 import {
@@ -73,6 +72,7 @@ import {
 	handleTurn,
 } from "@/core/pipeline";
 import { _resetForTest, checkMessageRate } from "@/core/rate-limiter";
+import { settings } from "@/settings";
 
 // ─── Test seam — captures agent turns without mock.module pollution ──────────
 
@@ -190,7 +190,7 @@ describe("handleTurn — guards", () => {
 
 	test("rate limited: enqueues rate-limit message and skips runAgent", async () => {
 		const msg = makeMsg();
-		for (let i = 0; i < config.rateLimits.messages.max; i++) {
+		for (let i = 0; i < settings.rateLimits.messages.max; i++) {
 			checkMessageRate(msg);
 		}
 		await handleTurn(msg);

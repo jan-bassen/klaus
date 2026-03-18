@@ -1,5 +1,5 @@
 import path from "node:path";
-import { config } from "@/config";
+import { settings } from "@/settings";
 import type { ContextQuery } from "@/types";
 
 const fmPattern = /^---\n[\s\S]*?\n---\n?/;
@@ -22,7 +22,7 @@ export const snippetsQuery: ContextQuery = {
 	name: "snippets",
 	priority: -1,
 	async run() {
-		const klausDir = path.join(config.vault.dir, "Klaus");
+		const klausDir = path.join(settings.vault.dir, "Klaus");
 		const snippetsDir = path.join(klausDir, "snippets");
 
 		const vars: Record<string, string> = {};

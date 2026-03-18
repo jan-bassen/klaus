@@ -1,8 +1,8 @@
 import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { config } from "@/config";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 
 export const TaskRecordSchema = z.object({
 	id: z.string(),
@@ -21,7 +21,7 @@ export type TaskRecord = z.infer<typeof TaskRecordSchema>;
 export type TaskStatus = TaskRecord["status"];
 
 function tasksDir(): string {
-	return path.join(config.dataDir, "tasks");
+	return path.join(settings.dataDir, "tasks");
 }
 
 function statusDir(status: TaskStatus): string {

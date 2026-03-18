@@ -26,8 +26,8 @@ mock.module("@/store/tasks", () => ({
 }));
 
 import { statusCommand } from "@/commands/status";
-import { config } from "@/config";
 import { _resetDefaultsForTest, setDefaultAgent } from "@/core/defaults";
+import { settings } from "@/settings";
 
 let tmpVault: string;
 let savedVaultDir: string | undefined;
@@ -79,7 +79,7 @@ describe("/status", () => {
 		const { content } = (
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
 		)[0];
-		expect(content).toContain(`@${config.defaultAgent}`);
+		expect(content).toContain(`@${settings.defaultAgent}`);
 		expect(content).toContain("2");
 		expect(content).toMatch(/active/i);
 		expect(content).toMatch(/notes/i);

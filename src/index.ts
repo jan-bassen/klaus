@@ -1,6 +1,5 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { config } from "./config";
 import { agentRegistry, loadAgents } from "./core/agent";
 import { loadContextQueries, setContextQueries } from "./core/assemble";
 import { dispatch } from "./core/dispatch";
@@ -9,6 +8,7 @@ import { loadAllTools } from "./core/registry";
 import { startWatching, stopWatching } from "./core/watcher";
 import { startWorkers } from "./core/worker";
 import { log } from "./logger";
+import { settings } from "./settings";
 import { loadBudgets } from "./store/budgets";
 import { rebuildIndexes as rebuildConversationIndexes } from "./store/conversation";
 import { rebuildFileIndex } from "./store/files";
@@ -78,20 +78,22 @@ async function main(): Promise<void> {
 	}
 
 	// 1. Ensure directory structure
-	log.info("[startup] ensuring data directories", { dataDir: config.dataDir });
+	log.info("[startup] ensuring data directories", {
+		dataDir: settings.dataDir,
+	});
 	const dirs = [
-		config.dataDir,
-		path.join(config.dataDir, "conversations"),
-		path.join(config.dataDir, "conversations", "archive"),
-		path.join(config.dataDir, "tasks"),
-		path.join(config.dataDir, "tasks", "pending"),
-		path.join(config.dataDir, "tasks", "running"),
-		path.join(config.dataDir, "tasks", "done"),
-		path.join(config.dataDir, "tasks", "failed"),
-		path.join(config.dataDir, "tasks", "cancelled"),
-		path.join(config.dataDir, "costs"),
-		path.join(config.dataDir, "invocations"),
-		path.join(config.dataDir, "files"),
+		settings.dataDir,
+		path.join(settings.dataDir, "conversations"),
+		path.join(settings.dataDir, "conversations", "archive"),
+		path.join(settings.dataDir, "tasks"),
+		path.join(settings.dataDir, "tasks", "pending"),
+		path.join(settings.dataDir, "tasks", "running"),
+		path.join(settings.dataDir, "tasks", "done"),
+		path.join(settings.dataDir, "tasks", "failed"),
+		path.join(settings.dataDir, "tasks", "cancelled"),
+		path.join(settings.dataDir, "costs"),
+		path.join(settings.dataDir, "invocations"),
+		path.join(settings.dataDir, "files"),
 	];
 	for (const dir of dirs) {
 		await mkdir(dir, { recursive: true });
@@ -101,7 +103,7 @@ async function main(): Promise<void> {
 	log.info("[startup] loading tools, agents, context queries, and skills");
 	await loadAllTools(path.join(import.meta.dir, "tools"));
 
-	const agentsDir = path.join(config.vault.dir, "Klaus", "agents");
+	const agentsDir = path.join(settings.vault.dir, "Klaus", "agents");
 	await mkdir(agentsDir, { recursive: true });
 	await loadAgents(agentsDir);
 
@@ -110,14 +112,14 @@ async function main(): Promise<void> {
 	);
 	setContextQueries(contextQueries);
 
-	const snippetsDir = path.join(config.vault.dir, "Klaus", "snippets");
+	const snippetsDir = path.join(settings.vault.dir, "Klaus", "snippets");
 	await mkdir(snippetsDir, { recursive: true });
 
-	const skillsDir = path.join(config.vault.dir, "Klaus", "skills");
+	const skillsDir = path.join(settings.vault.dir, "Klaus", "skills");
 	await mkdir(skillsDir, { recursive: true });
 	await loadSkills(skillsDir);
 
-	const notesDir = path.join(config.vault.dir, "Klaus", "notes");
+	const notesDir = path.join(settings.vault.dir, "Klaus", "notes");
 	await mkdir(notesDir, { recursive: true });
 
 	await import("./commands/register");
@@ -182,7 +184,7 @@ async function main(): Promise<void> {
 
 	// 7. Start WhatsApp connection
 	log.info("[startup] connecting to WhatsApp");
-	const { connectionTimeoutMs } = config.startup;
+	const { connectionTimeoutMs } = settings.startup;
 	const socket = await Promise.race([
 		startConnection(),
 		new Promise<never>((_, reject) =>

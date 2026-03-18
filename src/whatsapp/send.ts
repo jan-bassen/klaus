@@ -1,6 +1,6 @@
 import type { AnyMessageContent, WASocket } from "@whiskeysockets/baileys";
-import { config } from "@/config";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import type { OutboundMessage } from "@/types";
 
 // Module-level socket reference set by attachReceiveHandler at startup.
@@ -109,7 +109,7 @@ async function sendWithRetry(
 		const result = await _socket.sendMessage(msg.chatId, waContent, sendOpts);
 		log.info("[send] sent", { dedupKey: msg.dedupKey });
 		await new Promise<void>((r) =>
-			setTimeout(r, config.send.interMessageDelayMs),
+			setTimeout(r, settings.send.interMessageDelayMs),
 		);
 		return result?.key?.id ?? null;
 	} catch (err) {

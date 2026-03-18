@@ -5,10 +5,10 @@ import {
 	downloadMediaMessage,
 	normalizeMessageContent,
 } from "@whiskeysockets/baileys";
-import { config } from "@/config";
 import { formatUserError } from "@/core/errors";
 import { handleTurn } from "@/core/pipeline";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import { appendReaction } from "@/store/conversation";
 import { saveFileMeta } from "@/store/files";
 import type { InboundMessage } from "@/types";
@@ -88,8 +88,7 @@ export function attachReceiveHandler(socket: WASocket): void {
 		for (const { key: senderKey, reaction } of reactions) {
 			const reactedId = reaction.key?.id;
 			const chatId = reaction.key?.remoteJid ?? senderKey?.remoteJid;
-			const senderId =
-				senderKey?.participant ?? senderKey?.remoteJid ?? "";
+			const senderId = senderKey?.participant ?? senderKey?.remoteJid ?? "";
 			const fromMe = senderKey?.fromMe ?? false;
 			// Skip echoes of our own reactions (empty sender, garbled metadata)
 			if (!senderId) continue;
@@ -238,7 +237,7 @@ export async function normalizeMessage(
 				const date = new Date().toISOString().slice(0, 10);
 				const id = crypto.randomUUID();
 				const ext = mimeToExt(mimeType);
-				const dir = path.join(config.files.dir, date);
+				const dir = path.join(settings.files.dir, date);
 				const filePath = path.join(dir, `${id}.${ext}`);
 
 				await mkdir(dir, { recursive: true });

@@ -13,13 +13,13 @@ import { tool } from "ai";
 import sharp from "sharp";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { config } from "@/config";
 import {
 	generateMetaTool,
 	toolRegistry,
 	toolsetRegistry,
 } from "@/core/registry";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import {
 	appendTrace,
 	type ConversationMessage,
@@ -135,7 +135,7 @@ export async function buildConversationMessages(
 	}
 
 	const limit =
-		turn.agent.conversationLimit ?? config.context.defaultConversationLimit;
+		turn.agent.conversationLimit ?? settings.context.defaultConversationLimit;
 	const allMessages = await getConversation();
 	const traces = await getTraces();
 
@@ -147,7 +147,7 @@ export async function buildConversationMessages(
 	const recent = filtered.slice(-limit);
 
 	// Budget-aware inclusion (work backwards)
-	const budget = config.context.conversationTokens;
+	const budget = settings.context.conversationTokens;
 	let tokenCount = 0;
 	const included: ConversationMessage[] = [];
 
@@ -365,7 +365,7 @@ export async function runAgent(
 
 	// Skills — per-agent scoped tool, registered only when agent declares skills
 	if (def.skills?.length) {
-		const skillsDir = path.resolve(config.vault.dir, "Klaus", "skills");
+		const skillsDir = path.resolve(settings.vault.dir, "Klaus", "skills");
 		const skillTool = buildSkillTool(def.skills, skillsDir);
 		const sdkName = skillTool.name.replace(/\./g, "_");
 		allTools[sdkName] = wrap(skillTool);
@@ -389,7 +389,7 @@ export async function runAgent(
 		return [...active];
 	};
 
-	const modelId = config.models[def.modelTier];
+	const modelId = settings.models[def.modelTier];
 	log.info("[agent] calling model", {
 		agent: def.name,
 		model: modelId,

@@ -17,9 +17,9 @@ export function _clearAgentRunnerForTest(): void {
 }
 
 import { registry as commandRegistry, parseCommand } from "@/commands";
-import { config } from "@/config";
 import { getDefaultAgent } from "@/core/defaults";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import { appendMessage, findByExternalId } from "@/store/conversation";
 import {
 	findFileByExternalId,
@@ -34,7 +34,7 @@ import { assembleContext } from "./assemble";
 import { formatUserError } from "./errors";
 
 function agentsDir(): string {
-	return path.join(config.vault.dir, "Klaus", "agents");
+	return path.join(settings.vault.dir, "Klaus", "agents");
 }
 
 /**

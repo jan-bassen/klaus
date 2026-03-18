@@ -1,6 +1,6 @@
 import path from "node:path";
-import { config } from "@/config";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import type { TurnContext } from "@/types";
 import { agentRegistry, loadAgentDefinition, runAgent } from "./agent";
 import { assembleContext } from "./assemble";
@@ -8,7 +8,7 @@ import { markTaskDone, markTaskFailed, markTaskRunning } from "./dispatch";
 import type { AgentRunPayload } from "./queue";
 import { setWorker } from "./queue";
 
-const AGENTS_DIR = path.join(config.vault.dir, "Klaus", "agents");
+const AGENTS_DIR = path.join(settings.vault.dir, "Klaus", "agents");
 
 /**
  * Registers the queue worker for agent-run jobs.

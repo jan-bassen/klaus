@@ -1,6 +1,6 @@
 import path from "node:path";
-import { config } from "@/config";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import { createTask, moveTask } from "@/store/tasks";
 import type { DispatchOptions, TurnContext } from "@/types";
 import { agentRegistry, loadAgentDefinition, runAgent } from "./agent";
@@ -8,7 +8,7 @@ import { assembleContext } from "./assemble";
 import { enqueueJob, scheduleJob } from "./queue";
 
 function agentsDir(): string {
-	return path.join(config.vault.dir, "Klaus", "agents");
+	return path.join(settings.vault.dir, "Klaus", "agents");
 }
 
 // Test seam — allows dispatch.test.ts to override agent functions without mock.module.
@@ -49,7 +49,7 @@ export async function dispatch(
 		depth = 0,
 	} = opts;
 
-	if (mode.kind !== "cron" && depth >= config.dispatch.maxChainDepth) {
+	if (mode.kind !== "cron" && depth >= settings.dispatch.maxChainDepth) {
 		log.warn("[dispatch] max chain depth reached, stopping", {
 			agentName,
 			depth,

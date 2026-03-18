@@ -1,9 +1,9 @@
-import { config } from "@/config";
+import { settings } from "@/settings";
 
 const overrides = new Map<string, string>();
 
 export function getDefaultAgent(chatId: string): string {
-	return overrides.get(chatId) ?? config.defaultAgent;
+	return overrides.get(chatId) ?? settings.defaultAgent;
 }
 
 export function setDefaultAgent(chatId: string, agent: string | null): void {

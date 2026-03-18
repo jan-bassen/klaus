@@ -1,8 +1,8 @@
 import type { FSWatcher } from "node:fs";
 import { existsSync, watch } from "node:fs";
 import { parse as parseYaml } from "yaml";
-import { config } from "@/config";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import { removeSchedule } from "@/store/schedules";
 import { type SkillMeta, skillRegistry } from "@/tools/skill";
 import { agentRegistry, loadAgentDefinition } from "./agent";
@@ -19,7 +19,7 @@ function debounce(key: string, fn: () => void): void {
 		setTimeout(() => {
 			debounceTimers.delete(key);
 			fn();
-		}, config.watcher.debounceMs),
+		}, settings.watcher.debounceMs),
 	);
 }
 

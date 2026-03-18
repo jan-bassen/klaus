@@ -1,18 +1,18 @@
 import { z } from "zod";
-import { config } from "@/config";
+import { settings } from "@/settings";
 import { searchConversation } from "@/store/conversation";
 import type { ToolDefinition } from "@/types";
 
 function formatMessageTimestamp(date: Date): string {
-	const day = date.toLocaleDateString(config.locale, {
+	const day = date.toLocaleDateString(settings.locale, {
 		day: "2-digit",
 		month: "2-digit",
-		timeZone: config.timezone,
+		timeZone: settings.timezone,
 	});
-	const time = date.toLocaleTimeString(config.locale, {
+	const time = date.toLocaleTimeString(settings.locale, {
 		hour: "2-digit",
 		minute: "2-digit",
-		timeZone: config.timezone,
+		timeZone: settings.timezone,
 	});
 	return `${day} ${time}`;
 }

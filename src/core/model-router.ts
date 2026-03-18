@@ -1,8 +1,8 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import type { ModelMessage, StepResult, ToolSet } from "ai";
 import { generateText, stepCountIs } from "ai";
-import { config, type ModelTier } from "@/config";
 import { log } from "@/logger";
+import { type ModelTier, settings } from "@/settings";
 import { recordCost } from "@/store/costs";
 import { recordInvocation } from "@/store/invocations";
 import { checkModelRate } from "./rate-limiter";
@@ -81,11 +81,11 @@ export async function callModel(
 		throw new Error(`LLM rate limit exceeded. Retry in ${rate.retryAfterMs}ms`);
 	}
 
-	const modelId = config.models[opts.tier];
+	const modelId = settings.models[opts.tier];
 	const model = anthropic(modelId);
 
 	const startTime = Date.now();
-	const timeoutMs = config.llm.timeoutMs;
+	const timeoutMs = settings.llm.timeoutMs;
 
 	// Retry transient failures (network errors, 5xx) with exponential backoff.
 	const MAX_ATTEMPTS = 3;
@@ -175,7 +175,7 @@ export async function callModel(
 		(s, st) => s + (st.usage.outputTokens ?? 0),
 		0,
 	);
-	const pricing = config.pricing as Record<
+	const pricing = settings.pricing as Record<
 		string,
 		{ inputPerMTok: number; outputPerMTok: number } | undefined
 	>;

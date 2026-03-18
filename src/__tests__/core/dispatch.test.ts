@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { config } from "@/config";
+import { settings } from "@/settings";
 import type { AgentDefinition, DispatchOptions } from "@/types";
 
 // ─── mocks (avoid mock.module('@/core/agent') — it poisons agent.test.ts) ───
@@ -128,7 +128,7 @@ describe("dispatch", () => {
 
 	test("max chain depth returns undefined without running", async () => {
 		const result = await dispatch(
-			makeOpts({ depth: config.dispatch.maxChainDepth }),
+			makeOpts({ depth: settings.dispatch.maxChainDepth }),
 		);
 		expect(result).toBeUndefined();
 		expect(mockRunAgent).not.toHaveBeenCalled();

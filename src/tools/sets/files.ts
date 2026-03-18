@@ -1,8 +1,8 @@
 import { mkdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { config } from "@/config";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import { deleteFile, findFile, listFiles, saveFileMeta } from "@/store/files";
 import type { ToolDefinition, ToolsetDefinition } from "@/types";
 
@@ -24,7 +24,7 @@ export const filesUploadTool: ToolDefinition<typeof filesUploadSchema> = {
 		const date = new Date().toISOString().slice(0, 10);
 		const ext = name.includes(".") ? (name.split(".").pop() ?? "bin") : "bin";
 		const id = crypto.randomUUID();
-		const dir = path.join(config.files.dir, date);
+		const dir = path.join(settings.files.dir, date);
 		const filePath = path.join(dir, `${id}.${ext}`);
 
 		await mkdir(dir, { recursive: true });

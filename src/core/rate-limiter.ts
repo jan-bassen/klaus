@@ -1,4 +1,4 @@
-import { config } from "@/config";
+import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 
 export interface RateLimitResult {
@@ -14,7 +14,7 @@ const windows: Record<LimitKind, number[]> = {
 };
 
 function check(kind: LimitKind, now = Date.now()): RateLimitResult {
-	const { max, windowMs } = config.rateLimits[kind];
+	const { max, windowMs } = settings.rateLimits[kind];
 	const cutoff = now - windowMs;
 	const timestamps = windows[kind];
 

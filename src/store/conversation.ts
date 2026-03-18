@@ -1,8 +1,8 @@
 import { appendFile, mkdir, readdir, rename } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { config } from "@/config";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 
 // -- Event schemas & types --
 
@@ -102,7 +102,7 @@ const idToExternal = new Map<string, string>();
 const externalToId = new Map<string, string>();
 
 function conversationsDir(): string {
-	return path.join(config.dataDir, "conversations");
+	return path.join(settings.dataDir, "conversations");
 }
 
 function currentFilePath(): string {

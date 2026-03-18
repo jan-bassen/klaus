@@ -1,11 +1,11 @@
 import { mkdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { config } from "@/config";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import type { ToolDefinition, ToolsetDefinition } from "@/types";
 
-const notesDir = () => path.join(config.vault.dir, "Klaus", "notes");
+const notesDir = () => path.join(settings.vault.dir, "Klaus", "notes");
 
 const KEBAB_CASE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 

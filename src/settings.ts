@@ -1,6 +1,6 @@
 import path from "node:path";
 
-export const config = {
+export const settings = {
 	// Model tier map — change model IDs here to swap providers/versions globally.
 	// Each tier is referenced by name throughout the codebase; no other file hardcodes model IDs.
 	models: {
@@ -115,4 +115,4 @@ export const config = {
 	},
 } as const;
 
-export type ModelTier = keyof typeof config.models;
+export type ModelTier = keyof typeof settings.models;

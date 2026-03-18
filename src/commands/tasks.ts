@@ -1,13 +1,13 @@
 import type { Command } from "@/commands";
-import { config } from "@/config";
+import { settings } from "@/settings";
 import { listTasks } from "@/store/tasks";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
-const timeFormatter = new Intl.DateTimeFormat(config.locale, {
+const timeFormatter = new Intl.DateTimeFormat(settings.locale, {
 	hour: "2-digit",
 	minute: "2-digit",
-	timeZone: config.timezone,
+	timeZone: settings.timezone,
 });
 
 export const tasksCommand: Command = {

@@ -1,8 +1,8 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { config } from "@/config";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 
 export const FileMetaSchema = z.object({
 	id: z.string(),
@@ -24,7 +24,7 @@ const messageFileIndex = new Map<string, string>();
 const externalFileIndex = new Map<string, string>();
 
 function filesDir(): string {
-	return path.join(config.dataDir, "files");
+	return path.join(settings.dataDir, "files");
 }
 
 function indexPath(): string {

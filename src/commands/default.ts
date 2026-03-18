@@ -16,7 +16,7 @@ export const defaultCommand: Command = {
 		if (!agentName) {
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: "Usage: /default <agent_name>",
+				content: "Provide a name! Usage: /default <agent_name>",
 				dedupKey: `${msg.id}:default-usage`,
 			});
 			return;
