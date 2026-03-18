@@ -6,6 +6,7 @@ import {
 	normalizeMessageContent,
 } from "@whiskeysockets/baileys";
 import { config } from "@/config";
+import { formatUserError } from "@/core/errors";
 import { handleTurn } from "@/core/pipeline";
 import { log } from "@/logger";
 import { appendReaction } from "@/store/conversation";
@@ -72,7 +73,7 @@ export function attachReceiveHandler(socket: WASocket): void {
 					try {
 						enqueueMessage({
 							chatId: msg.chatId,
-							content: "Something went wrong. Please try again.",
+							content: formatUserError(err),
 							dedupKey: `${msg.id}:receive-error`,
 						});
 					} catch {
@@ -289,7 +290,9 @@ export async function normalizeMessage(
 	// If media download failed for a voice note, inject a fallback so the pipeline
 	// can still acknowledge the message instead of silently dropping it.
 	const fallbackText =
-		!media && audioMsg?.ptt ? "(voice note — could not be downloaded)" : undefined;
+		!media && audioMsg?.ptt
+			? "(voice note — could not be downloaded)"
+			: undefined;
 
 	if (!effectiveText && !fallbackText && !media && !quotedMessage) {
 		log.debug("[receive] skip no content", { remoteJid: m.key.remoteJid });
@@ -301,7 +304,11 @@ export async function normalizeMessage(
 		id: m.key.id ?? crypto.randomUUID(),
 		chatId: m.key.remoteJid,
 		senderId: m.key.participant ?? m.key.remoteJid,
-		...(effectiveText ? { text: effectiveText } : fallbackText ? { text: fallbackText } : {}),
+		...(effectiveText
+			? { text: effectiveText }
+			: fallbackText
+				? { text: fallbackText }
+				: {}),
 		...(media ? { media } : {}),
 		...(quotedMessage ? { quotedMessage } : {}),
 		timestamp: new Date(tsSeconds * 1000),

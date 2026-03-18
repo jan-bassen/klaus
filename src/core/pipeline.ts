@@ -31,6 +31,7 @@ import { startTyping, stopTyping } from "@/whatsapp/presence";
 import { enqueueMessage } from "@/whatsapp/send";
 import { transcribe } from "@/whatsapp/voice";
 import { assembleContext } from "./assemble";
+import { formatUserError } from "./errors";
 
 function agentsDir(): string {
 	return path.join(config.vault.dir, "Klaus", "agents");
@@ -243,25 +244,20 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			agent: agentName,
 		});
 	} catch (err) {
-		const errMsg = err instanceof Error ? err.message : String(err);
 		log.error("[pipeline] unhandled error", {
 			chatId: msg.chatId,
-			error: errMsg,
+			error: err instanceof Error ? err.message : String(err),
 			stack: err instanceof Error ? err.stack : undefined,
 		});
 		if (msg.kind === "whatsapp") {
-			const isRateLimit = /rate.?limit/i.test(errMsg);
-			const userMsg = isRateLimit
-				? "Too many requests right now — please try again in a moment."
-				: "Something went wrong processing your message. Please try again.";
 			try {
 				enqueueMessage({
 					chatId: msg.chatId,
-					content: userMsg,
+					content: formatUserError(err),
 					dedupKey: `${msg.id}:error`,
 				});
 			} catch {
-				// best-effort; ignore
+				/* best-effort */
 			}
 		}
 	}

@@ -1,6 +1,7 @@
 # TODO
 
 ## Exploration
+- [x] Surface actual error messages to user, not just "there went something wrong ..."
 - [ ] Can we preserve thought processes between runs somehow and should we?
 
 ## Agents
@@ -11,6 +12,9 @@
 # Later
 
 ## GitHub action ci/cd for image building (?)
+
+## UX improvements
+- [ ] Add commands for direct control over model tier etc
 
 ## Internationalization (only when simple)
 - [ ] Add support for multiple languages for all user-facing (and probably even agent-facing) strings
