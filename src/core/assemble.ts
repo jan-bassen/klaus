@@ -98,22 +98,9 @@ export async function assembleContext(
 		if (result.vars) Object.assign(vars, result.vars);
 	}
 
-	// Extract structured conversation data into dedicated fields
-	const conversationMessages = (vars._conversationMessages ?? []) as Array<{
-		role: "user" | "assistant";
-		content: string;
-	}>;
-	const messageRefs = (vars._messageRefs ?? {}) as Record<
-		string,
-		{ externalId: string; role: string }
-	>;
-	delete vars._conversationMessages;
-	delete vars._messageRefs;
-
 	return {
 		vars,
-		conversationMessages,
-		messageRefs,
+		messageRefs: {},
 		totalTokens: Math.max(0, totalTokens),
 	};
 }

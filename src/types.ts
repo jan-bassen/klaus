@@ -80,8 +80,6 @@ export interface TurnContext {
 export interface AssembledContext {
 	/** Context variables keyed by query name — directly available as {{variable}} in prompts */
 	vars: Record<string, unknown>;
-	/** Conversation history as structured messages for the SDK messages array */
-	conversationMessages: Array<{ role: "user" | "assistant"; content: string }>;
 	/** Label → externalId mapping for message references (reply/react tools) */
 	messageRefs: Record<string, { externalId: string; role: string }>;
 	totalTokens: number;

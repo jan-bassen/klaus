@@ -1,9 +1,11 @@
 import path from "node:path";
 import type {
+	AssistantContent,
 	ImagePart,
 	ModelMessage,
 	StepResult,
 	TextPart,
+	ToolContent,
 	ToolSet,
 	UserContent,
 } from "ai";
@@ -18,11 +20,18 @@ import {
 	toolsetRegistry,
 } from "@/core/registry";
 import { log } from "@/logger";
+import {
+	appendTrace,
+	type ConversationMessage,
+	getConversation,
+	getTraces,
+	type TraceStep,
+} from "@/store/conversation";
 import { buildProviderTool } from "@/tools/provider";
 import { buildSkillTool } from "@/tools/skill";
 import type { AgentDefinition, ToolDefinition, TurnContext } from "@/types";
 import { hbs } from "./hbs";
-import { callModel } from "./model-router";
+import { callModel, type ModelCallStep } from "./model-router";
 
 const AgentFrontmatterSchema = z.object({
 	name: z.string().min(1),
@@ -50,49 +59,245 @@ function buildSystemPrompt(
 }
 
 /**
- * Build the rich user message content from turn context vars + message data.
+ * Build the rich user message content directly from turn.message.
  * Includes message type prefix, quoted text, flags, and the actual message text.
  */
 function buildUserMessageText(turn: TurnContext): string {
-	const vars = turn.assembled.vars;
+	const msg = turn.message;
+	if (!msg) return "";
+
+	const media = msg.media;
+	const isVoice = !!media && media.mimeType.startsWith("audio/");
+	const isImage = !!media && media.mimeType.startsWith("image/");
+	const isDocument = !!media && !isVoice && !isImage;
+
 	const parts: string[] = [];
 
 	// Message type prefix
-	const messageType = vars.message_type as string | undefined;
-	if (messageType === "voice") {
-		const voiceCaption = vars.voice_caption as string | undefined;
+	if (isVoice) {
+		const voiceCaption = media?.voiceCaption;
 		const line = voiceCaption
 			? `Transcript of voice note. Caption: "${voiceCaption}"`
 			: "Transcript of voice note.";
 		parts.push(line);
-	} else if (messageType === "image") {
+	} else if (isImage) {
 		parts.push("Image");
-	} else if (messageType === "document") {
-		const name = vars.attachment_name as string | undefined;
-		const mime = vars.attachment_mime as string | undefined;
+	} else if (isDocument) {
+		const name = media?.fileName;
+		const mime = media?.mimeType;
 		if (name) parts.push(`Attached: ${name} (${mime ?? ""})`);
 	}
 
 	// Quoted message
-	const isReply = vars.is_reply as boolean | undefined;
-	const quotedText = vars.quoted_text as string | undefined;
-	if (isReply && quotedText) {
-		parts.push(`> Quoted: ${quotedText}`);
+	if (msg.quotedMessage?.text) {
+		parts.push(`> Quoted: ${msg.quotedMessage.text}`);
 	}
 
 	// Flags
-	const flags = vars.flags as string | undefined;
+	const flags = turn.assembled.vars.flags as string | undefined;
 	if (flags) {
 		parts.push(flags);
 	}
 
-	// Actual message text
-	const messageText = vars.message_text as string | undefined;
+	// Actual message text: transcript for voice, plain text otherwise
+	const messageText = isVoice ? (media?.transcription ?? "") : (msg.text ?? "");
 	if (messageText) {
 		parts.push(messageText);
 	}
 
 	return parts.join("\n");
+}
+
+// -- Conversation message reconstruction --
+
+const CHARS_PER_TOKEN = 4;
+const MAX_REASONING_CHARS = 2000;
+const MAX_TOOL_RESULT_CHARS = 2000;
+/** Number of recent turns (user messages) that get full trace replay */
+const TRACE_DEPTH = 3;
+
+/**
+ * Build the conversation messages array for the SDK, reconstructing full
+ * multi-step traces for recent turns so the model sees its own reasoning
+ * and tool use from prior turns.
+ *
+ * Returns { messages, messageRefs } — messageRefs maps #label → externalId
+ * for reply/react tools.
+ */
+export async function buildConversationMessages(
+	turn: Omit<TurnContext, "assembled">,
+): Promise<{
+	messages: ModelMessage[];
+	messageRefs: Record<string, { externalId: string; role: string }>;
+}> {
+	if (!turn.message) {
+		return { messages: [], messageRefs: {} };
+	}
+
+	const limit =
+		turn.agent.conversationLimit ?? config.context.defaultConversationLimit;
+	const allMessages = await getConversation();
+	const traces = await getTraces();
+
+	// Exclude the current inbound message from history
+	const filtered = turn.message?.id
+		? allMessages.filter((m) => m.externalId !== turn.message?.id)
+		: allMessages;
+
+	const recent = filtered.slice(-limit);
+
+	// Budget-aware inclusion (work backwards)
+	const budget = config.context.conversationTokens;
+	let tokenCount = 0;
+	const included: ConversationMessage[] = [];
+
+	for (let i = recent.length - 1; i >= 0; i--) {
+		const row = recent[i];
+		if (!row || !row.content) continue;
+		const msgTokens = Math.ceil(row.content.length / CHARS_PER_TOKEN);
+		// Add rough estimate for trace tokens
+		const trace = traces.get(row.id);
+		const traceTokens = trace
+			? Math.ceil(
+					trace.reduce(
+						(sum, s) =>
+							sum +
+							(s.reasoning?.length ?? 0) +
+							s.toolCalls.reduce((a, tc) => a + tc.args.length, 0) +
+							s.toolResults.reduce(
+								(a, tr) =>
+									a + Math.min(tr.result.length, MAX_TOOL_RESULT_CHARS),
+								0,
+							),
+						0,
+					) / CHARS_PER_TOKEN,
+				)
+			: 0;
+		if (tokenCount + msgTokens + traceTokens > budget) break;
+		included.unshift(row);
+		tokenCount += msgTokens + traceTokens;
+	}
+
+	const messages: ModelMessage[] = [];
+	const messageRefs: Record<string, { externalId: string; role: string }> = {};
+
+	// Determine which turns get full traces (last N user messages)
+	let userMsgCount = 0;
+	for (let i = included.length - 1; i >= 0; i--) {
+		if (included[i]?.role === "user") userMsgCount++;
+	}
+	let usersSeen = 0;
+	const traceThreshold = userMsgCount - TRACE_DEPTH;
+
+	for (let i = 0; i < included.length; i++) {
+		const row = included[i];
+		if (!row) continue;
+
+		const label = i + 1;
+		if (row.externalId) {
+			messageRefs[String(label)] = {
+				externalId: row.externalId,
+				role: row.role,
+			};
+		}
+
+		if (row.role === "user") {
+			usersSeen++;
+			messages.push({ role: "user", content: `[#${label}] ${row.content}` });
+		} else {
+			// Assistant turn
+			const trace = traces.get(row.id);
+			const useTrace = trace && usersSeen > traceThreshold;
+
+			if (useTrace) {
+				// Reconstruct multi-step messages from trace
+				for (const step of trace) {
+					const assistantParts: AssistantContent = [];
+
+					if (step.reasoning) {
+						assistantParts.push({
+							type: "reasoning",
+							text: step.reasoning.slice(0, MAX_REASONING_CHARS),
+						});
+					}
+
+					for (const tc of step.toolCalls) {
+						assistantParts.push({
+							type: "tool-call",
+							toolCallId: tc.toolCallId,
+							toolName: tc.toolName,
+							input: JSON.parse(tc.args),
+						});
+					}
+
+					if (assistantParts.length > 0) {
+						messages.push({
+							role: "assistant",
+							content: assistantParts,
+						});
+					}
+
+					if (step.toolResults.length > 0) {
+						const toolParts: ToolContent = step.toolResults.map((tr) => ({
+							type: "tool-result" as const,
+							toolCallId: tr.toolCallId,
+							toolName: tr.toolName,
+							output: {
+								type: "text" as const,
+								value: tr.result.slice(0, MAX_TOOL_RESULT_CHARS),
+							},
+						}));
+						messages.push({ role: "tool", content: toolParts });
+					}
+				}
+
+				// Final text reply
+				if (row.content) {
+					messages.push({ role: "assistant", content: row.content });
+				}
+			} else {
+				// Flat assistant message (no trace or outside trace window)
+				messages.push({
+					role: "assistant",
+					content: row.content ?? "",
+				});
+			}
+		}
+	}
+
+	return { messages, messageRefs };
+}
+
+/**
+ * Convert model call steps to trace steps for persistence.
+ * Filters out reply tool calls and empty steps.
+ */
+function toTraceSteps(steps: ModelCallStep[]): TraceStep[] {
+	const result: TraceStep[] = [];
+
+	for (const step of steps) {
+		const toolCalls = step.toolCalls
+			.filter((tc) => tc.toolName !== "reply")
+			.map((tc) => ({
+				toolCallId: tc.toolCallId,
+				toolName: tc.toolName,
+				args: JSON.stringify(tc.args),
+			}));
+		const toolResults = step.toolResults
+			.filter((tr) => tr.toolName !== "reply")
+			.map((tr) => ({
+				toolCallId: tr.toolCallId,
+				toolName: tr.toolName,
+				result: JSON.stringify(tr.result),
+			}));
+		const reasoning = step.reasoning || undefined;
+
+		if (reasoning || toolCalls.length > 0 || toolResults.length > 0) {
+			result.push({ reasoning, toolCalls, toolResults });
+		}
+	}
+
+	return result;
 }
 
 /**
@@ -190,12 +395,12 @@ export async function runAgent(
 	});
 
 	try {
-		// Build conversation history messages
-		const historyMessages: ModelMessage[] =
-			turn.assembled.conversationMessages.map((m) => ({
-				role: m.role,
-				content: m.content,
-			}));
+		// Build conversation history with traces
+		const { messages: historyMessages, messageRefs } =
+			await buildConversationMessages(turn);
+
+		// Inject messageRefs into assembled context for reply/react tools
+		Object.assign(turn.assembled.messageRefs, messageRefs);
 
 		// Build user content — include raw image bytes for vision if applicable.
 		// Prefer the current message's image; fall back to quoted message's image if this is a reply.
@@ -266,6 +471,18 @@ export async function runAgent(
 			agent: def.name,
 			usage: result.usage,
 		});
+
+		// Persist trace for multi-turn replay (fire-and-forget)
+		if (turn.messageId && result.steps.length > 0) {
+			const traceSteps = toTraceSteps(result.steps);
+			if (traceSteps.length > 0) {
+				appendTrace(turn.messageId, traceSteps).catch((err) =>
+					log.warn("[agent] failed to persist trace", {
+						error: err instanceof Error ? err.message : String(err),
+					}),
+				);
+			}
+		}
 	} catch (err) {
 		log.error("[agent] callModel failed", {
 			agent: def.name,

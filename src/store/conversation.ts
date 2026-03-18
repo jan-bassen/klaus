@@ -33,10 +33,41 @@ const ConversationReactionEventSchema = z.object({
 	fromMe: z.boolean(),
 });
 
+const TraceStepSchema = z.object({
+	reasoning: z.string().optional(),
+	toolCalls: z
+		.array(
+			z.object({
+				toolCallId: z.string(),
+				toolName: z.string(),
+				args: z.string(),
+			}),
+		)
+		.default([]),
+	toolResults: z
+		.array(
+			z.object({
+				toolCallId: z.string(),
+				toolName: z.string(),
+				result: z.string(),
+			}),
+		)
+		.default([]),
+});
+
+export type TraceStep = z.infer<typeof TraceStepSchema>;
+
+const ConversationTraceEventSchema = z.object({
+	kind: z.literal("trace"),
+	messageId: z.string(),
+	steps: z.array(TraceStepSchema),
+});
+
 export const ConversationEventSchema = z.discriminatedUnion("kind", [
 	ConversationMessageEventSchema,
 	ConversationAckEventSchema,
 	ConversationReactionEventSchema,
+	ConversationTraceEventSchema,
 ]);
 
 export type ConversationMessageEvent = z.infer<
@@ -405,6 +436,39 @@ export async function searchConversation(opts: {
 
 	// Return most recent matches
 	return filtered.slice(-limit);
+}
+
+/** Append a trace event (agent reasoning + tool calls for a turn). */
+export async function appendTrace(
+	messageId: string,
+	steps: TraceStep[],
+): Promise<void> {
+	await appendEvent({ kind: "trace", messageId, steps });
+}
+
+/** Read all trace events from current.jsonl, keyed by messageId. */
+export async function getTraces(): Promise<Map<string, TraceStep[]>> {
+	const traces = new Map<string, TraceStep[]>();
+	let text: string;
+	try {
+		text = await Bun.file(currentFilePath()).text();
+	} catch {
+		return traces;
+	}
+
+	for (const line of text.split("\n")) {
+		if (!line.trim()) continue;
+		try {
+			const raw = JSON.parse(line);
+			if (raw.kind !== "trace") continue;
+			const event = ConversationTraceEventSchema.parse(raw);
+			traces.set(event.messageId, event.steps);
+		} catch {
+			// skip corrupt lines
+		}
+	}
+
+	return traces;
 }
 
 /** Clear in-memory indexes. Used by rotate() and tests. */

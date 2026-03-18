@@ -6,7 +6,14 @@ import { config } from "@/config";
 
 const mockGenerateText = mock(async (_opts: Record<string, unknown>) => ({
 	text: "Hello from the model",
-	steps: [{ usage: { inputTokens: 100, outputTokens: 50 } }],
+	steps: [
+		{
+			usage: { inputTokens: 100, outputTokens: 50 },
+			reasoningText: undefined,
+			toolCalls: [],
+			toolResults: [],
+		},
+	],
 }));
 
 const mockStepCountIs = mock((n: number) => ({ __stepCount: n }));
@@ -66,8 +73,18 @@ describe("callModel", () => {
 		mockGenerateText.mockImplementationOnce(async () => ({
 			text: "ok",
 			steps: [
-				{ usage: { inputTokens: 200, outputTokens: 30 } },
-				{ usage: { inputTokens: 50, outputTokens: 10 } },
+				{
+					usage: { inputTokens: 200, outputTokens: 30 },
+					reasoningText: undefined,
+					toolCalls: [],
+					toolResults: [],
+				},
+				{
+					usage: { inputTokens: 50, outputTokens: 10 },
+					reasoningText: undefined,
+					toolCalls: [],
+					toolResults: [],
+				},
 			],
 		}));
 		const result = await callModel(BASE_OPTS);

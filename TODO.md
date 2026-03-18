@@ -2,7 +2,7 @@
 
 ## Exploration
 - [x] Surface actual error messages to user, not just "there went something wrong ..."
-- [ ] Can we preserve thought processes between runs somehow and should we?
+- [x] Can we preserve thought processes between runs somehow and should we?
 
 ## Agents
 - [ ] Fitness - An agent that tracks my fitness goals/progress, manage my trainingplan and helps me stay on track. I want to call him directly with @fitness during training sessions and he should be able to provide me with motivation and insights, mostly through random (for me unexpected) dispatches to motivate me. Espescially on training days.
@@ -13,8 +13,9 @@
 
 ## GitHub action ci/cd for image building (?)
 
-## UX improvements
+## UX/DX improvements
 - [ ] Add commands for direct control over model tier etc
+- [ ] Add config entry for switching between default logs or full logs
 
 ## Internationalization (only when simple)
 - [ ] Add support for multiple languages for all user-facing (and probably even agent-facing) strings

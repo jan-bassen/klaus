@@ -53,7 +53,6 @@ function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
 		flags: {},
 		assembled: {
 			vars: {},
-			conversationMessages: [],
 			messageRefs: {},
 			totalTokens: 0,
 		},

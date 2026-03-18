@@ -30,6 +30,20 @@ export interface ModelCallOptions {
 	prepareStep?: (steps: StepResult<ToolSet>[]) => string[];
 }
 
+export interface ModelCallStep {
+	reasoning: string;
+	toolCalls: Array<{
+		toolCallId: string;
+		toolName: string;
+		args: Record<string, unknown>;
+	}>;
+	toolResults: Array<{
+		toolCallId: string;
+		toolName: string;
+		result: unknown;
+	}>;
+}
+
 export interface ModelCallResult {
 	content: string;
 	usage: {
@@ -37,6 +51,7 @@ export interface ModelCallResult {
 		completionTokens: number;
 		costUsd: number;
 	};
+	steps: ModelCallStep[];
 }
 
 /**
@@ -222,8 +237,23 @@ export async function callModel(
 		);
 	}
 
+	const modelSteps: ModelCallStep[] = result.steps.map((s) => ({
+		reasoning: s.reasoningText ?? "",
+		toolCalls: (s.toolCalls ?? []).map((tc) => ({
+			toolCallId: tc.toolCallId,
+			toolName: tc.toolName,
+			args: (tc.input ?? {}) as Record<string, unknown>,
+		})),
+		toolResults: (s.toolResults ?? []).map((tr) => ({
+			toolCallId: tr.toolCallId,
+			toolName: tr.toolName,
+			result: tr.output,
+		})),
+	}));
+
 	return {
 		content: result.text,
 		usage: { promptTokens, completionTokens, costUsd },
+		steps: modelSteps,
 	};
 }

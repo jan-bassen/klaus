@@ -1,10 +1,30 @@
 import { z } from "zod";
-import {
-	formatChatMessage,
-	formatMessageTimestamp,
-} from "@/context/conversation";
+import { config } from "@/config";
 import { searchConversation } from "@/store/conversation";
 import type { ToolDefinition } from "@/types";
+
+function formatMessageTimestamp(date: Date): string {
+	const day = date.toLocaleDateString(config.locale, {
+		day: "2-digit",
+		month: "2-digit",
+		timeZone: config.timezone,
+	});
+	const time = date.toLocaleTimeString(config.locale, {
+		hour: "2-digit",
+		minute: "2-digit",
+		timeZone: config.timezone,
+	});
+	return `${day} ${time}`;
+}
+
+function formatChatMessage(opts: {
+	label: string;
+	role: string;
+	timestamp: string;
+	body: string;
+}): string {
+	return `[#${opts.label} | ${opts.role} | ${opts.timestamp}]\n${opts.body}`;
+}
 
 const schema = z.object({
 	query: z

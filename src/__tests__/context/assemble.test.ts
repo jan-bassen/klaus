@@ -61,7 +61,6 @@ describe("assembleContext", () => {
 		const result = await assembleContext(makeTurn(), []);
 		expect(result.vars).toEqual({});
 		expect(result.totalTokens).toBe(0);
-		expect(result.conversationMessages).toEqual([]);
 		expect(result.messageRefs).toEqual({});
 	});
 
@@ -125,41 +124,6 @@ describe("assembleContext", () => {
 		const result = await assembleContext(makeTurn(), [bad, good]);
 		expect(result.vars.memory).toBe("memory data");
 		expect(result.vars.broken).toBeUndefined(); // failed, not set
-	});
-
-	// ─── _conversationMessages extraction ────────────────────────────────────
-
-	test("_conversationMessages extracted to conversationMessages field", async () => {
-		const convQuery: ContextQuery = {
-			name: "conversation",
-			priority: 3,
-			run: async () => ({
-				tokenCount: 10,
-				truncate: "never" as const,
-				vars: {
-					_conversationMessages: [
-						{ role: "user" as const, content: "[#1 | 17.03 10:00]\nhi" },
-						{
-							role: "assistant" as const,
-							content: "[#2 | 17.03 10:01]\nhello",
-						},
-					],
-					_messageRefs: {
-						"1": { externalId: "ext-1", role: "user" },
-						"2": { externalId: "ext-2", role: "assistant" },
-					},
-				},
-			}),
-		};
-		const result = await assembleContext(makeTurn(), [convQuery]);
-		expect(result.conversationMessages).toHaveLength(2);
-		expect(result.conversationMessages[0]?.role).toBe("user");
-		expect(result.conversationMessages[0]?.content).toContain("#1");
-		expect(result.messageRefs["1"]?.externalId).toBe("ext-1");
-		expect(result.messageRefs["2"]?.externalId).toBe("ext-2");
-		// Internal vars should not leak to template vars
-		expect(result.vars._conversationMessages).toBeUndefined();
-		expect(result.vars._messageRefs).toBeUndefined();
 	});
 
 	// ─── flag injections ──────────────────────────────────────────────────────

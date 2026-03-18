@@ -7,8 +7,24 @@ import { z } from "zod";
 const mockCallModel = mock(async () => ({
 	content: "",
 	usage: { promptTokens: 10, completionTokens: 5, costUsd: 0 },
+	steps: [],
 }));
 mock.module("../../core/model-router", () => ({ callModel: mockCallModel }));
+
+// Mock conversation store — buildConversationMessages reads from it
+mock.module("@/store/conversation", () => ({
+	getConversation: mock(async () => []),
+	getTraces: mock(async () => new Map()),
+	appendTrace: mock(async () => {}),
+	appendMessage: mock(async () => "msg-id"),
+	appendAck: mock(async () => {}),
+	appendReaction: mock(async () => {}),
+	findByExternalId: mock(() => null),
+	resolveExternalId: mock(() => null),
+	resolveMessageId: mock(() => null),
+	rebuildIndexes: mock(async () => {}),
+	_clearIndexesForTest: mock(() => {}),
+}));
 
 import { loadAgentDefinition, runAgent } from "@/core/agent";
 import {
@@ -23,12 +39,14 @@ import type { AssembledContext, TurnContext } from "@/types";
 
 const emptyAssembled: AssembledContext = {
 	vars: {},
-	conversationMessages: [],
 	messageRefs: {},
 	totalTokens: 0,
 };
 
-function makeTurn(vars: Record<string, unknown> = {}): TurnContext {
+function makeTurn(
+	vars: Record<string, unknown> = {},
+	messageOverrides: Partial<import("@/types").InboundMessage> = {},
+): TurnContext {
 	return {
 		chatId: "user@s.whatsapp.net",
 		message: {
@@ -39,6 +57,7 @@ function makeTurn(vars: Record<string, unknown> = {}): TurnContext {
 			text: "hello",
 			timestamp: new Date(),
 			messageKey: {},
+			...messageOverrides,
 		},
 		agent: {
 			name: "test",
@@ -279,6 +298,7 @@ describe("runAgent", () => {
 		mockCallModel.mockImplementation(async () => ({
 			content: "",
 			usage: { promptTokens: 10, completionTokens: 5, costUsd: 0 },
+			steps: [],
 		}));
 		await writeAgentFile(
 			tmpPath,
@@ -321,12 +341,8 @@ describe("runAgent", () => {
 		);
 	});
 
-	test("conversation history is in messages array, not system prompt", async () => {
-		const turn = makeTurn();
-		turn.assembled.conversationMessages = [
-			{ role: "user", content: "[#1 | 17.03 10:00]\nhi" },
-			{ role: "assistant", content: "[#2 | 17.03 10:01]\nhello" },
-		];
+	test("messages array includes current user message", async () => {
+		const turn = makeTurn({ message_text: "hello" });
 		turn.agent.promptPath = tmpPath;
 		await runAgent(turn, turn.agent);
 		cleanup();
@@ -334,20 +350,14 @@ describe("runAgent", () => {
 			messages: Array<{ role: string; content: string }>;
 			system: string;
 		};
-		// Messages array should have history + current message
-		expect(opts.messages.length).toBe(3);
-		expect(opts.messages[0]?.role).toBe("user");
-		expect(opts.messages[0]?.content).toContain("#1");
-		expect(opts.messages[1]?.role).toBe("assistant");
-		expect(opts.messages[1]?.content).toContain("#2");
-		expect(opts.messages[2]?.role).toBe("user");
+		// Messages array should have at least the current message
+		const lastMsg = opts.messages[opts.messages.length - 1];
+		expect(lastMsg?.role).toBe("user");
+		expect(lastMsg?.content).toContain("hello");
 	});
 
-	test("user message includes message text from vars", async () => {
-		const turn = makeTurn({
-			message_type: "text",
-			message_text: "hello",
-		});
+	test("user message includes message text from turn.message", async () => {
+		const turn = makeTurn({}, { text: "hello" });
 		turn.agent.promptPath = tmpPath;
 		await runAgent(turn, turn.agent);
 		cleanup();
@@ -359,12 +369,13 @@ describe("runAgent", () => {
 	});
 
 	test("user message includes quoted text when replying", async () => {
-		const turn = makeTurn({
-			message_type: "text",
-			message_text: "my reply",
-			is_reply: true,
-			quoted_text: "original message",
-		});
+		const turn = makeTurn(
+			{},
+			{
+				text: "my reply",
+				quotedMessage: { externalId: "ext-q", text: "original message" },
+			},
+		);
 		turn.agent.promptPath = tmpPath;
 		await runAgent(turn, turn.agent);
 		cleanup();
@@ -377,11 +388,18 @@ describe("runAgent", () => {
 	});
 
 	test("user message includes voice note prefix", async () => {
-		const turn = makeTurn({
-			message_type: "voice",
-			message_text: "transcribed text",
-			voice_caption: "see this",
-		});
+		const turn = makeTurn(
+			{},
+			{
+				media: {
+					fileId: "f-1",
+					path: "/tmp/audio.ogg",
+					mimeType: "audio/ogg",
+					transcription: "transcribed text",
+					voiceCaption: "see this",
+				},
+			},
+		);
 		turn.agent.promptPath = tmpPath;
 		await runAgent(turn, turn.agent);
 		cleanup();
@@ -394,11 +412,10 @@ describe("runAgent", () => {
 	});
 
 	test("user message includes flags", async () => {
-		const turn = makeTurn({
-			message_type: "text",
-			message_text: "hello",
-			flags: "Answer as a voice message!",
-		});
+		const turn = makeTurn(
+			{ flags: "Answer as a voice message!" },
+			{ text: "hello" },
+		);
 		turn.agent.promptPath = tmpPath;
 		await runAgent(turn, turn.agent);
 		cleanup();
