@@ -77,8 +77,16 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		if (msg.media) {
 			const { path: filePath, mimeType, fileId } = msg.media;
 			if (mimeType.startsWith("audio/")) {
+				log.info("[pipeline] transcribing voice message", {
+					chatId: msg.chatId,
+					mimeType,
+				});
 				const transcript = await transcribe(filePath, mimeType, msg.chatId);
 				if (!(transcript instanceof Error)) {
+					log.info("[pipeline] transcription ok", {
+						chatId: msg.chatId,
+						chars: transcript.length,
+					});
 					processedMsg = {
 						...msg,
 						text: transcript,

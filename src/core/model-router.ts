@@ -185,12 +185,12 @@ export async function callModel(
 		usage: s.usage,
 	}));
 
-	const userMessage =
-		opts.messages.length > 0
-			? typeof opts.messages[0]?.content === "string"
-				? opts.messages[0]?.content
-				: JSON.stringify(opts.messages[0]?.content)
-			: undefined;
+	const last = opts.messages[opts.messages.length - 1];
+	const userMessage = last
+		? typeof last.content === "string"
+			? last.content
+			: JSON.stringify(last.content)
+		: undefined;
 
 	recordInvocation({
 		agent: opts.agentName ?? "unknown",

@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { dispatch as dispatchAgent } from "@/core/dispatch";
+import { agentRegistry } from "@/core/agent";
 import { getTask, listTasks, moveTask } from "@/store/tasks";
 import type { ToolDefinition, ToolsetDefinition } from "@/types";
 
 // dispatch
 const taskDispatchSchema = z.object({
-	agent: z.string().describe("Name of the agent to invoke"),
+	agent: z
+		.string()
+		.describe("Name of the agent to invoke. See tool description for available agents."),
 	objective: z.string().describe("What the agent should accomplish"),
 	hint: z
 		.string()
@@ -21,8 +24,12 @@ const taskDispatchSchema = z.object({
 
 export const taskDispatchTool: ToolDefinition<typeof taskDispatchSchema> = {
 	name: "tasks.dispatch",
-	description:
-		"Invoke another agent with an objective. Use async for background work, inline to await the result.",
+	get description(): string {
+		const names = [...agentRegistry.keys()];
+		const list =
+			names.length > 0 ? ` Available agents: ${names.join(", ")}.` : "";
+		return `Invoke another agent with an objective.${list} Use async for background work, inline to await the result.`;
+	},
 	inputSchema: taskDispatchSchema,
 	execute: async (input, context) => {
 		const result = await dispatchAgent({
