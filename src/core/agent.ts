@@ -241,6 +241,10 @@ export async function runAgent(
       { role: "user" as const, content: userContent },
     ];
 
+    const promptRaw = await Bun.file(def.promptPath).text();
+    const promptBody = promptRaw.replace(/^---\n[\s\S]*?\n---\n?/, "");
+    const system = buildSystemPrompt(promptBody, turn.assembled.vars);
+
     const result = await callModel({
       tier: def.modelTier,
       agentName: def.name,
