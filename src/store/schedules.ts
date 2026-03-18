@@ -11,6 +11,7 @@ export const ScheduleEntrySchema = z.object({
 	chatId: z.string(),
 	payload: z.record(z.unknown()),
 	createdAt: z.string(),
+	oneTime: z.boolean().optional(),
 });
 
 export type ScheduleEntry = z.infer<typeof ScheduleEntrySchema>;
@@ -47,16 +48,30 @@ export async function loadSchedules(): Promise<void> {
 	}
 }
 
-function matchesCron(pattern: string, date: Date): boolean {
+function localParts(
+	date: Date,
+	tz: string,
+): { m: number; h: number; dom: number; mon: number; dow: number } {
+	const d = new Date(date.toLocaleString("en-US", { timeZone: tz }));
+	return {
+		m: d.getMinutes(),
+		h: d.getHours(),
+		dom: d.getDate(),
+		mon: d.getMonth() + 1,
+		dow: d.getDay(),
+	};
+}
+
+export function matchesCron(
+	pattern: string,
+	date: Date,
+	tz: string = settings.timezone,
+): boolean {
 	const parts = pattern.split(/\s+/);
 	if (parts.length !== 5) return false;
 	const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
 
-	const m = date.getUTCMinutes();
-	const h = date.getUTCHours();
-	const dom = date.getUTCDate();
-	const mon = date.getUTCMonth() + 1;
-	const dow = date.getUTCDay();
+	const { m, h, dom, mon, dow } = localParts(date, tz);
 
 	return (
 		matchField(minute ?? "*", m) &&
@@ -110,12 +125,24 @@ function startEvaluating(entry: ScheduleEntry): void {
 				name: entry.name,
 				pattern: entry.pattern,
 			});
-			_onCronFire?.(entry).catch((err) =>
-				log.error("[schedules] cron handler error", {
-					name: entry.name,
-					error: err instanceof Error ? err.message : String(err),
-				}),
-			);
+			const firePromise = _onCronFire?.(entry);
+			if (entry.oneTime) {
+				firePromise
+					?.then(() => removeSchedule(entry.name))
+					.catch((err) =>
+						log.error("[schedules] cron handler error", {
+							name: entry.name,
+							error: err instanceof Error ? err.message : String(err),
+						}),
+					);
+			} else {
+				firePromise?.catch((err) =>
+					log.error("[schedules] cron handler error", {
+						name: entry.name,
+						error: err instanceof Error ? err.message : String(err),
+					}),
+				);
+			}
 		}
 	}, 60_000);
 

@@ -9,17 +9,27 @@ const opsCronSchema = z.object({
 	pattern: z.string().describe("Cron expression"),
 	agentName: z.string(),
 	label: z.string().describe("Human-readable label for this scheduled job"),
+	oneTime: z
+		.boolean()
+		.optional()
+		.default(false)
+		.describe("If true, the schedule fires once then auto-removes itself"),
 });
 
 export const opsCronTool: ToolDefinition<typeof opsCronSchema> = {
 	name: "ops.cron",
-	description: "Schedule an agent to run on a cron pattern.",
+	description:
+		"Schedule an agent to run on a cron pattern. Set oneTime=true for a one-shot schedule that auto-removes after firing.",
 	inputSchema: opsCronSchema,
 	execute: async (input, context) => {
 		await dispatch({
 			agent: input.agentName,
 			objective: `Scheduled: ${input.label}`,
-			mode: { kind: "cron", schedule: input.pattern },
+			mode: {
+				kind: "cron",
+				schedule: input.pattern,
+				...(input.oneTime ? { oneTime: true } : {}),
+			},
 			chatId: context.chatId,
 			caller: context.agent.name,
 		});

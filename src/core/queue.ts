@@ -78,11 +78,12 @@ export async function enqueueJob(payload: AgentRunPayload): Promise<void> {
 	);
 }
 
-/** Schedule a recurring agent run via cron. */
+/** Schedule an agent run via cron. Pass oneTime to auto-remove after first fire. */
 export async function scheduleJob(
 	agentName: string,
 	schedule: string,
 	payload: Omit<AgentRunPayload, "taskId" | "depth">,
+	options?: { oneTime?: boolean },
 ): Promise<void> {
 	await addSchedule({
 		name: agentName,
@@ -91,6 +92,7 @@ export async function scheduleJob(
 		chatId: payload.chatId,
 		payload: { ...payload },
 		createdAt: new Date().toISOString(),
+		...(options?.oneTime ? { oneTime: true } : {}),
 	});
 }
 

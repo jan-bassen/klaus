@@ -69,11 +69,12 @@ export async function dispatch(
 			agentName,
 			schedule: mode.schedule,
 		});
-		await scheduleJob(agentName, mode.schedule, {
+		await scheduleJob(
 			agentName,
-			chatId,
-			dispatchContext,
-		});
+			mode.schedule,
+			{ agentName, chatId, dispatchContext },
+			mode.oneTime ? { oneTime: true } : undefined,
+		);
 		return undefined;
 	}
 

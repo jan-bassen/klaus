@@ -39,7 +39,7 @@ export interface InboundMessage {
 export type DispatchMode =
 	| { kind: "inline" }
 	| { kind: "async" }
-	| { kind: "cron"; schedule: string };
+	| { kind: "cron"; schedule: string; oneTime?: boolean };
 
 export interface DispatchOptions {
 	agent: string;
