@@ -286,7 +286,12 @@ export async function normalizeMessage(
 			}
 	}
 
-	if (!effectiveText && !media && !quotedMessage) {
+	// If media download failed for a voice note, inject a fallback so the pipeline
+	// can still acknowledge the message instead of silently dropping it.
+	const fallbackText =
+		!media && audioMsg?.ptt ? "(voice note — could not be downloaded)" : undefined;
+
+	if (!effectiveText && !fallbackText && !media && !quotedMessage) {
 		log.debug("[receive] skip no content", { remoteJid: m.key.remoteJid });
 		return null;
 	}
@@ -296,7 +301,7 @@ export async function normalizeMessage(
 		id: m.key.id ?? crypto.randomUUID(),
 		chatId: m.key.remoteJid,
 		senderId: m.key.participant ?? m.key.remoteJid,
-		...(effectiveText ? { text: effectiveText } : {}),
+		...(effectiveText ? { text: effectiveText } : fallbackText ? { text: fallbackText } : {}),
 		...(media ? { media } : {}),
 		...(quotedMessage ? { quotedMessage } : {}),
 		timestamp: new Date(tsSeconds * 1000),

@@ -1,8 +1,5 @@
 # TODO
 
-## Fixes
-- [ ] Check Voice message skip. A voice message I sent was ignored for some reason (logs: 12:29:29.690 DBG [receive] skip no content  remoteJid=36911083159745@lid 12:29:29.690 WRN [receive] media download failed — continuing as text-only  remoteJid=36911083159745@lid error "error:1e000065:Cipher functions:OPENSSL_internal:BAD_DECRYPT")
-
 ## Exploration
 - [ ] Can we preserve thought processes between runs somehow and should we?
 
