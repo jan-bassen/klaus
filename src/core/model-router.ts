@@ -1,10 +1,10 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import type { ModelMessage, StepResult, ToolSet } from "ai";
 import { generateText, stepCountIs } from "ai";
-import { config, type ModelTier } from "@/config";
-import { db } from "@/db/client";
-import { costs, invocations } from "@/db/schema";
 import { log } from "@/logger";
+import { type ModelTier, settings } from "@/settings";
+import { recordCost } from "@/store/costs";
+import { recordInvocation } from "@/store/invocations";
 import { checkModelRate } from "./rate-limiter";
 
 export class LlmTimeoutError extends Error {
@@ -30,6 +30,20 @@ export interface ModelCallOptions {
 	prepareStep?: (steps: StepResult<ToolSet>[]) => string[];
 }
 
+export interface ModelCallStep {
+	reasoning: string;
+	toolCalls: Array<{
+		toolCallId: string;
+		toolName: string;
+		args: Record<string, unknown>;
+	}>;
+	toolResults: Array<{
+		toolCallId: string;
+		toolName: string;
+		result: unknown;
+	}>;
+}
+
 export interface ModelCallResult {
 	content: string;
 	usage: {
@@ -37,6 +51,7 @@ export interface ModelCallResult {
 		completionTokens: number;
 		costUsd: number;
 	};
+	steps: ModelCallStep[];
 }
 
 /**
@@ -66,25 +81,25 @@ export async function callModel(
 		throw new Error(`LLM rate limit exceeded. Retry in ${rate.retryAfterMs}ms`);
 	}
 
-	const modelId = config.models[opts.tier];
+	const modelId = settings.models[opts.tier];
 	const model = anthropic(modelId);
 
 	const startTime = Date.now();
-	const timeoutMs = config.llm.timeoutMs;
+	const timeoutMs = settings.llm.timeoutMs;
 
 	// Retry transient failures (network errors, 5xx) with exponential backoff.
-	// Do NOT retry timeouts or rate-limit errors — those are definitive.
 	const MAX_ATTEMPTS = 3;
 	let result: Awaited<ReturnType<typeof generateText>> | undefined;
 	let lastErr: unknown;
 	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+		let timeoutId: ReturnType<typeof setTimeout> | undefined;
 		try {
-			const timeoutPromise = new Promise<never>((_, reject) =>
-				setTimeout(
+			const timeoutPromise = new Promise<never>((_, reject) => {
+				timeoutId = setTimeout(
 					() => reject(new LlmTimeoutError(modelId, timeoutMs)),
 					timeoutMs,
-				),
-			);
+				);
+			});
 			result = await Promise.race([
 				generateText({
 					model,
@@ -115,8 +130,10 @@ export async function callModel(
 				}),
 				timeoutPromise,
 			]);
+			clearTimeout(timeoutId);
 			break; // success — exit retry loop
 		} catch (err) {
+			clearTimeout(timeoutId);
 			lastErr = err;
 			if (!isRetryable(err)) {
 				log.error("[model-router] generateText failed (non-retryable)", {
@@ -149,8 +166,7 @@ export async function callModel(
 
 	const durationMs = Date.now() - startTime;
 
-	// Aggregate token usage across all steps (maxSteps may run multiple LLM calls).
-	// ai@6 uses inputTokens/outputTokens on LanguageModelUsage.
+	// Aggregate token usage across all steps.
 	const promptTokens = result.steps.reduce(
 		(s, st) => s + (st.usage.inputTokens ?? 0),
 		0,
@@ -159,7 +175,11 @@ export async function callModel(
 		(s, st) => s + (st.usage.outputTokens ?? 0),
 		0,
 	);
-	const modelPricing = config.pricing[modelId];
+	const pricing = settings.pricing as Record<
+		string,
+		{ inputPerMTok: number; outputPerMTok: number } | undefined
+	>;
+	const modelPricing = pricing[modelId];
 	const costUsd = modelPricing
 		? (promptTokens / 1_000_000) * modelPricing.inputPerMTok +
 			(completionTokens / 1_000_000) * modelPricing.outputPerMTok
@@ -170,8 +190,7 @@ export async function callModel(
 		});
 	}
 
-	// Serialize steps: pick only the fields useful for debugging.
-	// reasoning is populated when extended thinking is enabled (providerOptions.thinking).
+	// Serialize steps for debugging.
 	const steps = result.steps.map((s) => ({
 		text: s.text,
 		reasoning: s.reasoning,
@@ -181,14 +200,14 @@ export async function callModel(
 		usage: s.usage,
 	}));
 
-	const userMessage =
-		opts.messages.length > 0
-			? typeof opts.messages[0]?.content === "string"
-				? opts.messages[0]?.content
-				: JSON.stringify(opts.messages[0]?.content)
-			: undefined;
+	const last = opts.messages[opts.messages.length - 1];
+	const userMessage = last
+		? typeof last.content === "string"
+			? last.content
+			: JSON.stringify(last.content)
+		: undefined;
 
-	await db.insert(invocations).values({
+	recordInvocation({
 		agent: opts.agentName ?? "unknown",
 		model: modelId,
 		...(opts.messageId ? { messageId: opts.messageId } : {}),
@@ -199,26 +218,42 @@ export async function callModel(
 		promptTokens,
 		completionTokens,
 		durationMs,
-		createdAt: new Date(),
-	});
+	}).catch((err) =>
+		log.warn("[model-router] failed to record invocation", {
+			error: err instanceof Error ? err.message : String(err),
+		}),
+	);
 
 	if (costUsd > 0) {
-		db.insert(costs)
-			.values({
-				...(opts.chatId ? { chatId: opts.chatId } : {}),
-				service: "llm",
-				units: promptTokens + completionTokens,
-				costUsd: String(costUsd),
-			})
-			.catch((err) =>
-				log.warn("[cost] failed to record llm cost", {
-					error: err instanceof Error ? err.message : String(err),
-				}),
-			);
+		recordCost(
+			"llm",
+			promptTokens + completionTokens,
+			costUsd,
+			opts.chatId,
+		).catch((err) =>
+			log.warn("[cost] failed to record llm cost", {
+				error: err instanceof Error ? err.message : String(err),
+			}),
+		);
 	}
+
+	const modelSteps: ModelCallStep[] = result.steps.map((s) => ({
+		reasoning: s.reasoningText ?? "",
+		toolCalls: (s.toolCalls ?? []).map((tc) => ({
+			toolCallId: tc.toolCallId,
+			toolName: tc.toolName,
+			args: (tc.input ?? {}) as Record<string, unknown>,
+		})),
+		toolResults: (s.toolResults ?? []).map((tr) => ({
+			toolCallId: tr.toolCallId,
+			toolName: tr.toolName,
+			result: tr.output,
+		})),
+	}));
 
 	return {
 		content: result.text,
 		usage: { promptTokens, completionTokens, costUsd },
+		steps: modelSteps,
 	};
 }

@@ -1,5 +1,12 @@
-import PgBoss from "pg-boss";
-import { config } from "@/config";
+import { log } from "@/logger";
+import {
+	addSchedule,
+	getSchedules as getScheduleEntries,
+	removeSchedule,
+	type ScheduleEntry,
+	setOnCronFire,
+	startAllSchedules,
+} from "@/store/schedules";
 import type { DispatchMode } from "@/types";
 
 export type JobName = "agent-run";
@@ -18,53 +25,104 @@ export interface AgentRunPayload {
 	depth: number;
 }
 
-let boss: PgBoss | null = null;
+// -- In-memory job queue --
 
-export async function initQueue(): Promise<PgBoss> {
-	const b = new PgBoss(config.database.url);
-	await b.start();
-	await b.createQueue("agent-run");
-	boss = b;
-	return b;
+const pending: AgentRunPayload[] = [];
+let processing = false;
+let drainHandle: ReturnType<typeof setInterval> | null = null;
+let _worker: ((payload: AgentRunPayload) => Promise<void>) | null = null;
+let ready = false;
+
+/** Set the worker function that processes jobs. */
+export function setWorker(
+	fn: (payload: AgentRunPayload) => Promise<void>,
+): void {
+	_worker = fn;
 }
 
-export function getQueue(): PgBoss {
-	if (!boss) throw new Error("Queue not initialized — call initQueue() first");
-	return boss;
+async function drain(): Promise<void> {
+	if (processing || pending.length === 0 || !_worker) return;
+	processing = true;
+
+	while (pending.length > 0) {
+		const job = pending.shift();
+		if (!job) break;
+
+		try {
+			await _worker(job);
+		} catch (err) {
+			log.error("[queue] job failed", {
+				taskId: job.taskId,
+				error: err instanceof Error ? err.message : String(err),
+			});
+		}
+	}
+
+	processing = false;
 }
 
-/** Enqueue an agent run job. jobId provides idempotency. */
-export async function enqueueJob(
-	payload: AgentRunPayload,
-	jobId: string,
-): Promise<void> {
-	await getQueue().send("agent-run", payload, { id: jobId });
+/** Initialize the in-memory queue. Starts the drain loop. */
+export async function initQueue(): Promise<void> {
+	drainHandle = setInterval(drain, 500);
+	ready = true;
 }
 
-/** Schedule a recurring agent run via pg-boss cron. */
+/** Enqueue an agent run job. */
+export async function enqueueJob(payload: AgentRunPayload): Promise<void> {
+	pending.push(payload);
+	// Trigger immediate drain
+	drain().catch((err) =>
+		log.error("[queue] drain error", {
+			error: err instanceof Error ? err.message : String(err),
+		}),
+	);
+}
+
+/** Schedule an agent run via cron. Pass oneTime to auto-remove after first fire. */
 export async function scheduleJob(
 	agentName: string,
 	schedule: string,
 	payload: Omit<AgentRunPayload, "taskId" | "depth">,
+	options?: { oneTime?: boolean },
 ): Promise<void> {
-	const q = getQueue();
-	// pg-boss v10: schedule.name is a FK to queue.name, so the queue must exist first.
-	await q.createQueue(agentName);
-	await q.schedule(agentName, schedule, payload);
+	await addSchedule({
+		name: agentName,
+		agentName,
+		pattern: schedule,
+		chatId: payload.chatId,
+		payload: { ...payload },
+		createdAt: new Date().toISOString(),
+		...(options?.oneTime ? { oneTime: true } : {}),
+	});
 }
 
-export async function listSchedules(): Promise<unknown[]> {
-	return getQueue().getSchedules();
+export async function listSchedules(): Promise<ScheduleEntry[]> {
+	return getScheduleEntries();
 }
 
 export async function deleteSchedule(name: string): Promise<void> {
-	await getQueue().unschedule(name);
+	await removeSchedule(name);
 }
 
 export async function stopQueue(): Promise<void> {
-	if (boss) await boss.stop();
+	if (drainHandle) {
+		clearInterval(drainHandle);
+		drainHandle = null;
+	}
+	ready = false;
 }
 
 export function isQueueReady(): boolean {
-	return boss !== null;
+	return ready;
+}
+
+/**
+ * Register the cron fire callback — dispatches cron jobs into the queue.
+ * Call once at startup after initQueue().
+ */
+export function registerCronCallback(
+	dispatchFn: (entry: ScheduleEntry) => Promise<void>,
+): void {
+	setOnCronFire(dispatchFn);
+	startAllSchedules();
 }

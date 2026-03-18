@@ -1,27 +1,5 @@
-import type { InferSelectModel } from "drizzle-orm";
 import type { z } from "zod";
-import type { ModelTier } from "./config";
-import type {
-	chunks,
-	edges,
-	files,
-	invocations,
-	messages,
-	nodes,
-	nodeVersions,
-	tasks,
-} from "./db/schema";
-
-// -- DB row types --
-
-export type Node = InferSelectModel<typeof nodes>;
-export type Edge = InferSelectModel<typeof edges>;
-export type Chunk = InferSelectModel<typeof chunks>;
-export type NodeVersion = InferSelectModel<typeof nodeVersions>;
-export type Task = InferSelectModel<typeof tasks>;
-export type Message = InferSelectModel<typeof messages>;
-export type File = InferSelectModel<typeof files>;
-export type Invocation = InferSelectModel<typeof invocations>;
+import type { ModelTier } from "./settings";
 
 // -- WhatsApp / transport --
 
@@ -44,7 +22,7 @@ export interface InboundMessage {
 	};
 	/** Set by receive.ts when this message is a reply to another message */
 	quotedMessage?: {
-		/** Baileys stanzaId — used to resolve the quotedMessageId FK in the DB */
+		/** Baileys stanzaId — used to find the quoted message */
 		externalId: string;
 		/** Text of the quoted message, extracted from Baileys contextInfo at receive time */
 		text?: string;
@@ -61,7 +39,7 @@ export interface InboundMessage {
 export type DispatchMode =
 	| { kind: "inline" }
 	| { kind: "async" }
-	| { kind: "cron"; schedule: string };
+	| { kind: "cron"; schedule: string; oneTime?: boolean };
 
 export interface DispatchOptions {
 	agent: string;
@@ -86,7 +64,7 @@ export interface TurnContext {
 	agent: AgentDefinition;
 	flags: Record<string, boolean>;
 	assembled: AssembledContext;
-	/** DB ID of the persisted inbound message row — set in pipeline after insert */
+	/** Internal message ID — set in pipeline after insert */
 	messageId?: string;
 	/** Injected for dispatched agents; undefined for direct @agent WhatsApp calls */
 	dispatchContext?: {
@@ -95,11 +73,15 @@ export interface TurnContext {
 		hint?: string;
 		mode: DispatchMode;
 	};
+	/** @internal — collects reply content for inline-dispatched agents instead of sending to WhatsApp */
+	_replyCollector?: string[];
 }
 
 export interface AssembledContext {
 	/** Context variables keyed by query name — directly available as {{variable}} in prompts */
 	vars: Record<string, unknown>;
+	/** Label → externalId mapping for message references (reply/react tools) */
+	messageRefs: Record<string, { externalId: string; role: string }>;
 	totalTokens: number;
 }
 
@@ -118,11 +100,11 @@ export interface AgentDefinition {
 	toolsets?: string[];
 	/** cron schedule string (e.g. "0 3 * * *") for scheduled agents */
 	schedule?: string;
-	/** Per-query params from the agent's YAML `context:` section, keyed by query name. */
-	contextParams?: Record<string, Record<string, unknown>>;
+	/** Override the default conversation history limit for this agent */
+	conversationLimit?: number;
 	/** Anthropic provider tool names (e.g. "web_search", "web_fetch", "code_execution") */
 	providerTools?: string[];
-	/** Skill document names this agent can load on demand (filenames without .md in src/skills/) */
+	/** Skill document names this agent can load on demand (filenames without .md in skills/) */
 	skills?: string[];
 	/** Optional vault subdirectory this agent is restricted to, e.g. "Training" */
 	vaultScope?: string;
@@ -139,8 +121,6 @@ export interface ToolDefinition<TInput extends z.ZodTypeAny = z.ZodTypeAny> {
 	execute(input: z.infer<TInput>, context: TurnContext): Promise<unknown>;
 	kind: "builtin" | "integration";
 	capability: "tool" | "resource";
-	/** Promoted to always-available even when its toolset is not loaded */
-	surface?: boolean | undefined;
 	requiresConfirmation?: boolean | undefined;
 }
 
@@ -159,10 +139,7 @@ export interface ContextQuery {
 	name: string;
 	/** Lower number = trimmed first on overflow */
 	priority: number;
-	run(
-		turn: Omit<TurnContext, "assembled">,
-		params?: Record<string, unknown>,
-	): Promise<ContextResult>;
+	run(turn: Omit<TurnContext, "assembled">): Promise<ContextResult>;
 }
 
 export interface ContextResult {

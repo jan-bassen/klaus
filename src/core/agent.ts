@@ -1,65 +1,325 @@
 import path from "node:path";
-import type { ImagePart, StepResult, TextPart, ToolSet, UserContent } from "ai";
+import type {
+	AssistantContent,
+	ImagePart,
+	ModelMessage,
+	StepResult,
+	TextPart,
+	ToolContent,
+	ToolSet,
+	UserContent,
+} from "ai";
 import { tool } from "ai";
 import sharp from "sharp";
 import { parse as parseYaml } from "yaml";
-import type { ModelTier } from "@/config";
-import { config } from "@/config";
+import { z } from "zod";
 import {
 	generateMetaTool,
 	toolRegistry,
 	toolsetRegistry,
 } from "@/core/registry";
 import { log } from "@/logger";
+import { settings } from "@/settings";
+import {
+	appendTrace,
+	type ConversationMessage,
+	getConversation,
+	getTraces,
+	type TraceStep,
+} from "@/store/conversation";
 import { buildProviderTool } from "@/tools/provider";
 import { buildSkillTool } from "@/tools/skill";
 import type { AgentDefinition, ToolDefinition, TurnContext } from "@/types";
 import { hbs } from "./hbs";
-import { callModel } from "./model-router";
+import { callModel, type ModelCallStep } from "./model-router";
+
+const AgentFrontmatterSchema = z.object({
+	name: z.string().min(1),
+	modelTier: z.enum(["default", "low", "high"]),
+	tools: z.array(z.string()).default([]),
+	toolsets: z.array(z.string()).default([]),
+	providerTools: z.array(z.string()).default([]),
+	skills: z.array(z.string()).default([]),
+	schedule: z.string().optional(),
+	vaultScope: z.string().optional(),
+	conversationLimit: z.number().optional(),
+});
 
 // Max long-edge dimension for vision images. A 2048px image → at most 4×4 = 16 tiles ≈ 24k tokens.
 const MAX_IMAGE_DIMENSION = 2048;
-
-/** Strip inline query params from {{name?key=val}} → {{name}} before Handlebars compilation. */
-function stripInlineParams(body: string): string {
-	return body.replace(/\{\{(\w+)\?[^}]*\}\}/g, "{{$1}}");
-}
 
 function buildSystemPrompt(
 	body: string,
 	vars: Record<string, unknown>,
 ): string {
-	const template = hbs.compile(stripInlineParams(body), { noEscape: true });
+	const template = hbs.compile(body, { noEscape: true });
 	return template(vars)
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
 }
 
 /**
- * Scan a prompt body for {{name?key=val&key2=val2}} placeholders and return
- * a contextParams map. Values that parse as numbers become numbers; rest stay strings.
+ * Build the rich user message content directly from turn.message.
+ * Includes message type prefix, quoted text, flags, and the actual message text.
  */
-function parseInlineParams(
-	body: string,
-): Record<string, Record<string, unknown>> {
-	const result: Record<string, Record<string, unknown>> = {};
-	const re = /\{\{(\w+)\?([^}]+)\}\}/g;
-	let m = re.exec(body);
-	while (m !== null) {
-		const name = m[1] ?? "";
-		const qs = m[2] ?? "";
-		result[name] ??= {};
-		for (const pair of qs.split("&")) {
-			const eq = pair.indexOf("=");
-			if (eq === -1) continue;
-			const k = pair.slice(0, eq).trim();
-			const raw = pair.slice(eq + 1).trim();
-			const num = Number(raw);
-			(result[name] as Record<string, unknown>)[k] =
-				raw !== "" && !Number.isNaN(num) ? num : raw;
-		}
-		m = re.exec(body);
+function buildUserMessageText(turn: TurnContext): string {
+	const msg = turn.message;
+	if (!msg) return "";
+
+	const media = msg.media;
+	const isVoice = !!media && media.mimeType.startsWith("audio/");
+	const isImage = !!media && media.mimeType.startsWith("image/");
+	const isDocument = !!media && !isVoice && !isImage;
+
+	const parts: string[] = [];
+
+	// Message type prefix
+	if (isVoice) {
+		const voiceCaption = media?.voiceCaption;
+		const line = voiceCaption
+			? `Transcript of voice note. Caption: "${voiceCaption}"`
+			: "Transcript of voice note.";
+		parts.push(line);
+	} else if (isImage) {
+		parts.push("Image");
+	} else if (isDocument) {
+		const name = media?.fileName;
+		const mime = media?.mimeType;
+		if (name) parts.push(`Attached: ${name} (${mime ?? ""})`);
 	}
+
+	// Quoted message
+	if (msg.quotedMessage?.text) {
+		parts.push(`> Quoted: ${msg.quotedMessage.text}`);
+	}
+
+	// Flags
+	const flags = turn.assembled.vars.flags as string | undefined;
+	if (flags) {
+		parts.push(flags);
+	}
+
+	// Actual message text: transcript for voice, plain text otherwise
+	const messageText = isVoice ? (media?.transcription ?? "") : (msg.text ?? "");
+	if (messageText) {
+		parts.push(messageText);
+	}
+
+	return parts.join("\n");
+}
+
+// -- Conversation message reconstruction --
+
+const CHARS_PER_TOKEN = 4;
+const MAX_REASONING_CHARS = 2000;
+const MAX_TOOL_RESULT_CHARS = 2000;
+/** Number of recent turns (user messages) that get full trace replay */
+const TRACE_DEPTH = 3;
+
+/**
+ * Build the conversation messages array for the SDK, reconstructing full
+ * multi-step traces for recent turns so the model sees its own reasoning
+ * and tool use from prior turns.
+ *
+ * Returns { messages, messageRefs } — messageRefs maps #label → externalId
+ * for reply/react tools.
+ */
+export async function buildConversationMessages(
+	turn: Omit<TurnContext, "assembled">,
+): Promise<{
+	messages: ModelMessage[];
+	messageRefs: Record<string, { externalId: string; role: string }>;
+}> {
+	if (!turn.message) {
+		return { messages: [], messageRefs: {} };
+	}
+
+	const limit =
+		turn.agent.conversationLimit ?? settings.context.defaultConversationLimit;
+	const allMessages = await getConversation();
+	const traces = await getTraces();
+
+	// Exclude the current inbound message from history
+	const filtered = turn.message?.id
+		? allMessages.filter((m) => m.externalId !== turn.message?.id)
+		: allMessages;
+
+	const recent = filtered.slice(-limit);
+
+	// Budget-aware inclusion (work backwards)
+	const budget = settings.context.conversationTokens;
+	let tokenCount = 0;
+	const included: ConversationMessage[] = [];
+
+	for (let i = recent.length - 1; i >= 0; i--) {
+		const row = recent[i];
+		if (!row || !row.content) continue;
+		const msgTokens = Math.ceil(row.content.length / CHARS_PER_TOKEN);
+		// Add rough estimate for trace tokens
+		const trace = traces.get(row.id);
+		const traceTokens = trace
+			? Math.ceil(
+					trace.reduce(
+						(sum, s) =>
+							sum +
+							(s.reasoning?.length ?? 0) +
+							s.toolCalls.reduce((a, tc) => a + tc.args.length, 0) +
+							s.toolResults.reduce(
+								(a, tr) =>
+									a + Math.min(tr.result.length, MAX_TOOL_RESULT_CHARS),
+								0,
+							),
+						0,
+					) / CHARS_PER_TOKEN,
+				)
+			: 0;
+		if (tokenCount + msgTokens + traceTokens > budget) break;
+		included.unshift(row);
+		tokenCount += msgTokens + traceTokens;
+	}
+
+	const messages: ModelMessage[] = [];
+	const messageRefs: Record<string, { externalId: string; role: string }> = {};
+
+	// Determine which turns get full traces (last N user messages)
+	let userMsgCount = 0;
+	for (let i = included.length - 1; i >= 0; i--) {
+		if (included[i]?.role === "user") userMsgCount++;
+	}
+	let usersSeen = 0;
+	const traceThreshold = userMsgCount - TRACE_DEPTH;
+	let lastUserId: string | undefined;
+
+	for (let i = 0; i < included.length; i++) {
+		const row = included[i];
+		if (!row) continue;
+
+		const label = i + 1;
+		if (row.externalId) {
+			messageRefs[String(label)] = {
+				externalId: row.externalId,
+				role: row.role,
+			};
+		}
+
+		if (row.role === "user") {
+			usersSeen++;
+			lastUserId = row.id;
+			messages.push({ role: "user", content: `[#${label}] ${row.content}` });
+		} else {
+			// Assistant turn — traces are keyed by the triggering user message ID
+			const trace = lastUserId ? traces.get(lastUserId) : undefined;
+			const useTrace = trace && usersSeen > traceThreshold;
+
+			if (useTrace) {
+				// Reconstruct multi-step messages from trace
+				for (const step of trace) {
+					const assistantParts: AssistantContent = [];
+
+					if (step.reasoning) {
+						assistantParts.push({
+							type: "reasoning",
+							text: step.reasoning.slice(0, MAX_REASONING_CHARS),
+						});
+					}
+
+					// Only include tool calls that have a matching result — unpaired calls
+					// cause the API to throw "Tool result is missing for tool call …"
+					const resultMap = new Map(
+						step.toolResults.map((tr) => [tr.toolCallId, tr]),
+					);
+					const pairedCalls = step.toolCalls.filter((tc) =>
+						resultMap.has(tc.toolCallId),
+					);
+
+					for (const tc of pairedCalls) {
+						assistantParts.push({
+							type: "tool-call",
+							toolCallId: tc.toolCallId,
+							toolName: tc.toolName,
+							input: JSON.parse(tc.args),
+						});
+					}
+
+					if (assistantParts.length > 0) {
+						messages.push({
+							role: "assistant",
+							content: assistantParts,
+						});
+					}
+
+					if (pairedCalls.length > 0) {
+						const toolParts: ToolContent = pairedCalls.map((tc) => {
+							const tr = resultMap.get(tc.toolCallId)!;
+							return {
+								type: "tool-result" as const,
+								toolCallId: tr.toolCallId,
+								toolName: tr.toolName,
+								output: {
+									type: "text" as const,
+									value: tr.result.slice(0, MAX_TOOL_RESULT_CHARS),
+								},
+							};
+						});
+						messages.push({ role: "tool", content: toolParts });
+					}
+				}
+
+				// Final text reply
+				if (row.content) {
+					messages.push({ role: "assistant", content: row.content });
+				}
+			} else {
+				// Flat assistant message (no trace or outside trace window)
+				messages.push({
+					role: "assistant",
+					content: row.content ?? "",
+				});
+			}
+		}
+	}
+
+	return { messages, messageRefs };
+}
+
+/**
+ * Convert model call steps to trace steps for persistence.
+ * Filters out reply tool calls and ensures every tool call has a matching result
+ * so replayed traces never produce "Tool result is missing" API errors.
+ */
+function toTraceSteps(steps: ModelCallStep[]): TraceStep[] {
+	const result: TraceStep[] = [];
+
+	for (const step of steps) {
+		const allCalls = step.toolCalls.filter((tc) => tc.toolName !== "reply");
+		const allResults = step.toolResults.filter(
+			(tr) => tr.toolName !== "reply",
+		);
+
+		// Only keep calls that have a matching result — orphaned calls corrupt replay
+		const resultIds = new Set(allResults.map((tr) => tr.toolCallId));
+		const pairedCalls = allCalls.filter((tc) => resultIds.has(tc.toolCallId));
+
+		const toolCalls = pairedCalls.map((tc) => ({
+			toolCallId: tc.toolCallId,
+			toolName: tc.toolName,
+			args: JSON.stringify(tc.args),
+		}));
+		const toolResults = pairedCalls.map((tc) => {
+			const tr = allResults.find((r) => r.toolCallId === tc.toolCallId)!;
+			return {
+				toolCallId: tr.toolCallId,
+				toolName: tr.toolName,
+				result: JSON.stringify(tr.result),
+			};
+		});
+		const reasoning = step.reasoning || undefined;
+
+		if (reasoning || toolCalls.length > 0) {
+			result.push({ reasoning, toolCalls, toolResults });
+		}
+	}
+
 	return result;
 }
 
@@ -72,16 +332,6 @@ export async function runAgent(
 	turn: TurnContext,
 	def: AgentDefinition,
 ): Promise<void> {
-	// Load prompt body (strip YAML frontmatter)
-	const raw = await Bun.file(def.promptPath).text();
-	const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, "");
-
-	const vars = { ...turn.assembled.vars };
-	if (def.skills?.length) {
-		vars.skills = def.skills;
-	}
-	const system = buildSystemPrompt(body, vars);
-
 	// Build Vercel AI SDK tools — closures over turn so execute receives TurnContext
 	const wrap = (t: ToolDefinition) =>
 		tool({
@@ -136,7 +386,7 @@ export async function runAgent(
 
 	// Skills — per-agent scoped tool, registered only when agent declares skills
 	if (def.skills?.length) {
-		const skillsDir = path.resolve(path.dirname(def.promptPath), "../skills");
+		const skillsDir = path.resolve(settings.vault.dir, "Klaus", "skills");
 		const skillTool = buildSkillTool(def.skills, skillsDir);
 		const sdkName = skillTool.name.replace(/\./g, "_");
 		allTools[sdkName] = wrap(skillTool);
@@ -160,7 +410,7 @@ export async function runAgent(
 		return [...active];
 	};
 
-	const modelId = config.models[def.modelTier];
+	const modelId = settings.models[def.modelTier];
 	log.info("[agent] calling model", {
 		agent: def.name,
 		model: modelId,
@@ -168,6 +418,13 @@ export async function runAgent(
 	});
 
 	try {
+		// Build conversation history with traces
+		const { messages: historyMessages, messageRefs } =
+			await buildConversationMessages(turn);
+
+		// Inject messageRefs into assembled context for reply/react tools
+		Object.assign(turn.assembled.messageRefs, messageRefs);
+
 		// Build user content — include raw image bytes for vision if applicable.
 		// Prefer the current message's image; fall back to quoted message's image if this is a reply.
 		let userContent: UserContent;
@@ -179,7 +436,7 @@ export async function runAgent(
 				? quotedMedia
 				: null;
 		if (visionMedia) {
-			const imageText = turn.message?.text?.trim();
+			const textContent = buildUserMessageText(turn);
 
 			// Downscale large images to prevent token overflow (Anthropic tiles at 512×512 px, ~1500 tokens/tile)
 			const rawBytes = await Bun.file(visionMedia.path).arrayBuffer();
@@ -198,14 +455,23 @@ export async function runAgent(
 					undefined
 				>,
 			};
-			userContent = imageText
-				? [imagePart, { type: "text", text: imageText } as TextPart]
+			userContent = textContent
+				? [imagePart, { type: "text", text: textContent } as TextPart]
 				: [imagePart];
+		} else if (turn.message) {
+			userContent = buildUserMessageText(turn);
 		} else {
-			const msgText =
-				turn.message?.text?.trim() || turn.dispatchContext?.objective || "";
-			userContent = msgText;
+			userContent = turn.dispatchContext?.objective || "";
 		}
+
+		const messages: ModelMessage[] = [
+			...historyMessages,
+			{ role: "user" as const, content: userContent },
+		];
+
+		const promptRaw = await Bun.file(def.promptPath).text();
+		const promptBody = promptRaw.replace(/^---\n[\s\S]*?\n---\n?/, "");
+		const system = buildSystemPrompt(promptBody, turn.assembled.vars);
 
 		const result = await callModel({
 			tier: def.modelTier,
@@ -214,7 +480,7 @@ export async function runAgent(
 			...(turn.messageId ? { messageId: turn.messageId } : {}),
 			...(turn.taskId ? { taskId: turn.taskId } : {}),
 			system,
-			messages: [{ role: "user", content: userContent }],
+			messages,
 			...(Object.keys(allTools).length > 0
 				? {
 						tools: allTools,
@@ -228,6 +494,18 @@ export async function runAgent(
 			agent: def.name,
 			usage: result.usage,
 		});
+
+		// Persist trace for multi-turn replay (fire-and-forget)
+		if (turn.messageId && result.steps.length > 0) {
+			const traceSteps = toTraceSteps(result.steps);
+			if (traceSteps.length > 0) {
+				appendTrace(turn.messageId, traceSteps).catch((err) =>
+					log.warn("[agent] failed to persist trace", {
+						error: err instanceof Error ? err.message : String(err),
+					}),
+				);
+			}
+		}
 	} catch (err) {
 		log.error("[agent] callModel failed", {
 			agent: def.name,
@@ -251,81 +529,33 @@ export async function loadAgentDefinition(
 	const match = raw.match(/^---\n([\s\S]*?)\n---/);
 	if (!match) throw new Error(`No YAML frontmatter found in: ${promptPath}`);
 
-	const front = parseYaml(match[1] ?? "") as Record<string, unknown>;
+	const rawFront = parseYaml(match[1] ?? "");
+	const front = AgentFrontmatterSchema.parse(rawFront);
 
-	const name = front.name;
-	if (typeof name !== "string" || !name) {
-		throw new Error(`Missing or invalid 'name' in: ${promptPath}`);
-	}
-
-	const modelTier = front.modelTier;
-	const validTiers = Object.keys(config.models) as ModelTier[];
-	if (
-		typeof modelTier !== "string" ||
-		!validTiers.includes(modelTier as ModelTier)
-	) {
-		throw new Error(
-			`Invalid 'modelTier' "${String(modelTier)}" in: ${promptPath}`,
-		);
-	}
-
-	const tools: string[] = Array.isArray(front.tools)
-		? (front.tools as string[])
-		: [];
-
-	const toolsets: string[] = Array.isArray(front.toolsets)
-		? (front.toolsets as string[])
-		: [];
-
-	const providerTools: string[] = Array.isArray(front.providerTools)
-		? (front.providerTools as string[])
-		: [];
-
-	const skills: string[] = Array.isArray(front.skills)
-		? (front.skills as string[])
-		: [];
-
-	// Optional cron schedule string (e.g. "0 3 * * *")
-	const schedule =
-		typeof front.schedule === "string" ? front.schedule : undefined;
-
-	// Optional vault subdirectory restriction (e.g. "Training")
-	const vaultScope =
-		typeof front.vaultScope === "string" ? front.vaultScope : undefined;
-
-	// Per-query params from optional `context:` YAML key.
-	// Example: context: { conversation: { limit: 10 } }
-	const yamlParams: Record<
-		string,
-		Record<string, unknown>
-	> = typeof front.context === "object" &&
-	front.context !== null &&
-	!Array.isArray(front.context)
-		? (front.context as Record<string, Record<string, unknown>>)
-		: {};
-
-	// Inline params parsed from {{name?key=val}} placeholders in the prompt body.
-	// Merged on top of YAML params (inline wins per-key).
-	const body = raw.slice(match[0].length);
-	const inlineParams = parseInlineParams(body);
-	const merged: Record<string, Record<string, unknown>> = { ...yamlParams };
-	for (const [qName, params] of Object.entries(inlineParams)) {
-		merged[qName] = { ...(merged[qName] ?? {}), ...params };
-	}
-	const contextParams = Object.keys(merged).length > 0 ? merged : undefined;
+	const {
+		name,
+		modelTier,
+		tools,
+		toolsets,
+		providerTools,
+		skills,
+		schedule,
+		vaultScope,
+		conversationLimit,
+	} = front;
 
 	log.info("[agent] loaded definition", { name, modelTier, tools });
 
 	return {
 		name,
-		modelTier: modelTier as ModelTier,
+		modelTier,
 		tools,
 		...(toolsets.length > 0 ? { toolsets } : {}),
 		...(providerTools.length > 0 ? { providerTools } : {}),
 		...(skills.length > 0 ? { skills } : {}),
 		...(schedule ? { schedule } : {}),
 		...(vaultScope ? { vaultScope } : {}),
-		...(contextParams ? { contextParams } : {}),
+		...(conversationLimit !== undefined ? { conversationLimit } : {}),
 		promptPath,
 	};
 }
@@ -342,7 +572,14 @@ export const agentRegistry = new Map<string, AgentDefinition>();
 export async function loadAgents(agentsDir: string): Promise<void> {
 	const glob = new Bun.Glob("*.md");
 	for await (const file of glob.scan({ cwd: agentsDir })) {
-		const def = await loadAgentDefinition(`${agentsDir}/${file}`);
-		agentRegistry.set(def.name, def);
+		try {
+			const def = await loadAgentDefinition(`${agentsDir}/${file}`);
+			agentRegistry.set(def.name, def);
+		} catch (err) {
+			log.error("[agent] failed to load agent definition", {
+				file,
+				error: err instanceof Error ? err.message : String(err),
+			});
+		}
 	}
 }

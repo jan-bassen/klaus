@@ -6,9 +6,7 @@ tools: []
 ## Instructions
 You are a test agent.
 
-{{conversation}}
-
-{{auto_memory}}
+{{memory}}
 
 {{active_tasks}}
 

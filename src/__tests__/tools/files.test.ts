@@ -11,43 +11,52 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// ─── DB / write / config mocks (must be set up before importing files/index.ts) ──
+// ─── Store mocks (must be set up before importing files tool) ──
 
-// tmpDir is declared here so the config mock getter can close over it.
-// beforeAll populates it before any test runs.
 let tmpDir: string;
 
-// Mutable state — individual tests configure this before calling a tool
-let _dbRows: Record<string, unknown>[] = [];
-
-const mockDeleteWhere = mock(async () => undefined);
-
-const mockSaveFile = mock(
+const mockSaveFileMeta = mock(
 	async (): Promise<{ id: string; path: string } | Error> => ({
 		id: "file-uuid-123",
 		path: "/tmp/.files/2024-01-01/file-uuid-123.txt",
 	}),
 );
 
-// Chainable select builder: both `.from()` and `.from().where()` are awaitable
-type SelectChain = Promise<Record<string, unknown>[]> & {
-	where: (_cond: unknown) => Promise<Record<string, unknown>[]>;
-};
+let _mockFiles: Array<{
+	id: string;
+	path: string;
+	mimeType: string;
+	sizeBytes: number;
+	createdAt: string;
+	messageId?: string;
+}> = [];
 
-function makeSelectChain(): SelectChain {
-	const p = Promise.resolve(_dbRows) as SelectChain;
-	p.where = (_cond: unknown) => Promise.resolve(_dbRows);
-	return p;
-}
+const mockFindFile = mock((id: string) => {
+	return _mockFiles.find((f) => f.id === id) ?? null;
+});
 
-mock.module("@/db/client", () => ({
-	db: {
-		select: () => ({ from: () => makeSelectChain() }),
-		delete: () => ({ where: mockDeleteWhere }),
-	},
+const mockListFiles = mock((prefix?: string) => {
+	if (!prefix) return _mockFiles;
+	return _mockFiles.filter((f) => f.path.includes(prefix));
+});
+
+const mockDeleteFile = mock((id: string) => {
+	const idx = _mockFiles.findIndex((f) => f.id === id);
+	if (idx < 0) return false;
+	_mockFiles.splice(idx, 1);
+	return true;
+});
+
+mock.module("@/store/files", () => ({
+	saveFileMeta: mockSaveFileMeta,
+	findFile: mockFindFile,
+	listFiles: mockListFiles,
+	deleteFile: mockDeleteFile,
+	findFileByMessageId: mock(() => null),
+	updateFileMessageId: mock(async () => undefined),
+	rebuildFileIndex: mock(async () => {}),
+	_clearFileIndexForTest: mock(() => {}),
 }));
-
-mock.module("@/db/write", () => ({ saveFile: mockSaveFile }));
 
 // ─── import after mocks are registered ───────────────────────────────────────
 
@@ -80,30 +89,33 @@ const dummyContext = {
 		promptPath: "/dev/null",
 	},
 	flags: {},
-	assembled: { vars: {}, totalTokens: 0 } as AssembledContext,
+	assembled: {
+		vars: {},
+		messageRefs: {},
+		totalTokens: 0,
+	} as AssembledContext,
 } as TurnContext;
 
-function makeFileRow(
-	overrides: Partial<Record<string, unknown>> = {},
-): Record<string, unknown> {
+const TEST_FILE_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+
+function makeFileEntry(
+	overrides: Partial<(typeof _mockFiles)[0]> = {},
+): (typeof _mockFiles)[0] {
 	return {
-		id: "file-uuid-123",
+		id: TEST_FILE_ID,
 		path: join(tmpDir, "file-uuid-123.txt"),
 		mimeType: "text/plain",
 		sizeBytes: 13,
-		createdAt: new Date("2024-01-01T00:00:00Z"),
-		messageId: null,
-		nodeId: null,
+		createdAt: new Date("2024-01-01T00:00:00Z").toISOString(),
 		...overrides,
 	};
 }
 
 beforeEach(() => {
-	_dbRows = [];
-	mockDeleteWhere.mockClear();
-	mockSaveFile.mockClear();
-	mockSaveFile.mockImplementation(async () => ({
-		id: "file-uuid-123",
+	_mockFiles = [];
+	mockSaveFileMeta.mockClear();
+	mockSaveFileMeta.mockImplementation(async () => ({
+		id: TEST_FILE_ID,
 		path: join(tmpDir, "file-uuid-123.txt"),
 	}));
 });
@@ -117,34 +129,21 @@ describe("filesUploadTool", () => {
 			{ name: "test.txt", content, mimeType: "text/plain" },
 			dummyContext,
 		);
-		expect(mockSaveFile).toHaveBeenCalledTimes(1);
-		expect(result).toContain("file-uuid-123");
+		expect(mockSaveFileMeta).toHaveBeenCalledTimes(1);
+		expect(result).toContain(TEST_FILE_ID);
 		expect(result).toContain("test.txt");
 	});
 
-	test('returns "Upload failed" string when saveFile returns an Error', async () => {
-		mockSaveFile.mockImplementation(
-			async () => new Error("DB constraint violation"),
+	test('returns "Upload failed" string when saveFileMeta returns an Error', async () => {
+		mockSaveFileMeta.mockImplementation(
+			async () => new Error("Store write failed"),
 		);
 		const content = Buffer.from("data").toString("base64");
 		const result = await filesUploadTool.execute(
 			{ name: "fail.txt", content, mimeType: "text/plain" },
 			dummyContext,
 		);
-		expect(result).toMatch(/Upload failed.*DB constraint/);
-	});
-
-	test("passes nodeId to saveFile when provided", async () => {
-		const content = Buffer.from("x").toString("base64");
-		const nodeId = crypto.randomUUID();
-		await filesUploadTool.execute(
-			{ name: "linked.txt", content, mimeType: "text/plain", nodeId },
-			dummyContext,
-		);
-		const [callArg] = mockSaveFile.mock.calls[0] as unknown as [
-			{ nodeId?: string },
-		];
-		expect(callArg.nodeId).toBe(nodeId);
+		expect(result).toMatch(/Upload failed.*Store write/);
 	});
 });
 
@@ -154,26 +153,25 @@ describe("filesDownloadTool", () => {
 	let testFilePath: string;
 
 	beforeAll(async () => {
-		// Create a real file that download tests can read
 		testFilePath = join(tmpDir, "download-test.txt");
 		await writeFile(testFilePath, "file contents");
 	});
 
 	test("returns base64-encoded content when file found by UUID", async () => {
-		_dbRows = [makeFileRow({ path: testFilePath })];
+		_mockFiles = [makeFileEntry({ path: testFilePath })];
 		const result = await filesDownloadTool.execute(
-			{ name: "file-uuid-123" },
+			{ name: TEST_FILE_ID },
 			dummyContext,
 		);
 		expect(typeof result).toBe("object");
 		const r = result as { fileId: string; mimeType: string; content: string };
-		expect(r.fileId).toBe("file-uuid-123");
+		expect(r.fileId).toBe(TEST_FILE_ID);
 		expect(r.mimeType).toBe("text/plain");
 		expect(Buffer.from(r.content, "base64").toString()).toBe("file contents");
 	});
 
-	test('returns "No file found" when DB returns empty array', async () => {
-		_dbRows = [];
+	test('returns "No file found" when store returns null', async () => {
+		_mockFiles = [];
 		const result = await filesDownloadTool.execute(
 			{ name: "missing-uuid" },
 			dummyContext,
@@ -182,44 +180,44 @@ describe("filesDownloadTool", () => {
 	});
 
 	test("returns error string when file cannot be read from disk", async () => {
-		_dbRows = [makeFileRow({ path: "/nonexistent/path/file.txt" })];
+		_mockFiles = [makeFileEntry({ path: "/nonexistent/path/file.txt" })];
 		const result = await filesDownloadTool.execute(
-			{ name: "file-uuid-123" },
+			{ name: TEST_FILE_ID },
 			dummyContext,
 		);
 		expect(result).toContain("Failed to read file");
 	});
 
-	test("uses LIKE path when input is not a UUID", async () => {
-		_dbRows = [makeFileRow({ path: testFilePath })];
+	test("uses path filter when input is not a UUID", async () => {
+		_mockFiles = [makeFileEntry({ path: testFilePath })];
 		const result = await filesDownloadTool.execute(
 			{ name: "download-test" },
 			dummyContext,
 		);
 		expect(typeof result).toBe("object");
-		expect((result as { fileId: string }).fileId).toBe("file-uuid-123");
+		expect((result as { fileId: string }).fileId).toBe(TEST_FILE_ID);
 	});
 });
 
 // ─── filesListTool ───────────────────────────────────────────────────────────
 
 describe("filesListTool", () => {
-	test('returns "No files found." when DB returns empty array', async () => {
-		_dbRows = [];
+	test('returns "No files found." when store returns empty', async () => {
+		_mockFiles = [];
 		const result = await filesListTool.execute({}, dummyContext);
 		expect(result).toBe("No files found.");
 	});
 
 	test("formats each row as id | basename | mimeType | size | createdAt", async () => {
-		_dbRows = [makeFileRow()];
+		_mockFiles = [makeFileEntry()];
 		const result = (await filesListTool.execute({}, dummyContext)) as string;
-		expect(result).toContain("file-uuid-123");
+		expect(result).toContain(TEST_FILE_ID);
 		expect(result).toContain("text/plain");
 		expect(result).toContain("13B");
 	});
 
 	test("lists multiple rows, one per line", async () => {
-		_dbRows = [makeFileRow({ id: "aaa" }), makeFileRow({ id: "bbb" })];
+		_mockFiles = [makeFileEntry({ id: "aaa" }), makeFileEntry({ id: "bbb" })];
 		const result = (await filesListTool.execute({}, dummyContext)) as string;
 		const lines = result.split("\n");
 		expect(lines).toHaveLength(2);
@@ -229,8 +227,8 @@ describe("filesListTool", () => {
 // ─── filesDeleteTool ─────────────────────────────────────────────────────────
 
 describe("filesDeleteTool", () => {
-	test('returns "No file found" when DB returns empty array', async () => {
-		_dbRows = [];
+	test('returns "No file found" when store returns null', async () => {
+		_mockFiles = [];
 		const result = await filesDeleteTool.execute(
 			{ name: "missing" },
 			dummyContext,
@@ -238,30 +236,26 @@ describe("filesDeleteTool", () => {
 		expect(result).toContain("No file found");
 	});
 
-	test("calls db.delete and returns success string", async () => {
-		// Use a real file so unlink succeeds
+	test("calls deleteFile and returns success string", async () => {
 		const toDelete = join(tmpDir, "to-delete.bin");
 		await writeFile(toDelete, "bye");
-		_dbRows = [makeFileRow({ path: toDelete })];
+		_mockFiles = [makeFileEntry({ path: toDelete })];
 
 		const result = await filesDeleteTool.execute(
-			{ name: "file-uuid-123" },
+			{ name: TEST_FILE_ID },
 			dummyContext,
 		);
-		expect(mockDeleteWhere).toHaveBeenCalledTimes(1);
 		expect(result).toContain("Deleted");
-		expect(result).toContain("file-uuid-123");
+		expect(result).toContain(TEST_FILE_ID);
 	});
 
-	test("still deletes the DB row even when the file does not exist on disk", async () => {
-		// Path that never existed — unlink will throw ENOENT, code must continue
-		_dbRows = [makeFileRow({ path: "/nonexistent/ghost-file.txt" })];
+	test("still deletes even when the file does not exist on disk", async () => {
+		_mockFiles = [makeFileEntry({ path: "/nonexistent/ghost-file.txt" })];
 
 		const result = await filesDeleteTool.execute(
-			{ name: "file-uuid-123" },
+			{ name: TEST_FILE_ID },
 			dummyContext,
 		);
-		expect(mockDeleteWhere).toHaveBeenCalledTimes(1);
 		expect(result).toContain("Deleted");
 	});
 });

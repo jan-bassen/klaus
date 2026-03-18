@@ -1,4 +1,4 @@
-import { config } from "@/config";
+import { settings } from "@/settings";
 import type { ContextQuery } from "@/types";
 
 // Rough token estimate: 1 token ≈ 4 characters (good enough for short strings).
@@ -8,12 +8,12 @@ export const dateQuery: ContextQuery = {
 	name: "date",
 	priority: -1,
 	run: async () => {
-		const content = new Date().toLocaleDateString(config.locale, {
+		const content = new Date().toLocaleDateString(settings.locale, {
 			weekday: "long",
 			year: "numeric",
 			month: "long",
 			day: "numeric",
-			timeZone: config.timezone,
+			timeZone: settings.timezone,
 		});
 		return {
 			content,
@@ -27,11 +27,11 @@ export const timeQuery: ContextQuery = {
 	name: "time",
 	priority: -1,
 	run: async () => {
-		const content = new Date().toLocaleTimeString(config.locale, {
+		const content = new Date().toLocaleTimeString(settings.locale, {
 			hour: "2-digit",
 			minute: "2-digit",
 			timeZoneName: "short",
-			timeZone: config.timezone,
+			timeZone: settings.timezone,
 		});
 		return {
 			content,
@@ -45,9 +45,9 @@ export const weekdayQuery: ContextQuery = {
 	name: "weekday",
 	priority: -1,
 	run: async () => {
-		const content = new Date().toLocaleDateString(config.locale, {
+		const content = new Date().toLocaleDateString(settings.locale, {
 			weekday: "long",
-			timeZone: config.timezone,
+			timeZone: settings.timezone,
 		});
 		return {
 			content,

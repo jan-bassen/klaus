@@ -1,21 +1,51 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import {
+	afterAll,
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	mock,
+	test,
+} from "bun:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { InboundMessage } from "@/types";
 
 const mockEnqueueMessage = mock((_opts: unknown) => undefined);
 mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 
-const mockActiveTasks = mock(async (_params: unknown) => [] as unknown[]);
-const mockNodeCount = mock(async (_params: unknown) => ({ count: 0 }));
-mock.module("@/db/queries", () => ({
-	QUERIES: {
-		active_tasks: mockActiveTasks,
-		node_count: mockNodeCount,
-	},
+const mockListTasks = mock(async () => [] as unknown[]);
+mock.module("@/store/tasks", () => ({
+	listTasks: mockListTasks,
+	createTask: mock(async () => "id"),
+	moveTask: mock(async () => {}),
+	getTask: mock(async () => null),
+	recoverRunningTasks: mock(async () => {}),
 }));
 
 import { statusCommand } from "@/commands/status";
-import { config } from "@/config";
 import { _resetDefaultsForTest, setDefaultAgent } from "@/core/defaults";
+import { settings } from "@/settings";
+
+let tmpVault: string;
+let savedVaultDir: string | undefined;
+
+beforeAll(async () => {
+	tmpVault = await mkdtemp(join(tmpdir(), "status-vault-"));
+	// Create some .md files so countVaultNotes returns a non-zero count
+	await writeFile(join(tmpVault, "note1.md"), "# Note 1");
+	await writeFile(join(tmpVault, "note2.md"), "# Note 2");
+	savedVaultDir = process.env.VAULT_DIR;
+	process.env.VAULT_DIR = tmpVault;
+});
+
+afterAll(async () => {
+	if (savedVaultDir !== undefined) process.env.VAULT_DIR = savedVaultDir;
+	else delete process.env.VAULT_DIR;
+	await rm(tmpVault, { recursive: true, force: true });
+});
 
 function makeMsg(chatId = "user@s.whatsapp.net"): InboundMessage {
 	return {
@@ -30,8 +60,7 @@ function makeMsg(chatId = "user@s.whatsapp.net"): InboundMessage {
 
 beforeEach(() => {
 	mockEnqueueMessage.mockClear();
-	mockActiveTasks.mockClear();
-	mockNodeCount.mockClear();
+	mockListTasks.mockClear();
 	_resetDefaultsForTest();
 });
 
@@ -41,8 +70,7 @@ afterEach(() => {
 
 describe("/status", () => {
 	test("sends formatted status with correct structure", async () => {
-		mockActiveTasks.mockResolvedValue([{ id: "1" }, { id: "2" }]);
-		mockNodeCount.mockResolvedValue({ count: 42 });
+		mockListTasks.mockResolvedValue([{ id: "1" }, { id: "2" }]);
 
 		const msg = makeMsg();
 		await statusCommand.execute(msg, []);
@@ -51,11 +79,10 @@ describe("/status", () => {
 		const { content } = (
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
 		)[0];
-		expect(content).toContain(`@${config.defaultAgent}`);
+		expect(content).toContain(`@${settings.defaultAgent}`);
 		expect(content).toContain("2");
 		expect(content).toMatch(/active/i);
-		expect(content).toContain("42");
-		expect(content).toMatch(/nodes/i);
+		expect(content).toMatch(/notes/i);
 	});
 
 	test("uses getDefaultAgent override when set", async () => {
@@ -69,17 +96,8 @@ describe("/status", () => {
 		expect(content).toContain("@thinking");
 	});
 
-	test("scopes active_tasks query to the message chatId", async () => {
-		const msg = makeMsg("specific@s.whatsapp.net");
-		await statusCommand.execute(msg, []);
-
-		expect(mockActiveTasks).toHaveBeenCalledWith({
-			chatId: "specific@s.whatsapp.net",
-		});
-	});
-
-	test("sends error fallback when DB throws", async () => {
-		mockActiveTasks.mockRejectedValue(new Error("DB down"));
+	test("sends error fallback when store throws", async () => {
+		mockListTasks.mockRejectedValue(new Error("Store down"));
 
 		const msg = makeMsg();
 		await statusCommand.execute(msg, []);
@@ -87,6 +105,6 @@ describe("/status", () => {
 		const { content } = (
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
 		)[0];
-		expect(content).toContain("database error");
+		expect(content).toMatch(/unavailable/i);
 	});
 });

@@ -12,28 +12,17 @@ const mockTextToSpeech = mock(
 );
 mock.module("@/whatsapp/tts", () => ({ textToSpeech: mockTextToSpeech }));
 
-const mockResolveQuotedMessageId = mock(async () => null);
-mock.module("@/db/write", () => ({
-	resolveQuotedMessageId: mockResolveQuotedMessageId,
+const mockAppendMessage = mock(async () => "row-uuid-1");
+const mockAppendAck = mock(async () => {});
+mock.module("@/store/conversation", () => ({
+	appendMessage: mockAppendMessage,
+	appendAck: mockAppendAck,
+	resolveExternalId: mock(() => null),
+	findByExternalId: mock(() => null),
+	getConversation: mock(async () => []),
+	rebuildIndexes: mock(async () => {}),
+	_clearIndexesForTest: mock(() => {}),
 }));
-
-const mockInsertReturning = mock(async () => [{ id: "row-uuid-1" }]);
-const mockDb = {
-	insert: mock(() => ({
-		values: mock(() => ({
-			returning: mockInsertReturning,
-		})),
-	})),
-	update: mock(() => ({
-		set: mock(() => ({
-			where: mock(() => ({
-				catch: mock(() => {}),
-			})),
-		})),
-	})),
-};
-mock.module("@/db/client", () => ({ db: mockDb }));
-mock.module("@/db/schema", () => ({ messages: {} }));
 
 mock.module("@/logger", () => ({
 	log: {
@@ -71,7 +60,11 @@ function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
 		message: dummyMsg,
 		agent: dummyAgent,
 		flags: {},
-		assembled: { vars: {}, totalTokens: 0 },
+		assembled: {
+			vars: {},
+			messageRefs: {},
+			totalTokens: 0,
+		},
 		...overrides,
 	};
 }
@@ -80,9 +73,9 @@ beforeEach(() => {
 	mockEnqueueMessage.mockClear();
 	mockTextToSpeech.mockClear();
 	mockTextToSpeech.mockImplementation(async () => Buffer.from("fake-audio"));
-	mockResolveQuotedMessageId.mockClear();
-	mockInsertReturning.mockClear();
-	mockInsertReturning.mockImplementation(async () => [{ id: "row-uuid-1" }]);
+	mockAppendMessage.mockClear();
+	mockAppendMessage.mockImplementation(async () => "row-uuid-1");
+	mockAppendAck.mockClear();
 });
 
 // ─── tests ───────────────────────────────────────────────────────────────────
@@ -142,13 +135,12 @@ describe("replyTool", () => {
 		expect(enqueued.quoted.fromMe).toBe(false); // user message
 	});
 
-	test("messageRef resolves from assembled _messageRefs", async () => {
+	test("messageRef resolves from assembled messageRefs", async () => {
 		const ctx = makeContext({
 			assembled: {
-				vars: {
-					_messageRefs: {
-						"3": { externalId: "ext-3", role: "assistant" },
-					},
+				vars: {},
+				messageRefs: {
+					"3": { externalId: "ext-3", role: "assistant" },
 				},
 				totalTokens: 0,
 			},
@@ -170,13 +162,54 @@ describe("replyTool", () => {
 		expect(mockEnqueueMessage).not.toHaveBeenCalled();
 	});
 
-	test("returns error when context has no message", async () => {
-		const result = await replyTool.execute({ content: "hello" }, {
+	test("sends without inbound message context (proactive/scheduled)", async () => {
+		const result = await replyTool.execute({ content: "proactive hello" }, {
 			...makeContext(),
 			message: undefined,
 		} as unknown as Parameters<typeof replyTool.execute>[1]);
+		expect(result).toBe("sent");
+		expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
+		const enqueued = mockEnqueueMessage.mock.calls[0]?.[0] as {
+			content: string;
+			chatId: string;
+			dedupKey: string;
+		};
+		expect(enqueued.content).toBe("proactive hello");
+		expect(enqueued.chatId).toBe("user@s.whatsapp.net");
+		expect(enqueued.dedupKey).toContain("user@s.whatsapp.net:reply:");
+	});
+
+	test("_replyCollector captures content instead of sending to WhatsApp", async () => {
+		const collector: string[] = [];
+		const result = await replyTool.execute(
+			{ content: "captured reply" },
+			makeContext({ _replyCollector: collector }),
+		);
+		expect(result).toBe("sent");
+		expect(collector).toEqual(["captured reply"]);
+		expect(mockEnqueueMessage).not.toHaveBeenCalled();
+		expect(mockAppendMessage).not.toHaveBeenCalled();
+	});
+
+	test("_replyCollector collects multiple replies", async () => {
+		const collector: string[] = [];
+		const ctx = makeContext({ _replyCollector: collector });
+		await replyTool.execute({ content: "first" }, ctx);
+		await replyTool.execute({ content: "second" }, ctx);
+		expect(collector).toEqual(["first", "second"]);
+		expect(mockEnqueueMessage).not.toHaveBeenCalled();
+	});
+
+	test('messageRef "current" without inbound message returns error', async () => {
+		const result = await replyTool.execute(
+			{ content: "reply", messageRef: "current" },
+			{
+				...makeContext(),
+				message: undefined,
+			} as unknown as Parameters<typeof replyTool.execute>[1],
+		);
 		expect(result).toEqual({
-			error: "reply tool can only be used in a WhatsApp turn context",
+			error: 'messageRef "current" requires an inbound message context',
 		});
 		expect(mockEnqueueMessage).not.toHaveBeenCalled();
 	});

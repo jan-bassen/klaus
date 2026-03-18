@@ -1,5 +1,6 @@
-import { config } from "@/config";
+import { z } from "zod";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import type {
 	AssembledContext,
 	ContextQuery,
@@ -28,8 +29,7 @@ export async function assembleContext(
 ): Promise<AssembledContext> {
 	const settled = await Promise.allSettled(
 		queries.map((q) => {
-			const params = turn.agent.contextParams?.[q.name];
-			return q.run(turn, params).then((result) => ({ query: q, result }));
+			return q.run(turn).then((result) => ({ query: q, result }));
 		}),
 	);
 
@@ -53,7 +53,7 @@ export async function assembleContext(
 		0,
 	);
 
-	const excess = totalTokens - config.context.totalTokens;
+	const excess = totalTokens - settings.context.totalTokens;
 	if (excess > 0) {
 		let remaining = excess;
 		// Lower priority number = trimmed first (per ContextQuery type comment)
@@ -98,7 +98,11 @@ export async function assembleContext(
 		if (result.vars) Object.assign(vars, result.vars);
 	}
 
-	return { vars, totalTokens: Math.max(0, totalTokens) };
+	return {
+		vars,
+		messageRefs: {},
+		totalTokens: Math.max(0, totalTokens),
+	};
 }
 
 /**
@@ -135,15 +139,14 @@ export async function loadContextQueries(
 	return queries;
 }
 
+const ContextQueryShape = z
+	.object({
+		name: z.string(),
+		priority: z.number(),
+		run: z.function(),
+	})
+	.passthrough();
+
 function isContextQuery(x: unknown): x is ContextQuery {
-	return (
-		typeof x === "object" &&
-		x !== null &&
-		"name" in x &&
-		typeof (x as Record<string, unknown>).name === "string" &&
-		"priority" in x &&
-		typeof (x as Record<string, unknown>).priority === "number" &&
-		"run" in x &&
-		typeof (x as Record<string, unknown>).run === "function"
-	);
+	return ContextQueryShape.safeParse(x).success;
 }

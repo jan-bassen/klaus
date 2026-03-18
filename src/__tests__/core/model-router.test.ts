@@ -1,16 +1,20 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { ModelMessage } from "ai";
-import { config } from "@/config";
+import { settings } from "@/settings";
 
 // ---- Mocks (must be set up before any import of the module under test) ----
 
 const mockGenerateText = mock(async (_opts: Record<string, unknown>) => ({
 	text: "Hello from the model",
-	steps: [{ usage: { inputTokens: 100, outputTokens: 50 } }],
+	steps: [
+		{
+			usage: { inputTokens: 100, outputTokens: 50 },
+			reasoningText: undefined,
+			toolCalls: [],
+			toolResults: [],
+		},
+	],
 }));
-
-const mockInsert = mock(() => ({ values: mock(async () => [{}]) }));
-const mockDb = { insert: mockInsert };
 
 const mockStepCountIs = mock((n: number) => ({ __stepCount: n }));
 
@@ -23,7 +27,20 @@ mock.module("ai", () => ({
 mock.module("@ai-sdk/anthropic", () => ({
 	anthropic: mock((id: string) => ({ id })),
 }));
-mock.module("../../db/client", () => ({ db: mockDb }));
+
+const mockRecordInvocation = mock(async () => {});
+const mockRecordCost = mock(async () => {});
+mock.module("@/store/invocations", () => ({
+	recordInvocation: mockRecordInvocation,
+}));
+mock.module("@/store/costs", () => ({
+	recordCost: mockRecordCost,
+	getCostSummary: mock(async () => ({
+		total: 0,
+		byService: {},
+		periodLabel: "today",
+	})),
+}));
 
 import { _resetForTest } from "@/core/rate-limiter";
 
@@ -40,7 +57,8 @@ const BASE_OPTS = {
 beforeEach(() => {
 	_resetForTest();
 	mockGenerateText.mockClear();
-	mockInsert.mockClear();
+	mockRecordInvocation.mockClear();
+	mockRecordCost.mockClear();
 });
 
 // ---- Tests ----
@@ -55,8 +73,18 @@ describe("callModel", () => {
 		mockGenerateText.mockImplementationOnce(async () => ({
 			text: "ok",
 			steps: [
-				{ usage: { inputTokens: 200, outputTokens: 30 } },
-				{ usage: { inputTokens: 50, outputTokens: 10 } },
+				{
+					usage: { inputTokens: 200, outputTokens: 30 },
+					reasoningText: undefined,
+					toolCalls: [],
+					toolResults: [],
+				},
+				{
+					usage: { inputTokens: 50, outputTokens: 10 },
+					reasoningText: undefined,
+					toolCalls: [],
+					toolResults: [],
+				},
 			],
 		}));
 		const result = await callModel(BASE_OPTS);
@@ -64,13 +92,16 @@ describe("callModel", () => {
 		expect(result.usage.completionTokens).toBe(40);
 	});
 
-	test("inserts invocation row and cost row after each call", async () => {
+	test("records invocation and cost after each call", async () => {
 		await callModel(BASE_OPTS);
-		expect(mockInsert).toHaveBeenCalledTimes(2); // 1 for invocations, 1 for costs
+		expect(mockRecordInvocation).toHaveBeenCalledTimes(1);
+		// Cost is recorded asynchronously via .catch — give it a tick
+		await new Promise((r) => setTimeout(r, 10));
+		expect(mockRecordCost).toHaveBeenCalledTimes(1);
 	});
 
 	test("throws when LLM rate limit is exceeded", async () => {
-		for (let i = 0; i < config.rateLimits.modelCalls.max; i++) {
+		for (let i = 0; i < settings.rateLimits.modelCalls.max; i++) {
 			await callModel(BASE_OPTS);
 		}
 		await expect(callModel(BASE_OPTS)).rejects.toThrow(
@@ -84,15 +115,15 @@ describe("callModel", () => {
 			await callModel({ ...BASE_OPTS, tier });
 			const [modelArg] = mockGenerateText.mock.calls[0] ?? [];
 			expect((modelArg as { model: { id: string } }).model.id).toBe(
-				config.models[tier],
+				settings.models[tier],
 			);
 		}
 	});
 
 	test("each tier resolves to a distinct model ID", () => {
-		expect(config.models.default).not.toBe(config.models.high);
-		expect(config.models.default).not.toBe(config.models.low);
-		expect(config.models.high).not.toBe(config.models.low);
+		expect(settings.models.default).not.toBe(settings.models.high);
+		expect(settings.models.default).not.toBe(settings.models.low);
+		expect(settings.models.high).not.toBe(settings.models.low);
 	});
 
 	test("passes system prompt when provided", async () => {

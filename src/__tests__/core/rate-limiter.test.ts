@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { config } from "@/config";
 import {
 	_resetForTest,
 	checkMessageRate,
 	checkModelRate,
 } from "@/core/rate-limiter";
+import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 
 function makeMsg(chatId = "user@s.whatsapp.net"): InboundMessage {
@@ -26,14 +26,14 @@ beforeEach(() => {
 describe("checkMessageRate", () => {
 	test("allows messages under the limit", () => {
 		const msg = makeMsg();
-		for (let i = 0; i < config.rateLimits.messages.max; i++) {
+		for (let i = 0; i < settings.rateLimits.messages.max; i++) {
 			expect(checkMessageRate(msg).allowed).toBe(true);
 		}
 	});
 
 	test("blocks at max + 1 within the window", () => {
 		const msg = makeMsg();
-		for (let i = 0; i < config.rateLimits.messages.max; i++) {
+		for (let i = 0; i < settings.rateLimits.messages.max; i++) {
 			checkMessageRate(msg);
 		}
 		const result = checkMessageRate(msg);
@@ -43,26 +43,26 @@ describe("checkMessageRate", () => {
 
 	test("returns retryAfterMs indicating when the window opens", () => {
 		const msg = makeMsg();
-		for (let i = 0; i < config.rateLimits.messages.max; i++) {
+		for (let i = 0; i < settings.rateLimits.messages.max; i++) {
 			checkMessageRate(msg);
 		}
 		const result = checkMessageRate(msg);
 		expect(result.retryAfterMs).toBeDefined();
 		expect(result.retryAfterMs).toBeLessThanOrEqual(
-			config.rateLimits.messages.windowMs,
+			settings.rateLimits.messages.windowMs,
 		);
 	});
 });
 
 describe("checkModelRate", () => {
 	test("allows calls under the limit", () => {
-		for (let i = 0; i < config.rateLimits.modelCalls.max; i++) {
+		for (let i = 0; i < settings.rateLimits.modelCalls.max; i++) {
 			expect(checkModelRate().allowed).toBe(true);
 		}
 	});
 
 	test("blocks at max + 1 within the window", () => {
-		for (let i = 0; i < config.rateLimits.modelCalls.max; i++) {
+		for (let i = 0; i < settings.rateLimits.modelCalls.max; i++) {
 			checkModelRate();
 		}
 		const result = checkModelRate();
@@ -75,7 +75,7 @@ describe("cross-gate independence", () => {
 	test("message and model-call limits do not interfere", () => {
 		const msg = makeMsg();
 
-		for (let i = 0; i < config.rateLimits.messages.max; i++) {
+		for (let i = 0; i < settings.rateLimits.messages.max; i++) {
 			checkMessageRate(msg);
 		}
 		expect(checkMessageRate(msg).allowed).toBe(false);

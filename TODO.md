@@ -1,43 +1,37 @@
 # TODO
 
-## Skills
-- [x] Add a new primitive for dynamically loaded md content
-- [x] Add a new core tool for retrieving said skills
-- [x] Expose `{{skills}}` Handlebars var so agents can frame their available skills in the prompt
+## Fixes
+- [x] Logs: Remove the complexity of "pretty" logs, and just make them as good as can be for the current setup. This part: " [agent] calling model " is rendered white on white for me currently
+- [x] Schedules Base: Fixed timezone-aware cron matching (was using UTC instead of Europe/Berlin)
+- [x] Schedules Agent Interface: Added oneTime support so agents can schedule one-shot runs
+- [x] Schedules Conversation History: Verified already correct — scheduled runs don't get conversation history (buildConversationMessages returns empty when turn.message is undefined)
+- [x] Tool Results in Conversation history: That the tool-calls and results get injected into the conversation history is intended in a minimal way. But in testing this lead to many errors a la "Something went wrong: Tool result is missing for tool call toolu_01JwqrzJ5RfKFEZucCH6jypG.". This is bad on multiple levels: First why are they failing so often. Second that should never happen, either it is still in progress (then mark it as such) or it failed (then mark it also + give a reason + give a hint to fix if possible)
 
-## Richer vault access
-- [x] Check vault tools for gaps and ensure they cover all needs
-- [x] Scope agents to specific path in vault
+## Move Flags to Vault
+- [ ] Move all flags also into the vault (eg. /Klaus/flags/voice.md with short description for help in frontmatter)
+- [ ] Make sure they are also live-handled as the rest
 
-## Message Pipeline
-- [x] Add auto-generated /help with all infos (maybe split with param a la "/help commands")
-- [x] Track flags and commands in db
+## Simplify Context Queries
+- [ ] the context/flags should be unnecessary after they moved to vault (and are not in the system prompt anymore anyways)
+- [ ] Rename Context Query to Context Variables (they used to work with pg) and have a look of there is code in there that's not needed anymore
+- [ ] Remove the memory file and rely on notes (aside from vault, prompts, and conversation ofc) for all (extra) memory stuff - it didn't really add anything
 
-# Agents
+## Agents
 - [ ] Fitness - An agent that tracks my fitness goals/progress, manage my trainingplan and helps me stay on track. I want to call him directly with @fitness during training sessions and he should be able to provide me with motivation and insights, mostly through random (for me unexpected) dispatches to motivate me. Espescially on training days.
 - [ ] Daily - An agent that runs every day in the morning to create a daily report in the daily note of the obsidian vault and a short voice message (in german). The daily report should include the weather, the most important few news (local, national, global), a quick check of one or two science news websites. 
 - [ ] Nicola - Italian teacher
 
-##  Thorough code review
-- [ ] Check for unnecessary files and functions (eg. check src/core/defaults.ts or src/core/middleware.ts)
-- [ ] Check for bad typescript patterns (as casts, any's, etc.)
-- [ ] Check for custom validation code (instead of using zod)
-- [ ] Check for outdated comments, documentation, or memory files
-- [ ] Move any hardcoded strings or values into config files (not logs, internal stuff. Just user or agent-facing things)
-
-## Hardening
-- [ ] Check for unhandled edge cases and errors
-- [ ] Surface the actual error messages to the user (not generic error message a la smth went wrong)
-- [ ]
-
 # Later
+
+## GitHub action ci/cd for image building (?)
+
+## UX/DX improvements
+- [ ] Add commands for direct control over model tier etc
+- [ ] Add config entry for switching between default logs or full logs
+
 
 ## Internationalization (only when simple)
 - [ ] Add support for multiple languages for all user-facing (and probably even agent-facing) strings
-
-## CI/CD
-- [ ] GitHub Actions flow to build - then webhook on nas to redeploy
-- [ ] Still hot-loading of md files
 
 ## Evals
 - [ ] Add `*.eval.ts` files for non-deterministic behavior (pipeline end-to-end, agent tool selection, memory search relevance)

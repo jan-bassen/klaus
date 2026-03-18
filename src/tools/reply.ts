@@ -1,9 +1,6 @@
-import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "@/db/client";
-import { messages } from "@/db/schema";
-import { resolveQuotedMessageId } from "@/db/write";
 import { log } from "@/logger";
+import { appendAck, appendMessage } from "@/store/conversation";
 import type { ToolDefinition } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 import { textToSpeech } from "@/whatsapp/tts";
@@ -27,14 +24,15 @@ const replySchema = z.object({
 export const replyTool: ToolDefinition<typeof replySchema> = {
 	name: "reply",
 	description:
-		'Send a message or follow-up question via WhatsApp. Formatting: *bold* (yes, only *one* asterisk) _italic_ ~strikethrough~ ```monospace``` > blockquote. Lists: "1." ordered, "-" unordered. Use messageRef to quote-reply to a specific message from the conversation history.',
+		'Send a WhatsApp message — works both as a reply to an inbound message and as a proactive/scheduled send. Formatting: *bold* (yes, only *one* asterisk) _italic_ ~strikethrough~ ```monospace``` > blockquote. Lists: "1." ordered, "-" unordered. Use messageRef to quote-reply to a specific message from the conversation history.',
 	inputSchema: replySchema,
 	execute: async ({ content, voice, messageRef }, context) => {
-		if (!context.message) {
-			return {
-				error: "reply tool can only be used in a WhatsApp turn context",
-			};
+		// Inline dispatch: capture reply for caller instead of sending to WhatsApp
+		if (context._replyCollector) {
+			context._replyCollector.push(content);
+			return "sent";
 		}
+
 		log.info("[reply] enqueuing", {
 			chatId: context.chatId,
 			preview: content.slice(0, 60),
@@ -42,41 +40,31 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 
 		// Resolve the quoted message reference if provided.
 		let quoted: { externalId: string; fromMe: boolean } | undefined;
-		let quotedMessageId: string | undefined;
 		if (messageRef) {
 			let ref: { externalId: string; role: string } | undefined;
 			if (messageRef === "current") {
+				if (!context.message) {
+					return {
+						error: 'messageRef "current" requires an inbound message context',
+					};
+				}
 				ref = { externalId: context.message.id, role: "user" };
 			} else {
-				const refs = context.assembled?.vars?._messageRefs as
-					| Record<string, { externalId: string; role: string }>
-					| undefined;
-				ref = refs?.[messageRef];
+				ref = context.assembled?.messageRefs?.[messageRef];
 			}
 			if (!ref) return { error: `Unknown message reference: #${messageRef}` };
 			quoted = { externalId: ref.externalId, fromMe: ref.role !== "user" };
-			// Resolve to DB UUID for the quotedMessageId FK (best-effort).
-			quotedMessageId =
-				(await resolveQuotedMessageId(context.chatId, ref.externalId)) ??
-				undefined; // null → undefined
 		}
 
-		// Persist to DB first so we have the row ID for the externalId backfill.
+		// Persist assistant message to conversation
 		let rowId: string | undefined;
 		try {
-			const [row] = await db
-				.insert(messages)
-				.values({
-					chatId: context.chatId,
-					role: "assistant",
-					content,
-					createdAt: new Date(),
-					...(quotedMessageId ? { quotedMessageId } : {}),
-				})
-				.returning({ id: messages.id });
-			rowId = row?.id;
+			rowId = await appendMessage({
+				role: "assistant",
+				content,
+			});
 		} catch (err) {
-			log.warn("[reply] failed to persist assistant message to DB", {
+			log.warn("[reply] failed to persist assistant message", {
 				chatId: context.chatId,
 				error: err instanceof Error ? err.message : String(err),
 			});
@@ -84,19 +72,18 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 
 		const onSent = rowId
 			? (waId: string) => {
-					db.update(messages)
-						.set({ externalId: waId })
-						.where(eq(messages.id, rowId))
-						.catch((err: unknown) => {
-							log.warn("[reply] failed to backfill externalId", {
-								chatId: context.chatId,
-								error: err instanceof Error ? err.message : String(err),
-							});
+					appendAck(rowId, waId).catch((err: unknown) => {
+						log.warn("[reply] failed to backfill externalId", {
+							chatId: context.chatId,
+							error: err instanceof Error ? err.message : String(err),
 						});
+					});
 				}
 			: undefined;
 
-		const dedupBase = `${context.message.id}:reply:${crypto.randomUUID()}`;
+		const dedupBase = context.message
+			? `${context.message.id}:reply:${crypto.randomUUID()}`
+			: `${context.chatId}:reply:${crypto.randomUUID()}`;
 		const quotedPart = quoted ? { quoted } : {};
 		if (voice) {
 			const audio = await textToSpeech(content, context.chatId);
@@ -120,7 +107,9 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 						chatId: context.chatId,
 						content: audio,
 						mimeType: "audio/mpeg",
-						dedupKey: `${context.message.id}:reply-voice:${crypto.randomUUID()}`,
+						dedupKey: context.message
+							? `${context.message.id}:reply-voice:${crypto.randomUUID()}`
+							: `${context.chatId}:reply-voice:${crypto.randomUUID()}`,
 						...quotedPart,
 					},
 					onSent,

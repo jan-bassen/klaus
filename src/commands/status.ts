@@ -1,6 +1,7 @@
 import type { Command } from "@/commands";
 import { getDefaultAgent } from "@/core/defaults";
-import { QUERIES } from "@/db/queries";
+import { settings } from "@/settings";
+import { listTasks } from "@/store/tasks";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
@@ -9,26 +10,33 @@ export const statusCommand: Command = {
 	description: "Show current agent and system status",
 	async execute(msg: InboundMessage, _args: string[]): Promise<void> {
 		try {
-			const [tasksResult, nodeCountResult] = await Promise.all([
-				QUERIES.active_tasks?.({ chatId: msg.chatId }),
-				QUERIES.node_count?.({}),
+			const [tasks, noteCount] = await Promise.all([
+				listTasks({ status: ["pending", "running"] }),
+				countVaultNotes(),
 			]);
 
-			const tasks = tasksResult as { id: string }[];
-			const { count } = nodeCountResult as { count: number };
 			const agent = getDefaultAgent(msg.chatId);
 
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `*Klaus status*\nAgent: @${agent}\nTasks: ${tasks.length} active\nMemory: ${count} nodes`,
+				content: `*Klaus status*\nAgent: @${agent}\nTasks: ${tasks.length} active\nVault: ${noteCount} notes`,
 				dedupKey: `${msg.id}:status`,
 			});
 		} catch {
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: "Status unavailable — database error.",
+				content: "Status unavailable.",
 				dedupKey: `${msg.id}:status-error`,
 			});
 		}
 	},
 };
+
+async function countVaultNotes(): Promise<number> {
+	const glob = new Bun.Glob("**/*.md");
+	let count = 0;
+	for await (const _ of glob.scan({ cwd: settings.vault.dir })) {
+		count++;
+	}
+	return count;
+}

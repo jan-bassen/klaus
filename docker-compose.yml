@@ -1,62 +1,22 @@
 services:
-  postgres:
-    image: pgvector/pgvector:pg17
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-klaus}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    command: >
-      postgres
-      -c shared_buffers=256MB
-      -c effective_cache_size=1GB
-      -c work_mem=16MB
-      -c maintenance_work_mem=64MB
-      -c max_connections=20
-      -c wal_compression=on
-      -c checkpoint_completion_target=0.9
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-klaus}",
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    ports:
-      - "${POSTGRES_HOST_PORT:-5433}:5432"
-    mem_limit: 2g
-    memswap_limit: 2g
-
   app:
     build: .
-    user: root
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     env_file:
-      - .env.config
       - .env
     environment:
-      # Override DATABASE_URL so the app always reaches the postgres service by name,
-      # regardless of what localhost-based URL is set in .env for native dev.
-      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-klaus}
+      - PORT=3000
+      - BAILEYS_AUTH_FOLDER=/app/config/baileys
       - FILES_DIR=/app/files
+      - DATA_DIR=/app/data
+      - VAULT_DIR=/app/vault
     volumes:
-      - baileys_auth:/app/auth
-      - ./src/agents:/app/src/agents:ro
-      - files_data:/app/files
-      - vault_data:/app/vault
+      - config:/app/config
+      - files:/app/files
+      - vault:/app/vault
+      - data:/app/data
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget -qO- http://localhost:${PORT:-3000}/healthz || exit 1",
-        ]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/healthz || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -64,66 +24,38 @@ services:
     mem_limit: 768m
     memswap_limit: 768m
 
-  studio:
-    build: .
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-klaus}
-    command:
-      [
-        "bunx",
-        "drizzle-kit",
-        "studio",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "${STUDIO_PORT:-4983}",
-      ]
-    ports:
-      - "127.0.0.1:${STUDIO_PORT:-4983}:${STUDIO_PORT:-4983}"
-    mem_limit: 256m
-    memswap_limit: 256m
-
-  backup:
-    image: postgres:17-alpine
-    restart: "no"
-    profiles: ["backup"]
-    environment:
-      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    volumes:
-      - ./scripts/backup.sh:/backup.sh:ro
-      - ${BACKUP_DIR:-./backups}:/backups
-      - baileys_auth:/baileys_auth:ro
-      - files_data:/files_data:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command: ["sh", "/backup.sh"]
-    mem_limit: 128m
-    memswap_limit: 128m
-
-  obsidian-sync:
+  obsidian:
     build:
       context: .
       dockerfile: Dockerfile.obsidian-sync
     restart: unless-stopped
     entrypoint: ["sh", "/scripts/obsidian-sync.sh"]
     env_file:
-      - .env.config
       - .env
     volumes:
-      - vault_data:/vault
-      - obsidian_config:/root/.config/obsidian-headless
+      - vault:/vault
+      - config:/root/.config
       - ./scripts/obsidian-sync.sh:/scripts/obsidian-sync.sh:ro
     mem_limit: 256m
     memswap_limit: 256m
 
+  backup:
+    image: alpine:3
+    restart: "no"
+    profiles: ["backup"]
+    volumes:
+      - ./scripts/backup.sh:/backup.sh:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+      - config:/config:ro
+      - files:/files:ro
+      - data:/data:ro
+      - vault:/vault:ro
+    command: ["sh", "/backup.sh"]
+    mem_limit: 128m
+    memswap_limit: 128m
+
 volumes:
-  postgres_data:
-  baileys_auth:
-  files_data:
-  vault_data:
-  obsidian_config:
+  data:
+  files:
+  vault:
+  config:

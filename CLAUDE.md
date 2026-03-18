@@ -11,14 +11,11 @@ op run --env-file=.env -- bun run src/index.ts
 # Type checking
 bun run typecheck
 
-# Tests (unit, excludes DB tests)
+# Tests
 bun run test
 
 # Run a single test file
 bun test src/__tests__/pipeline.test.ts
-
-# DB tests (requires running Postgres on port 5433)
-bun run test:db
 
 # Watch mode
 bun run test:watch
@@ -26,13 +23,7 @@ bun run test:watch
 # Linting/formatting (Biome)
 bunx biome check --write .
 
-# Database
-bun run db:push       # Apply schema changes
-bun run db:generate   # Generate migrations
-bun run db:studio     # Open Drizzle Studio
-
 # Docker
-docker compose up -d postgres   # Start Postgres only
 docker compose up -d            # Start all services
 docker compose logs -f app      # Follow logs
 ```
@@ -53,15 +44,17 @@ Before opening a PR, run `bun run typecheck`, `bun run test`, and `bunx biome ch
 
 ## Architecture
 
-Klaus is a headless personal AI agent: WhatsApp messages → TypeScript pipeline → Postgres + LLM → response.
+Klaus is a headless personal AI agent: WhatsApp messages → TypeScript pipeline → Obsidian Vault + LLM → response.
 
 ### Stack
 
-Bun, TypeScript (strict), Postgres (Drizzle ORM, pgvector, pgboss), Baileys, Vercel AI SDK. All containerized via Docker Compose.
+Bun, TypeScript (strict), Baileys, Vercel AI SDK. All containerized via Docker Compose.
+
+Storage: JSONL flat files for operational data (conversations, costs, invocations), file-based task queue, Obsidian vault for knowledge (notes, wikilinks, tags as the knowledge graph).
 
 ### Message flow (pipeline.ts)
 
-Every inbound WhatsApp message goes through a 7-step pipeline in `src/core/pipeline.ts`:
+Every inbound WhatsApp message goes through a pipeline in `src/core/pipeline.ts`:
 
 1. **Auth** — allowlist check
 2. **Rate limit** — message/min guard
@@ -74,16 +67,16 @@ Every inbound WhatsApp message goes through a 7-step pipeline in `src/core/pipel
 
 ### Agent system (core/agent.ts)
 
-Agents are defined as `.md` files in `src/agents/` with YAML frontmatter:
+Agents are defined as `.md` files in `{vault}/Klaus/agents/` with YAML frontmatter:
 
 ```yaml
 ---
 name: agentName
 modelTier: default|low|high    # maps to model IDs in config.ts
 tools: [reply, send, react]
-toolsets: [memory, task]       # expands to use_* meta-tools; tools loaded lazily
+toolsets: [vault, tasks]       # expands to use_* meta-tools; tools loaded lazily
 providerTools: [web_search]    # Anthropic built-ins
-skills: [workout-plan]        # on-demand .md docs from src/skills/
+skills: [workout-plan]        # on-demand .md docs from {vault}/Klaus/skills/
 schedule: "0 3 * * *"         # optional cron
 vaultScope: "Training"        # optional: restricts all vault tools to this subdirectory
 ---
@@ -92,61 +85,76 @@ Prompt body with {{contextVar}} Handlebars interpolation.
 
 `agentRegistry` (Map<name, AgentDefinition>) is populated at startup from all `.md` files. The `runAgent()` function loads the prompt, builds system prompt via Handlebars, registers tools, and drives the Vercel AI SDK agentic loop.
 
-**Toolsets** are groups of tools loaded lazily via meta-tools (e.g., `use_memory`). Defined in `src/tools/sets/`.
+**Toolsets** are groups of tools loaded lazily via meta-tools (e.g., `use_vault`). Defined in `src/tools/sets/`.
 
-**Skills** are static `.md` reference documents in `src/skills/` with optional YAML frontmatter (`description:` field). Agents that declare `skills:` in frontmatter get a `skill_get` tool scoped to those names via `z.enum`. Skill descriptions are included in the tool description to help the model decide when to load. The `{{skills}}` Handlebars var is injected so agents can list available skills in the prompt. Zero token overhead for agents without skills.
+**Skills** are static `.md` reference documents in `{vault}/Klaus/skills/` with optional YAML frontmatter (`description:` field). Agents that declare `skills:` in frontmatter get a `skill_get` tool scoped to those names via `z.enum`. Skill descriptions are included in the tool description to help the model decide when to load. The `{{skills}}` Handlebars var is injected so agents can list available skills in the prompt. Zero token overhead for agents without skills.
+
+**Notes** are auto-managed, topic-keyed `.md` files in `{vault}/Klaus/notes/`. Unlike snippets (always loaded) or skills (static, on-demand), notes are written and updated by agents at runtime — learned knowledge that is too numerous or low-priority to always inject. The `notes` toolset (`src/tools/sets/notes.ts`) provides four tools: `notes.search` (substring match across filenames, descriptions, body), `notes.write` (create/overwrite with optional frontmatter description), `notes.edit` (find-and-replace within an existing note), `notes.delete` (with confirm guard). Agents opt in by adding `notes` to their `toolsets:` list.
 
 **Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new context query = new file implementing `ContextQuery`. Extend by adding, not modifying.
 
-### Knowledge graph (db/schema.ts)
+### Storage (src/store/)
 
-Central data store is a knowledge graph in Postgres:
-- **nodes** — typed (episode, procedure, topic, document, project, entity, assertion) with pgvector embeddings (Voyage-4, 1024-dim) and tsvector full-text
-- **edges** — typed relationships between nodes
-- **chunks** — nodes >800 tokens split for finer-grained embedding search
-- **nodeVersions** — edit history with reason codes
-- **provenance** — source tracking per node
+All operational data is stored as flat files — no database.
 
-Search is hybrid: cosine similarity + full-text, with 1-hop edge expansion.
+| Module | Format | Purpose |
+|--------|--------|---------|
+| `conversation.ts` | JSONL (msg/ack/reaction events) | Chat history with in-memory indexes |
+| `jsonl.ts` | Date-partitioned JSONL | Generic append/read utilities |
+| `costs.ts` | JSONL | Cost tracking by service |
+| `invocations.ts` | JSONL | LLM call traces |
+| `tasks.ts` | JSON files in status dirs | File-based task queue |
+| `files.ts` | JSONL index + blob storage | File metadata |
+| `schedules.ts` | JSON + in-memory intervals | Cron schedule persistence |
+| `budgets.ts` | JSON | Budget config |
 
-Prefer Postgres-native solutions (pgvector, pgboss, tsvector) over adding new infrastructure.
+The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[wikilinks]]` are edges, YAML frontmatter is metadata. Vault tools provide search, read, write, and link traversal.
 
 ### Key modules
 
 | Path | Concern |
 |------|---------|
 | `src/types.ts` | All core interfaces (InboundMessage, TurnContext, AgentDefinition, ToolDefinition, ContextQuery) |
-| `src/config.ts` | Model tiers, pricing, context budgets, rate limits, timeouts, locale |
+| `src/config.ts` | Model tiers, pricing, context budgets, rate limits, timeouts, locale, dataDir |
 | `src/core/pipeline.ts` | Message orchestrator |
 | `src/core/agent.ts` | Agent executor + agentRegistry |
 | `src/core/dispatch.ts` | async/inline/cron dispatch modes |
 | `src/core/model-router.ts` | LLM call routing + cost logging |
+| `src/core/queue.ts` | In-memory job queue with file-based persistence |
+| `src/core/watcher.ts` | File watcher for hot-reloading agent and skill definitions |
+| `src/store/` | Flat-file storage modules (conversations, tasks, costs, files, etc.) |
 | `src/context/` | Context query modules (inject dynamic content into prompts) |
 | `src/tools/` | Tool definitions + toolset loaders |
 | `src/tools/skill.ts` | `buildSkillTool()` — per-agent skill.get tool builder |
-| `src/skills/` | Static `.md` skill documents (loaded on demand) |
+| `src/tools/sets/notes.ts` | `notes` toolset: `notes.search`, `notes.write`, `notes.edit`, `notes.delete` — auto-managed knowledge notes |
+| `src/tools/conversation.ts` | Standalone tool: search conversation history (text, around message, time range) |
 | `src/commands/` | /command handlers |
 | `src/whatsapp/` | Transport layer (Baileys connection, send, receive, TTS, STT, presence) |
-| `src/db/` | Drizzle schema, client, write path, search |
 
 ### Project boundaries
 
 - `/whatsapp` — pure transport, no business logic
 - `/core` — pipeline, agent engine, queue, middleware
-- `/db` — schema, search, write path, migrations
+- `/store` — flat-file storage, JSONL read/write, task queue, indexes
 - `/tools` — each tool/tool-set in its own file or folder
 - `/context` — one file per context query
-- `/agents` — markdown prompt files with YAML frontmatter
-- `/skills` — static `.md` reference documents loaded on demand via `skill_get`
+- `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter
+- `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
+- `{vault}/Klaus/notes/` — auto-managed knowledge notes, written/searched by agents at runtime via `notes.*` tools
+- `{vault}/Klaus/snippets/` — static prompt content (soul.md, architecture.md) injected as template vars
+- `{vault}/Klaus/user.md` — user profile, updated by memorize agent
+- `{vault}/Klaus/memory.md` — working memory/facts/preferences, updated by memorize agent
+
+Live Vault is located at /Users/janbassen/Vaults/Jan/Klaus on this pc
 
 ### Testing conventions
 
 - Tests mirror source tree under `src/__tests__/`
 - Write tests alongside the code being developed, not after
 - Mocks must be registered **before** importing the module under test (Bun mock hoisting)
-- Use real Postgres for DB tests (`RUN_DB_TESTS=1`); mock at the model-router boundary for unit tests
+- Mock at the `store/*` boundary for unit tests (e.g., `mock.module("@/store/conversation", ...)`)
 - Clean up registries in `afterEach` (agentRegistry, toolRegistry)
-- No coverage targets — optimize for confidence in the critical paths: pipeline, middleware, DB read/write, tool execution
+- No coverage targets — optimize for confidence in the critical paths: pipeline, middleware, store read/write, tool execution
 - Agent evals (`*.eval.ts`) test non-deterministic behavior — not CI-blocking, tracked over time
 - Test timeout: 30s (bunfig.toml)
 
@@ -161,11 +169,3 @@ Prefer Postgres-native solutions (pgvector, pgboss, tsvector) over adding new in
 - Path alias `@/` maps to `src/`
 - No unnecessary comments — code should be self-explanatory; comments explain *why*, never *what*
 - Keep the dependency list short; justify every addition — use `bun add` / `bun update`, no need to check versions manually
-
-### Environment
-
-Two env files (see README for full list of vars):
-- `.env.config` — non-secret config (DATABASE_URL, ports, directories)
-- `.env` — secrets (API keys); loaded via 1Password CLI in dev
-
-Required at startup: `ANTHROPIC_API_KEY`, `ALLOWED_CHAT_ID`.

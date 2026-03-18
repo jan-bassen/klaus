@@ -7,8 +7,24 @@ import { z } from "zod";
 const mockCallModel = mock(async () => ({
 	content: "",
 	usage: { promptTokens: 10, completionTokens: 5, costUsd: 0 },
+	steps: [],
 }));
 mock.module("../../core/model-router", () => ({ callModel: mockCallModel }));
+
+// Mock conversation store — buildConversationMessages reads from it
+mock.module("@/store/conversation", () => ({
+	getConversation: mock(async () => []),
+	getTraces: mock(async () => new Map()),
+	appendTrace: mock(async () => {}),
+	appendMessage: mock(async () => "msg-id"),
+	appendAck: mock(async () => {}),
+	appendReaction: mock(async () => {}),
+	findByExternalId: mock(() => null),
+	resolveExternalId: mock(() => null),
+	resolveMessageId: mock(() => null),
+	rebuildIndexes: mock(async () => {}),
+	_clearIndexesForTest: mock(() => {}),
+}));
 
 import { loadAgentDefinition, runAgent } from "@/core/agent";
 import {
@@ -23,10 +39,14 @@ import type { AssembledContext, TurnContext } from "@/types";
 
 const emptyAssembled: AssembledContext = {
 	vars: {},
+	messageRefs: {},
 	totalTokens: 0,
 };
 
-function makeTurn(vars: Record<string, unknown> = {}): TurnContext {
+function makeTurn(
+	vars: Record<string, unknown> = {},
+	messageOverrides: Partial<import("@/types").InboundMessage> = {},
+): TurnContext {
 	return {
 		chatId: "user@s.whatsapp.net",
 		message: {
@@ -37,6 +57,7 @@ function makeTurn(vars: Record<string, unknown> = {}): TurnContext {
 			text: "hello",
 			timestamp: new Date(),
 			messageKey: {},
+			...messageOverrides,
 		},
 		agent: {
 			name: "test",
@@ -153,58 +174,25 @@ describe("loadAgentDefinition", () => {
 		);
 	});
 
-	// --- contextParams: YAML ---
+	// --- conversationLimit ---
 
-	test("context: YAML key is parsed into contextParams", async () => {
+	test("conversationLimit is parsed from frontmatter", async () => {
 		const fm =
-			"name: ctx-agent\nmodelTier: default\ntools: []\ncontext:\n  conversation:\n    limit: 10";
-		await withFixture("ctx-yaml", fm, "## Hi\n", async (p) => {
+			"name: limit-agent\nmodelTier: default\ntools: []\nconversationLimit: 10";
+		await withFixture("conv-limit", fm, "## Hi\n", async (p) => {
 			const def = await loadAgentDefinition(p);
-			expect(def.contextParams?.conversation?.limit).toBe(10);
+			expect(def.conversationLimit).toBe(10);
 		});
 	});
 
-	// --- contextParams: inline ---
-
-	test("{{name?key=val}} in body is parsed into contextParams", async () => {
-		const fm = "name: inline-agent\nmodelTier: default\ntools: []";
+	test("missing conversationLimit produces no property", async () => {
 		await withFixture(
-			"ctx-inline",
-			fm,
-			"{{conversation?limit=5}}\n",
+			"no-conv-limit",
+			"name: plain-agent\nmodelTier: default\ntools: []",
+			"## Hi\n",
 			async (p) => {
 				const def = await loadAgentDefinition(p);
-				expect(def.contextParams?.conversation?.limit).toBe(5);
-			},
-		);
-	});
-
-	test("inline params are parsed as numbers when numeric", async () => {
-		const fm = "name: num-agent\nmodelTier: default\ntools: []";
-		await withFixture(
-			"ctx-num",
-			fm,
-			"{{auto_memory?limit=20&offset=5}}\n",
-			async (p) => {
-				const def = await loadAgentDefinition(p);
-				expect(def.contextParams?.auto_memory?.limit).toBe(20);
-				expect(def.contextParams?.auto_memory?.offset).toBe(5);
-			},
-		);
-	});
-
-	test("inline params override YAML params per-key", async () => {
-		const fm =
-			"name: merge-agent\nmodelTier: default\ntools: []\ncontext:\n  conversation:\n    limit: 100\n    offset: 0";
-		await withFixture(
-			"ctx-merge",
-			fm,
-			"{{conversation?limit=10}}\n",
-			async (p) => {
-				const def = await loadAgentDefinition(p);
-				// inline limit wins, YAML offset is preserved
-				expect(def.contextParams?.conversation?.limit).toBe(10);
-				expect(def.contextParams?.conversation?.offset).toBe(0);
+				expect(def.conversationLimit).toBeUndefined();
 			},
 		);
 	});
@@ -213,10 +201,10 @@ describe("loadAgentDefinition", () => {
 
 	test("toolsets: YAML key is parsed into toolsets array", async () => {
 		const fm =
-			"name: ts-agent\nmodelTier: default\ntools: []\ntoolsets: [memory, files]";
+			"name: ts-agent\nmodelTier: default\ntools: []\ntoolsets: [vault, files]";
 		await withFixture("toolsets", fm, "## Hi\n", async (p) => {
 			const def = await loadAgentDefinition(p);
-			expect(def.toolsets).toEqual(["memory", "files"]);
+			expect(def.toolsets).toEqual(["vault", "files"]);
 		});
 	});
 
@@ -287,9 +275,7 @@ describe("loadAgentDefinition", () => {
 			"---\nname: bad\nmodelTier: nonexistent\ntools: []\n---\n## hi\n",
 		);
 		try {
-			await expect(loadAgentDefinition(tmpPath)).rejects.toThrow(
-				"Invalid 'modelTier'",
-			);
+			await expect(loadAgentDefinition(tmpPath)).rejects.toThrow("nonexistent");
 		} finally {
 			unlinkSync(tmpPath);
 		}
@@ -312,10 +298,11 @@ describe("runAgent", () => {
 		mockCallModel.mockImplementation(async () => ({
 			content: "",
 			usage: { promptTokens: 10, completionTokens: 5, costUsd: 0 },
+			steps: [],
 		}));
 		await writeAgentFile(
 			tmpPath,
-			"## Instructions\nYou are a test agent.\n\n{{conversation}}\n\n{{auto_memory}}\n\n{{active_tasks}}\n\n{{flags}}",
+			"## Instructions\nYou are a test agent.\n\n{{memory}}\n\n{{active_tasks}}\n\n{{flags}}",
 		);
 	});
 
@@ -354,37 +341,93 @@ describe("runAgent", () => {
 		);
 	});
 
-	test("system prompt includes assembled conversation", async () => {
-		const turn = makeTurn({ conversation: "User: hi\n\nKlaus: hello" });
+	test("messages array includes current user message", async () => {
+		const turn = makeTurn({ message_text: "hello" });
 		turn.agent.promptPath = tmpPath;
 		await runAgent(turn, turn.agent);
 		cleanup();
-		const opts = lastArg(mockCallModel);
-		expect((opts as { system: string }).system).toContain("User: hi");
+		const opts = lastArg(mockCallModel) as {
+			messages: Array<{ role: string; content: string }>;
+			system: string;
+		};
+		// Messages array should have at least the current message
+		const lastMsg = opts.messages[opts.messages.length - 1];
+		expect(lastMsg?.role).toBe("user");
+		expect(lastMsg?.content).toContain("hello");
 	});
 
-	test("{{name?params}} placeholder resolves to var value (params stripped from output)", async () => {
-		const p = path.join(import.meta.dir, "__inline-params.md");
-		await Bun.write(
-			p,
-			"---\nname: test-agent\nmodelTier: default\ntools: []\n---\n## Instructions\n{{conversation?limit=5}}\n",
-		);
-		const turn = makeTurn({ conversation: "User: hey" });
-		turn.agent.promptPath = p;
+	test("user message includes message text from turn.message", async () => {
+		const turn = makeTurn({}, { text: "hello" });
+		turn.agent.promptPath = tmpPath;
 		await runAgent(turn, turn.agent);
-		try {
-			unlinkSync(p);
-		} catch {
-			/* gone */
-		}
-		const opts = lastArg(mockCallModel);
-		const system = (opts as { system: string }).system;
-		expect(system).toContain("User: hey");
-		expect(system).not.toContain("?limit=5");
+		cleanup();
+		const opts = lastArg(mockCallModel) as {
+			messages: Array<{ role: string; content: string }>;
+		};
+		const lastMsg = opts.messages[opts.messages.length - 1];
+		expect(lastMsg?.content).toContain("hello");
 	});
 
-	test("system prompt includes graph context when present", async () => {
-		const turn = makeTurn({ auto_memory: "### Node Title\nsome body text" });
+	test("user message includes quoted text when replying", async () => {
+		const turn = makeTurn(
+			{},
+			{
+				text: "my reply",
+				quotedMessage: { externalId: "ext-q", text: "original message" },
+			},
+		);
+		turn.agent.promptPath = tmpPath;
+		await runAgent(turn, turn.agent);
+		cleanup();
+		const opts = lastArg(mockCallModel) as {
+			messages: Array<{ role: string; content: string }>;
+		};
+		const lastMsg = opts.messages[opts.messages.length - 1];
+		expect(lastMsg?.content).toContain("> Quoted: original message");
+		expect(lastMsg?.content).toContain("my reply");
+	});
+
+	test("user message includes voice note prefix", async () => {
+		const turn = makeTurn(
+			{},
+			{
+				media: {
+					fileId: "f-1",
+					path: "/tmp/audio.ogg",
+					mimeType: "audio/ogg",
+					transcription: "transcribed text",
+					voiceCaption: "see this",
+				},
+			},
+		);
+		turn.agent.promptPath = tmpPath;
+		await runAgent(turn, turn.agent);
+		cleanup();
+		const opts = lastArg(mockCallModel) as {
+			messages: Array<{ role: string; content: string }>;
+		};
+		const lastMsg = opts.messages[opts.messages.length - 1];
+		expect(lastMsg?.content).toContain("Transcript of voice note.");
+		expect(lastMsg?.content).toContain('Caption: "see this"');
+	});
+
+	test("user message includes flags", async () => {
+		const turn = makeTurn(
+			{ flags: "Answer as a voice message!" },
+			{ text: "hello" },
+		);
+		turn.agent.promptPath = tmpPath;
+		await runAgent(turn, turn.agent);
+		cleanup();
+		const opts = lastArg(mockCallModel) as {
+			messages: Array<{ role: string; content: string }>;
+		};
+		const lastMsg = opts.messages[opts.messages.length - 1];
+		expect(lastMsg?.content).toContain("Answer as a voice message!");
+	});
+
+	test("system prompt includes memory when present", async () => {
+		const turn = makeTurn({ memory: "### Node Title\nsome body text" });
 		turn.agent.promptPath = tmpPath;
 		await runAgent(turn, turn.agent);
 		cleanup();

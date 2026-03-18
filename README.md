@@ -1,6 +1,6 @@
 # Klaus
 
-A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Postgres**. *Klaus* is a reference to [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), the legendary pirate who allegedly walked past his crew after being beheaded — because this stack is *headless*. Personal hobby project.
+A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Obsidian Vault**. *Klaus* is a reference to [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), the legendary pirate who allegedly walked past his crew after being beheaded — because this stack is *headless*. Personal hobby project.
 
 ---
 
@@ -10,12 +10,12 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Postgres**.
 | ------------ | -------------------------------------------- |
 | Runtime      | Bun + TypeScript (strict)                    |
 | LLM / Vision | Anthropic Claude via Vercel AI SDK           |
-| Embeddings   | Voyage AI                                    |
 | STT / TTS    | ElevenLabs                                   |
 | WhatsApp     | Baileys (unofficial WA Web API, multi-device)|
-| Database     | Postgres + Drizzle ORM + pgvector + tsvector |
-| Job queue    | pg-boss (Postgres-native, SKIP LOCKED)       |
-| Vault sync   | Obsidian headless (obsidian-headless)        |
+| Knowledge    | Obsidian vault (notes, wikilinks, tags)       |
+| Storage      | JSONL flat files (conversations, costs, etc.) |
+| Task queue   | In-memory queue + file-based task persistence |
+| Vault sync   | Obsidian headless (obsidian service)         |
 | Hosting      | Synology NAS via Docker Compose              |
 
 ---
@@ -37,8 +37,9 @@ The default agent can be changed per-chat with the `/default` command.
 
 Commands start with `/` and bypass the LLM entirely:
 
-- `/status` — show current agent, active tasks, and memory node count
+- `/status` — show current agent, active tasks, and vault note count
 - `/tasks` — list active background tasks
+- `/new` — archive the current conversation and start fresh
 - `/default <agent>` — set the default agent for this chat
 - `/register` — register the current chat ID
 - `/help [commands|agents|flags]` — show available commands, agents, and flags; optional filter narrows to one section
@@ -77,10 +78,9 @@ Do this once on any machine (laptop or NAS).
 git clone <repo-url> && cd klaus
 ```
 
-2. Create env files:
+2. Create env file:
 
 ```bash
-cp .env.config.example .env.config
 cp .env.example .env
 ```
 
@@ -92,21 +92,15 @@ Fill in your API keys in .env.
 docker compose up -d --remove-orphans
 ```
 
-4. Apply database schema:
-
-```bash
-docker compose exec app bun run db:migrate
-```
-
-5. Scan the WhatsApp QR code (one-time — auth persists in a Docker volume):
+4. Scan the WhatsApp QR code (one-time — auth persists in a Docker volume):
 
 ```bash
 docker compose logs -f app
 ```
 
-6. (Optional) Set up Obsidian vault sync. Fill in OBSIDIAN_EMAIL, OBSIDIAN_PASSWORD, and OBSIDIAN_VAULT_NAME in .env. The sync service authenticates and configures the vault automatically on first start. Sync is bidirectional and continuous — notes Klaus creates will appear in your Obsidian app.
+5. (Optional) Set up Obsidian vault sync. Fill in OBSIDIAN_EMAIL, OBSIDIAN_PASSWORD, and OBSIDIAN_VAULT_NAME in .env. The sync service authenticates and configures the vault automatically on first start. Sync is bidirectional and continuous — notes Klaus creates will appear in your Obsidian app.
 
-**NAS-specific:** Set BACKUP_DIR=/volume1/backups/klaus in your .env.config before starting.
+**NAS-specific:** Set BACKUP_DIR=/volume1/backups/klaus in your .env before starting.
 
 ---
 
@@ -164,45 +158,21 @@ docker compose down -v && docker compose up -d --remove-orphans
 
 ---
 
-## Drizzle Studio
-
-A Drizzle Studio instance runs as part of the stack, bound to 127.0.0.1:4983 on the host (not exposed to the network).
-
-Accessing it remotely (from your Mac):
-
-```bash
-ssh -L 4983:localhost:4983 your-nas
-```
-
-Then open http://localhost:4983 in your browser.
-
----
-
 ## Configuration
-
-### .env.config
-
-Non-secret config, safe to edit freely.
-
-| Variable           | Description                                       | Default                   |
-| ------------------ | ------------------------------------------------- | ------------------------- |
-| DATABASE_URL       | Postgres connection string (localhost for local)   | see .env.config.example   |
-| BAILEYS_AUTH_FOLDER| Auth state directory                               | ./.auth                   |
-| PORT               | Internal app port                                  | 3000                      |
-| BACKUP_DIR         | Where backups are written on the host              | ./backups                 |
-| VAULT_DIR          | Obsidian vault directory (must match Docker mount) | ./vault                   |
 
 ### .env
 
-API keys, gitignored, never committed.
+API keys and host-specific settings, gitignored, never committed.
 
 | Variable            | Description                             |
 | ------------------- | --------------------------------------- |
 | ANTHROPIC_API_KEY   | Claude API key                          |
-| VOYAGE_API_KEY      | Voyage AI embedding key                 |
 | ELEVENLABS_API_KEY  | ElevenLabs TTS/STT key                  |
 | ALLOWED_CHAT_ID     | WhatsApp chat ID to allow (fail-closed) |
 | OBSIDIAN_VAULT_NAME | Obsidian Sync vault name                |
+| BACKUP_DIR          | Where backups are written on the host (default: ./backups) |
+
+Non-secret config (PORT, BAILEYS_AUTH_FOLDER, path overrides) is set directly in `docker-compose.yml` for Docker. For local dev, all values have sensible defaults in code — no extra env file needed.
 
 ---
 
@@ -214,8 +184,8 @@ docker compose --profile backup run --rm backup
 
 This runs a one-shot container that:
 
-1. Dumps Postgres to $BACKUP_DIR/\<YYYY-MM-DD\>/postgres.dump (custom format)
-2. Archives the Baileys auth volume to $BACKUP_DIR/\<YYYY-MM-DD\>/baileys_auth.tar.gz
+1. Archives the config volume (Baileys auth + Obsidian config) to $BACKUP_DIR/\<YYYY-MM-DD\>/config.tar.gz
+2. Archives file blobs, vault, and data dir
 3. Prunes backups older than 7 days
 
 On a Synology NAS, schedule it via **Control Panel → Task Scheduler** with command:
@@ -237,13 +207,13 @@ Every inbound WhatsApp message flows through the same pipeline:
 3. **Normalize** — transcribe voice notes (ElevenLabs STT), downscale large images
 4. **Parse** — extract /command (execute directly, bypass LLM) or @agent routing prefix
 5. **Strip flags** — pull out !flag tokens
-6. **Persist** — insert message row, resolve quote-reply FK
+6. **Persist** — append message to conversation JSONL, resolve quote-reply
 7. **Assemble context** — run all context queries in parallel, trim to token budget
 8. **Execute agent** — Vercel AI SDK agentic loop with tools, send response via WhatsApp
 
 ### Agents
 
-An agent is a .md file in src/agents/ with YAML frontmatter + a Handlebars prompt body. The frontmatter declares which model tier, tools, toolsets, and provider tools the agent uses:
+An agent is a .md file in the vault (`Klaus/agents/`) with YAML frontmatter + a Handlebars prompt body. The frontmatter declares which model tier, tools, toolsets, and provider tools the agent uses:
 
 ```yaml
 ---
@@ -251,13 +221,13 @@ name: thinking
 modelTier: high
 tools: [reply, react, dispatch]
 providerTools: [web_search, web_fetch, code_execution]
-toolsets: [memory, task, ops, files]
-skills: [workout-plan]        # optional — on-demand .md docs from src/skills/
+toolsets: [vault, task, ops, files]
+skills: [workout-plan]        # optional — on-demand .md docs from Klaus/skills/
 schedule: "0 3 * * *"         # optional — makes it a cron agent
 ---
 ```
 
-Agent files are hot-loaded on demand — edit a .md file and it takes effect on the next message, no restart needed.
+Agent and skill files are watched for changes at runtime — edits to prompt text, YAML frontmatter (model tier, tools, toolsets, schedule, etc.), or adding/removing files take effect automatically with no restart needed. Schedule changes are reconciled immediately (old cron removed, new one registered).
 
 Built-in agents:
 
@@ -265,8 +235,7 @@ Built-in agents:
 | ---------- | -------------------------------------------------------------------- |
 | klaus      | Default conversational agent                                         |
 | thinking   | High-tier agent for research and extended reasoning                  |
-| memorize   | Async agent dispatched to extract facts into the knowledge graph     |
-| reflection | Daily cron (03:00 UTC) for graph maintenance: dedup, cleanup, synth  |
+| memorize   | Async agent dispatched to extract facts into memory.md and user.md   |
 | vault      | Obsidian vault specialist — read, search, create, and organize notes |
 
 ### Tools and toolsets
@@ -275,21 +244,39 @@ Built-in agents:
 
 | Toolset | Tools                                               | Purpose                        |
 | ------- | --------------------------------------------------- | ------------------------------ |
-| memory  | search, write, read, archive, link, unlink, traverse| Knowledge graph CRUD           |
-| task    | dispatch, cancel, list                              | Async task management          |
+| vault   | read, search, list, write, append, backlinks, etc.  | Obsidian vault + memory        |
+| tasks   | dispatch, cancel, list, get                         | Async task management          |
 | ops     | cron, cost-tracking                                 | Scheduling and spend monitoring|
-| files   | upload, download                                    | File management                |
-| vault   | read, search, list, write, append, backlinks        | Obsidian vault access          |
+| files   | upload, download, list, delete                      | File management                |
+| notes   | search, write, edit, delete                         | Auto-managed knowledge notes   |
+
+**Standalone tools** are opt-in per agent via `tools:` in frontmatter:
+
+| Tool                 | Purpose                                                                 |
+| -------------------- | ----------------------------------------------------------------------- |
+| conversation         | Search conversation history by text, around a message, or time range    |
 
 Agents can also use **provider tools** — Anthropic built-in capabilities like web_search, web_fetch, and code_execution that are injected directly via the Vercel AI SDK.
 
 ### Skills
 
-**Skills** are static `.md` reference documents in `src/skills/` that agents can load on demand via the `skill_get` tool. Unlike context queries (always injected) or knowledge graph nodes (dynamic), skills are for stable reference material that shouldn't waste tokens every turn.
+**Skills** are static `.md` reference documents in `Klaus/skills/` (in the vault) that agents can load on demand via the `skill_get` tool. Unlike context queries (always injected), skills are for stable reference material that shouldn't waste tokens every turn.
 
 Skill files support optional YAML frontmatter with a `description:` field. The description is included in the tool definition so the model knows what each skill contains before deciding to load it.
 
 Declare `skills: [name1, name2]` in an agent's frontmatter. The tool is scoped to those names via `z.enum` — the model literally cannot request a nonexistent skill. The `{{skills}}` Handlebars var is injected so the prompt can list available skills. Agents without `skills:` see nothing — zero token overhead.
+
+### Notes
+
+**Notes** are auto-managed, topic-keyed `.md` files in `Klaus/notes/` that agents write and search at runtime. They fill the gap between snippets (static, always loaded) and skills (static, on-demand) — notes are for knowledge the system learns over time that is too numerous or low-priority to always inject.
+
+Four tools in the `notes` toolset:
+- `notes.search` — substring match across filenames, frontmatter descriptions, and body; returns full content
+- `notes.write` — create or overwrite a kebab-case-named note with optional `description:` frontmatter
+- `notes.edit` — find-and-replace within an existing note (more token-efficient than rewriting)
+- `notes.delete` — delete a note (requires `confirm: true`)
+
+Agents opt in by adding `notes` to their `toolsets:` list in frontmatter.
 
 ### Context assembly
 
@@ -297,19 +284,20 @@ The prompt body uses {{variable}} placeholders filled by **context queries** —
 
 Queries run in parallel. Inline params are supported: {{conversation?limit=20\&excludeCurrent=1}}.
 
-Key context queries: conversation (chat history with message refs), auto_memory (pinned nodes + hybrid search), datetime, message (current message metadata), active_tasks, flags, dispatch_context.
+Key context queries: snippets (soul, architecture, user, memory from vault files), conversation (chat history with message refs), datetime, message (current message metadata), active_tasks, flags, dispatch_context.
 
-### Knowledge graph
+### Storage
 
-Long-term memory is a typed graph stored in Postgres:
+All operational data is stored as flat files — no database required.
 
-- **Node types:** episode, entity, topic, assertion, procedure, project, document
-- **Edge relations:** about, part_of, derived_from, influenced_by, references, supersedes, related_to
-- **Search:** hybrid — pgvector cosine similarity (Voyage AI embeddings) + tsvector full-text, with 1-hop edge expansion on results
-- **Pinned nodes** are always included in context, never trimmed. **Archived nodes** are excluded from search.
-- **Chunks** split large nodes for finer-grained search. **Node versions** track edit history with reason codes.
+- **Conversations** — JSONL files in `{dataDir}/conversations/`. Three event types: `msg`, `ack` (WhatsApp delivery confirmation), `reaction`. Merged in-memory on read.
+- **Costs** — date-partitioned JSONL in `{dataDir}/costs/`
+- **Invocations** — date-partitioned JSONL in `{dataDir}/invocations/` (LLM call traces)
+- **Tasks** — one JSON file per task, organized in status directories (`pending/`, `running/`, `done/`, `failed/`, `cancelled/`)
+- **Files** — blob storage in `{filesDir}/` with a JSONL metadata index
+- **Schedules** — `{dataDir}/schedules.json`
 
-The memorize agent writes to the graph after conversations. The reflection agent runs nightly to merge duplicates, clean orphans, and synthesize higher-order patterns.
+The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[wikilinks]]` are edges, YAML frontmatter provides metadata and tags.
 
 ### Dispatch
 
@@ -318,8 +306,8 @@ Agents can invoke other agents via three modes:
 | Mode   | Behavior                                                             |
 | ------ | -------------------------------------------------------------------- |
 | inline | Runs synchronously in the current process                            |
-| async  | Creates a task row, enqueues via pg-boss, returns task ID immediately|
-| cron   | Registers a repeating schedule via pg-boss                           |
+| async  | Creates a task file, enqueues an in-memory job, returns task ID      |
+| cron   | Registers a repeating schedule (persisted to schedules.json)         |
 
 Max chain depth is enforced to prevent infinite recursive dispatch.
 
@@ -329,15 +317,21 @@ Max chain depth is enforced to prevent infinite recursive dispatch.
 
 ```
 src/
-├── agents/        # Agent prompt files (.md with YAML frontmatter)
 ├── commands/      # /command handlers
 ├── context/       # Context query modules (one file per query)
 ├── core/          # Pipeline, agent runner, dispatch, queue, model router
-├── db/            # Schema, migrations, search, write path
-├── skills/        # Static .md reference documents (loaded on demand by agents)
+├── store/         # Flat-file storage (conversations, tasks, costs, files, etc.)
 ├── tools/         # Tool definitions and toolsets
-│   └── sets/      # Toolset definitions (memory, task, ops, files, vault)
+│   └── sets/      # Toolset definitions (vault, task, ops, files)
 └── whatsapp/      # Transport layer (connection, receive, send, TTS, STT)
+
+vault/Klaus/       # Klaus's own directory in the Obsidian vault
+├── agents/        # Agent prompt files (.md with YAML frontmatter)
+├── notes/         # Auto-managed knowledge notes (written/searched by agents at runtime)
+├── skills/        # Static .md reference documents (loaded on demand by agents)
+├── snippets/      # Static prompt content (soul.md, architecture.md)
+├── user.md        # User profile (updated by memorize agent)
+└── memory.md      # Working memory, facts, preferences (updated by memorize agent)
 ```
 
 ---
@@ -348,7 +342,7 @@ The codebase is designed to be extended by adding files, not modifying existing 
 
 ### Add a new agent
 
-Create a .md file in src/agents/ with YAML frontmatter and a Handlebars prompt body. The frontmatter declares the agent's model tier, tools, and toolsets. The prompt body uses {{variable}} placeholders that are filled by context queries at runtime.
+Create a .md file in `vault/Klaus/agents/` with YAML frontmatter and a Handlebars prompt body. The frontmatter declares the agent's model tier, tools, and toolsets. The prompt body uses {{variable}} placeholders that are filled by context queries at runtime.
 
 Example — a minimal agent that can reply and search the web:
 
@@ -358,7 +352,7 @@ name: research
 modelTier: high
 tools: [reply, react]
 providerTools: [web_search]
-toolsets: [memory]
+toolsets: [vault]
 ---
 
 You are a research assistant. Answer questions thoroughly using web search.
@@ -374,7 +368,7 @@ It is {{weekday}} ({{date}}, {{time}}).
 {{message_text}}
 ```
 
-No restart needed — agent files are hot-loaded on the next message.
+No restart needed — agent files are watched and hot-reloaded automatically.
 
 ### Add a new tool
 
@@ -458,7 +452,7 @@ Reference the toolset by name in an agent's frontmatter toolsets list.
 
 ### Add a new skill
 
-Create a `.md` file in `src/skills/`. The filename (without `.md`) is the skill name. Add a `description:` in YAML frontmatter so the model knows what the skill contains:
+Create a `.md` file in `vault/Klaus/skills/`. The filename (without `.md`) is the skill name. Add a `description:` in YAML frontmatter so the model knows what the skill contains:
 
 ```markdown
 ---
@@ -477,16 +471,7 @@ Then add the skill name to an agent's frontmatter:
 skills: [workout-plan]
 ```
 
-Use the `{{skills}}` Handlebars var in the prompt body to tell the agent what's available:
-
-```handlebars
-{{#if skills}}
-## Available skills
-Load with skill_get when needed: {{#each skills}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}.
-{{/if}}
-```
-
-No restart needed — skill files are read on demand.
+No restart needed — skill files are watched and hot-reloaded automatically.
 
 ---
 

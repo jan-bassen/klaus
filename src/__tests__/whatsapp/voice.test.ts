@@ -12,13 +12,15 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// Mock DB before importing voice.ts (which now records STT costs)
-mock.module("@/db/client", () => ({
-	db: {
-		insert: mock(() => ({ values: mock(() => ({ catch: () => undefined })) })),
-	},
+// Mock store/costs before importing voice.ts (which records STT costs)
+mock.module("@/store/costs", () => ({
+	recordCost: mock(async () => {}),
+	getCostSummary: mock(async () => ({
+		total: 0,
+		byService: {},
+		periodLabel: "today",
+	})),
 }));
-mock.module("@/db/schema", () => ({ costs: {} }));
 
 import { transcribe } from "@/whatsapp/voice";
 

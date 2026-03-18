@@ -4,9 +4,13 @@ import type { InboundMessage } from "@/types";
 const mockEnqueueMessage = mock((_opts: unknown) => undefined);
 mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 
-const mockActiveTasks = mock(async (_params: unknown) => [] as unknown[]);
-mock.module("@/db/queries", () => ({
-	QUERIES: { active_tasks: mockActiveTasks },
+const mockListTasks = mock(async () => [] as unknown[]);
+mock.module("@/store/tasks", () => ({
+	listTasks: mockListTasks,
+	createTask: mock(async () => "id"),
+	moveTask: mock(async () => {}),
+	getTask: mock(async () => null),
+	recoverRunningTasks: mock(async () => {}),
 }));
 
 import { tasksCommand } from "@/commands/tasks";
@@ -24,7 +28,7 @@ function makeMsg(chatId = "user@s.whatsapp.net"): InboundMessage {
 
 beforeEach(() => {
 	mockEnqueueMessage.mockClear();
-	mockActiveTasks.mockClear();
+	mockListTasks.mockClear();
 });
 
 describe("/tasks", () => {
@@ -39,18 +43,18 @@ describe("/tasks", () => {
 	});
 
 	test("formats task list with count in header", async () => {
-		mockActiveTasks.mockResolvedValue([
+		mockListTasks.mockResolvedValue([
 			{
 				id: "1",
 				assignedTo: "memorize",
 				objective: "Remember meeting notes",
-				createdAt: new Date("2026-01-01T14:02:00Z"),
+				createdAt: new Date("2026-01-01T14:02:00Z").toISOString(),
 			},
 			{
 				id: "2",
 				assignedTo: "thinking",
 				objective: "Research quantum computing",
-				createdAt: new Date("2026-01-01T09:45:00Z"),
+				createdAt: new Date("2026-01-01T09:45:00Z").toISOString(),
 			},
 		]);
 
@@ -69,12 +73,12 @@ describe("/tasks", () => {
 	});
 
 	test('falls back to "unknown" when assignedTo is null', async () => {
-		mockActiveTasks.mockResolvedValue([
+		mockListTasks.mockResolvedValue([
 			{
 				id: "1",
 				assignedTo: null,
 				objective: "Some task",
-				createdAt: new Date(),
+				createdAt: new Date().toISOString(),
 			},
 		]);
 
@@ -87,17 +91,8 @@ describe("/tasks", () => {
 		expect(content).toContain("unknown");
 	});
 
-	test("scopes query to message chatId", async () => {
-		const msg = makeMsg("specific@s.whatsapp.net");
-		await tasksCommand.execute(msg, []);
-
-		expect(mockActiveTasks).toHaveBeenCalledWith({
-			chatId: "specific@s.whatsapp.net",
-		});
-	});
-
-	test("sends error fallback when DB throws", async () => {
-		mockActiveTasks.mockRejectedValue(new Error("DB down"));
+	test("sends error fallback when store throws", async () => {
+		mockListTasks.mockRejectedValue(new Error("Store down"));
 
 		const msg = makeMsg();
 		await tasksCommand.execute(msg, []);
@@ -105,6 +100,6 @@ describe("/tasks", () => {
 		const { content } = (
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
 		)[0];
-		expect(content).toContain("database error");
+		expect(content).toMatch(/could not load/i);
 	});
 });

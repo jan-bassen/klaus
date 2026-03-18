@@ -2,10 +2,10 @@ import type { Dirent } from "node:fs";
 import { mkdir, readdir, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { config } from "@/config";
+import { settings } from "@/settings";
 import type { ToolDefinition, ToolsetDefinition } from "@/types";
 
-const vaultDir = () => config.vault.dir;
+const vaultDir = () => settings.vault.dir;
 
 /** Guard against path traversal and optional agent scope restriction. */
 function safePath(relative: string, scope?: string): string | null {
@@ -352,11 +352,11 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 			const filePath = path.join(vaultDir(), file);
 			try {
 				const text = await Bun.file(filePath).text();
-				if (!pattern.test(text)) continue;
-				pattern.lastIndex = 0;
 				const updated = text.replace(pattern, `[[${newName}$1]]`);
-				await Bun.write(filePath, updated);
-				updatedCount++;
+				if (updated !== text) {
+					await Bun.write(filePath, updated);
+					updatedCount++;
+				}
 			} catch {
 				// Skip unreadable files
 			}
@@ -586,7 +586,7 @@ export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
 export const vaultToolset: ToolsetDefinition = {
 	name: "vault",
 	description:
-		"Use when the request involves Jan's Obsidian vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. Distinct from memory (the knowledge graph DB) and files (arbitrary filesystem). Use this for anything that sounds like a note, a document, or something Jan would have written down.",
+		"Use when the request involves Jan's Obsidian vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. This is the primary knowledge interface: notes are memory, [[wikilinks]] are relationships, frontmatter tags enable discovery. Klaus's memory lives in Klaus/memory.md and user profile in Klaus/user.md. Use for anything that sounds like a note, a document, something to remember, or something Jan would have written down.",
 	tools: [
 		vaultReadTool,
 		vaultSearchTool,

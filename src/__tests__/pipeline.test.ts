@@ -8,44 +8,62 @@ import {
 	mock,
 	test,
 } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentDefinition, InboundMessage, TurnContext } from "@/types";
 
 // ─── Mocks (must precede all imports of the modules under test) ───────────────
-//
-// Only mock modules that have no own test file or that would require live
-// infrastructure (DB, LLM). Internal modules with their own test files use real
-// implementations to avoid polluting the shared module registry.
 
 // @/whatsapp/send — keep mocked: no own test file, prevents actual sends
 const mockEnqueueMessage = mock((_opts: unknown) => undefined);
 mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 
-// @/db/client + @/db/write — keep mocked: require live Postgres
-const mockReturning = mock(async () => [{ id: "msg-id-1" }]);
-const capturedInsertValues: Record<string, unknown>[] = [];
-const mockValues = mock((vals: unknown) => {
-	capturedInsertValues.push(vals as Record<string, unknown>);
-	return { returning: mockReturning, catch: () => undefined };
+// @/store/conversation — mock instead of real file I/O
+const capturedAppendMessages: Record<string, unknown>[] = [];
+const mockAppendMessage = mock(async (msg: unknown) => {
+	capturedAppendMessages.push(msg as Record<string, unknown>);
+	return "msg-id-1";
 });
-const mockInsert = mock(() => ({ values: mockValues }));
-mock.module("@/db/client", () => ({
-	db: { insert: mockInsert },
+const mockFindByExternalId = mock(
+	(_extId: string) => null as { messageId: string } | null,
+);
+mock.module("@/store/conversation", () => ({
+	appendMessage: mockAppendMessage,
+	appendAck: mock(async () => {}),
+	appendReaction: mock(async () => {}),
+	findByExternalId: mockFindByExternalId,
+	resolveExternalId: mock(() => null),
+	getConversation: mock(async () => []),
+	rebuildIndexes: mock(async () => {}),
+	_clearIndexesForTest: mock(() => {}),
 }));
 
+// @/store/files — mock file operations
 const mockUpdateFileMessageId = mock(async () => undefined);
-const mockResolveQuotedMessageId = mock(async () => null as string | null);
-mock.module("@/db/write", () => ({
+const mockFindFileByMessageId = mock(
+	(_msgId: string) =>
+		null as { fileId: string; path: string; mimeType: string } | null,
+);
+const mockFindFileByExternalId = mock(
+	(_extId: string) =>
+		null as { fileId: string; path: string; mimeType: string } | null,
+);
+mock.module("@/store/files", () => ({
 	updateFileMessageId: mockUpdateFileMessageId,
-	resolveQuotedMessageId: mockResolveQuotedMessageId,
+	findFileByMessageId: mockFindFileByMessageId,
+	findFileByExternalId: mockFindFileByExternalId,
+	saveFileMeta: mock(async () => ({ id: "f-1", path: "/tmp/f" })),
+	findFile: mock(() => null),
+	listFiles: mock(() => []),
+	deleteFile: mock(() => false),
+	rebuildFileIndex: mock(async () => {}),
+	_clearFileIndexForTest: mock(() => {}),
 }));
 
 // ─── Import after mocks ───────────────────────────────────────────────────────
 
 import { registry } from "@/commands";
-import { config } from "@/config";
 import { agentRegistry } from "@/core/agent";
 import { setContextQueries } from "@/core/assemble";
 import {
@@ -54,6 +72,7 @@ import {
 	handleTurn,
 } from "@/core/pipeline";
 import { _resetForTest, checkMessageRate } from "@/core/rate-limiter";
+import { settings } from "@/settings";
 
 // ─── Test seam — captures agent turns without mock.module pollution ──────────
 
@@ -67,21 +86,34 @@ const mockAgentRunner = mock(
 // ─── Filesystem helpers ───────────────────────────────────────────────────────
 
 const TEST_CHAT_ID = "user@s.whatsapp.net";
-// Agents dir: src/__tests__/ → src/agents/
-const AGENTS_DIR = join(import.meta.dir, "..", "agents");
 
 let tmpDir: string;
 let fakeAudioPath: string;
 let fakeImagePath: string;
 let savedAllowedChatId: string | undefined;
+let savedVaultDir: string | undefined;
 
 beforeAll(async () => {
 	tmpDir = await mkdtemp(join(tmpdir(), "pipeline-test-"));
 	fakeAudioPath = join(tmpDir, "audio.ogg");
-	// voice.ts calls blob.arrayBuffer() before its try/catch, so a real file must exist
 	await writeFile(fakeAudioPath, Buffer.from([0x4f, 0x67, 0x67, 0x53])); // OGG magic
 	fakeImagePath = join(tmpDir, "photo.jpg");
 	await writeFile(fakeImagePath, Buffer.from([0xff, 0xd8, 0xff, 0xe0])); // JPEG magic
+
+	const agentsDir = join(tmpDir, "vault", "Klaus", "agents");
+	await mkdir(agentsDir, { recursive: true });
+	const minimalFrontmatter = (name: string, tier: string) =>
+		`---\nname: ${name}\nmodelTier: ${tier}\ntools: []\n---\n`;
+	await writeFile(
+		join(agentsDir, "klaus.md"),
+		minimalFrontmatter("klaus", "default"),
+	);
+	await writeFile(
+		join(agentsDir, "thinking.md"),
+		minimalFrontmatter("thinking", "high"),
+	);
+	savedVaultDir = process.env.VAULT_DIR;
+	process.env.VAULT_DIR = join(tmpDir, "vault");
 
 	savedAllowedChatId = process.env.ALLOWED_CHAT_ID;
 
@@ -100,6 +132,8 @@ afterAll(async () => {
 	} else {
 		delete process.env.ALLOWED_CHAT_ID;
 	}
+	if (savedVaultDir !== undefined) process.env.VAULT_DIR = savedVaultDir;
+	else delete process.env.VAULT_DIR;
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -124,30 +158,25 @@ function lastTurn(): TurnContext {
 }
 
 beforeEach(() => {
-	// Allow all messages through auth by default
 	process.env.ALLOWED_CHAT_ID = TEST_CHAT_ID;
-
-	// Reset rate limiter state so each test starts fresh
 	_resetForTest();
-
-	// Clear the agent registry to prevent cross-test cache pollution
 	agentRegistry.clear();
-
-	// Reset captured state
 	capturedTurns.length = 0;
+	capturedAppendMessages.length = 0;
 
-	// Reset mocks
 	mockAgentRunner.mockClear();
 	mockEnqueueMessage.mockClear();
-	mockInsert.mockClear();
-	mockValues.mockClear();
-	mockReturning.mockClear();
+	mockAppendMessage.mockClear();
 	mockUpdateFileMessageId.mockClear();
-	mockResolveQuotedMessageId.mockClear();
-	capturedInsertValues.length = 0;
+	mockFindByExternalId.mockClear();
+	mockFindFileByMessageId.mockClear();
+	mockFindFileByExternalId.mockClear();
 
-	mockReturning.mockImplementation(async () => [{ id: "msg-id-1" }]);
-	mockResolveQuotedMessageId.mockImplementation(async () => null);
+	mockAppendMessage.mockImplementation(async (msg: unknown) => {
+		capturedAppendMessages.push(msg as Record<string, unknown>);
+		return "msg-id-1";
+	});
+	mockFindByExternalId.mockImplementation(() => null);
 });
 
 // ─── Auth + rate limiting ─────────────────────────────────────────────────────
@@ -161,7 +190,7 @@ describe("handleTurn — guards", () => {
 
 	test("rate limited: enqueues rate-limit message and skips runAgent", async () => {
 		const msg = makeMsg();
-		for (let i = 0; i < config.rateLimits.messages.max; i++) {
+		for (let i = 0; i < settings.rateLimits.messages.max; i++) {
 			checkMessageRate(msg);
 		}
 		await handleTurn(msg);
@@ -303,7 +332,6 @@ describe("handleTurn — document media", () => {
 		});
 		delete (msg as Partial<InboundMessage>).text;
 		await handleTurn(msg);
-		// Metadata is now exposed via message context query variables, not injected into text
 		expect(lastTurn().message?.text || "").toBe("");
 		expect(lastTurn().message?.media?.mimeType).toBe("application/pdf");
 	});
@@ -340,14 +368,11 @@ describe("handleTurn — agent routing", () => {
 	});
 
 	test("uses cached agent from registry without calling loadAgentDefinition", async () => {
-		// Pre-populate with a fake name that has no .md file; use a real promptPath.
-		// If cache is missed: loadAgentDefinition fails (no __cached__.md) → error → runner skipped.
-		// If cache is hit: runner is called with agentName '__cached__'.
 		const cachedDef: AgentDefinition = {
 			name: "__cached__",
 			modelTier: "default",
 			tools: [],
-			promptPath: join(AGENTS_DIR, "thinking.md"),
+			promptPath: join(tmpDir, "vault", "Klaus", "agents", "thinking.md"),
 		};
 		agentRegistry.set("__cached__", cachedDef);
 		await handleTurn(makeMsg({ text: "@__cached__ run it" }));
@@ -360,7 +385,10 @@ describe("handleTurn — agent routing", () => {
 
 describe("handleTurn — file messageId backfill", () => {
 	test("calls updateFileMessageId with fileId and inserted messageId", async () => {
-		mockReturning.mockImplementation(async () => [{ id: "db-msg-id" }]);
+		mockAppendMessage.mockImplementation(async (msg: unknown) => {
+			capturedAppendMessages.push(msg as Record<string, unknown>);
+			return "db-msg-id";
+		});
 		await handleTurn(
 			makeMsg({
 				media: {
@@ -388,25 +416,25 @@ describe("handleTurn — file messageId backfill", () => {
 // ─── Quoted message handling ──────────────────────────────────────────────────
 
 describe("handleTurn — quoted messages", () => {
-	test("calls resolveQuotedMessageId with chatId and externalId when message is a reply", async () => {
+	test("calls findByExternalId when message is a reply", async () => {
 		const msg = makeMsg({
 			quotedMessage: { externalId: "baileys-id-xyz" },
 		});
 		await handleTurn(msg);
-		expect(mockResolveQuotedMessageId).toHaveBeenCalledTimes(1);
-		const [chatId, externalId] = mockResolveQuotedMessageId.mock
-			.calls[0] as unknown as [string, string];
-		expect(chatId).toBe(TEST_CHAT_ID);
+		expect(mockFindByExternalId).toHaveBeenCalledTimes(1);
+		const [externalId] = mockFindByExternalId.mock.calls[0] as unknown as [
+			string,
+		];
 		expect(externalId).toBe("baileys-id-xyz");
 	});
 
-	test("does not call resolveQuotedMessageId when message has no quote", async () => {
+	test("does not call findByExternalId when message has no quote", async () => {
 		await handleTurn(makeMsg({ text: "plain message" }));
-		expect(mockResolveQuotedMessageId).not.toHaveBeenCalled();
+		expect(mockFindByExternalId).not.toHaveBeenCalled();
 	});
 
-	test("resolves FK and continues normally even when quoted message is not in DB (returns null)", async () => {
-		mockResolveQuotedMessageId.mockImplementation(async () => null);
+	test("continues normally even when quoted message is not found (returns null)", async () => {
+		mockFindByExternalId.mockImplementation(() => null);
 		const msg = makeMsg({
 			quotedMessage: { externalId: "old-id" },
 		});
@@ -419,27 +447,54 @@ describe("handleTurn — quoted messages", () => {
 		await handleTurn(makeMsg({ text: "Yes of course", quotedMessage: quoted }));
 		expect(lastTurn().message?.quotedMessage).toEqual(quoted);
 	});
+
+	test("falls back to findFileByExternalId when findByExternalId returns null (archived message)", async () => {
+		mockFindByExternalId.mockImplementation(() => null);
+		mockFindFileByExternalId.mockImplementation((extId: string) =>
+			extId === "archived-ext-id"
+				? {
+						fileId: "file-archived",
+						path: "/tmp/old-photo.jpg",
+						mimeType: "image/jpeg",
+					}
+				: null,
+		);
+
+		await handleTurn(
+			makeMsg({
+				text: "look at this old photo",
+				quotedMessage: { externalId: "archived-ext-id" },
+			}),
+		);
+
+		expect(mockFindFileByExternalId).toHaveBeenCalledWith("archived-ext-id");
+		expect(lastTurn().message?.quotedMessage?.media).toEqual({
+			fileId: "file-archived",
+			path: "/tmp/old-photo.jpg",
+			mimeType: "image/jpeg",
+		});
+	});
 });
 
 // ─── Flags and command persistence ────────────────────────────────────────────
 
 describe("handleTurn — flags persistence", () => {
-	test("persists active flags as string array in the message row", async () => {
+	test("persists active flags as string array in the message", async () => {
 		await handleTurn(makeMsg({ text: "@klaus !verbose !en hello" }));
-		const vals = capturedInsertValues[0];
+		const vals = capturedAppendMessages[0];
 		expect(vals?.flags).toEqual(expect.arrayContaining(["verbose", "en"]));
 		expect((vals?.flags as string[]).length).toBe(2);
 	});
 
-	test("persists null flags when no flags present", async () => {
+	test("does not persist flags when no flags present", async () => {
 		await handleTurn(makeMsg({ text: "hello" }));
-		const vals = capturedInsertValues[0];
-		expect(vals?.flags).toBeNull();
+		const vals = capturedAppendMessages[0];
+		expect(vals?.flags).toBeUndefined();
 	});
 });
 
 describe("handleTurn — command persistence", () => {
-	test("persists command message in DB with command name", async () => {
+	test("persists command message with command name", async () => {
 		const mockExecute = mock(async () => undefined);
 		registry.register({
 			name: "test-persist",
@@ -447,8 +502,8 @@ describe("handleTurn — command persistence", () => {
 			execute: mockExecute,
 		});
 		await handleTurn(makeMsg({ text: "/test-persist arg1" }));
-		expect(capturedInsertValues).toHaveLength(1);
-		const vals = capturedInsertValues[0];
+		expect(capturedAppendMessages).toHaveLength(1);
+		const vals = capturedAppendMessages[0];
 		expect(vals?.command).toBe("test-persist");
 		expect(vals?.content).toBe("/test-persist arg1");
 		expect(vals?.role).toBe("user");
@@ -456,10 +511,10 @@ describe("handleTurn — command persistence", () => {
 
 	test("command dispatch persists message before executing", async () => {
 		const callOrder: string[] = [];
-		mockValues.mockImplementation((vals: unknown) => {
-			callOrder.push("db-insert");
-			capturedInsertValues.push(vals as Record<string, unknown>);
-			return { returning: mockReturning, catch: () => undefined };
+		mockAppendMessage.mockImplementation(async (msg: unknown) => {
+			callOrder.push("store-append");
+			capturedAppendMessages.push(msg as Record<string, unknown>);
+			return "msg-id-1";
 		});
 		const mockExecute = mock(async () => {
 			callOrder.push("command-execute");
@@ -470,6 +525,6 @@ describe("handleTurn — command persistence", () => {
 			execute: mockExecute,
 		});
 		await handleTurn(makeMsg({ text: "/test-order" }));
-		expect(callOrder).toEqual(["db-insert", "command-execute"]);
+		expect(callOrder).toEqual(["store-append", "command-execute"]);
 	});
 });

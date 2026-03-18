@@ -65,13 +65,10 @@ async function loadToolModule(filePath: string): Promise<void> {
 				registerToolset(exported);
 			} else if (isToolDefinition(exported)) {
 				registerTool(exported);
-			} else if (
-				Array.isArray(exported) &&
-				exported.length > 0 &&
-				isToolDefinition(exported[0])
-			) {
-				for (const t of exported)
-					registerTool(t as ToolDefinition<z.ZodTypeAny>);
+			} else if (Array.isArray(exported)) {
+				for (const t of exported) {
+					if (isToolDefinition(t)) registerTool(t);
+				}
 			}
 		}
 	} catch (err) {
@@ -83,28 +80,29 @@ async function loadToolModule(filePath: string): Promise<void> {
 	}
 }
 
+const ToolsetShape = z
+	.object({
+		name: z.string(),
+		tools: z.array(z.unknown()),
+	})
+	.passthrough();
+
+const ToolShape = z
+	.object({
+		name: z.string(),
+		execute: z.function(),
+		inputSchema: z.unknown(),
+	})
+	.passthrough();
+
 function isToolsetDefinition(x: unknown): x is ToolsetDefinition {
 	return (
-		typeof x === "object" &&
-		x !== null &&
-		"name" in x &&
-		typeof (x as Record<string, unknown>).name === "string" &&
-		"tools" in x &&
-		Array.isArray((x as Record<string, unknown>).tools) &&
-		!("execute" in x)
+		ToolsetShape.safeParse(x).success && !(x as Record<string, unknown>).execute
 	);
 }
 
 function isToolDefinition(x: unknown): x is ToolDefinition<z.ZodTypeAny> {
-	return (
-		typeof x === "object" &&
-		x !== null &&
-		"name" in x &&
-		typeof (x as Record<string, unknown>).name === "string" &&
-		"execute" in x &&
-		typeof (x as Record<string, unknown>).execute === "function" &&
-		"inputSchema" in x
-	);
+	return ToolShape.safeParse(x).success;
 }
 
 /** Returns all registered tools whose name starts with `{toolsetName}.` */

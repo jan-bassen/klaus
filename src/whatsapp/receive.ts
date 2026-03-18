@@ -5,10 +5,12 @@ import {
 	downloadMediaMessage,
 	normalizeMessageContent,
 } from "@whiskeysockets/baileys";
-import { config } from "@/config";
+import { formatUserError } from "@/core/errors";
 import { handleTurn } from "@/core/pipeline";
-import { persistReaction, saveFile } from "@/db/write";
 import { log } from "@/logger";
+import { settings } from "@/settings";
+import { appendReaction } from "@/store/conversation";
+import { saveFileMeta } from "@/store/files";
 import type { InboundMessage } from "@/types";
 import { onReaction } from "./confirm";
 import { enqueueMessage, setSocket } from "./send";
@@ -63,19 +65,15 @@ export function attachReceiveHandler(socket: WASocket): void {
 				try {
 					await handleTurn(msg);
 				} catch (err) {
-					// Should not happen — pipeline has its own top-level catch — but guard here
-					// anyway so a bug in the pipeline itself cannot crash the event listener.
 					log.error("[receive] unhandled error from handleTurn", {
 						chatId: msg.chatId,
 						error: err instanceof Error ? err.message : String(err),
 						stack: err instanceof Error ? err.stack : undefined,
 					});
-					// Last-resort notification: pipeline's own catch should have already sent this,
-					// but if it threw itself the user would otherwise get nothing.
 					try {
 						enqueueMessage({
 							chatId: msg.chatId,
-							content: "Something went wrong. Please try again.",
+							content: formatUserError(err),
 							dedupKey: `${msg.id}:receive-error`,
 						});
 					} catch {
@@ -90,15 +88,26 @@ export function attachReceiveHandler(socket: WASocket): void {
 		for (const { key: senderKey, reaction } of reactions) {
 			const reactedId = reaction.key?.id;
 			const chatId = reaction.key?.remoteJid ?? senderKey?.remoteJid;
-			const senderId =
-				senderKey?.participant ?? senderKey?.remoteJid ?? "unknown";
+			const senderId = senderKey?.participant ?? senderKey?.remoteJid ?? "";
 			const fromMe = senderKey?.fromMe ?? false;
+			// Skip echoes of our own reactions (empty sender, garbled metadata)
+			if (!senderId) continue;
 			if (
 				typeof reactedId === "string" &&
 				typeof reaction.text === "string" &&
 				chatId
 			) {
-				persistReaction(chatId, reactedId, reaction.text, senderId, fromMe); // best-effort
+				appendReaction({
+					messageExternalId: reactedId,
+					emoji: reaction.text,
+					senderId,
+					fromMe,
+				}).catch((err) => {
+					log.warn("[receive] appendReaction failed", {
+						messageExternalId: reactedId,
+						error: err instanceof Error ? err.message : String(err),
+					});
+				});
 				onReaction(reactedId, reaction.text);
 			}
 		}
@@ -164,13 +173,8 @@ export async function normalizeMessage(
 		return null;
 	}
 
-	// Unwrap Baileys envelope types (ephemeral, viewOnce, editedMessage, etc.)
-	// so the inner extendedTextMessage / imageMessage / etc. are always at the top level.
 	const normalized = normalizeMessageContent(raw.message) ?? m.message;
 
-	// Extract text — conversation (1:1) or extendedTextMessage (quoted/formatted).
-	// Use || (not ??) because conversation can be an empty string "" when the actual
-	// text lives in extendedTextMessage.text.
 	const text =
 		normalized.conversation ||
 		normalized.extendedTextMessage?.text ||
@@ -194,7 +198,6 @@ export async function normalizeMessage(
 	const docMsg = normalized.documentMessage;
 	const mediaMsg = imgMsg ?? audioMsg ?? docMsg ?? null;
 
-	// Skip messages with neither text nor supported media nor a quoted reply
 	if (!text && !mediaMsg && !quotedMessage) {
 		log.debug("[receive] skip no-text no-media", {
 			remoteJid: m.key.remoteJid,
@@ -206,7 +209,6 @@ export async function normalizeMessage(
 	const tsSeconds =
 		typeof rawTs === "bigint" ? Number(rawTs) : (rawTs ?? Date.now() / 1000);
 
-	// Caption text from image/document (used if no explicit text field)
 	const effectiveText = text ?? imgMsg?.caption ?? docMsg?.caption ?? undefined;
 
 	let media: InboundMessage["media"] | undefined;
@@ -217,7 +219,6 @@ export async function normalizeMessage(
 			audioMsg?.mimetype ??
 			docMsg?.mimetype ??
 			"application/octet-stream";
-		// Strip "; codecs=..." suffix if present
 		const mimeType = rawMime.split(";")[0]?.trim() ?? rawMime;
 
 		const fileLength = Number(
@@ -236,34 +237,48 @@ export async function normalizeMessage(
 				const date = new Date().toISOString().slice(0, 10);
 				const id = crypto.randomUUID();
 				const ext = mimeToExt(mimeType);
-				const dir = path.join(config.files.dir, date);
+				const dir = path.join(settings.files.dir, date);
 				const filePath = path.join(dir, `${id}.${ext}`);
 
 				await mkdir(dir, { recursive: true });
-				await Bun.write(filePath, buffer as Buffer);
-
-				const sizeBytes = (buffer as Buffer).byteLength;
-				const saved = await saveFile({ path: filePath, mimeType, sizeBytes });
-
-				const fileName = docMsg?.fileName;
-				if (saved instanceof Error) {
-					log.warn("[receive] saveFile failed — media not tracked in DB", {
-						remoteJid: m.key.remoteJid,
-						error: saved.message,
-					});
-					media = {
-						fileId: crypto.randomUUID(),
-						path: filePath,
-						mimeType,
-						...(fileName ? { fileName } : {}),
-					};
+				if (!Buffer.isBuffer(buffer)) {
+					log.warn(
+						"[receive] downloadMediaMessage returned non-Buffer — skipping",
+						{
+							remoteJid: m.key.remoteJid,
+						},
+					);
 				} else {
-					media = {
-						fileId: saved.id,
+					await Bun.write(filePath, buffer);
+
+					const sizeBytes = buffer.byteLength;
+					const saved = await saveFileMeta({
 						path: filePath,
 						mimeType,
-						...(fileName ? { fileName } : {}),
-					};
+						sizeBytes,
+						...(m.key.id ? { externalId: m.key.id } : {}),
+					});
+
+					const fileName = docMsg?.fileName;
+					if (saved instanceof Error) {
+						log.warn("[receive] saveFileMeta failed — media not tracked", {
+							remoteJid: m.key.remoteJid,
+							error: saved.message,
+						});
+						media = {
+							fileId: crypto.randomUUID(),
+							path: filePath,
+							mimeType,
+							...(fileName ? { fileName } : {}),
+						};
+					} else {
+						media = {
+							fileId: saved.id,
+							path: filePath,
+							mimeType,
+							...(fileName ? { fileName } : {}),
+						};
+					}
 				}
 			} catch (err) {
 				log.warn("[receive] media download failed — continuing as text-only", {
@@ -273,8 +288,14 @@ export async function normalizeMessage(
 			}
 	}
 
-	// Nothing actionable — skip
-	if (!effectiveText && !media && !quotedMessage) {
+	// If media download failed for a voice note, inject a fallback so the pipeline
+	// can still acknowledge the message instead of silently dropping it.
+	const fallbackText =
+		!media && audioMsg?.ptt
+			? "(voice note — could not be downloaded)"
+			: undefined;
+
+	if (!effectiveText && !fallbackText && !media && !quotedMessage) {
 		log.debug("[receive] skip no content", { remoteJid: m.key.remoteJid });
 		return null;
 	}
@@ -284,7 +305,11 @@ export async function normalizeMessage(
 		id: m.key.id ?? crypto.randomUUID(),
 		chatId: m.key.remoteJid,
 		senderId: m.key.participant ?? m.key.remoteJid,
-		...(effectiveText ? { text: effectiveText } : {}),
+		...(effectiveText
+			? { text: effectiveText }
+			: fallbackText
+				? { text: fallbackText }
+				: {}),
 		...(media ? { media } : {}),
 		...(quotedMessage ? { quotedMessage } : {}),
 		timestamp: new Date(tsSeconds * 1000),

@@ -1,94 +1,57 @@
 import path from "node:path";
-import type PgBoss from "pg-boss";
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import type { TurnContext } from "@/types";
 import { agentRegistry, loadAgentDefinition, runAgent } from "./agent";
 import { assembleContext } from "./assemble";
-import {
-	dispatch,
-	markTaskDone,
-	markTaskFailed,
-	markTaskRunning,
-} from "./dispatch";
+import { markTaskDone, markTaskFailed, markTaskRunning } from "./dispatch";
 import type { AgentRunPayload } from "./queue";
-import { getQueue } from "./queue";
+import { setWorker } from "./queue";
 
-const AGENTS_DIR = path.join(import.meta.dir, "..", "agents");
+const AGENTS_DIR = path.join(settings.vault.dir, "Klaus", "agents");
 
 /**
- * Registers pgboss workers for all job types.
+ * Registers the queue worker for agent-run jobs.
  * Called once at startup after initQueue().
- * Workers call agent.ts directly — they do NOT go through pipeline.ts.
  */
 export async function startWorkers(): Promise<void> {
-	const boss = getQueue();
+	setWorker(async (job: AgentRunPayload) => {
+		const { agentName, taskId, chatId, dispatchContext, depth } = job;
 
-	await boss.work<AgentRunPayload>(
-		"agent-run",
-		async (jobs: PgBoss.Job<AgentRunPayload>[]) => {
-			const job = jobs[0];
-			if (!job) return;
+		let def = agentRegistry.get(agentName);
+		if (!def) {
+			const promptPath = path.join(AGENTS_DIR, `${agentName}.md`);
+			def = await loadAgentDefinition(promptPath);
+			agentRegistry.set(def.name, def);
+		}
 
-			const { agentName, taskId, chatId, dispatchContext, depth } = job.data;
+		const partialTurn: Omit<TurnContext, "assembled"> = {
+			chatId,
+			taskId,
+			agent: def,
+			flags: {},
+			dispatchContext,
+		};
 
-			let def = agentRegistry.get(agentName);
-			if (!def) {
-				const promptPath = path.join(AGENTS_DIR, `${agentName}.md`);
-				def = await loadAgentDefinition(promptPath);
-				agentRegistry.set(def.name, def);
-			}
+		await markTaskRunning(taskId);
 
-			// Build partial TurnContext for context assembly
-			const partialTurn: Omit<TurnContext, "assembled"> = {
-				chatId,
+		try {
+			const assembled = await assembleContext(partialTurn);
+			const turn: TurnContext = { ...partialTurn, assembled };
+
+			log.info("[worker] starting agent", { agentName, taskId, depth });
+			await runAgent(turn, def);
+			await markTaskDone(taskId);
+			log.info("[worker] agent completed", { agentName, taskId });
+		} catch (err) {
+			await markTaskFailed(taskId);
+			log.error("[worker] agent failed", {
+				agentName,
 				taskId,
-				agent: def,
-				flags: {},
-				dispatchContext,
-			};
+				error: err instanceof Error ? err.message : String(err),
+			});
+		}
+	});
 
-			await markTaskRunning(taskId);
-
-			try {
-				const assembled = await assembleContext(partialTurn);
-				const turn: TurnContext = { ...partialTurn, assembled };
-
-				log.info("[worker] starting agent", { agentName, taskId, depth });
-				await runAgent(turn, def);
-				await markTaskDone(taskId);
-				log.info("[worker] agent completed", { agentName, taskId });
-			} catch (err) {
-				await markTaskFailed(taskId);
-				log.error("[worker] agent failed", {
-					agentName,
-					taskId,
-					error: err instanceof Error ? err.message : String(err),
-				});
-			}
-		},
-	);
-
-	// Cron queues: each scheduled agent has its own pg-boss queue (schedule.name is a FK to
-	// queue.name). Register a thin worker per queue that re-dispatches into 'agent-run'.
-	for (const def of agentRegistry.values()) {
-		if (!def.schedule) continue;
-
-		await boss.work<Omit<AgentRunPayload, "taskId" | "depth">>(
-			def.name,
-			async (jobs) => {
-				const job = jobs[0];
-				if (!job) return;
-				const { agentName, chatId, dispatchContext } = job.data;
-				log.info("[worker] cron trigger, re-dispatching", { agentName });
-				await dispatch({
-					agent: agentName,
-					objective: dispatchContext.objective,
-					...(dispatchContext.hint ? { hint: dispatchContext.hint } : {}),
-					mode: { kind: "async" },
-					chatId,
-					caller: "scheduler",
-				});
-			},
-		);
-	}
+	// Note: cron re-dispatch is now handled by store/schedules.ts + queue.ts registerCronCallback.
 }

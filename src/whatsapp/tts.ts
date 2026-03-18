@@ -3,10 +3,9 @@
  * Returns a Buffer containing MP3 audio to be sent as a WhatsApp voice message.
  */
 
-import { config } from "@/config";
-import { db } from "@/db/client";
-import { costs } from "@/db/schema";
 import { log } from "@/logger";
+import { settings } from "@/settings";
+import { recordCost } from "@/store/costs";
 
 const TTS_BASE = "https://api.elevenlabs.io/v1/text-to-speech";
 
@@ -20,7 +19,7 @@ export async function textToSpeech(
 ): Promise<Buffer | Error> {
 	const apiKey = process.env.ELEVENLABS_API_KEY;
 	if (!apiKey) return new Error("textToSpeech: ELEVENLABS_API_KEY not set");
-	const voiceId = config.tts.voiceId;
+	const voiceId = settings.tts.voiceId;
 	if (!voiceId) return new Error("textToSpeech: config.tts.voiceId is not set");
 
 	const url = `${TTS_BASE}/${voiceId}`;
@@ -33,7 +32,7 @@ export async function textToSpeech(
 				"Content-Type": "application/json",
 				Accept: "audio/mpeg",
 			},
-			body: JSON.stringify({ text, model_id: config.models.tts }),
+			body: JSON.stringify({ text, model_id: settings.models.tts }),
 		});
 
 		if (!res.ok) {
@@ -43,19 +42,12 @@ export async function textToSpeech(
 		}
 
 		const chars = text.length;
-		const costUsd = (chars / 1_000_000) * config.apiPricing.tts.perMChars;
-		db.insert(costs)
-			.values({
-				chatId,
-				service: "tts",
-				units: chars,
-				costUsd: String(costUsd),
-			})
-			.catch((err) =>
-				log.warn("[cost] failed to record tts cost", {
-					error: err instanceof Error ? err.message : String(err),
-				}),
-			);
+		const costUsd = (chars / 1_000_000) * settings.apiPricing.tts.perMChars;
+		recordCost("tts", chars, costUsd, chatId).catch((err) =>
+			log.warn("[cost] failed to record tts cost", {
+				error: err instanceof Error ? err.message : String(err),
+			}),
+		);
 
 		return Buffer.from(await res.arrayBuffer());
 	} catch (err) {

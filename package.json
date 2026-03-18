@@ -3,34 +3,22 @@
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
-		"dev": "op run --env-file=.env -- bun run src/index.ts",
 		"typecheck": "tsc --noEmit",
-		"test": "for f in $(find src/__tests__ -name '*.test.ts' ! -path '*/db/*' | sort); do bun test \"$f\" || exit 1; done",
-		"test:db": "RUN_DB_TESTS=1 DATABASE_URL=postgres://postgres:postgres@localhost:5433/klaus_test bun test --serial src/__tests__/db",
+		"test": "for f in $(find src/__tests__ -name '*.test.ts' | sort); do bun test \"$f\" || exit 1; done",
 		"test:watch": "bun test --watch",
-		"docker:db": "docker compose up -d postgres",
-		"docker:build": "docker compose build app",
-		"docker:up": "docker compose up -d",
-		"docker:logs": "docker compose logs -f app",
-		"docker:pair": "docker compose logs -f app",
-		"docker:stop": "docker compose down",
-		"docker:down": "docker compose down",
-		"db:generate": "drizzle-kit generate",
-		"db:push": "drizzle-kit push",
-		"db:migrate": "drizzle-kit migrate",
-		"db:studio": "drizzle-kit studio"
+		"build": "docker compose build app",
+		"up": "docker compose up -d",
+		"logs": "docker compose logs -f app",
+		"init": "docker compose up -d && docker compose logs -f app",
+		"down": "docker compose down"
 	},
 	"dependencies": {
 		"@ai-sdk/anthropic": "^3.0.48",
 		"@whiskeysockets/baileys": "^6.7.0",
 		"ai": "^6.0.103",
-		"drizzle-orm": "^0.38.0",
 		"handlebars": "^4.7.8",
-		"pg-boss": "^10.0.0",
-		"postgres": "^3.4.0",
 		"qrcode-terminal": "^0.12.0",
 		"sharp": "^0.34.5",
-		"voyage-ai-provider": "^3.0.0",
 		"yaml": "^2.8.2",
 		"zod": "^3.23.0"
 	},
@@ -41,7 +29,6 @@
 		"@types/node": "^22.0.0",
 		"@types/qrcode-terminal": "^0.12.2",
 		"bun-types": "^1.3.10",
-		"drizzle-kit": "^0.30.0",
 		"typescript": "^5.7.0"
 	}
 }
