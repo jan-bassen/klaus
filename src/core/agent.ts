@@ -188,6 +188,7 @@ export async function buildConversationMessages(
 	}
 	let usersSeen = 0;
 	const traceThreshold = userMsgCount - TRACE_DEPTH;
+	let lastUserId: string | undefined;
 
 	for (let i = 0; i < included.length; i++) {
 		const row = included[i];
@@ -203,10 +204,11 @@ export async function buildConversationMessages(
 
 		if (row.role === "user") {
 			usersSeen++;
+			lastUserId = row.id;
 			messages.push({ role: "user", content: `[#${label}] ${row.content}` });
 		} else {
-			// Assistant turn
-			const trace = traces.get(row.id);
+			// Assistant turn — traces are keyed by the triggering user message ID
+			const trace = lastUserId ? traces.get(lastUserId) : undefined;
 			const useTrace = trace && usersSeen > traceThreshold;
 
 			if (useTrace) {

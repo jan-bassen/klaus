@@ -89,8 +89,10 @@ export function attachReceiveHandler(socket: WASocket): void {
 			const reactedId = reaction.key?.id;
 			const chatId = reaction.key?.remoteJid ?? senderKey?.remoteJid;
 			const senderId =
-				senderKey?.participant ?? senderKey?.remoteJid ?? "unknown";
+				senderKey?.participant ?? senderKey?.remoteJid ?? "";
 			const fromMe = senderKey?.fromMe ?? false;
+			// Skip echoes of our own reactions (empty sender, garbled metadata)
+			if (!senderId) continue;
 			if (
 				typeof reactedId === "string" &&
 				typeof reaction.text === "string" &&

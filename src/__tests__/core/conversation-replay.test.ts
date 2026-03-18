@@ -126,18 +126,19 @@ describe("buildConversationMessages", () => {
 	});
 
 	test("reconstructs traces for recent assistant turns", async () => {
-		const _userMsgId = await appendMessage({
+		const userMsgId = await appendMessage({
 			role: "user",
 			content: "search for X",
 			externalId: "ext-u1",
 		});
-		const assistantMsgId = await appendMessage({
+		await appendMessage({
 			role: "assistant",
 			content: "Here are the results.",
 			externalId: "ext-a1",
 		});
 
-		await appendTrace(assistantMsgId, [
+		// Traces are keyed by the triggering user message ID
+		await appendTrace(userMsgId, [
 			{
 				reasoning: "I should search the vault",
 				toolCalls: [
