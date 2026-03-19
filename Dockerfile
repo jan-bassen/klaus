@@ -13,7 +13,7 @@ ENV VERSION=${VERSION}
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN mkdir -p /app/auth && chown -R bun:bun /app
-USER bun
+RUN mkdir -p /app/auth /app/data
+VOLUME ["/app/data"]
 EXPOSE 3000
 CMD ["bun", "run", "src/index.ts"]

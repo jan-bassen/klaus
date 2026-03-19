@@ -15,7 +15,7 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Obsidian Va
 | Knowledge    | Obsidian vault (notes, wikilinks, tags)       |
 | Storage      | JSONL flat files (conversations, costs, etc.) |
 | Task queue   | In-memory queue + file-based task persistence |
-| Hosting      | Docker Hub image, Synology NAS via Docker Compose |
+| Hosting      | Docker Hub image (`janbassen1/klaus`)             |
 
 ---
 
@@ -90,16 +90,24 @@ Fill in your API keys in .env.
 3. Start:
 
 ```bash
-docker compose up -d --remove-orphans
+docker run -d --restart unless-stopped \
+  --env-file .env \
+  -e PORT=3000 \
+  -e BAILEYS_AUTH_FOLDER=/app/config/baileys \
+  -e DATA_DIR=/app/data \
+  -e VAULT_DIR=/app/vault \
+  -v klaus-config:/app/config \
+  -v klaus-vault:/app/vault \
+  -v klaus-data:/app/data \
+  -p 3000:3000 \
+  janbassen1/klaus:latest
 ```
 
-4. Scan the WhatsApp QR code (one-time — auth persists in a Docker volume):
+4. Scan the WhatsApp QR code (one-time — auth persists in the volume):
 
 ```bash
-docker compose logs -f app
+docker logs -f <container-id>
 ```
-
-For NAS deployment with Obsidian Sync, see `nas-compose/`.
 
 ---
 
@@ -130,17 +138,13 @@ bun run publish
 
 This builds for `linux/amd64` and pushes both `janbassen1/klaus:<version>` and `:latest`.
 
-### NAS-side compose
-
-See `nas-compose/` for a ready-to-use Synology DSM 7 compose project with Klaus + Obsidian Sync.
-
-### Update on NAS
+### Update
 
 ```bash
-docker compose pull klaus && docker compose up -d klaus
+docker pull janbassen1/klaus:latest && docker restart <container-name>
 ```
 
-Or use Container Manager > Project > Build in the DSM UI.
+Or use Container Manager > Registry > Download latest in the Synology DSM UI.
 
 ### Verify
 
@@ -153,48 +157,34 @@ curl http://localhost:3000/healthz
 
 ## Operations
 
-All commands are standard docker compose. Run from the repo root.
-
-Start all services:
+Follow logs:
 
 ```bash
-docker compose up -d --remove-orphans
+docker logs -f <container-name>
 ```
 
-Stop all services:
+Restart (e.g. after .env edit):
 
 ```bash
-docker compose down
-```
-
-Follow app logs:
-
-```bash
-docker compose logs -f app
-```
-
-Restart app (e.g. after .env edit):
-
-```bash
-docker compose restart app
+docker restart <container-name>
 ```
 
 Deploy update:
 
 ```bash
-git pull && docker compose build app && docker compose up -d app
+docker pull janbassen1/klaus:latest && docker restart <container-name>
 ```
 
 Show container status:
 
 ```bash
-docker compose ps
+docker ps
 ```
 
 **Destructive** — wipe all data:
 
 ```bash
-docker compose down -v && docker compose up -d --remove-orphans
+docker rm -f <container-name> && docker volume rm klaus-config klaus-vault klaus-data
 ```
 
 ---
@@ -212,7 +202,7 @@ API keys and host-specific settings, gitignored, never committed.
 | ALLOWED_CHAT_ID     | WhatsApp chat ID to allow (fail-closed) |
 | LOG_FORMAT          | Log output: `pretty` (default) or `json` |
 
-Non-secret config (PORT, BAILEYS_AUTH_FOLDER, path overrides) is set directly in `docker-compose.yml` for Docker. For local dev, all values have sensible defaults in code — no extra env file needed.
+Non-secret config (PORT, BAILEYS_AUTH_FOLDER, path overrides) is passed as environment variables to the container. For local dev, all values have sensible defaults in code — no extra env file needed.
 
 ---
 

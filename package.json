@@ -6,11 +6,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "for f in $(find src/__tests__ -name '*.test.ts' | sort); do bun test \"$f\" || exit 1; done",
 		"test:watch": "bun test --watch",
-		"build": "docker compose build app",
-		"up": "docker compose up -d",
-		"logs": "docker compose logs -f app",
-		"init": "docker compose up -d && docker compose logs -f app",
-		"down": "docker compose down",
+		"build": "docker build -t klaus .",
 		"publish": "docker buildx build --platform linux/amd64 --build-arg VERSION=$(jq -r .version package.json) -t janbassen1/klaus:$(jq -r .version package.json) -t janbassen1/klaus:latest --push ."
 	},
 	"dependencies": {

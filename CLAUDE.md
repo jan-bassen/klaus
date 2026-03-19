@@ -23,10 +23,6 @@ bun run test:watch
 # Linting/formatting (Biome)
 bunx biome check --write .
 
-# Docker
-docker compose up -d            # Start all services
-docker compose logs -f app      # Follow logs
-
 # Publish to Docker Hub (builds linux/amd64, pushes :version + :latest)
 bun run publish
 ```
@@ -51,7 +47,7 @@ Klaus is a headless personal AI agent: WhatsApp messages → TypeScript pipeline
 
 ### Stack
 
-Bun, TypeScript (strict), Baileys, Vercel AI SDK. All containerized via Docker Compose.
+Bun, TypeScript (strict), Baileys, Vercel AI SDK. Containerized as a single Docker image (`janbassen1/klaus`).
 
 Storage: JSONL flat files for operational data (conversations, costs, invocations), file-based task queue, Obsidian vault for knowledge (notes, wikilinks, tags as the knowledge graph).
 
@@ -151,7 +147,7 @@ Live Vault is located at /Users/janbassen/Vaults/Jan/Klaus on this pc
 
 ### Deployment
 
-Published as `janbassen1/klaus` on Docker Hub. The Dockerfile includes OCI labels and a VERSION build arg that is exposed via the `/healthz` endpoint. The container runs as non-root (`USER bun`). `LOG_FORMAT=json` is recommended for NAS log viewers. See README.md for the NAS-side compose setup.
+Published as `janbassen1/klaus` on Docker Hub. The Dockerfile includes OCI labels and a VERSION build arg that is exposed via the `/healthz` endpoint. The container runs as non-root (`USER bun`). `LOG_FORMAT=json` is recommended for NAS log viewers.
 
 ### Testing conventions
 
