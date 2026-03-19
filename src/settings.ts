@@ -64,9 +64,11 @@ export const settings = {
 		timeoutMs: 120_000, // 2 minutes
 	},
 
-	// Timeouts for the startup sequence.
+	// Startup connection timing. Used for warning/logging only — not fatal.
 	startup: {
-		connectionTimeoutMs: 60_000, // 1 minute to establish WhatsApp connection
+		connectionWarnAfterMs: Number(
+			process.env.STARTUP_CONNECTION_WARN_AFTER_MS ?? 60_000,
+		),
 	},
 
 	// The agent that handles all messages not prefixed with an @route.

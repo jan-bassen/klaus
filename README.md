@@ -96,6 +96,7 @@ docker run -d --restart unless-stopped \
   -e BAILEYS_AUTH_FOLDER=/app/config/baileys \
   -e DATA_DIR=/app/data \
   -e VAULT_DIR=/app/vault \
+  -e STARTUP_CONNECTION_WARN_AFTER_MS=60000 \
   -v klaus-config:/app/config \
   -v klaus-vault:/app/vault \
   -v klaus-data:/app/data \
@@ -108,6 +109,8 @@ docker run -d --restart unless-stopped \
 ```bash
 docker logs -f <container-id>
 ```
+
+If you use phone-number pairing instead of QR, first-time linking can take longer on NAS setups with delayed or messy log output. Klaus now keeps running while WhatsApp is still pairing and only logs a warning after `STARTUP_CONNECTION_WARN_AFTER_MS` (default: `60000`). During that time, `/healthz` may report `status: "degraded"` until WhatsApp is fully connected.
 
 ---
 
@@ -201,6 +204,7 @@ API keys and host-specific settings, gitignored, never committed.
 | ELEVENLABS_API_KEY  | ElevenLabs TTS/STT key                  |
 | ALLOWED_CHAT_ID     | WhatsApp chat ID to allow (fail-closed) |
 | LOG_FORMAT          | Log output: `pretty` (default) or `json` |
+| STARTUP_CONNECTION_WARN_AFTER_MS | Warn if WhatsApp pairing/connection is still pending after this many ms (default: `60000`) |
 
 Non-secret config (PORT, BAILEYS_AUTH_FOLDER, path overrides) is passed as environment variables to the container. For local dev, all values have sensible defaults in code — no extra env file needed.
 

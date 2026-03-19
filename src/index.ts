@@ -26,6 +26,7 @@ import { recoverRunningTasks } from "./store/tasks";
 import { loadSkills, skillRegistry } from "./tools/skill";
 import {
 	closeSocket,
+	getConnectionState,
 	isConnected,
 	startConnection,
 } from "./whatsapp/connection";
@@ -202,33 +203,14 @@ async function main(): Promise<void> {
 	// 6. Watch agent, skill, and flag directories for hot-reload
 	startWatching(agentsDir, skillsDir, flagsDir);
 
-	// 7. Start WhatsApp connection
-	log.info("[startup] connecting to WhatsApp");
-	const { connectionTimeoutMs } = settings.startup;
-	const socket = await Promise.race([
-		startConnection(),
-		new Promise<never>((_, reject) =>
-			setTimeout(
-				() =>
-					reject(
-						new Error(
-							`WhatsApp connection timed out after ${connectionTimeoutMs}ms`,
-						),
-					),
-				connectionTimeoutMs,
-			),
-		),
-	]);
-	attachReceiveHandler(socket);
-
-	// 8. Health check
+	// 7. Start HTTP server before WhatsApp so the process stays up during first-time pairing.
 	Bun.serve({
 		port: PORT,
 		async fetch(req) {
 			const url = new URL(req.url);
 			if (url.pathname === "/healthz") {
-				const whatsapp = isConnected() ? "connected" : "disconnected";
-				const status = whatsapp === "connected" ? "ok" : "degraded";
+				const whatsapp = getConnectionState();
+				const status = isConnected() ? "ok" : "degraded";
 				const version = process.env.VERSION ?? "dev";
 				return Response.json({
 					status,
@@ -241,7 +223,36 @@ async function main(): Promise<void> {
 		},
 	});
 
-	log.info("[startup] ready", { port: PORT });
+	log.info("[startup] ready", { port: PORT, whatsapp: getConnectionState() });
+
+	// 8. Connect to WhatsApp in the background.
+	log.info("[startup] connecting to WhatsApp");
+	const warnAfterMs = settings.startup.connectionWarnAfterMs;
+	const connectionWarnTimer = setTimeout(() => {
+		if (!isConnected()) {
+			log.warn(
+				"[startup] WhatsApp pairing/connection is taking longer than expected",
+				{
+					warnAfterMs,
+					whatsapp: getConnectionState(),
+				},
+			);
+		}
+	}, warnAfterMs);
+
+	startConnection()
+		.then((socket) => {
+			clearTimeout(connectionWarnTimer);
+			attachReceiveHandler(socket);
+			log.info("[startup] WhatsApp receive handler attached");
+		})
+		.catch((err: unknown) => {
+			clearTimeout(connectionWarnTimer);
+			log.error("[startup] WhatsApp connection failed", {
+				error: err instanceof Error ? err.message : String(err),
+				stack: err instanceof Error ? err.stack : undefined,
+			});
+		});
 }
 
 main().catch((err: unknown) => {

@@ -22,6 +22,17 @@ const baileysLogger: ILogger = {
 
 let socket: WASocket | null = null;
 let closing = false;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+export type WhatsAppConnectionState =
+	| "idle"
+	| "connecting"
+	| "pairing"
+	| "connected"
+	| "disconnected"
+	| "logged_out";
+
+let connectionState: WhatsAppConnectionState = "idle";
 
 const AUTH_DIR =
 	process.env.BAILEYS_AUTH_FOLDER ?? path.join(process.cwd(), ".baileys-auth");
@@ -38,6 +49,7 @@ const PAIRING_PHONE = process.env.WHATSAPP_PHONE?.replace(/\D/g, "") ?? null;
  * On any other disconnect: waits 1.5s and reconnects with the same auth state.
  */
 export async function startConnection(): Promise<WASocket> {
+	closing = false;
 	const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 	const { version } = await fetchLatestBaileysVersion();
 
@@ -46,6 +58,13 @@ export async function startConnection(): Promise<WASocket> {
 		let retryCount = 0;
 
 		function connect(): void {
+			if (reconnectTimer) {
+				clearTimeout(reconnectTimer);
+				reconnectTimer = null;
+			}
+			connectionState = "connecting";
+			let pairingCodeRequested = false;
+
 			const sock = makeWASocket({
 				version,
 				auth: state,
@@ -55,57 +74,76 @@ export async function startConnection(): Promise<WASocket> {
 
 			sock.ev.on("creds.update", saveCreds);
 
-			sock.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
-				if (qr && PAIRING_PHONE) {
-					try {
-						const code = await sock.requestPairingCode(PAIRING_PHONE);
-						log.info("[connection] pairing code (enter in WhatsApp > Linked Devices > Link with phone number)", { code });
-					} catch (err) {
-						log.error("[connection] failed to request pairing code", { err });
+			sock.ev.on(
+				"connection.update",
+				async ({ connection, lastDisconnect, qr }) => {
+					if (qr && PAIRING_PHONE && !pairingCodeRequested) {
+						pairingCodeRequested = true;
+						connectionState = "pairing";
+						try {
+							const code = await sock.requestPairingCode(PAIRING_PHONE);
+							log.info(
+								"[connection] pairing code — enter in WhatsApp > Linked Devices > Link with phone number",
+								{ code },
+							);
+						} catch (err) {
+							pairingCodeRequested = false;
+							log.error("[connection] failed to request pairing code", { err });
+						}
 					}
-				}
-				if (connection === "open") {
-					socket = sock;
-					retryCount = 0;
-					log.info("[connection] connected");
-					if (!settled) {
-						settled = true;
-						resolve(sock);
-					}
-				} else if (connection === "close") {
-					socket = null;
-					if (closing) return;
-					const code = (
-						lastDisconnect?.error as
-							| { output?: { statusCode?: number } }
-							| undefined
-					)?.output?.statusCode;
-
-					if (code === DisconnectReason.loggedOut) {
-						log.error(
-							"[connection] logged out — delete auth folder and restart",
-							{ authDir: AUTH_DIR },
-						);
+					if (connection === "open") {
+						if (reconnectTimer) {
+							clearTimeout(reconnectTimer);
+							reconnectTimer = null;
+						}
+						socket = sock;
+						connectionState = "connected";
+						retryCount = 0;
+						log.info("[connection] connected");
 						if (!settled) {
 							settled = true;
-							reject(new Error("WhatsApp logged out"));
-						} else {
-							process.exit(1);
+							resolve(sock);
 						}
-					} else {
-						const delayMs =
-							Math.min(30_000, 1_500 * 2 ** retryCount) +
-							Math.floor(Math.random() * 500);
-						retryCount++;
-						log.warn("[connection] disconnected, reconnecting", {
-							code: code ?? "unknown",
-							attempt: retryCount,
-							delayMs,
-						});
-						setTimeout(connect, delayMs);
+					} else if (connection === "close") {
+						socket = null;
+						if (closing) return;
+						const code = (
+							lastDisconnect?.error as
+								| { output?: { statusCode?: number } }
+								| undefined
+						)?.output?.statusCode;
+
+						if (code === DisconnectReason.loggedOut) {
+							connectionState = "logged_out";
+							log.error(
+								"[connection] logged out — delete auth folder and restart",
+								{ authDir: AUTH_DIR },
+							);
+							if (!settled) {
+								settled = true;
+								reject(new Error("WhatsApp logged out"));
+							} else {
+								process.exit(1);
+							}
+						} else {
+							connectionState = "disconnected";
+							const delayMs =
+								Math.min(30_000, 1_500 * 2 ** retryCount) +
+								Math.floor(Math.random() * 500);
+							retryCount++;
+							log.warn("[connection] disconnected, reconnecting", {
+								code: code ?? "unknown",
+								attempt: retryCount,
+								delayMs,
+							});
+							reconnectTimer = setTimeout(() => {
+								reconnectTimer = null;
+								connect();
+							}, delayMs);
+						}
 					}
-				}
-			});
+				},
+			);
 		}
 
 		connect();
@@ -122,10 +160,19 @@ export function getSocket(): WASocket {
 
 export function closeSocket(): void {
 	closing = true;
+	connectionState = "idle";
+	if (reconnectTimer) {
+		clearTimeout(reconnectTimer);
+		reconnectTimer = null;
+	}
 	socket?.end(undefined);
 	socket = null;
 }
 
 export function isConnected(): boolean {
 	return socket !== null;
+}
+
+export function getConnectionState(): WhatsAppConnectionState {
+	return connectionState;
 }
