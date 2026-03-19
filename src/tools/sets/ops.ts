@@ -9,6 +9,12 @@ const opsCronSchema = z.object({
 	pattern: z.string().describe("Cron expression"),
 	agentName: z.string(),
 	label: z.string().describe("Human-readable label for this scheduled job"),
+	hint: z
+		.string()
+		.optional()
+		.describe(
+			"Detailed instructions for the scheduled agent — context, goals, what to do when the schedule fires. Forwarded as dispatch hint.",
+		),
 	oneTime: z
 		.boolean()
 		.optional()
@@ -25,6 +31,7 @@ export const opsCronTool: ToolDefinition<typeof opsCronSchema> = {
 		await dispatch({
 			agent: input.agentName,
 			objective: `Scheduled: ${input.label}`,
+			...(input.hint ? { hint: input.hint } : {}),
 			mode: {
 				kind: "cron",
 				schedule: input.pattern,

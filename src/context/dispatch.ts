@@ -14,6 +14,13 @@ function formatDispatchBlock(ctx: {
 		...(ctx.hint ? [`Hint: ${ctx.hint}`] : []),
 		`Mode: ${ctx.mode.kind}`,
 	];
+	if (ctx.mode.kind === "cron") {
+		lines.push(
+			"",
+			"Note: This is a scheduled invocation — there is no inbound message.",
+			"Tools like `react` that require a message context will not work. Use `reply` or `send` to communicate.",
+		);
+	}
 	return lines.join("\n");
 }
 
