@@ -185,12 +185,15 @@ async function main(): Promise<void> {
 
 	// Start cron evaluation
 	registerCronCallback(async (entry) => {
+		const stored = entry.payload as { dispatchContext?: { objective?: string; hint?: string; caller?: string } };
+		const ctx = stored.dispatchContext;
 		await dispatch({
 			agent: entry.agentName,
-			objective: `Scheduled run of ${entry.agentName}`,
+			objective: ctx?.objective ?? `Scheduled run of ${entry.agentName}`,
+			...(ctx?.hint !== undefined && { hint: ctx.hint }),
 			mode: { kind: "async" },
 			chatId: entry.chatId,
-			caller: "scheduler",
+			caller: ctx?.caller ?? "scheduler",
 		});
 	});
 
