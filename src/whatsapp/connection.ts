@@ -5,7 +5,20 @@ import makeWASocket, {
 	useMultiFileAuthState,
 	type WASocket,
 } from "@whiskeysockets/baileys";
+import type { ILogger } from "@whiskeysockets/baileys/lib/Utils/logger";
 import { log } from "@/logger";
+
+const baileysLogger: ILogger = {
+	level: "warn",
+	trace: () => {},
+	debug: () => {},
+	info: () => {},
+	warn: (obj: unknown, msg?: string) =>
+		log.warn(`[baileys] ${msg ?? ""}`, obj as Record<string, unknown>),
+	error: (obj: unknown, msg?: string) =>
+		log.error(`[baileys] ${msg ?? ""}`, obj as Record<string, unknown>),
+	child: () => baileysLogger,
+};
 
 let socket: WASocket | null = null;
 let closing = false;
@@ -34,6 +47,7 @@ export async function startConnection(): Promise<WASocket> {
 				version,
 				auth: state,
 				printQRInTerminal: true,
+				logger: baileysLogger,
 			});
 
 			sock.ev.on("creds.update", saveCreds);

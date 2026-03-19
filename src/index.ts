@@ -1,3 +1,11 @@
+// Suppress Bun's compat warnings for ws npm package event listeners
+const _emitWarning = process.emitWarning.bind(process);
+process.emitWarning = (warning, ...args) => {
+	if (typeof warning === "string" && warning.includes("ws.WebSocket")) return;
+	// biome-ignore lint/suspicious/noExplicitAny: spread required for overloaded signature
+	_emitWarning(warning, ...(args as any[]));
+};
+
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { agentRegistry, loadAgents } from "./core/agent";
