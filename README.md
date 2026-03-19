@@ -210,7 +210,7 @@ Every inbound WhatsApp message flows through the same pipeline:
 4. **Parse** — extract /command (execute directly, bypass LLM) or @agent routing prefix
 5. **Strip flags** — pull out !flag tokens
 6. **Persist** — append message to conversation JSONL, resolve quote-reply
-7. **Assemble context** — run all context queries in parallel, trim to token budget
+7. **Assemble context** — run all context variables in parallel, trim to token budget
 8. **Execute agent** — Vercel AI SDK agentic loop with tools, send response via WhatsApp
 
 ### Agents
@@ -262,7 +262,7 @@ Agents can also use **provider tools** — Anthropic built-in capabilities like 
 
 ### Skills
 
-**Skills** are static `.md` reference documents in `Klaus/skills/` (in the vault) that agents can load on demand via the `skill_get` tool. Unlike context queries (always injected), skills are for stable reference material that shouldn't waste tokens every turn.
+**Skills** are static `.md` reference documents in `Klaus/skills/` (in the vault) that agents can load on demand via the `skill_get` tool. Unlike context variables (always injected), skills are for stable reference material that shouldn't waste tokens every turn.
 
 Skill files support optional YAML frontmatter with a `description:` field. The description is included in the tool definition so the model knows what each skill contains before deciding to load it.
 
@@ -282,11 +282,11 @@ Agents opt in by adding `notes` to their `toolsets:` list in frontmatter.
 
 ### Context assembly
 
-The prompt body uses {{variable}} placeholders filled by **context queries** — modular async functions in src/context/. Each query has a priority number (lower = trimmed first when the token budget overflows) and a truncation strategy (never, always, oldest).
+The prompt body uses {{variable}} placeholders filled by **context variables** — modular async functions in src/context/. Each variable has a priority number (lower = trimmed first when the token budget overflows) and a truncation strategy (never, always, oldest).
 
-Queries run in parallel. Inline params are supported: {{conversation?limit=20\&excludeCurrent=1}}.
+Variables run in parallel. Inline params are supported: {{conversation?limit=20\&excludeCurrent=1}}.
 
-Key context queries: snippets (soul, architecture, user, memory from vault files), conversation (chat history with message refs), datetime, message (current message metadata), active_tasks, flags, dispatch_context.
+Key context variables: snippets (soul, architecture, user from vault files), conversation (chat history with message refs), datetime, message (current message metadata), active_tasks, dispatch_context.
 
 ### Storage
 
@@ -320,7 +320,7 @@ Max chain depth is enforced to prevent infinite recursive dispatch.
 ```
 src/
 ├── commands/      # /command handlers
-├── context/       # Context query modules (one file per query)
+├── context/       # Context variable modules (one file per variable)
 ├── core/          # Pipeline, agent runner, dispatch, queue, model router
 ├── store/         # Flat-file storage (conversations, tasks, costs, files, etc.)
 ├── tools/         # Tool definitions and toolsets
@@ -332,8 +332,7 @@ vault/Klaus/       # Klaus's own directory in the Obsidian vault
 ├── notes/         # Auto-managed knowledge notes (written/searched by agents at runtime)
 ├── skills/        # Static .md reference documents (loaded on demand by agents)
 ├── snippets/      # Static prompt content (soul.md, architecture.md)
-├── user.md        # User profile (updated by memorize agent)
-└── memory.md      # Working memory, facts, preferences (updated by memorize agent)
+└── user.md        # User profile (updated by memorize agent)
 ```
 
 ---
@@ -399,14 +398,14 @@ export const myTool: ToolDefinition<typeof schema> = {
 
 Then reference it by name in an agent's frontmatter tools list.
 
-### Add a new context query
+### Add a new context variable
 
-Create a .ts file in src/context/ that exports a ContextQuery. Each query has a name (used as the {{variable}} in prompts), a priority (lower = trimmed first on token overflow), and a run function that returns content:
+Create a .ts file in src/context/ that exports a ContextVariable. Each variable has a name (used as the {{variable}} in prompts), a priority (lower = trimmed first on token overflow), and a run function that returns content:
 
 ```typescript
-import type { ContextQuery } from "@/types";
+import type { ContextVariable } from "@/types";
 
-export const myQuery: ContextQuery = {
+export const myVar: ContextVariable = {
   name: "my_context",
   priority: 50,
   run: async (turn, params) => {

@@ -1,5 +1,9 @@
 import { listTasks } from "@/store/tasks";
-import type { ContextQuery, ContextResult, TurnContext } from "@/types";
+import type {
+	ContextVariable,
+	ContextVariableResult,
+	TurnContext,
+} from "@/types";
 
 /** Renders a single task list item with optional indentation. */
 function formatTaskItem(status: string, objective: string, indent = 0): string {
@@ -8,12 +12,12 @@ function formatTaskItem(status: string, objective: string, indent = 0): string {
 }
 
 /** Provides active_tasks: all non-terminal tasks, showing chain structure. */
-export const activeTasksQuery: ContextQuery = {
+export const activeTasksQuery: ContextVariable = {
 	name: "active_tasks",
 	priority: 4,
 	run: async (
 		_turn: Omit<TurnContext, "assembled">,
-	): Promise<ContextResult> => {
+	): Promise<ContextVariableResult> => {
 		const rows = await listTasks({ status: ["pending", "running"] });
 
 		if (rows.length === 0)

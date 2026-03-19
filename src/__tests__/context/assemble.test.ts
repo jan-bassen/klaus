@@ -1,17 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { flagsQuery } from "@/context/flags";
 import { assembleContext } from "@/core/assemble";
-import { flagRegistry } from "@/flags";
 import { settings } from "@/settings";
-import type { AgentDefinition, ContextQuery, TurnContext } from "@/types";
-
-// Pre-populate flag registry so flagsQuery tests work without vault I/O
-flagRegistry.set("test", {
-	name: "test",
-	description: "mark as a test message",
-	prompt:
-		"This is a test. If this is detected in the prompt, please mention it.",
-});
+import type { AgentDefinition, ContextVariable, TurnContext } from "@/types";
 
 // Derive from config so tests don't break when budget changes
 const BUDGET = settings.context.totalTokens;
@@ -55,7 +45,7 @@ function makeQuery(
 	content: string,
 	tokenCount: number,
 	truncate: "never" | "always" | "oldest" = "never",
-): ContextQuery {
+): ContextVariable {
 	return {
 		name,
 		priority,
@@ -74,7 +64,7 @@ describe("assembleContext", () => {
 	});
 
 	test("snippetsQuery → extraVars land as named template vars", async () => {
-		const fakeSnippets: ContextQuery = {
+		const fakeSnippets: ContextVariable = {
 			name: "snippets",
 			priority: -1,
 			run: async () => ({
@@ -122,7 +112,7 @@ describe("assembleContext", () => {
 	});
 
 	test("failed query is skipped, others continue", async () => {
-		const bad: ContextQuery = {
+		const bad: ContextVariable = {
 			name: "broken",
 			priority: 3,
 			run: async () => {
@@ -133,32 +123,6 @@ describe("assembleContext", () => {
 		const result = await assembleContext(makeTurn(), [bad, good]);
 		expect(result.vars.memory).toBe("memory data");
 		expect(result.vars.broken).toBeUndefined(); // failed, not set
-	});
-
-	// ─── flag injections ──────────────────────────────────────────────────────
-
-	test("flags: { test: true } → flags gets test prompt string", async () => {
-		const result = await assembleContext(makeTurn({ flags: { test: true } }), [
-			flagsQuery,
-		]);
-		expect(result.vars.flags).toBe(
-			"This is a test. If this is detected in the prompt, please mention it.",
-		);
-	});
-
-	test("unknown flag → flags var is empty string", async () => {
-		const result = await assembleContext(
-			makeTurn({ flags: { unknown: true } }),
-			[flagsQuery],
-		);
-		expect(result.vars.flags).toBe("");
-	});
-
-	test("flagsQuery tokenCount is 0", async () => {
-		const result = await assembleContext(makeTurn({ flags: { test: true } }), [
-			flagsQuery,
-		]);
-		expect(result.totalTokens).toBe(0);
 	});
 
 	// ─── trimming: always ─────────────────────────────────────────────────────

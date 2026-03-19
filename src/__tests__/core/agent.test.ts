@@ -33,6 +33,7 @@ import {
 	toolRegistry,
 	toolsetRegistry,
 } from "@/core/registry";
+import { flagRegistry } from "@/flags";
 import type { AssembledContext, TurnContext } from "@/types";
 
 // ---- runAgent helpers ----
@@ -412,13 +413,17 @@ describe("runAgent", () => {
 	});
 
 	test("user message includes flags", async () => {
-		const turn = makeTurn(
-			{ flags: "Answer as a voice message!" },
-			{ text: "hello" },
-		);
+		flagRegistry.set("voice", {
+			name: "voice",
+			description: "reply as voice",
+			prompt: "Answer as a voice message!",
+		});
+		const turn = makeTurn({}, { text: "hello" });
+		turn.flags = { voice: true };
 		turn.agent.promptPath = tmpPath;
 		await runAgent(turn, turn.agent);
 		cleanup();
+		flagRegistry.delete("voice");
 		const opts = lastArg(mockCallModel) as {
 			messages: Array<{ role: string; content: string }>;
 		};

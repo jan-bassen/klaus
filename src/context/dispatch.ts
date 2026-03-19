@@ -1,4 +1,4 @@
-import type { ContextQuery, ContextResult } from "@/types";
+import type { ContextVariable, ContextVariableResult } from "@/types";
 
 /** Renders the dispatch context block. */
 function formatDispatchBlock(ctx: {
@@ -21,10 +21,10 @@ function formatDispatchBlock(ctx: {
  * Injects dispatch_context into the agent's prompt when the agent was invoked via dispatch().
  * Renders empty for direct @agent WhatsApp calls (no dispatchContext on TurnContext).
  */
-export const dispatchContextQuery: ContextQuery = {
+export const dispatchContextQuery: ContextVariable = {
 	name: "dispatch_context",
 	priority: -1, // never trimmed
-	async run(turn): Promise<ContextResult> {
+	async run(turn): Promise<ContextVariableResult> {
 		if (!turn.dispatchContext) {
 			return { tokenCount: 0, truncate: "never" };
 		}

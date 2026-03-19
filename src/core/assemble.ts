@@ -3,17 +3,17 @@ import { log } from "@/logger";
 import { settings } from "@/settings";
 import type {
 	AssembledContext,
-	ContextQuery,
-	ContextResult,
+	ContextVariable,
+	ContextVariableResult,
 	TurnContext,
 } from "@/types";
 
-// Module-level registry populated at startup via setContextQueries().
-// assembleContext() uses this as its default query set.
-let loadedQueries: ContextQuery[] = [];
+// Module-level registry populated at startup via setContextVariables().
+// assembleContext() uses this as its default variable set.
+let loadedVariables: ContextVariable[] = [];
 
-export function setContextQueries(queries: ContextQuery[]): void {
-	loadedQueries = queries;
+export function setContextVariables(variables: ContextVariable[]): void {
+	loadedVariables = variables;
 }
 
 /**
@@ -25,7 +25,7 @@ export function setContextQueries(queries: ContextQuery[]): void {
  */
 export async function assembleContext(
 	turn: Omit<TurnContext, "assembled">,
-	queries: ContextQuery[] = loadedQueries,
+	queries: ContextVariable[] = loadedVariables,
 ): Promise<AssembledContext> {
 	const settled = await Promise.allSettled(
 		queries.map((q) => {
@@ -33,13 +33,13 @@ export async function assembleContext(
 		}),
 	);
 
-	// Collect successful results; log and skip failed queries
-	const items: { query: ContextQuery; result: ContextResult }[] = [];
+	// Collect successful results; log and skip failed variables
+	const items: { query: ContextVariable; result: ContextVariableResult }[] = [];
 	for (const outcome of settled) {
 		if (outcome.status === "fulfilled") {
 			items.push(outcome.value);
 		} else {
-			log.error("[assemble] context query failed", {
+			log.error("[assemble] context variable failed", {
 				error:
 					outcome.reason instanceof Error
 						? outcome.reason.message
@@ -56,7 +56,7 @@ export async function assembleContext(
 	const excess = totalTokens - settings.context.totalTokens;
 	if (excess > 0) {
 		let remaining = excess;
-		// Lower priority number = trimmed first (per ContextQuery type comment)
+		// Lower priority number = trimmed first (per ContextVariable type comment)
 		const trimmable = [...items]
 			.filter(({ result }) => result.truncate !== "never")
 			.sort((a, b) => a.query.priority - b.query.priority);
@@ -107,12 +107,12 @@ export async function assembleContext(
 
 /**
  * Scans a directory for .ts files and collects every exported value that looks
- * like a ContextQuery (has name, priority, run). Called once at startup.
+ * like a ContextVariable (has name, priority, run). Called once at startup.
  */
-export async function loadContextQueries(
+export async function loadContextVariables(
 	contextDir: string,
-): Promise<ContextQuery[]> {
-	const queries: ContextQuery[] = [];
+): Promise<ContextVariable[]> {
+	const queries: ContextVariable[] = [];
 	const glob = new Bun.Glob("*.ts");
 	for await (const file of glob.scan({ cwd: contextDir })) {
 		try {
@@ -121,16 +121,16 @@ export async function loadContextQueries(
 				unknown
 			>;
 			for (const exported of Object.values(mod)) {
-				if (isContextQuery(exported)) {
+				if (isContextVariable(exported)) {
 					queries.push(exported);
-					log.debug("[assemble] loaded context query", {
+					log.debug("[assemble] loaded context variable", {
 						name: exported.name,
 						file,
 					});
 				}
 			}
 		} catch (err) {
-			log.error("[assemble] failed to load context file", {
+			log.error("[assemble] failed to load context variable file", {
 				file,
 				error: err instanceof Error ? err.message : String(err),
 			});
@@ -139,7 +139,7 @@ export async function loadContextQueries(
 	return queries;
 }
 
-const ContextQueryShape = z
+const ContextVariableShape = z
 	.object({
 		name: z.string(),
 		priority: z.number(),
@@ -147,6 +147,6 @@ const ContextQueryShape = z
 	})
 	.passthrough();
 
-function isContextQuery(x: unknown): x is ContextQuery {
-	return ContextQueryShape.safeParse(x).success;
+function isContextVariable(x: unknown): x is ContextVariable {
+	return ContextVariableShape.safeParse(x).success;
 }

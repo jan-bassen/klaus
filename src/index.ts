@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { agentRegistry, loadAgents } from "./core/agent";
-import { loadContextQueries, setContextQueries } from "./core/assemble";
+import { loadContextVariables, setContextVariables } from "./core/assemble";
 import { dispatch } from "./core/dispatch";
 import { initQueue, registerCronCallback } from "./core/queue";
 import { loadAllTools } from "./core/registry";
@@ -100,9 +100,9 @@ async function main(): Promise<void> {
 		await mkdir(dir, { recursive: true });
 	}
 
-	// 2. Load tools, agents (from vault), context queries, skills, flags (from vault)
+	// 2. Load tools, agents (from vault), context variables, skills, flags (from vault)
 	log.info(
-		"[startup] loading tools, agents, context queries, skills, and flags",
+		"[startup] loading tools, agents, context variables, skills, and flags",
 	);
 	await loadAllTools(path.join(import.meta.dir, "tools"));
 
@@ -110,10 +110,10 @@ async function main(): Promise<void> {
 	await mkdir(agentsDir, { recursive: true });
 	await loadAgents(agentsDir);
 
-	const contextQueries = await loadContextQueries(
+	const contextVariables = await loadContextVariables(
 		path.join(import.meta.dir, "context"),
 	);
-	setContextQueries(contextQueries);
+	setContextVariables(contextVariables);
 
 	const snippetsDir = path.join(settings.vault.dir, "Klaus", "snippets");
 	await mkdir(snippetsDir, { recursive: true });

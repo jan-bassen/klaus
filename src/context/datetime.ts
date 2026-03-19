@@ -1,10 +1,10 @@
 import { settings } from "@/settings";
-import type { ContextQuery } from "@/types";
+import type { ContextVariable } from "@/types";
 
 // Rough token estimate: 1 token ≈ 4 characters (good enough for short strings).
 const CHARS_PER_TOKEN = 4;
 
-export const dateQuery: ContextQuery = {
+export const dateQuery: ContextVariable = {
 	name: "date",
 	priority: -1,
 	run: async () => {
@@ -23,7 +23,7 @@ export const dateQuery: ContextQuery = {
 	},
 };
 
-export const timeQuery: ContextQuery = {
+export const timeQuery: ContextVariable = {
 	name: "time",
 	priority: -1,
 	run: async () => {
@@ -41,7 +41,7 @@ export const timeQuery: ContextQuery = {
 	},
 };
 
-export const weekdayQuery: ContextQuery = {
+export const weekdayQuery: ContextVariable = {
 	name: "weekday",
 	priority: -1,
 	run: async () => {

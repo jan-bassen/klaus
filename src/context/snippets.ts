@@ -1,6 +1,6 @@
 import path from "node:path";
 import { settings } from "@/settings";
-import type { ContextQuery } from "@/types";
+import type { ContextVariable } from "@/types";
 
 const fmPattern = /^---\n[\s\S]*?\n---\n?/;
 
@@ -15,10 +15,10 @@ async function readMd(filePath: string): Promise<string> {
 }
 
 /**
- * Loads snippets from {vault}/Klaus/snippets/*.md, plus user.md and memory.md.
+ * Loads snippets from {vault}/Klaus/snippets/*.md, plus user.md.
  * All are injected as template vars (keyed by filename stem). Always included, never trimmed.
  */
-export const snippetsQuery: ContextQuery = {
+export const snippetsQuery: ContextVariable = {
 	name: "snippets",
 	priority: -1,
 	async run() {
@@ -34,9 +34,8 @@ export const snippetsQuery: ContextQuery = {
 			vars[stem] = await readMd(path.join(snippetsDir, file));
 		}
 
-		// Read user.md and memory.md from Klaus/
+		// Read user.md from Klaus/
 		vars.user = await readMd(path.join(klausDir, "user.md"));
-		vars.memory = await readMd(path.join(klausDir, "memory.md"));
 
 		return { tokenCount: 0, truncate: "never", vars };
 	},

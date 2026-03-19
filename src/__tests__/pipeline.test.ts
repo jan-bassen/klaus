@@ -65,7 +65,7 @@ mock.module("@/store/files", () => ({
 
 import { registry } from "@/commands";
 import { agentRegistry } from "@/core/agent";
-import { setContextQueries } from "@/core/assemble";
+import { setContextVariables } from "@/core/assemble";
 import {
 	_clearAgentRunnerForTest,
 	_setAgentRunnerForTest,
@@ -130,8 +130,8 @@ beforeAll(async () => {
 		prompt: "Answer in English, please!",
 	});
 
-	// Use no context queries so assembleContext always returns { vars: {}, totalTokens: 0 }
-	setContextQueries([]);
+	// Use no context variables so assembleContext always returns { vars: {}, totalTokens: 0 }
+	setContextVariables([]);
 
 	// Inject the agent runner test seam
 	_setAgentRunnerForTest(mockAgentRunner);

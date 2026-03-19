@@ -18,6 +18,7 @@ import {
 	toolRegistry,
 	toolsetRegistry,
 } from "@/core/registry";
+import { flagRegistry } from "@/flags";
 import { log } from "@/logger";
 import { settings } from "@/settings";
 import {
@@ -94,9 +95,13 @@ function buildUserMessageText(turn: TurnContext): string {
 	}
 
 	// Flags
-	const flags = turn.assembled.vars.flags as string | undefined;
-	if (flags) {
-		parts.push(flags);
+	const flagPrompts = Object.keys(turn.flags)
+		.filter((k) => turn.flags[k] && flagRegistry.has(k))
+		.map((k) => flagRegistry.get(k)?.prompt ?? "")
+		.filter(Boolean)
+		.join("\n");
+	if (flagPrompts) {
+		parts.push(flagPrompts);
 	}
 
 	// Actual message text: transcript for voice, plain text otherwise

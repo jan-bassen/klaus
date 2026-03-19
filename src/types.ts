@@ -133,16 +133,16 @@ export interface ToolsetDefinition {
 	tools: ToolDefinition<z.ZodTypeAny>[];
 }
 
-// -- Context queries --
+// -- Context variables --
 
-export interface ContextQuery {
+export interface ContextVariable {
 	name: string;
 	/** Lower number = trimmed first on overflow */
 	priority: number;
-	run(turn: Omit<TurnContext, "assembled">): Promise<ContextResult>;
+	run(turn: Omit<TurnContext, "assembled">): Promise<ContextVariableResult>;
 }
 
-export interface ContextResult {
+export interface ContextVariableResult {
 	/** Primary content for vars[query.name]. Omit for queries that only produce vars. */
 	content?: string;
 	tokenCount: number;

@@ -62,7 +62,7 @@ Every inbound WhatsApp message goes through a pipeline in `src/core/pipeline.ts`
 4. **Parse commands** — `/command` handlers bypass LLM
 5. **Parse routing** — `@agentName` prefix, `!flags` extraction
 6. **Resolve agent** — look up `agentRegistry` or hot-load from `.md` file
-7. **Assemble context** — all context queries run in parallel, trimmed to token budget
+7. **Assemble context** — all context variables run in parallel, trimmed to token budget
 8. **Execute agent** — `runAgent()` via Vercel AI SDK agentic loop
 
 ### Agent system (core/agent.ts)
@@ -91,7 +91,7 @@ Prompt body with {{contextVar}} Handlebars interpolation.
 
 **Notes** are auto-managed, topic-keyed `.md` files in `{vault}/Klaus/notes/`. Unlike snippets (always loaded) or skills (static, on-demand), notes are written and updated by agents at runtime — learned knowledge that is too numerous or low-priority to always inject. The `notes` toolset (`src/tools/sets/notes.ts`) provides four tools: `notes.search` (substring match across filenames, descriptions, body), `notes.write` (create/overwrite with optional frontmatter description), `notes.edit` (find-and-replace within an existing note), `notes.delete` (with confirm guard). Agents opt in by adding `notes` to their `toolsets:` list.
 
-**Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new context query = new file implementing `ContextQuery`. Extend by adding, not modifying.
+**Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new context variable = new file implementing `ContextVariable`. Extend by adding, not modifying.
 
 ### Storage (src/store/)
 
@@ -114,7 +114,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 
 | Path | Concern |
 |------|---------|
-| `src/types.ts` | All core interfaces (InboundMessage, TurnContext, AgentDefinition, ToolDefinition, ContextQuery) |
+| `src/types.ts` | All core interfaces (InboundMessage, TurnContext, AgentDefinition, ToolDefinition, ContextVariable) |
 | `src/config.ts` | Model tiers, pricing, context budgets, rate limits, timeouts, locale, dataDir |
 | `src/core/pipeline.ts` | Message orchestrator |
 | `src/core/agent.ts` | Agent executor + agentRegistry |
@@ -123,7 +123,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/core/queue.ts` | In-memory job queue with file-based persistence |
 | `src/core/watcher.ts` | File watcher for hot-reloading agent and skill definitions |
 | `src/store/` | Flat-file storage modules (conversations, tasks, costs, files, etc.) |
-| `src/context/` | Context query modules (inject dynamic content into prompts) |
+| `src/context/` | Context variable modules (inject dynamic content into prompts) |
 | `src/tools/` | Tool definitions + toolset loaders |
 | `src/tools/skill.ts` | `buildSkillTool()` — per-agent skill.get tool builder |
 | `src/tools/sets/notes.ts` | `notes` toolset: `notes.search`, `notes.write`, `notes.edit`, `notes.delete` — auto-managed knowledge notes |
@@ -137,13 +137,12 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - `/core` — pipeline, agent engine, queue, middleware
 - `/store` — flat-file storage, JSONL read/write, task queue, indexes
 - `/tools` — each tool/tool-set in its own file or folder
-- `/context` — one file per context query
+- `/context` — one file per context variable
 - `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter
 - `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
 - `{vault}/Klaus/notes/` — auto-managed knowledge notes, written/searched by agents at runtime via `notes.*` tools
 - `{vault}/Klaus/snippets/` — static prompt content (soul.md, architecture.md) injected as template vars
 - `{vault}/Klaus/user.md` — user profile, updated by memorize agent
-- `{vault}/Klaus/memory.md` — working memory/facts/preferences, updated by memorize agent
 
 Live Vault is located at /Users/janbassen/Vaults/Jan/Klaus on this pc
 
