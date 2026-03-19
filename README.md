@@ -110,7 +110,7 @@ docker run -d --restart unless-stopped \
 docker logs -f <container-id>
 ```
 
-If you use phone-number pairing instead of QR, first-time linking can take longer on NAS setups with delayed or messy log output. Klaus now keeps running while WhatsApp is still pairing and only logs a warning after `STARTUP_CONNECTION_WARN_AFTER_MS` (default: `60000`). During that time, `/healthz` may report `status: "degraded"` until WhatsApp is fully connected.
+First-time QR pairing can take longer on NAS setups with delayed or messy log output. Klaus now keeps running while WhatsApp is waiting for the QR scan and only logs a warning after `STARTUP_CONNECTION_WARN_AFTER_MS` (default: `60000`). During that time, `/healthz` may report `status: "degraded"` until WhatsApp is fully connected.
 
 ---
 

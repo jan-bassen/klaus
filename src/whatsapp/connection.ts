@@ -37,9 +37,6 @@ let connectionState: WhatsAppConnectionState = "idle";
 const AUTH_DIR =
 	process.env.BAILEYS_AUTH_FOLDER ?? path.join(process.cwd(), ".baileys-auth");
 
-// Optional: set WHATSAPP_PHONE to use pairing code instead of QR (e.g. "+31612345678")
-const PAIRING_PHONE = process.env.WHATSAPP_PHONE?.replace(/\D/g, "") ?? null;
-
 /**
  * Initialize Baileys, handle QR pairing on first run, and manage reconnects.
  * Returns the active WASocket once the connection is open.
@@ -63,12 +60,10 @@ export async function startConnection(): Promise<WASocket> {
 				reconnectTimer = null;
 			}
 			connectionState = "connecting";
-			let pairingCodeRequested = false;
-
 			const sock = makeWASocket({
 				version,
 				auth: state,
-				printQRInTerminal: !PAIRING_PHONE,
+				printQRInTerminal: true,
 				logger: baileysLogger,
 			});
 
@@ -77,19 +72,8 @@ export async function startConnection(): Promise<WASocket> {
 			sock.ev.on(
 				"connection.update",
 				async ({ connection, lastDisconnect, qr }) => {
-					if (qr && PAIRING_PHONE && !pairingCodeRequested) {
-						pairingCodeRequested = true;
+					if (qr) {
 						connectionState = "pairing";
-						try {
-							const code = await sock.requestPairingCode(PAIRING_PHONE);
-							log.info(
-								"[connection] pairing code — enter in WhatsApp > Linked Devices > Link with phone number",
-								{ code },
-							);
-						} catch (err) {
-							pairingCodeRequested = false;
-							log.error("[connection] failed to request pairing code", { err });
-						}
 					}
 					if (connection === "open") {
 						if (reconnectTimer) {

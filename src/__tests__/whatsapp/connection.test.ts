@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 type ConnectionUpdate = {
 	connection?: "open" | "close";
@@ -12,7 +12,6 @@ type ConnectionUpdateHandler = (
 ) => void | Promise<void>;
 
 let lastConnectionUpdateHandler: ConnectionUpdateHandler | null = null;
-const mockRequestPairingCode = mock(async (_phone: string) => "123-456");
 const mockUseMultiFileAuthState = mock(async (_dir: string) => ({
 	state: {},
 	saveCreds: (() => {}) as CredsHandler,
@@ -28,7 +27,6 @@ const mockMakeWASocket = mock(() => ({
 			}
 		},
 	},
-	requestPairingCode: mockRequestPairingCode,
 	end: mock(() => {}),
 }));
 
@@ -59,36 +57,25 @@ mock.module("@whiskeysockets/baileys", () => ({
 }));
 
 describe("whatsapp connection", () => {
-	let originalPhone: string | undefined;
-
 	beforeEach(() => {
-		originalPhone = process.env.WHATSAPP_PHONE;
-		process.env.WHATSAPP_PHONE = "+49 151 23456789";
 		lastConnectionUpdateHandler = null;
-		mockRequestPairingCode.mockClear();
 		mockMakeWASocket.mockClear();
 		mockUseMultiFileAuthState.mockClear();
 		mockFetchLatestBaileysVersion.mockClear();
 	});
 
-	afterEach(async () => {
-		if (originalPhone === undefined) {
-			delete process.env.WHATSAPP_PHONE;
-		} else {
-			process.env.WHATSAPP_PHONE = originalPhone;
-		}
-	});
-
-	test("requests pairing code only once for repeated qr updates in the same attempt", async () => {
+	test("transitions to pairing while qr is available before connecting", async () => {
 		const connection = await import("@/whatsapp/connection");
 		const startPromise = connection.startConnection();
 		const updateConnection = await waitForConnectionHandler();
 
 		await updateConnection({ qr: "qr-1" });
-		await updateConnection({ qr: "qr-2" });
-		await updateConnection({ qr: "qr-3" });
+		expect(connection.getConnectionState()).toBe("pairing");
 
-		expect(mockRequestPairingCode).toHaveBeenCalledTimes(1);
+		await updateConnection({ qr: "qr-2" });
+		expect(connection.getConnectionState()).toBe("pairing");
+
+		await updateConnection({ qr: "qr-3" });
 		expect(connection.getConnectionState()).toBe("pairing");
 
 		await updateConnection({ connection: "open" });
