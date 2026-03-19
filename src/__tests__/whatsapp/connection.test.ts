@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
+const mockQrGenerate = mock(() => {});
+
 type ConnectionUpdate = {
 	connection?: "open" | "close";
 	lastDisconnect?: { error?: { output?: { statusCode?: number } } };
@@ -38,6 +40,14 @@ async function waitForConnectionHandler(): Promise<ConnectionUpdateHandler> {
 	throw new Error("connection.update handler was not installed");
 }
 
+mock.module("qrcode-terminal", () => ({
+	__esModule: true,
+	default: {
+		generate: mockQrGenerate,
+	},
+	generate: mockQrGenerate,
+}));
+
 mock.module("@/logger", () => ({
 	log: {
 		info: mock(() => {}),
@@ -59,6 +69,7 @@ mock.module("@whiskeysockets/baileys", () => ({
 describe("whatsapp connection", () => {
 	beforeEach(() => {
 		lastConnectionUpdateHandler = null;
+		mockQrGenerate.mockClear();
 		mockMakeWASocket.mockClear();
 		mockUseMultiFileAuthState.mockClear();
 		mockFetchLatestBaileysVersion.mockClear();
@@ -71,12 +82,16 @@ describe("whatsapp connection", () => {
 
 		await updateConnection({ qr: "qr-1" });
 		expect(connection.getConnectionState()).toBe("pairing");
+		expect(mockQrGenerate).toHaveBeenCalledWith("qr-1", { small: true });
+		expect(mockQrGenerate).toHaveBeenCalledWith("qr-1", { small: true });
 
 		await updateConnection({ qr: "qr-2" });
 		expect(connection.getConnectionState()).toBe("pairing");
+		expect(mockQrGenerate).toHaveBeenCalledWith("qr-2", { small: true });
 
 		await updateConnection({ qr: "qr-3" });
 		expect(connection.getConnectionState()).toBe("pairing");
+		expect(mockQrGenerate).toHaveBeenCalledWith("qr-3", { small: true });
 
 		await updateConnection({ connection: "open" });
 		await startPromise;

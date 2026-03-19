@@ -6,6 +6,7 @@ import makeWASocket, {
 	type WASocket,
 } from "@whiskeysockets/baileys";
 import type { ILogger } from "@whiskeysockets/baileys/lib/Utils/logger";
+import * as qrcode from "qrcode-terminal";
 import { log } from "@/logger";
 
 const baileysLogger: ILogger = {
@@ -74,6 +75,8 @@ export async function startConnection(): Promise<WASocket> {
 				async ({ connection, lastDisconnect, qr }) => {
 					if (qr) {
 						connectionState = "pairing";
+						log.info("[connection] scan the WhatsApp QR code shown below");
+						qrcode.generate(qr, { small: true });
 					}
 					if (connection === "open") {
 						if (reconnectTimer) {
