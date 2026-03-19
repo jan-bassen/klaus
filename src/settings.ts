@@ -83,7 +83,9 @@ export const settings = {
 
 	// Log output format. "pretty" for human-readable console, "json" for JSONL.
 	log: {
-		format: "pretty" as "pretty" | "json",
+		format: (process.env.LOG_FORMAT === "json" ? "json" : "pretty") as
+			| "pretty"
+			| "json",
 	},
 
 	// File watcher settings for hot-reloading agent and skill definitions.

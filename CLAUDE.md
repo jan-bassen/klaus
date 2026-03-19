@@ -26,6 +26,9 @@ bunx biome check --write .
 # Docker
 docker compose up -d            # Start all services
 docker compose logs -f app      # Follow logs
+
+# Publish to Docker Hub (builds linux/amd64, pushes :version + :latest)
+bun run publish
 ```
 
 ## Git workflow
@@ -145,6 +148,10 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - `{vault}/Klaus/user.md` — user profile, updated by memorize agent
 
 Live Vault is located at /Users/janbassen/Vaults/Jan/Klaus on this pc
+
+### Deployment
+
+Published as `janbassen1/klaus` on Docker Hub. The Dockerfile includes OCI labels and a VERSION build arg that is exposed via the `/healthz` endpoint. The container runs as non-root (`USER bun`). `LOG_FORMAT=json` is recommended for NAS log viewers. See README.md for the NAS-side compose setup.
 
 ### Testing conventions
 

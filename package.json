@@ -10,7 +10,8 @@
 		"up": "docker compose up -d",
 		"logs": "docker compose logs -f app",
 		"init": "docker compose up -d && docker compose logs -f app",
-		"down": "docker compose down"
+		"down": "docker compose down",
+		"publish": "docker buildx build --platform linux/amd64 --build-arg VERSION=$(jq -r .version package.json) -t janbassen1/klaus:$(jq -r .version package.json) -t janbassen1/klaus:latest --push ."
 	},
 	"dependencies": {
 		"@ai-sdk/anthropic": "^3.0.48",

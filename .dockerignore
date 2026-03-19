@@ -5,3 +5,8 @@ dist/
 *.log
 .git/
 .claude/
+nas-compose/
+src/__tests__/
+.github/
+*.md
+!package.json

@@ -15,8 +15,7 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Obsidian Va
 | Knowledge    | Obsidian vault (notes, wikilinks, tags)       |
 | Storage      | JSONL flat files (conversations, costs, etc.) |
 | Task queue   | In-memory queue + file-based task persistence |
-| Vault sync   | Obsidian headless (obsidian service)         |
-| Hosting      | Synology NAS via Docker Compose              |
+| Hosting      | Docker Hub image, Synology NAS via Docker Compose |
 
 ---
 
@@ -100,9 +99,55 @@ docker compose up -d --remove-orphans
 docker compose logs -f app
 ```
 
-5. (Optional) Set up Obsidian vault sync. Fill in OBSIDIAN_EMAIL, OBSIDIAN_PASSWORD, and OBSIDIAN_VAULT_NAME in .env. The sync service authenticates and configures the vault automatically on first start. Sync is bidirectional and continuous — notes Klaus creates will appear in your Obsidian app.
+For NAS deployment with Obsidian Sync, see `nas-compose/`.
 
-**NAS-specific:** Set BACKUP_DIR=/volume1/backups/klaus in your .env before starting.
+---
+
+## Deployment (Docker Hub)
+
+Klaus is published as a single image on Docker Hub: `janbassen1/klaus`.
+
+### Pull and run
+
+```bash
+docker pull janbassen1/klaus:latest
+```
+
+### Publish a new version
+
+One-time setup:
+
+```bash
+docker login
+docker buildx create --name klaus-builder --driver docker-container --use
+```
+
+Then publish:
+
+```bash
+bun run publish
+```
+
+This builds for `linux/amd64` and pushes both `janbassen1/klaus:<version>` and `:latest`.
+
+### NAS-side compose
+
+See `nas-compose/` for a ready-to-use Synology DSM 7 compose project with Klaus + Obsidian Sync.
+
+### Update on NAS
+
+```bash
+docker compose pull klaus && docker compose up -d klaus
+```
+
+Or use Container Manager > Project > Build in the DSM UI.
+
+### Verify
+
+```bash
+curl http://localhost:3000/healthz
+# {"status":"ok","ts":"...","whatsapp":"connected","version":"0.1.0"}
+```
 
 ---
 
@@ -140,12 +185,6 @@ Deploy update:
 git pull && docker compose build app && docker compose up -d app
 ```
 
-Run backup:
-
-```bash
-docker compose --profile backup run --rm backup
-```
-
 Show container status:
 
 ```bash
@@ -171,30 +210,9 @@ API keys and host-specific settings, gitignored, never committed.
 | ANTHROPIC_API_KEY   | Claude API key                          |
 | ELEVENLABS_API_KEY  | ElevenLabs TTS/STT key                  |
 | ALLOWED_CHAT_ID     | WhatsApp chat ID to allow (fail-closed) |
-| OBSIDIAN_VAULT_NAME | Obsidian Sync vault name                |
-| BACKUP_DIR          | Where backups are written on the host (default: ./backups) |
+| LOG_FORMAT          | Log output: `pretty` (default) or `json` |
 
 Non-secret config (PORT, BAILEYS_AUTH_FOLDER, path overrides) is set directly in `docker-compose.yml` for Docker. For local dev, all values have sensible defaults in code — no extra env file needed.
-
----
-
-## Backups
-
-```bash
-docker compose --profile backup run --rm backup
-```
-
-This runs a one-shot container that:
-
-1. Archives the config volume (Baileys auth + Obsidian config) to $BACKUP_DIR/\<YYYY-MM-DD\>/config.tar.gz
-2. Archives file blobs, vault, and data dir
-3. Prunes backups older than 7 days
-
-On a Synology NAS, schedule it via **Control Panel → Task Scheduler** with command:
-
-```bash
-cd /path/to/klaus && docker compose --profile backup run --rm backup
-```
 
 ---
 

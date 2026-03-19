@@ -229,10 +229,12 @@ async function main(): Promise<void> {
 			if (url.pathname === "/healthz") {
 				const whatsapp = isConnected() ? "connected" : "disconnected";
 				const status = whatsapp === "connected" ? "ok" : "degraded";
+				const version = process.env.VERSION ?? "dev";
 				return Response.json({
 					status,
 					ts: new Date().toISOString(),
 					whatsapp,
+					version,
 				});
 			}
 			return new Response("Not Found", { status: 404 });
