@@ -185,7 +185,9 @@ async function main(): Promise<void> {
 
 	// Start cron evaluation
 	registerCronCallback(async (entry) => {
-		const stored = entry.payload as { dispatchContext?: { objective?: string; hint?: string; caller?: string } };
+		const stored = entry.payload as {
+			dispatchContext?: { objective?: string; hint?: string; caller?: string };
+		};
 		const ctx = stored.dispatchContext;
 		await dispatch({
 			agent: entry.agentName,

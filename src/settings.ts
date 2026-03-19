@@ -91,13 +91,6 @@ export const settings = {
 		debounceMs: 1_000,
 	},
 
-	// Directory where uploaded and downloaded media files are stored.
-	files: {
-		get dir() {
-			return process.env.FILES_DIR ?? path.join(process.cwd(), ".files");
-		},
-	},
-
 	// Obsidian vault directory — agents, skills, and memory all live here.
 	vault: {
 		get dir() {

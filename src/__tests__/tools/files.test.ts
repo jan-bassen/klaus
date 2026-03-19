@@ -72,11 +72,11 @@ import type { AssembledContext, TurnContext } from "@/types";
 
 beforeAll(async () => {
 	tmpDir = await mkdtemp(join(tmpdir(), "files-test-"));
-	process.env.FILES_DIR = tmpDir;
+	process.env.DATA_DIR = tmpDir;
 });
 
 afterAll(async () => {
-	delete process.env.FILES_DIR;
+	delete process.env.DATA_DIR;
 	await rm(tmpDir, { recursive: true, force: true });
 });
 

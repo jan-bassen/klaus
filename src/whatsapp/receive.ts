@@ -237,7 +237,7 @@ export async function normalizeMessage(
 				const date = new Date().toISOString().slice(0, 10);
 				const id = crypto.randomUUID();
 				const ext = mimeToExt(mimeType);
-				const dir = path.join(settings.files.dir, date);
+				const dir = path.join(settings.dataDir, "files", date);
 				const filePath = path.join(dir, `${id}.${ext}`);
 
 				await mkdir(dir, { recursive: true });

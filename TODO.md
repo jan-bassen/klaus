@@ -11,6 +11,9 @@
 - [x] Move all flags also into the vault (eg. /Klaus/flags/voice.md with short description for help in frontmatter)
 - [x] Make sure they are also live-handled as the rest
 
+## Volumes Cleanup
+- [ ] Move files -> data
+
 ## Simplify Context Queries
 - [ ] the context/flags should be unnecessary after they moved to vault (and are not in the system prompt anymore anyways)
 - [ ] Rename Context Query to Context Variables (they used to work with pg) and have a look of there is code in there that's not needed anymore

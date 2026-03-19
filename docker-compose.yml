@@ -7,12 +7,10 @@ services:
     environment:
       - PORT=3000
       - BAILEYS_AUTH_FOLDER=/app/config/baileys
-      - FILES_DIR=/app/files
       - DATA_DIR=/app/data
       - VAULT_DIR=/app/vault
     volumes:
       - config:/app/config
-      - files:/app/files
       - vault:/app/vault
       - data:/app/data
     healthcheck:
@@ -47,7 +45,6 @@ services:
       - ./scripts/backup.sh:/backup.sh:ro
       - ${BACKUP_DIR:-./backups}:/backups
       - config:/config:ro
-      - files:/files:ro
       - data:/data:ro
       - vault:/vault:ro
     command: ["sh", "/backup.sh"]
@@ -56,6 +53,5 @@ services:
 
 volumes:
   data:
-  files:
   vault:
   config:
