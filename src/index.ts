@@ -240,19 +240,17 @@ async function main(): Promise<void> {
 		}
 	}, warnAfterMs);
 
-	startConnection()
-		.then((socket) => {
-			clearTimeout(connectionWarnTimer);
-			attachReceiveHandler(socket);
-			log.info("[startup] WhatsApp receive handler attached");
-		})
-		.catch((err: unknown) => {
-			clearTimeout(connectionWarnTimer);
-			log.error("[startup] WhatsApp connection failed", {
-				error: err instanceof Error ? err.message : String(err),
-				stack: err instanceof Error ? err.stack : undefined,
-			});
+	startConnection((socket) => {
+		clearTimeout(connectionWarnTimer);
+		attachReceiveHandler(socket);
+		log.info("[startup] WhatsApp receive handler attached");
+	}).catch((err: unknown) => {
+		clearTimeout(connectionWarnTimer);
+		log.error("[startup] WhatsApp connection failed", {
+			error: err instanceof Error ? err.message : String(err),
+			stack: err instanceof Error ? err.stack : undefined,
 		});
+	});
 }
 
 main().catch((err: unknown) => {

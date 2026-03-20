@@ -46,7 +46,9 @@ const AUTH_DIR =
  * On loggedOut: rejects the startup promise (or exits if already running).
  * On any other disconnect: waits 1.5s and reconnects with the same auth state.
  */
-export async function startConnection(): Promise<WASocket> {
+export async function startConnection(
+	onOpen?: (socket: WASocket) => void | Promise<void>,
+): Promise<WASocket> {
 	closing = false;
 	const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 	const { version } = await fetchLatestBaileysVersion();
@@ -86,6 +88,16 @@ export async function startConnection(): Promise<WASocket> {
 						socket = sock;
 						connectionState = "connected";
 						retryCount = 0;
+						if (onOpen) {
+							try {
+								await onOpen(sock);
+							} catch (err) {
+								log.error("[connection] onOpen callback failed", {
+									error: err instanceof Error ? err.message : String(err),
+									stack: err instanceof Error ? err.stack : undefined,
+								});
+							}
+						}
 						log.info("[connection] connected");
 						if (!settled) {
 							settled = true;

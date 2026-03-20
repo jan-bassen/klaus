@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
+type SocketOpenHandler = (socket: unknown) => void | Promise<void>;
+
 const mockQrGenerate = mock(() => {});
 
 type ConnectionUpdate = {
@@ -142,5 +144,44 @@ describe("whatsapp connection", () => {
 
 		connection.closeSocket();
 		expect(connection.getConnectionState()).toBe("idle");
+	});
+
+	test("calls the socket-open callback on initial connect and reconnect", async () => {
+		const connection = await import("@/whatsapp/connection");
+		const onOpen = mock((_socket: unknown) => {});
+		const startPromise = connection.startConnection(
+			onOpen as SocketOpenHandler,
+		);
+		const firstUpdateConnection = await waitForConnectionHandler();
+
+		await firstUpdateConnection({ connection: "open" });
+		await startPromise;
+
+		expect(onOpen).toHaveBeenCalledTimes(1);
+		const firstSocket = onOpen.mock.calls[0]?.[0];
+		expect(firstSocket).toBeDefined();
+
+		await firstUpdateConnection({
+			connection: "close",
+			lastDisconnect: { error: { output: { statusCode: 500 } } },
+		});
+		expect(connection.getConnectionState()).toBe("disconnected");
+
+		for (let attempt = 0; attempt < 10; attempt++) {
+			if (mockMakeWASocket.mock.calls.length >= 2) break;
+			await new Promise((resolve) => setTimeout(resolve, 250));
+		}
+
+		expect(mockMakeWASocket.mock.calls.length).toBeGreaterThanOrEqual(2);
+
+		const secondUpdateConnection = await waitForConnectionHandler();
+		await secondUpdateConnection({ connection: "open" });
+
+		expect(onOpen).toHaveBeenCalledTimes(2);
+		const secondSocket = onOpen.mock.calls[1]?.[0];
+		expect(secondSocket).toBeDefined();
+		expect(secondSocket).not.toBe(firstSocket);
+
+		connection.closeSocket();
 	});
 });
