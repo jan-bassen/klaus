@@ -1,7 +1,7 @@
 import type { FSWatcher } from "node:fs";
 import { existsSync, watch } from "node:fs";
 import { parse as parseYaml } from "yaml";
-import { type FlagMeta, flagRegistry } from "@/flags";
+import { type FlagMeta, flagRegistry } from "@/core/flags";
 import { log } from "@/logger";
 import { settings } from "@/settings";
 import { addSchedule, findSchedule, removeSchedule } from "@/store/schedules";

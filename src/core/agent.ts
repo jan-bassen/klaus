@@ -18,7 +18,7 @@ import {
 	toolRegistry,
 	toolsetRegistry,
 } from "@/core/registry";
-import { flagRegistry } from "@/flags";
+import { flagRegistry } from "@/core/flags";
 import { log } from "@/logger";
 import { settings } from "@/settings";
 import {

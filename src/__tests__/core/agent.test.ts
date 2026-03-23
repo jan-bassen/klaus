@@ -33,7 +33,7 @@ import {
 	toolRegistry,
 	toolsetRegistry,
 } from "@/core/registry";
-import { flagRegistry } from "@/flags";
+import { flagRegistry } from "@/core/flags";
 import type { AssembledContext, TurnContext } from "@/types";
 
 // ---- runAgent helpers ----

@@ -10,7 +10,7 @@ mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 import { registry } from "@/commands";
 import { helpCommand } from "@/commands/help";
 import { agentRegistry } from "@/core/agent";
-import { flagRegistry } from "@/flags";
+import { flagRegistry } from "@/core/flags";
 import type { AgentDefinition, InboundMessage } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

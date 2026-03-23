@@ -1,4 +1,4 @@
-import { flagRegistry } from "@/flags";
+import { flagRegistry } from "@/core/flags";
 import type { InboundMessage } from "@/types";
 
 /** Returns the flag name if a token is a recognized !flag, otherwise null. */

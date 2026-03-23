@@ -72,7 +72,7 @@ import {
 	handleTurn,
 } from "@/core/pipeline";
 import { _resetForTest, checkMessageRate } from "@/core/rate-limiter";
-import { flagRegistry } from "@/flags";
+import { flagRegistry } from "@/core/flags";
 import { settings } from "@/settings";
 
 // ─── Test seam — captures agent turns without mock.module pollution ──────────

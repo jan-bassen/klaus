@@ -1,7 +1,7 @@
 import type { Command } from "@/commands";
 import { registry } from "@/commands";
 import { agentRegistry } from "@/core/agent";
-import { flagRegistry } from "@/flags";
+import { flagRegistry } from "@/core/flags";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 

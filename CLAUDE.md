@@ -91,7 +91,7 @@ Prompt body with {{contextVar}} Handlebars interpolation.
 
 **Notes** are auto-managed, topic-keyed `.md` files in `{vault}/Klaus/notes/`. Unlike snippets (always loaded) or skills (static, on-demand), notes are written and updated by agents at runtime — learned knowledge that is too numerous or low-priority to always inject. The `notes` toolset (`src/tools/sets/notes.ts`) provides four tools: `notes.search` (substring match across filenames, descriptions, body), `notes.write` (create/overwrite with optional frontmatter description), `notes.edit` (find-and-replace within an existing note), `notes.delete` (with confirm guard). Agents opt in by adding `notes` to their `toolsets:` list.
 
-**Flags** are `.md` files in `{vault}/Klaus/flags/` with a `description:` frontmatter field and a body that is injected into the prompt when active. Users activate flags with `!flagName` in their message. `src/flags.ts` manages the `flagRegistry` (Map<name, FlagMeta>), loaded at startup and hot-reloaded by the watcher. Flag text is stripped from the user message and injected via `buildUserMessageText` in the pipeline.
+**Flags** are `.md` files in `{vault}/Klaus/flags/` with a `description:` frontmatter field and a body that is injected into the prompt when active. Users activate flags with `!flagName` in their message. `src/core/flags.ts` manages the `flagRegistry` (Map<name, FlagMeta>), loaded at startup and hot-reloaded by the watcher. Flag text is stripped from the user message and injected via `buildUserMessageText` in the pipeline.
 
 **Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and registered in `src/commands/register.ts`. Current commands: `/status`, `/tasks`, `/default`, `/help`, `/new`. Each command implements the `Command` interface (name, description, execute).
 
@@ -120,7 +120,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 |------|---------|
 | `src/types.ts` | All core interfaces (InboundMessage, TurnContext, AgentDefinition, ToolDefinition, ContextVariable) |
 | `src/settings.ts` | Model tiers, pricing, context budgets, rate limits, timeouts, locale, dataDir |
-| `src/flags.ts` | Flag registry — loads `.md` flag definitions from vault, hot-reloaded |
+| `src/core/flags.ts` | Flag registry — loads `.md` flag definitions from vault, hot-reloaded |
 | `src/core/pipeline.ts` | Message orchestrator |
 | `src/core/agent.ts` | Agent executor + agentRegistry |
 | `src/core/assemble.ts` | Context assembly — runs context variables in parallel, enforces token budget |

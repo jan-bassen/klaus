@@ -1,12 +1,9 @@
 # TODO
 
 ## Iteration
-- [x] tasks/ops → Replaced with unified `dispatch` toolset (dispatch.agent, dispatch.schedule, dispatch.timer, dispatch.list, dispatch.cancel). Uses `croner` for cron, `setTimeout` for one-time timers. Cost tracking extracted to standalone `cost_tracking` tool. File-based task queue removed in favor of in-memory job tracking.
-- [ ] Alle Primitives runterbrechen und gut erklären in docs etc (agents, commands, context vars, tools, skills, notes, flags, snippets + dispatch primitives). Gut gruppieren/ordnen
 - [ ] Alles zod prüfen lassen, statt custom checks or no check at all (check codebase for gaps/ cases)!
 - [ ] Vault-Tooling und instructions sollten besser sein (besonders discovery und gezielte Änderungen)
 - [ ] React/reply flow/anweisungen verbessern (ist wierd manchmal - zB. Ich stell ne Frage und es kommt nur 👍, oder es kommen beides ne Reaktion und Antwort, wenn eins gereicht hätte)
-- [x] Wir brauchen nur eine flags.ts — `src/flags.ts` handles flag registry; `src/whatsapp/flags.ts` handles message parsing (separate concerns, both needed)
 - [ ] use _ for toolset tools? Klaus tried to use them like that a few times already
 
 ## Prompts

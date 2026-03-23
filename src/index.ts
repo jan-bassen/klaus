@@ -15,7 +15,7 @@ import { initQueue } from "./core/queue";
 import { loadAllTools } from "./core/registry";
 import { startWatching, stopWatching } from "./core/watcher";
 import { startWorkers } from "./core/worker";
-import { loadFlags } from "./flags";
+import { loadFlags } from "./core/flags";
 import { log } from "./logger";
 import { settings } from "./settings";
 import { loadBudgets } from "./store/budgets";

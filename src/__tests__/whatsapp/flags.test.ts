@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { flagRegistry } from "@/flags";
+import { flagRegistry } from "@/core/flags";
 import type { InboundMessage } from "@/types";
 import { parseFlags, stripFlags } from "@/whatsapp/flags";
 
