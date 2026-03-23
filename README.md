@@ -14,7 +14,7 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Obsidian Va
 | WhatsApp     | Baileys (unofficial WA Web API, multi-device)|
 | Knowledge    | Obsidian vault (notes, wikilinks, tags)       |
 | Storage      | JSONL flat files (conversations, costs, etc.) |
-| Task queue   | In-memory queue + file-based task persistence |
+| Task queue   | In-memory job queue                           |
 | Hosting      | Docker Hub image (`janbassen1/klaus`)             |
 
 ---
@@ -272,56 +272,65 @@ Built-in agents:
 
 Agents can also use **provider tools** — Anthropic built-in capabilities like web_search, web_fetch, and code_execution that are injected directly via the Vercel AI SDK.
 
-### Skills
+### Knowledge layer
 
-**Skills** are static `.md` reference documents in `Klaus/skills/` (in the vault) that agents can load on demand via the `skill_get` tool. Unlike context variables (always injected), skills are for stable reference material that shouldn't waste tokens every turn.
+Klaus has three types of knowledge content, forming a spectrum from always-loaded to agent-managed:
 
-Skill files support optional YAML frontmatter with a `description:` field. The description is included in the tool definition so the model knows what each skill contains before deciding to load it.
+| Type         | Location              | Loading       | Mutability | Purpose                              |
+| ------------ | --------------------- | ------------- | ---------- | ------------------------------------ |
+| **Snippets** | `Klaus/snippets/`     | Always loaded | Static     | Core prompt content (soul, architecture, user profile) — injected as `{{vars}}` |
+| **Skills**   | `Klaus/skills/`       | On demand     | Static     | Reference material loaded via `skill_get` tool when needed |
+| **Notes**    | `Klaus/notes/`        | On demand     | Dynamic    | Runtime knowledge written/searched by agents via `notes.*` tools |
 
-Declare `skills: [name1, name2]` in an agent's frontmatter. The tool is scoped to those names via `z.enum` — the model literally cannot request a nonexistent skill. The `{{skills}}` Handlebars var is injected so the prompt can list available skills. Agents without `skills:` see nothing — zero token overhead.
+**Snippets** are `.md` files in `Klaus/snippets/` plus `Klaus/user.md`. They are loaded every turn as Handlebars template variables (e.g., `{{personality}}`, `{{user}}`, `{{architecture}}`). Always in context — use for core identity and instructions.
 
-### Notes
+**Skills** are `.md` files in `Klaus/skills/` with optional `description:` frontmatter. Declare `skills: [name1, name2]` in an agent's frontmatter to grant access via a `skill_get` tool scoped to those names via `z.enum`. The `{{skills}}` Handlebars var lists available skills in the prompt. Zero token overhead for agents without skills.
 
-**Notes** are auto-managed, topic-keyed `.md` files in `Klaus/notes/` that agents write and search at runtime. They fill the gap between snippets (static, always loaded) and skills (static, on-demand) — notes are for knowledge the system learns over time that is too numerous or low-priority to always inject.
-
-Four tools in the `notes` toolset:
-- `notes.search` — substring match across filenames, frontmatter descriptions, and body; returns full content
-- `notes.write` — create or overwrite a kebab-case-named note with optional `description:` frontmatter
-- `notes.edit` — find-and-replace within an existing note (more token-efficient than rewriting)
+**Notes** are auto-managed, topic-keyed `.md` files in `Klaus/notes/`. Four tools in the `notes` toolset:
+- `notes.search` — substring match across filenames, descriptions, and body
+- `notes.write` — create or overwrite with optional `description:` frontmatter
+- `notes.edit` — find-and-replace within an existing note
 - `notes.delete` — delete a note (requires `confirm: true`)
 
-Agents opt in by adding `notes` to their `toolsets:` list in frontmatter.
+Agents opt in by adding `notes` to their `toolsets:` list. All knowledge files are watched and hot-reloaded.
 
 ### Context assembly
 
-The prompt body uses {{variable}} placeholders filled by **context variables** — modular async functions in src/context/. Each variable has a priority number (lower = trimmed first when the token budget overflows) and a truncation strategy (never, always, oldest).
+The prompt body uses `{{variable}}` placeholders filled by **context variables** — modular async functions in `src/context/`. Variables run in parallel. Each has a priority (lower = trimmed first when the token budget overflows) and a truncation strategy (never, always, oldest).
 
-Variables run in parallel. Inline params are supported: {{conversation?limit=20\&excludeCurrent=1}}.
+Context variables:
 
-Key context variables: snippets (soul, architecture, user from vault files), conversation (chat history with message refs), datetime, message (current message metadata), active_tasks, dispatch_context.
+| Variable           | Priority | Purpose                                                        |
+| ------------------ | -------- | -------------------------------------------------------------- |
+| `snippets`         | -1       | Loads `Klaus/snippets/*.md` + `user.md` as Handlebars template vars |
+| `date`, `time`, `weekday` | -1 | Current datetime (locale-aware, never trimmed)               |
+| `dispatch_context` | -1       | Dispatch metadata when invoked via `dispatch.agent`            |
+| `active_tasks`     | 4        | Running async jobs and pending timers                          |
 
 ### Storage
 
 All operational data is stored as flat files — no database required.
 
-- **Conversations** — JSONL files in `{dataDir}/conversations/`. Three event types: `msg`, `ack` (WhatsApp delivery confirmation), `reaction`. Merged in-memory on read.
+- **Conversations** — JSONL files in `{dataDir}/conversations/`. Four event types: `msg`, `ack` (WhatsApp delivery confirmation), `reaction`, `trace` (LLM tool-call traces). Merged in-memory on read.
 - **Costs** — date-partitioned JSONL in `{dataDir}/costs/`
 - **Invocations** — date-partitioned JSONL in `{dataDir}/invocations/` (LLM call traces)
-- **Tasks** — one JSON file per task, organized in status directories (`pending/`, `running/`, `done/`, `failed/`, `cancelled/`)
 - **Files** — blob storage in `{filesDir}/` with a JSONL metadata index
 - **Schedules** — `{dataDir}/schedules.json`
+- **Timers** — `{dataDir}/timers.json` (one-time future execution, restored on restart)
 
 The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[wikilinks]]` are edges, YAML frontmatter provides metadata and tags.
 
 ### Dispatch
 
-Agents can invoke other agents via three modes:
+The `dispatch` toolset provides five tools for agent-to-agent invocation:
 
-| Mode   | Behavior                                                             |
-| ------ | -------------------------------------------------------------------- |
-| inline | Runs synchronously in the current process                            |
-| async  | Creates a task file, enqueues an in-memory job, returns task ID      |
-| cron   | Registers a repeating schedule (persisted to schedules.json)         |
+| Tool              | Behavior                                                                 |
+| ----------------- | ------------------------------------------------------------------------ |
+| `dispatch.agent`  | Invoke another agent (inline = sync, async = background job)             |
+| `dispatch.schedule` | Register a recurring cron schedule (persisted to schedules.json)       |
+| `dispatch.timer`  | Schedule a one-time future execution via setTimeout (persisted to timers.json) |
+| `dispatch.list`   | List active schedules, timers, and running jobs                          |
+| `dispatch.cancel` | Cancel a schedule, timer, or running job by ID                           |
 
 Max chain depth is enforced to prevent infinite recursive dispatch.
 
@@ -334,13 +343,14 @@ src/
 ├── commands/      # /command handlers
 ├── context/       # Context variable modules (one file per variable)
 ├── core/          # Pipeline, agent runner, dispatch, queue, model router
-├── store/         # Flat-file storage (conversations, tasks, costs, files, etc.)
+├── store/         # Flat-file storage (conversations, schedules, timers, costs, files, etc.)
 ├── tools/         # Tool definitions and toolsets
-│   └── sets/      # Toolset definitions (vault, task, ops, files)
+│   └── sets/      # Toolset definitions (vault, dispatch, files, notes)
 └── whatsapp/      # Transport layer (connection, receive, send, TTS, STT)
 
 vault/Klaus/       # Klaus's own directory in the Obsidian vault
 ├── agents/        # Agent prompt files (.md with YAML frontmatter)
+├── flags/         # Flag definitions (.md with description frontmatter)
 ├── notes/         # Auto-managed knowledge notes (written/searched by agents at runtime)
 ├── skills/        # Static .md reference documents (loaded on demand by agents)
 ├── snippets/      # Static prompt content (soul.md, architecture.md)
@@ -372,13 +382,9 @@ You are a research assistant. Answer questions thoroughly using web search.
 
 It is {{weekday}} ({{date}}, {{time}}).
 
-# Conversation
+{{personality}}
 
-{{conversation?limit=10}}
-
-# Current Message
-
-{{message_text}}
+{{user}}
 ```
 
 No restart needed — agent files are watched and hot-reloaded automatically.

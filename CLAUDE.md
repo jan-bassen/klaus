@@ -55,14 +55,15 @@ Storage: JSONL flat files for operational data (conversations, costs, invocation
 
 Every inbound WhatsApp message goes through a pipeline in `src/core/pipeline.ts`:
 
-1. **Auth** — allowlist check
-2. **Rate limit** — message/min guard
-3. **Normalize** — voice → text (STT), image downscale
-4. **Parse commands** — `/command` handlers bypass LLM
-5. **Parse routing** — `@agentName` prefix, `!flags` extraction
+1. **Auth** — allowlist check (fail-closed)
+2. **Rate limit** — per-chat message/min guard
+3. **Normalize** — transcribe voice notes (STT), downscale large images
+4. **Parse commands** — `/command` handlers bypass LLM, return early
+5. **Parse routing** — extract `@agentName` prefix and `!flags` from text
 6. **Resolve agent** — look up `agentRegistry` or hot-load from `.md` file
-7. **Assemble context** — all context variables run in parallel, trimmed to token budget
-8. **Execute agent** — `runAgent()` via Vercel AI SDK agentic loop
+7. **Persist** — append message to conversation JSONL, resolve quote-reply
+8. **Assemble context** — all context variables run in parallel, trimmed to token budget
+9. **Execute agent** — `runAgent()` via Vercel AI SDK agentic loop
 
 ### Agent system (core/agent.ts)
 
@@ -71,7 +72,7 @@ Agents are defined as `.md` files in `{vault}/Klaus/agents/` with YAML frontmatt
 ```yaml
 ---
 name: agentName
-modelTier: default|low|high    # maps to model IDs in config.ts
+modelTier: default|low|high    # maps to model IDs in settings.ts
 tools: [reply, send, react]
 toolsets: [vault, dispatch]    # expands to use_* meta-tools; tools loaded lazily
 providerTools: [web_search]    # Anthropic built-ins
@@ -90,6 +91,10 @@ Prompt body with {{contextVar}} Handlebars interpolation.
 
 **Notes** are auto-managed, topic-keyed `.md` files in `{vault}/Klaus/notes/`. Unlike snippets (always loaded) or skills (static, on-demand), notes are written and updated by agents at runtime — learned knowledge that is too numerous or low-priority to always inject. The `notes` toolset (`src/tools/sets/notes.ts`) provides four tools: `notes.search` (substring match across filenames, descriptions, body), `notes.write` (create/overwrite with optional frontmatter description), `notes.edit` (find-and-replace within an existing note), `notes.delete` (with confirm guard). Agents opt in by adding `notes` to their `toolsets:` list.
 
+**Flags** are `.md` files in `{vault}/Klaus/flags/` with a `description:` frontmatter field and a body that is injected into the prompt when active. Users activate flags with `!flagName` in their message. `src/flags.ts` manages the `flagRegistry` (Map<name, FlagMeta>), loaded at startup and hot-reloaded by the watcher. Flag text is stripped from the user message and injected via `buildUserMessageText` in the pipeline.
+
+**Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and registered in `src/commands/register.ts`. Current commands: `/status`, `/tasks`, `/default`, `/help`, `/new`. Each command implements the `Command` interface (name, description, execute).
+
 **Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new context variable = new file implementing `ContextVariable`. Extend by adding, not modifying.
 
 ### Storage (src/store/)
@@ -98,7 +103,7 @@ All operational data is stored as flat files — no database.
 
 | Module | Format | Purpose |
 |--------|--------|---------|
-| `conversation.ts` | JSONL (msg/ack/reaction events) | Chat history with in-memory indexes |
+| `conversation.ts` | JSONL (msg/ack/reaction/trace events) | Chat history with in-memory indexes |
 | `jsonl.ts` | Date-partitioned JSONL | Generic append/read utilities |
 | `costs.ts` | JSONL | Cost tracking by service |
 | `invocations.ts` | JSONL | LLM call traces |
@@ -114,13 +119,16 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | Path | Concern |
 |------|---------|
 | `src/types.ts` | All core interfaces (InboundMessage, TurnContext, AgentDefinition, ToolDefinition, ContextVariable) |
-| `src/config.ts` | Model tiers, pricing, context budgets, rate limits, timeouts, locale, dataDir |
+| `src/settings.ts` | Model tiers, pricing, context budgets, rate limits, timeouts, locale, dataDir |
+| `src/flags.ts` | Flag registry — loads `.md` flag definitions from vault, hot-reloaded |
 | `src/core/pipeline.ts` | Message orchestrator |
 | `src/core/agent.ts` | Agent executor + agentRegistry |
-| `src/core/dispatch.ts` | async/inline dispatch modes |
+| `src/core/assemble.ts` | Context assembly — runs context variables in parallel, enforces token budget |
+| `src/core/registry.ts` | Tool + toolset registry, meta-tool generation, dynamic tool loading |
+| `src/core/dispatch.ts` | Unified dispatch function (inline/async modes) |
 | `src/core/model-router.ts` | LLM call routing + cost logging |
 | `src/core/queue.ts` | In-memory job queue + active job tracking |
-| `src/core/watcher.ts` | File watcher for hot-reloading agent and skill definitions |
+| `src/core/watcher.ts` | File watcher for hot-reloading agents, skills, and flags |
 | `src/store/` | Flat-file storage modules (conversations, schedules, timers, costs, files, etc.) |
 | `src/context/` | Context variable modules (inject dynamic content into prompts) |
 | `src/tools/` | Tool definitions + toolset loaders |
@@ -130,6 +138,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/tools/conversation.ts` | Standalone tool: search conversation history (text, around message, time range) |
 | `src/tools/cost-tracking.ts` | Standalone tool: query LLM/TTS/STT spend and budget status |
 | `src/commands/` | /command handlers |
+| `src/commands/register.ts` | Registers all commands into the command registry |
 | `src/whatsapp/` | Transport layer (Baileys connection, send, receive, TTS, STT, presence) |
 
 ### Project boundaries
@@ -142,6 +151,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter
 - `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
 - `{vault}/Klaus/notes/` — auto-managed knowledge notes, written/searched by agents at runtime via `notes.*` tools
+- `{vault}/Klaus/flags/` — `.md` flag definitions with `description:` frontmatter, hot-reloaded
 - `{vault}/Klaus/snippets/` — static prompt content (soul.md, architecture.md) injected as template vars
 - `{vault}/Klaus/user.md` — user profile, updated by memorize agent
 
@@ -168,7 +178,7 @@ Published as `janbassen1/klaus` on Docker Hub. The Dockerfile includes OCI label
 - Errors are values — return don't throw (except at true system boundaries)
 - No `any` types; explicit return types on exported functions
 - Prefer `const` and pure functions; minimize mutable state
-- Config lives in `src/config.ts`, not scattered env reads
+- Config lives in `src/settings.ts` (not scattered env reads)
 - One concern per file
 - Path alias `@/` maps to `src/`
 - No unnecessary comments — code should be self-explanatory; comments explain *why*, never *what*

@@ -1,18 +1,18 @@
 # TODO
 
 ## Iteration
-- [ ] Alle Primitives runterbrechen und gut erklären in prompts + readme (agents, commands, context vars, tools, skills, notes, flags, snippets + see next for tasks + ops)
-- [x] ~~Größte Baustelle: tasks/ops~~ → Replaced with unified `dispatch` toolset (dispatch.agent, dispatch.schedule, dispatch.timer, dispatch.list, dispatch.cancel). Uses `croner` for cron, `setTimeout` for one-time timers. Cost tracking extracted to standalone `cost_tracking` tool. File-based task queue removed in favor of in-memory job tracking.
+- [x] tasks/ops → Replaced with unified `dispatch` toolset (dispatch.agent, dispatch.schedule, dispatch.timer, dispatch.list, dispatch.cancel). Uses `croner` for cron, `setTimeout` for one-time timers. Cost tracking extracted to standalone `cost_tracking` tool. File-based task queue removed in favor of in-memory job tracking.
+- [ ] Alle Primitives runterbrechen und gut erklären in docs etc (agents, commands, context vars, tools, skills, notes, flags, snippets + dispatch primitives). Gut gruppieren/ordnen
 - [ ] Alles zod prüfen lassen, statt custom checks or no check at all (check codebase for gaps/ cases)!
 - [ ] Vault-Tooling und instructions sollten besser sein (besonders discovery und gezielte Änderungen)
 - [ ] React/reply flow/anweisungen verbessern (ist wierd manchmal - zB. Ich stell ne Frage und es kommt nur 👍, oder es kommen beides ne Reaktion und Antwort, wenn eins gereicht hätte)
-- [ ] Wir brauchen nur eine flags.ts
+- [x] Wir brauchen nur eine flags.ts — `src/flags.ts` handles flag registry; `src/whatsapp/flags.ts` handles message parsing (separate concerns, both needed)
 - [ ] use _ for toolset tools? Klaus tried to use them like that a few times already
 
 ## Prompts
 - [ ] Es gibt kein <cite> support bei Whatsapp! 
 - [ ] Nachrichten sind zu lang, Klaus fällt häufig in den default assistant zurück statt passend für Whatsapp...
-- [ ] Improve voice prompt (ist gerade sehr langsam/ erzählerisch/ unnatürlich)
+- [ ] Improve voice prompt (ist gerade sehr langsam/ erzählerisch/ unnatürlich). Current: "Eine tiefe, raue Stimme mit leichtem Knarzen — wie ein alter Seemann aus Norddeutschland, der viel erlebt hat. Ruhig und warm im Kern, aber mit einer trockenen, knorrigen Kante. Spricht bedächtig, fast gemütlich, kann aber auch mal brummig werden. Norddeutsch nüchtern, nie überschwänglich — Herzlichkeit zeigt sich eher zwischen den Zeilen als in der Lautstärke. Ein Hauch von Salz und Wind in der Stimme."
 
 ## New commands
 - [ ] /stop - stop the current task gracefully, but promptly (in case Klaus decides to do something i don't want)
