@@ -186,6 +186,79 @@ export const vaultListTool: ToolDefinition<typeof vaultListSchema> = {
 	capability: "resource",
 };
 
+// ─── findSection helper ──────────────────────────────────────────────────────
+
+/**
+ * Locate a heading section in a markdown document.
+ * - Named heading (non-empty): finds the heading line and its content range.
+ * - Top-level section (empty string): returns the range before the first heading (after frontmatter).
+ */
+export function findSection(
+	lines: string[],
+	heading: string,
+): { headingIdx: number; level: number; endIdx: number } | null {
+	if (heading === "") {
+		// Top-level section: content before the first heading
+		let startIdx = 0;
+		// Skip frontmatter
+		if (lines[0]?.trimEnd() === "---") {
+			for (let i = 1; i < lines.length; i++) {
+				if ((lines[i] ?? "").trimEnd() === "---") {
+					startIdx = i + 1;
+					break;
+				}
+			}
+		}
+		// Find first heading
+		let firstHeading = lines.length;
+		for (let i = startIdx; i < lines.length; i++) {
+			if (/^#{1,6}\s/.test(lines[i] ?? "")) {
+				firstHeading = i;
+				break;
+			}
+		}
+		return { headingIdx: -1, level: 0, endIdx: firstHeading };
+	}
+
+	// Named heading
+	const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const headingPattern = new RegExp(`^(#{1,6})\\s+${escaped}\\s*$`, "i");
+
+	const headingIdx = lines.findIndex((l) => headingPattern.test(l));
+	if (headingIdx === -1) return null;
+
+	const headingLine = lines[headingIdx] ?? "";
+	const level = ((headingLine.match(/^(#+)/) ?? ["", ""])[1] ?? "").length;
+	const sameOrHigher = new RegExp(`^#{1,${level}}\\s`);
+	let endIdx = lines.length;
+	for (let i = headingIdx + 1; i < lines.length; i++) {
+		if (sameOrHigher.test(lines[i] ?? "")) {
+			endIdx = i;
+			break;
+		}
+	}
+
+	return { headingIdx, level, endIdx };
+}
+
+/** List all headings in a document (for error messages and outline). */
+export function listHeadings(
+	lines: string[],
+): Array<{ text: string; level: number; lineIdx: number }> {
+	const headings: Array<{ text: string; level: number; lineIdx: number }> = [];
+	for (let i = 0; i < lines.length; i++) {
+		const match = (lines[i] ?? "").match(/^(#{1,6})\s+(.+?)\s*$/);
+		if (match) {
+			headings.push({
+				text: match[2] ?? "",
+				level: (match[1] ?? "").length,
+				lineIdx: i,
+			});
+		}
+	}
+	return headings;
+}
+
 // ─── write ───────────────────────────────────────────────────────────────────
 
 const vaultWriteSchema = z.object({
@@ -204,7 +277,7 @@ const vaultWriteSchema = z.object({
 export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
 	name: "vault.write",
 	description:
-		"Create or overwrite a note in the Obsidian vault. Parent directories are created automatically.",
+		"Create or overwrite a note in the Obsidian vault. Parent directories are created automatically. OVERWRITES the entire file — read first with vault.read if you need to preserve existing content.",
 	inputSchema: vaultWriteSchema,
 	execute: async ({ path: rel, content }, context) => {
 		const full = safePath(rel, context.agent.vaultScope);
@@ -223,14 +296,20 @@ export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
 const vaultAppendSchema = z.object({
 	path: z.string().describe("Relative path to the note to append to"),
 	content: z.string().describe("Content to append (added after a newline)"),
+	heading: z
+		.string()
+		.optional()
+		.describe(
+			'Optional heading to append inside. Omit for EOF. Use "" for top-level section (before first heading). Use exact heading text without # markers for a named section.',
+		),
 });
 
 export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
 	name: "vault.append",
 	description:
-		"Append content to an existing note (useful for daily notes, logs, inboxes). Creates the file if it does not exist.",
+		"Append content to an existing note (useful for daily notes, logs, inboxes). Creates the file if it does not exist. For structured notes with sections, set the heading parameter to append inside a specific section — use vault.outline first to see available sections.",
 	inputSchema: vaultAppendSchema,
-	execute: async ({ path: rel, content }, context) => {
+	execute: async ({ path: rel, content, heading }, context) => {
 		const full = safePath(rel, context.agent.vaultScope);
 		if (!full) return scopeError(context.agent.vaultScope);
 
@@ -242,9 +321,37 @@ export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
 			await mkdir(path.dirname(full), { recursive: true });
 		}
 
-		const newContent = existing ? `${existing}\n${content}` : content;
-		await Bun.write(full, newContent);
-		return `Appended to: ${rel}`;
+		// No heading specified → append to EOF (original behavior)
+		if (heading === undefined) {
+			const newContent = existing ? `${existing}\n${content}` : content;
+			await Bun.write(full, newContent);
+			return `Appended to: ${rel}`;
+		}
+
+		// Heading specified but file is empty/new → just write content
+		if (!existing) {
+			await Bun.write(full, content);
+			return `Appended to: ${rel}`;
+		}
+
+		const lines = existing.split("\n");
+		const section = findSection(lines, heading);
+
+		if (!section) {
+			const available = listHeadings(lines);
+			const headingList =
+				available.length > 0
+					? available.map((h) => `${"#".repeat(h.level)} ${h.text}`).join("\n")
+					: "(no headings)";
+			return `Heading "${heading}" not found in ${rel}. Available headings:\n${headingList}`;
+		}
+
+		// Insert content at end of section (before next heading / EOF)
+		const before = lines.slice(0, section.endIdx);
+		const after = lines.slice(section.endIdx);
+		const updated = [...before, content, ...after].join("\n");
+		await Bun.write(full, updated);
+		return `Appended to section ${heading === "" ? "(top-level)" : `"${heading}"`} in: ${rel}`;
 	},
 	kind: "builtin",
 	capability: "tool",
@@ -418,7 +525,7 @@ const vaultPatchSchema = z.object({
 export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
 	name: "vault.patch",
 	description:
-		"Replace the body of a specific section in a note by heading. The heading line is kept; everything beneath it until the next same-or-higher-level heading (or EOF) is replaced.",
+		"Replace the body of a specific section in a note by heading. The heading line is kept; everything beneath it until the next same-or-higher-level heading (or EOF) is replaced. Read the note first with vault.read to see current content before replacing.",
 	inputSchema: vaultPatchSchema,
 	execute: async ({ path: rel, heading, newContent }, context) => {
 		const full = safePath(rel, context.agent.vaultScope);
@@ -432,29 +539,13 @@ export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
 		}
 
 		const lines = text.split("\n");
-		const headingPattern = new RegExp(
-			`^(#{1,6})\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`,
-			"i",
-		);
-
-		const headingIdx = lines.findIndex((l) => headingPattern.test(l));
-		if (headingIdx === -1) return `Heading "${heading}" not found in ${rel}.`;
-
-		const headingLine = lines[headingIdx] ?? "";
-		const level = ((headingLine.match(/^(#+)/) ?? ["", ""])[1] ?? "").length;
-		const sameOrHigher = new RegExp(`^#{1,${level}}\\s`);
-		let endIdx = lines.length;
-		for (let i = headingIdx + 1; i < lines.length; i++) {
-			if (sameOrHigher.test(lines[i] ?? "")) {
-				endIdx = i;
-				break;
-			}
-		}
+		const section = findSection(lines, heading);
+		if (!section) return `Heading "${heading}" not found in ${rel}.`;
 
 		const updated = [
-			...lines.slice(0, headingIdx + 1),
+			...lines.slice(0, section.headingIdx + 1),
 			newContent,
-			...lines.slice(endIdx),
+			...lines.slice(section.endIdx),
 		].join("\n");
 		await Bun.write(full, updated);
 		return `Patched section "${heading}" in ${rel}.`;
@@ -581,12 +672,80 @@ export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
 	capability: "resource",
 };
 
+// ─── outline ─────────────────────────────────────────────────────────────────
+
+const vaultOutlineSchema = z.object({
+	path: z.string().describe("Relative path to the note"),
+});
+
+export const vaultOutlineTool: ToolDefinition<typeof vaultOutlineSchema> = {
+	name: "vault.outline",
+	description:
+		"Return the heading structure of a note with item counts per section. Use before vault.append or vault.patch to see available sections without reading the full note.",
+	inputSchema: vaultOutlineSchema,
+	execute: async ({ path: rel }, context) => {
+		const full = safePath(rel, context.agent.vaultScope);
+		if (!full) return scopeError(context.agent.vaultScope);
+
+		let text: string;
+		try {
+			text = await Bun.file(full).text();
+		} catch {
+			return `Note not found: ${rel}`;
+		}
+
+		const lines = text.split("\n");
+		const headings = listHeadings(lines);
+
+		if (headings.length === 0) {
+			const nonEmpty = lines.filter((l) => l.trim().length > 0).length;
+			return nonEmpty > 0 ? `(no headings, ${nonEmpty} lines)` : "(empty file)";
+		}
+
+		const result: string[] = [];
+
+		// Top-level content (before first heading, after frontmatter)
+		const topSection = findSection(lines, "");
+		if (topSection) {
+			const topLines = lines
+				.slice(Math.max(topSection.headingIdx + 1, 0), topSection.endIdx)
+				.filter((l) => l.trim().length > 0).length;
+			if (topLines > 0) {
+				result.push(
+					`(top-level: ${topLines} ${topLines === 1 ? "line" : "lines"})`,
+				);
+			}
+		}
+
+		// Each heading section
+		for (let i = 0; i < headings.length; i++) {
+			const h = headings[i];
+			if (!h) continue;
+			const nextIdx =
+				i + 1 < headings.length
+					? (headings[i + 1]?.lineIdx ?? lines.length)
+					: lines.length;
+			const contentLines = lines
+				.slice(h.lineIdx + 1, nextIdx)
+				.filter((l) => l.trim().length > 0).length;
+			const prefix = "#".repeat(h.level);
+			result.push(
+				`${prefix} ${h.text} (${contentLines} ${contentLines === 1 ? "item" : "items"})`,
+			);
+		}
+
+		return result.join("\n");
+	},
+	kind: "builtin",
+	capability: "resource",
+};
+
 // ─── toolset export ──────────────────────────────────────────────────────────
 
 export const vaultToolset: ToolsetDefinition = {
 	name: "vault",
 	description:
-		"Use when the request involves Jan's Obsidian vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. This is the primary knowledge interface: notes are memory, [[wikilinks]] are relationships, frontmatter tags enable discovery. Klaus's memory lives in Klaus/memory.md and user profile in Klaus/user.md. Use for anything that sounds like a note, a document, something to remember, or something Jan would have written down.",
+		"Use when the request involves Jan's Obsidian vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. This is the primary knowledge interface: notes are memory, [[wikilinks]] are relationships, frontmatter tags enable discovery. Klaus's memory lives in Klaus/memory.md and user profile in Klaus/user.md. Use for anything that sounds like a note, a document, something to remember, or something Jan would have written down. Prefer read-before-write: use vault.read or vault.outline before modifying notes to understand structure, language, and existing content.",
 	tools: [
 		vaultReadTool,
 		vaultSearchTool,
@@ -599,5 +758,6 @@ export const vaultToolset: ToolsetDefinition = {
 		vaultPatchTool,
 		vaultTagsTool,
 		vaultLinksTool,
+		vaultOutlineTool,
 	],
 };

@@ -1,8 +1,6 @@
 # TODO
 
 ## Iteration
-- [ ] Alles zod prüfen lassen, statt custom checks or no check at all (check codebase for gaps/ cases)!
-- [ ] Vault-Tooling und instructions sollten besser sein (besonders discovery und gezielte Änderungen)
 - [ ] React/reply flow/anweisungen verbessern (ist wierd manchmal - zB. Ich stell ne Frage und es kommt nur 👍, oder es kommen beides ne Reaktion und Antwort, wenn eins gereicht hätte)
 - [ ] use _ for toolset tools? Klaus tried to use them like that a few times already
 
