@@ -1,25 +1,28 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { Cron } from "croner";
 import { z } from "zod";
 import { log } from "@/logger";
 import { settings } from "@/settings";
 
 export const ScheduleEntrySchema = z.object({
-	name: z.string(),
+	id: z.string(),
 	agentName: z.string(),
 	pattern: z.string(),
 	chatId: z.string(),
-	payload: z.record(z.unknown()),
+	objective: z.string(),
+	hint: z.string().optional(),
+	label: z.string().optional(),
+	createdBy: z.string(),
 	createdAt: z.string(),
-	oneTime: z.boolean().optional(),
 });
 
 export type ScheduleEntry = z.infer<typeof ScheduleEntrySchema>;
 
 /** In-memory schedule store */
 const schedules = new Map<string, ScheduleEntry>();
-/** Active interval handles */
-const intervals = new Map<string, ReturnType<typeof setInterval>>();
+/** Active Cron instances */
+const cronJobs = new Map<string, Cron>();
 
 function schedulesPath(): string {
 	return path.join(settings.dataDir, "schedules.json");
@@ -34,69 +37,7 @@ async function persist(): Promise<void> {
 	);
 }
 
-/** Load schedules from disk. Call at startup. */
-export async function loadSchedules(): Promise<void> {
-	try {
-		const text = await Bun.file(schedulesPath()).text();
-		const entries = z.array(ScheduleEntrySchema).parse(JSON.parse(text));
-		for (const entry of entries) {
-			schedules.set(entry.name, entry);
-		}
-		log.info("[schedules] loaded", { count: schedules.size });
-	} catch {
-		// No schedules file yet
-	}
-}
-
-function localParts(
-	date: Date,
-	tz: string,
-): { m: number; h: number; dom: number; mon: number; dow: number } {
-	const d = new Date(date.toLocaleString("en-US", { timeZone: tz }));
-	return {
-		m: d.getMinutes(),
-		h: d.getHours(),
-		dom: d.getDate(),
-		mon: d.getMonth() + 1,
-		dow: d.getDay(),
-	};
-}
-
-export function matchesCron(
-	pattern: string,
-	date: Date,
-	tz: string = settings.timezone,
-): boolean {
-	const parts = pattern.split(/\s+/);
-	if (parts.length !== 5) return false;
-	const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
-
-	const { m, h, dom, mon, dow } = localParts(date, tz);
-
-	return (
-		matchField(minute ?? "*", m) &&
-		matchField(hour ?? "*", h) &&
-		matchField(dayOfMonth ?? "*", dom) &&
-		matchField(month ?? "*", mon) &&
-		matchField(dayOfWeek ?? "*", dow)
-	);
-}
-
-function matchField(field: string, value: number): boolean {
-	if (field === "*") return true;
-	// Handle comma-separated values
-	for (const part of field.split(",")) {
-		if (part.includes("/")) {
-			const [, step] = part.split("/");
-			if (step && value % Number(step) === 0) return true;
-		} else if (Number(part) === value) {
-			return true;
-		}
-	}
-	return false;
-}
-
-/** Callback invoked when a cron fires. Set by the queue module. */
+/** Callback invoked when a cron fires. Set via setOnCronFire(). */
 let _onCronFire: ((entry: ScheduleEntry) => Promise<void>) | null = null;
 
 export function setOnCronFire(
@@ -105,68 +46,60 @@ export function setOnCronFire(
 	_onCronFire = fn;
 }
 
-/** Start evaluating a schedule. */
-function startEvaluating(entry: ScheduleEntry): void {
-	// Clear any existing interval to prevent leaks on re-registration
-	const existing = intervals.get(entry.name);
-	if (existing) clearInterval(existing);
+/** Start a cron job for a schedule entry. */
+function startCron(entry: ScheduleEntry): void {
+	const existing = cronJobs.get(entry.id);
+	if (existing) existing.stop();
 
-	// Track last-fired minute to avoid double-firing
-	let lastFired = "";
+	const job = new Cron(entry.pattern, { timezone: settings.timezone }, () => {
+		log.info("[schedules] cron fired", {
+			id: entry.id,
+			agentName: entry.agentName,
+			pattern: entry.pattern,
+		});
+		_onCronFire?.(entry).catch((err) =>
+			log.error("[schedules] cron handler error", {
+				id: entry.id,
+				error: err instanceof Error ? err.message : String(err),
+			}),
+		);
+	});
 
-	const handle = setInterval(() => {
-		const now = new Date();
-		const minuteKey = now.toISOString().slice(0, 16);
-		if (minuteKey === lastFired) return;
+	cronJobs.set(entry.id, job);
+}
 
-		if (matchesCron(entry.pattern, now)) {
-			lastFired = minuteKey;
-			log.info("[schedules] cron fired", {
-				name: entry.name,
-				pattern: entry.pattern,
-			});
-			const firePromise = _onCronFire?.(entry);
-			if (entry.oneTime) {
-				firePromise
-					?.then(() => removeSchedule(entry.name))
-					.catch((err) =>
-						log.error("[schedules] cron handler error", {
-							name: entry.name,
-							error: err instanceof Error ? err.message : String(err),
-						}),
-					);
-			} else {
-				firePromise?.catch((err) =>
-					log.error("[schedules] cron handler error", {
-						name: entry.name,
-						error: err instanceof Error ? err.message : String(err),
-					}),
-				);
-			}
+/** Load schedules from disk. Call at startup. */
+export async function loadSchedules(): Promise<void> {
+	try {
+		const text = await Bun.file(schedulesPath()).text();
+		const entries = z.array(ScheduleEntrySchema).parse(JSON.parse(text));
+		for (const entry of entries) {
+			schedules.set(entry.id, entry);
 		}
-	}, 60_000);
-
-	intervals.set(entry.name, handle);
+		log.info("[schedules] loaded", { count: schedules.size });
+	} catch {
+		// No schedules file yet
+	}
 }
 
-/** Register a cron schedule. Persists to disk and starts evaluation. */
+/** Register a cron schedule. Persists to disk and starts the cron job. */
 export async function addSchedule(entry: ScheduleEntry): Promise<void> {
-	// Remove existing schedule with same name
-	const existing = intervals.get(entry.name);
-	if (existing) clearInterval(existing);
+	const existing = cronJobs.get(entry.id);
+	if (existing) existing.stop();
 
-	schedules.set(entry.name, entry);
+	schedules.set(entry.id, entry);
 	await persist();
-	startEvaluating(entry);
+	startCron(entry);
 }
 
-/** Remove a schedule by name. */
-export async function removeSchedule(name: string): Promise<void> {
-	const handle = intervals.get(name);
-	if (handle) clearInterval(handle);
-	intervals.delete(name);
-	schedules.delete(name);
-	await persist();
+/** Remove a schedule by ID. */
+export async function removeSchedule(id: string): Promise<boolean> {
+	const job = cronJobs.get(id);
+	if (job) job.stop();
+	cronJobs.delete(id);
+	const existed = schedules.delete(id);
+	if (existed) await persist();
+	return existed;
 }
 
 /** List all registered schedules. */
@@ -174,19 +107,30 @@ export function getSchedules(): ScheduleEntry[] {
 	return [...schedules.values()];
 }
 
-/** Start all loaded schedules. Call after loadSchedules(). */
+/** Start all loaded schedules. Call after loadSchedules() + setOnCronFire(). */
 export function startAllSchedules(): void {
 	for (const entry of schedules.values()) {
-		startEvaluating(entry);
+		startCron(entry);
 	}
 }
 
-/** Stop all schedule intervals. */
+/** Stop all cron jobs. */
 export function stopAllSchedules(): void {
-	for (const handle of intervals.values()) {
-		clearInterval(handle);
+	for (const job of cronJobs.values()) {
+		job.stop();
 	}
-	intervals.clear();
+	cronJobs.clear();
+}
+
+/** Find a schedule by agent name and label (for dedup). */
+export function findSchedule(
+	agentName: string,
+	label?: string,
+): ScheduleEntry | undefined {
+	for (const entry of schedules.values()) {
+		if (entry.agentName === agentName && entry.label === label) return entry;
+	}
+	return undefined;
 }
 
 /** Clear all schedules. Test-only. */

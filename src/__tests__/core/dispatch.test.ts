@@ -9,21 +9,9 @@ mock.module("@/core/assemble", () => ({
 	assembleContext: mockAssembleContext,
 }));
 
-const mockEnqueueJob = mock(async () => {});
-const mockScheduleJob = mock(async () => {});
+const mockEnqueueJob = mock(() => {});
 mock.module("@/core/queue", () => ({
 	enqueueJob: mockEnqueueJob,
-	scheduleJob: mockScheduleJob,
-}));
-
-const mockCreateTask = mock(async () => "task-uuid-1");
-const mockMoveTask = mock(async () => {});
-mock.module("@/store/tasks", () => ({
-	createTask: mockCreateTask,
-	moveTask: mockMoveTask,
-	getTask: mock(async () => null),
-	listTasks: mock(async () => []),
-	recoverRunningTasks: mock(async () => {}),
 }));
 
 mock.module("@/logger", () => ({
@@ -36,14 +24,8 @@ mock.module("@/logger", () => ({
 }));
 
 // Import after mocks, then install test seams for agent functions
-const {
-	dispatch,
-	markTaskRunning,
-	markTaskDone,
-	markTaskFailed,
-	_setDispatchSeamsForTest,
-	_clearDispatchSeamsForTest,
-} = await import("@/core/dispatch");
+const { dispatch, _setDispatchSeamsForTest, _clearDispatchSeamsForTest } =
+	await import("@/core/dispatch");
 const { agentRegistry, runAgent, loadAgentDefinition } = await import(
 	"@/core/agent"
 );
@@ -82,10 +64,6 @@ beforeEach(() => {
 	mockLoadAgentDefinition.mockClear();
 	mockAssembleContext.mockClear();
 	mockEnqueueJob.mockClear();
-	mockScheduleJob.mockClear();
-	mockCreateTask.mockClear();
-	mockCreateTask.mockImplementation(async () => "task-uuid-1");
-	mockMoveTask.mockClear();
 	agentRegistry.clear();
 });
 
@@ -107,23 +85,11 @@ describe("dispatch", () => {
 		expect(mockEnqueueJob).not.toHaveBeenCalled();
 	});
 
-	test("async mode creates task, enqueues job, returns task ID", async () => {
+	test("async mode enqueues job and returns undefined", async () => {
 		const result = await dispatch(makeOpts({ mode: { kind: "async" } }));
-		expect(result).toBe("task-uuid-1");
-		expect(mockCreateTask).toHaveBeenCalledTimes(1);
+		expect(result).toBeUndefined();
 		expect(mockEnqueueJob).toHaveBeenCalledTimes(1);
 		expect(mockRunAgent).not.toHaveBeenCalled();
-	});
-
-	test("cron mode calls scheduleJob and returns undefined", async () => {
-		const result = await dispatch(
-			makeOpts({ mode: { kind: "cron", schedule: "0 3 * * *" } }),
-		);
-		expect(result).toBeUndefined();
-		expect(mockScheduleJob).toHaveBeenCalledTimes(1);
-		expect((mockScheduleJob.mock.calls[0] as unknown[])[1]).toBe("0 3 * * *");
-		expect(mockRunAgent).not.toHaveBeenCalled();
-		expect(mockEnqueueJob).not.toHaveBeenCalled();
 	});
 
 	test("max chain depth returns undefined without running", async () => {
@@ -160,40 +126,5 @@ describe("dispatch", () => {
 		await dispatch(makeOpts({ mode: { kind: "inline" } }));
 		expect(mockLoadAgentDefinition).not.toHaveBeenCalled();
 		expect(mockRunAgent).toHaveBeenCalledTimes(1);
-	});
-});
-
-describe("task status transitions", () => {
-	test("markTaskRunning calls moveTask with 'running'", async () => {
-		await markTaskRunning("task-1");
-		expect(mockMoveTask).toHaveBeenCalledTimes(1);
-		const [id, status] = mockMoveTask.mock.calls[0] as unknown as [
-			string,
-			string,
-		];
-		expect(id).toBe("task-1");
-		expect(status).toBe("running");
-	});
-
-	test("markTaskDone calls moveTask with 'done'", async () => {
-		await markTaskDone("task-1");
-		expect(mockMoveTask).toHaveBeenCalledTimes(1);
-		const [id, status] = mockMoveTask.mock.calls[0] as unknown as [
-			string,
-			string,
-		];
-		expect(id).toBe("task-1");
-		expect(status).toBe("done");
-	});
-
-	test("markTaskFailed calls moveTask with 'failed'", async () => {
-		await markTaskFailed("task-1");
-		expect(mockMoveTask).toHaveBeenCalledTimes(1);
-		const [id, status] = mockMoveTask.mock.calls[0] as unknown as [
-			string,
-			string,
-		];
-		expect(id).toBe("task-1");
-		expect(status).toBe("failed");
 	});
 });

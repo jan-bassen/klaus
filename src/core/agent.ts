@@ -491,7 +491,6 @@ export async function runAgent(
 			agentName: def.name,
 			chatId: turn.chatId,
 			...(turn.messageId ? { messageId: turn.messageId } : {}),
-			...(turn.taskId ? { taskId: turn.taskId } : {}),
 			system,
 			messages,
 			...(Object.keys(allTools).length > 0

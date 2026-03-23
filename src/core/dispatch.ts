@@ -1,11 +1,10 @@
 import path from "node:path";
 import { log } from "@/logger";
 import { settings } from "@/settings";
-import { createTask, moveTask } from "@/store/tasks";
 import type { DispatchOptions, TurnContext } from "@/types";
 import { agentRegistry, loadAgentDefinition, runAgent } from "./agent";
 import { assembleContext } from "./assemble";
-import { enqueueJob, scheduleJob } from "./queue";
+import { enqueueJob } from "./queue";
 
 function agentsDir(): string {
 	return path.join(settings.vault.dir, "Klaus", "agents");
@@ -31,9 +30,8 @@ let _loadAgentDefinition = loadAgentDefinition;
  * Unified dispatch primitive — the only way agents invoke other agents.
  *
  * Modes:
- *   inline — runs the agent synchronously in the current process; returns undefined (output via reply tool).
- *   async  — creates a task file and enqueues a job; returns the task ID.
- *   cron   — registers a schedule for the agent; returns undefined.
+ *   inline — runs the agent synchronously in the current process; returns collected reply text.
+ *   async  — enqueues a background job; returns undefined.
  */
 export async function dispatch(
 	opts: DispatchOptions,
@@ -45,11 +43,10 @@ export async function dispatch(
 		mode,
 		chatId,
 		caller = "system",
-		parentTaskId,
 		depth = 0,
 	} = opts;
 
-	if (mode.kind !== "cron" && depth >= settings.dispatch.maxChainDepth) {
+	if (depth >= settings.dispatch.maxChainDepth) {
 		log.warn("[dispatch] max chain depth reached, stopping", {
 			agentName,
 			depth,
@@ -64,21 +61,7 @@ export async function dispatch(
 		mode,
 	};
 
-	if (mode.kind === "cron") {
-		log.info("[dispatch] scheduling cron job", {
-			agentName,
-			schedule: mode.schedule,
-		});
-		await scheduleJob(
-			agentName,
-			mode.schedule,
-			{ agentName, chatId, dispatchContext },
-			mode.oneTime ? { oneTime: true } : undefined,
-		);
-		return undefined;
-	}
-
-	// For inline and async: load agent definition
+	// Load agent definition
 	let def = agentRegistry.get(agentName);
 	if (!def) {
 		const promptPath = path.join(agentsDir(), `${agentName}.md`);
@@ -105,44 +88,15 @@ export async function dispatch(
 		return replyCollector.join("\n\n") || undefined;
 	}
 
-	// async mode: create task file + enqueue
-	const taskId = await createTask({
-		chatId,
-		objective,
-		assignedTo: agentName,
-		caller,
-		...(parentTaskId ? { parentTaskId } : {}),
-	});
+	// async mode: enqueue directly
+	log.info("[dispatch] async dispatch", { agentName, caller, depth });
 
-	log.info("[dispatch] async dispatch", {
-		agentName,
-		caller,
-		taskId,
-		depth,
-	});
-
-	await enqueueJob({
-		taskId,
+	enqueueJob({
 		agentName,
 		chatId,
 		dispatchContext,
 		depth: depth + 1,
 	});
 
-	return taskId;
-}
-
-/** Update a task to 'running' status. */
-export async function markTaskRunning(taskId: string): Promise<void> {
-	await moveTask(taskId, "running");
-}
-
-/** Update a task to 'done' status. */
-export async function markTaskDone(taskId: string): Promise<void> {
-	await moveTask(taskId, "done", { completedAt: new Date().toISOString() });
-}
-
-/** Update a task to 'failed' status. */
-export async function markTaskFailed(taskId: string): Promise<void> {
-	await moveTask(taskId, "failed", { completedAt: new Date().toISOString() });
+	return undefined;
 }

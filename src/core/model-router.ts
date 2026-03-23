@@ -22,7 +22,6 @@ export interface ModelCallOptions {
 	tools?: ToolSet;
 	schema?: unknown;
 	messageId?: string;
-	taskId?: string;
 	agentName?: string;
 	/** Initial active tool names (allowlist). If omitted, all tools are active. */
 	activeTools?: string[];
@@ -211,7 +210,6 @@ export async function callModel(
 		agent: opts.agentName ?? "unknown",
 		model: modelId,
 		...(opts.messageId ? { messageId: opts.messageId } : {}),
-		...(opts.taskId ? { taskId: opts.taskId } : {}),
 		...(opts.system ? { systemPrompt: opts.system } : {}),
 		...(userMessage ? { userMessage } : {}),
 		steps,

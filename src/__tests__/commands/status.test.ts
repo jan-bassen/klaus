@@ -16,13 +16,9 @@ import type { InboundMessage } from "@/types";
 const mockEnqueueMessage = mock((_opts: unknown) => undefined);
 mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 
-const mockListTasks = mock(async () => [] as unknown[]);
-mock.module("@/store/tasks", () => ({
-	listTasks: mockListTasks,
-	createTask: mock(async () => "id"),
-	moveTask: mock(async () => {}),
-	getTask: mock(async () => null),
-	recoverRunningTasks: mock(async () => {}),
+const mockGetActiveJobs = mock(() => [] as unknown[]);
+mock.module("@/core/queue", () => ({
+	getActiveJobs: mockGetActiveJobs,
 }));
 
 import { statusCommand } from "@/commands/status";
@@ -34,7 +30,6 @@ let savedVaultDir: string | undefined;
 
 beforeAll(async () => {
 	tmpVault = await mkdtemp(join(tmpdir(), "status-vault-"));
-	// Create some .md files so countVaultNotes returns a non-zero count
 	await writeFile(join(tmpVault, "note1.md"), "# Note 1");
 	await writeFile(join(tmpVault, "note2.md"), "# Note 2");
 	savedVaultDir = process.env.VAULT_DIR;
@@ -60,7 +55,8 @@ function makeMsg(chatId = "user@s.whatsapp.net"): InboundMessage {
 
 beforeEach(() => {
 	mockEnqueueMessage.mockClear();
-	mockListTasks.mockClear();
+	mockGetActiveJobs.mockClear();
+	mockGetActiveJobs.mockImplementation(() => []);
 	_resetDefaultsForTest();
 });
 
@@ -70,7 +66,7 @@ afterEach(() => {
 
 describe("/status", () => {
 	test("sends formatted status with correct structure", async () => {
-		mockListTasks.mockResolvedValue([{ id: "1" }, { id: "2" }]);
+		mockGetActiveJobs.mockImplementation(() => [{ id: "1" }, { id: "2" }]);
 
 		const msg = makeMsg();
 		await statusCommand.execute(msg, []);
@@ -97,7 +93,9 @@ describe("/status", () => {
 	});
 
 	test("sends error fallback when store throws", async () => {
-		mockListTasks.mockRejectedValue(new Error("Store down"));
+		mockGetActiveJobs.mockImplementation(() => {
+			throw new Error("Store down");
+		});
 
 		const msg = makeMsg();
 		await statusCommand.execute(msg, []);

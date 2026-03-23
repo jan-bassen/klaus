@@ -11,14 +11,25 @@ const dummyAgent: AgentDefinition = {
 
 function makeTurn(
 	dispatchContext?: TurnContext["dispatchContext"],
-): TurnContext {
-	const base: TurnContext = {
+	hasMessage = false,
+): Omit<TurnContext, "assembled"> {
+	const base: Omit<TurnContext, "assembled"> = {
 		chatId: "user@s.whatsapp.net",
 		agent: dummyAgent,
 		flags: {},
-		assembled: { vars: {}, messageRefs: {}, totalTokens: 0 },
 	};
 	if (dispatchContext) base.dispatchContext = dispatchContext;
+	if (hasMessage) {
+		(base as TurnContext).message = {
+			kind: "whatsapp",
+			id: "msg-1",
+			chatId: "user@s.whatsapp.net",
+			senderId: "user@s.whatsapp.net",
+			text: "hi",
+			timestamp: new Date(),
+			messageKey: {},
+		};
+	}
 	return base;
 }
 
@@ -45,10 +56,10 @@ describe("dispatchContextQuery", () => {
 	test("includes hint when present", async () => {
 		const result = await dispatchContextQuery.run(
 			makeTurn({
-				caller: "klaus",
+				caller: "scheduler",
 				objective: "Scheduled: morning check",
 				hint: "Check weather and send summary",
-				mode: { kind: "cron", schedule: "0 8 * * *" },
+				mode: { kind: "async" },
 			}),
 		);
 		expect(result.content).toContain("Hint: Check weather and send summary");
@@ -65,13 +76,16 @@ describe("dispatchContextQuery", () => {
 		expect(result.content).not.toContain("Hint:");
 	});
 
-	test("appends scheduled-invocation note for cron mode", async () => {
+	test("appends scheduled-invocation note when no message", async () => {
 		const result = await dispatchContextQuery.run(
-			makeTurn({
-				caller: "scheduler",
-				objective: "Scheduled: daily report",
-				mode: { kind: "cron", schedule: "0 3 * * *" },
-			}),
+			makeTurn(
+				{
+					caller: "scheduler",
+					objective: "Scheduled: daily report",
+					mode: { kind: "async" },
+				},
+				false,
+			),
 		);
 		expect(result.content).toContain("scheduled invocation");
 		expect(result.content).toContain("`react`");
@@ -79,16 +93,17 @@ describe("dispatchContextQuery", () => {
 		expect(result.content).toContain("`send`");
 	});
 
-	test("does not append scheduled-invocation note for non-cron modes", async () => {
-		for (const kind of ["inline", "async"] as const) {
-			const result = await dispatchContextQuery.run(
-				makeTurn({
+	test("does not append scheduled-invocation note when message present", async () => {
+		const result = await dispatchContextQuery.run(
+			makeTurn(
+				{
 					caller: "klaus",
 					objective: "Do stuff",
-					mode: { kind },
-				}),
-			);
-			expect(result.content).not.toContain("scheduled invocation");
-		}
+					mode: { kind: "async" },
+				},
+				true,
+			),
+		);
+		expect(result.content).not.toContain("scheduled invocation");
 	});
 });

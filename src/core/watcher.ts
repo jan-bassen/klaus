@@ -4,10 +4,9 @@ import { parse as parseYaml } from "yaml";
 import { type FlagMeta, flagRegistry } from "@/flags";
 import { log } from "@/logger";
 import { settings } from "@/settings";
-import { removeSchedule } from "@/store/schedules";
+import { addSchedule, findSchedule, removeSchedule } from "@/store/schedules";
 import { type SkillMeta, skillRegistry } from "@/tools/skill";
 import { agentRegistry, loadAgentDefinition } from "./agent";
-import { dispatch } from "./dispatch";
 
 const watchers: FSWatcher[] = [];
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -43,7 +42,8 @@ async function handleAgentChange(
 		const old = findAgentByPath(promptPath);
 		if (old) {
 			agentRegistry.delete(old.name);
-			await removeSchedule(old.name);
+			const schedule = findSchedule(old.name);
+			if (schedule) await removeSchedule(schedule.id);
 			log.info("[watcher] agent removed", { name: old.name, file: filename });
 		}
 		return;
@@ -73,18 +73,25 @@ async function handleAgentChange(
 		const newSchedule = newDef.schedule;
 
 		if (oldSchedule !== newSchedule) {
-			if (oldSchedule) {
-				const scheduleName = old?.name ?? newDef.name;
-				await removeSchedule(scheduleName);
-				log.info("[watcher] schedule removed", { agent: scheduleName });
+			// Remove old schedule
+			const existingSchedule = findSchedule(old?.name ?? newDef.name);
+			if (existingSchedule) {
+				await removeSchedule(existingSchedule.id);
+				log.info("[watcher] schedule removed", {
+					agent: old?.name ?? newDef.name,
+				});
 			}
+
 			if (newSchedule) {
-				await dispatch({
-					agent: newDef.name,
-					objective: `Scheduled run of ${newDef.name}`,
-					mode: { kind: "cron", schedule: newSchedule },
+				await addSchedule({
+					id: `frontmatter:${newDef.name}`,
+					agentName: newDef.name,
+					pattern: newSchedule,
 					chatId: "system",
-					caller: "scheduler",
+					objective: `Scheduled run of ${newDef.name}`,
+					label: `${newDef.name} (frontmatter)`,
+					createdBy: "scheduler",
+					createdAt: new Date().toISOString(),
 				});
 				log.info("[watcher] schedule registered", {
 					agent: newDef.name,

@@ -233,9 +233,9 @@ An agent is a .md file in the vault (`Klaus/agents/`) with YAML frontmatter + a 
 ---
 name: thinking
 modelTier: high
-tools: [reply, react, dispatch]
+tools: [reply, react, cost_tracking]
 providerTools: [web_search, web_fetch, code_execution]
-toolsets: [vault, task, ops, files]
+toolsets: [vault, dispatch, files]
 skills: [workout-plan]        # optional — on-demand .md docs from Klaus/skills/
 schedule: "0 3 * * *"         # optional — makes it a cron agent
 ---
@@ -256,19 +256,19 @@ Built-in agents:
 
 **Tools** are always-available capabilities (e.g. reply, react, dispatch). **Toolsets** are groups of related tools that are lazy-loaded to save context tokens. Each toolset registers a use\_\<name\> meta-tool; when the model calls it, the actual tools are injected into the next step.
 
-| Toolset | Tools                                               | Purpose                        |
-| ------- | --------------------------------------------------- | ------------------------------ |
-| vault   | read, search, list, write, append, backlinks, etc.  | Obsidian vault + memory        |
-| tasks   | dispatch, cancel, list, get                         | Async task management          |
-| ops     | cron, cost-tracking                                 | Scheduling and spend monitoring|
-| files   | upload, download, list, delete                      | File management                |
-| notes   | search, write, edit, delete                         | Auto-managed knowledge notes   |
+| Toolset  | Tools                                               | Purpose                                |
+| -------- | --------------------------------------------------- | -------------------------------------- |
+| vault    | read, search, list, write, append, backlinks, etc.  | Obsidian vault + memory                |
+| dispatch | agent, schedule, timer, list, cancel                | Agent dispatch, cron, one-time timers  |
+| files    | upload, download, list, delete                      | File management                        |
+| notes    | search, write, edit, delete                         | Auto-managed knowledge notes           |
 
 **Standalone tools** are opt-in per agent via `tools:` in frontmatter:
 
 | Tool                 | Purpose                                                                 |
 | -------------------- | ----------------------------------------------------------------------- |
 | conversation         | Search conversation history by text, around a message, or time range    |
+| cost_tracking        | Query total LLM/TTS/STT spend and budget status                        |
 
 Agents can also use **provider tools** — Anthropic built-in capabilities like web_search, web_fetch, and code_execution that are injected directly via the Vercel AI SDK.
 

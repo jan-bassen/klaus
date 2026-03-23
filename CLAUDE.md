@@ -49,7 +49,7 @@ Klaus is a headless personal AI agent: WhatsApp messages → TypeScript pipeline
 
 Bun, TypeScript (strict), Baileys, Vercel AI SDK. Containerized as a single Docker image (`janbassen1/klaus`).
 
-Storage: JSONL flat files for operational data (conversations, costs, invocations), file-based task queue, Obsidian vault for knowledge (notes, wikilinks, tags as the knowledge graph).
+Storage: JSONL flat files for operational data (conversations, costs, invocations), JSON files for schedules and timers, Obsidian vault for knowledge (notes, wikilinks, tags as the knowledge graph).
 
 ### Message flow (pipeline.ts)
 
@@ -73,7 +73,7 @@ Agents are defined as `.md` files in `{vault}/Klaus/agents/` with YAML frontmatt
 name: agentName
 modelTier: default|low|high    # maps to model IDs in config.ts
 tools: [reply, send, react]
-toolsets: [vault, tasks]       # expands to use_* meta-tools; tools loaded lazily
+toolsets: [vault, dispatch]    # expands to use_* meta-tools; tools loaded lazily
 providerTools: [web_search]    # Anthropic built-ins
 skills: [workout-plan]        # on-demand .md docs from {vault}/Klaus/skills/
 schedule: "0 3 * * *"         # optional cron
@@ -102,9 +102,9 @@ All operational data is stored as flat files — no database.
 | `jsonl.ts` | Date-partitioned JSONL | Generic append/read utilities |
 | `costs.ts` | JSONL | Cost tracking by service |
 | `invocations.ts` | JSONL | LLM call traces |
-| `tasks.ts` | JSON files in status dirs | File-based task queue |
 | `files.ts` | JSONL index + blob storage | File metadata |
-| `schedules.ts` | JSON + in-memory intervals | Cron schedule persistence |
+| `schedules.ts` | JSON + croner cron jobs | Recurring schedule persistence |
+| `timers.ts` | JSON + setTimeout | One-time future execution |
 | `budgets.ts` | JSON | Budget config |
 
 The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[wikilinks]]` are edges, YAML frontmatter is metadata. Vault tools provide search, read, write, and link traversal.
@@ -117,16 +117,18 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/config.ts` | Model tiers, pricing, context budgets, rate limits, timeouts, locale, dataDir |
 | `src/core/pipeline.ts` | Message orchestrator |
 | `src/core/agent.ts` | Agent executor + agentRegistry |
-| `src/core/dispatch.ts` | async/inline/cron dispatch modes |
+| `src/core/dispatch.ts` | async/inline dispatch modes |
 | `src/core/model-router.ts` | LLM call routing + cost logging |
-| `src/core/queue.ts` | In-memory job queue with file-based persistence |
+| `src/core/queue.ts` | In-memory job queue + active job tracking |
 | `src/core/watcher.ts` | File watcher for hot-reloading agent and skill definitions |
-| `src/store/` | Flat-file storage modules (conversations, tasks, costs, files, etc.) |
+| `src/store/` | Flat-file storage modules (conversations, schedules, timers, costs, files, etc.) |
 | `src/context/` | Context variable modules (inject dynamic content into prompts) |
 | `src/tools/` | Tool definitions + toolset loaders |
 | `src/tools/skill.ts` | `buildSkillTool()` — per-agent skill.get tool builder |
+| `src/tools/sets/dispatch.ts` | `dispatch` toolset: `dispatch.agent`, `dispatch.schedule`, `dispatch.timer`, `dispatch.list`, `dispatch.cancel` |
 | `src/tools/sets/notes.ts` | `notes` toolset: `notes.search`, `notes.write`, `notes.edit`, `notes.delete` — auto-managed knowledge notes |
 | `src/tools/conversation.ts` | Standalone tool: search conversation history (text, around message, time range) |
+| `src/tools/cost-tracking.ts` | Standalone tool: query LLM/TTS/STT spend and budget status |
 | `src/commands/` | /command handlers |
 | `src/whatsapp/` | Transport layer (Baileys connection, send, receive, TTS, STT, presence) |
 
@@ -134,7 +136,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 
 - `/whatsapp` — pure transport, no business logic
 - `/core` — pipeline, agent engine, queue, middleware
-- `/store` — flat-file storage, JSONL read/write, task queue, indexes
+- `/store` — flat-file storage, JSONL read/write, schedules, timers, indexes
 - `/tools` — each tool/tool-set in its own file or folder
 - `/context` — one file per context variable
 - `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter

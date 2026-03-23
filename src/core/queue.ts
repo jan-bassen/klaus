@@ -1,18 +1,7 @@
 import { log } from "@/logger";
-import {
-	addSchedule,
-	getSchedules as getScheduleEntries,
-	removeSchedule,
-	type ScheduleEntry,
-	setOnCronFire,
-	startAllSchedules,
-} from "@/store/schedules";
 import type { DispatchMode } from "@/types";
 
-export type JobName = "agent-run";
-
 export interface AgentRunPayload {
-	taskId: string;
 	agentName: string;
 	chatId: string;
 	dispatchContext: {
@@ -25,6 +14,12 @@ export interface AgentRunPayload {
 	depth: number;
 }
 
+export interface ActiveJob {
+	agentName: string;
+	objective: string;
+	startedAt: string;
+}
+
 // -- In-memory job queue --
 
 const pending: AgentRunPayload[] = [];
@@ -32,6 +27,9 @@ let processing = false;
 let drainHandle: ReturnType<typeof setInterval> | null = null;
 let _worker: ((payload: AgentRunPayload) => Promise<void>) | null = null;
 let ready = false;
+
+/** Active jobs tracked by a unique key (UUID generated at dequeue time). */
+const activeJobs = new Map<string, ActiveJob>();
 
 /** Set the worker function that processes jobs. */
 export function setWorker(
@@ -48,13 +46,22 @@ async function drain(): Promise<void> {
 		const job = pending.shift();
 		if (!job) break;
 
+		const jobId = crypto.randomUUID();
+		activeJobs.set(jobId, {
+			agentName: job.agentName,
+			objective: job.dispatchContext.objective,
+			startedAt: new Date().toISOString(),
+		});
+
 		try {
 			await _worker(job);
 		} catch (err) {
 			log.error("[queue] job failed", {
-				taskId: job.taskId,
+				agentName: job.agentName,
 				error: err instanceof Error ? err.message : String(err),
 			});
+		} finally {
+			activeJobs.delete(jobId);
 		}
 	}
 
@@ -68,7 +75,7 @@ export async function initQueue(): Promise<void> {
 }
 
 /** Enqueue an agent run job. */
-export async function enqueueJob(payload: AgentRunPayload): Promise<void> {
+export function enqueueJob(payload: AgentRunPayload): void {
 	pending.push(payload);
 	// Trigger immediate drain
 	drain().catch((err) =>
@@ -78,30 +85,9 @@ export async function enqueueJob(payload: AgentRunPayload): Promise<void> {
 	);
 }
 
-/** Schedule an agent run via cron. Pass oneTime to auto-remove after first fire. */
-export async function scheduleJob(
-	agentName: string,
-	schedule: string,
-	payload: Omit<AgentRunPayload, "taskId" | "depth">,
-	options?: { oneTime?: boolean },
-): Promise<void> {
-	await addSchedule({
-		name: agentName,
-		agentName,
-		pattern: schedule,
-		chatId: payload.chatId,
-		payload: { ...payload },
-		createdAt: new Date().toISOString(),
-		...(options?.oneTime ? { oneTime: true } : {}),
-	});
-}
-
-export async function listSchedules(): Promise<ScheduleEntry[]> {
-	return getScheduleEntries();
-}
-
-export async function deleteSchedule(name: string): Promise<void> {
-	await removeSchedule(name);
+/** Get currently active jobs. */
+export function getActiveJobs(): ActiveJob[] {
+	return [...activeJobs.values()];
 }
 
 export async function stopQueue(): Promise<void> {
@@ -114,15 +100,4 @@ export async function stopQueue(): Promise<void> {
 
 export function isQueueReady(): boolean {
 	return ready;
-}
-
-/**
- * Register the cron fire callback — dispatches cron jobs into the queue.
- * Call once at startup after initQueue().
- */
-export function registerCronCallback(
-	dispatchFn: (entry: ScheduleEntry) => Promise<void>,
-): void {
-	setOnCronFire(dispatchFn);
-	startAllSchedules();
 }

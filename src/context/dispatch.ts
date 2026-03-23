@@ -1,12 +1,19 @@
-import type { ContextVariable, ContextVariableResult } from "@/types";
+import type {
+	ContextVariable,
+	ContextVariableResult,
+	TurnContext,
+} from "@/types";
 
 /** Renders the dispatch context block. */
-function formatDispatchBlock(ctx: {
-	caller: string;
-	objective: string;
-	hint?: string | null;
-	mode: { kind: string };
-}): string {
+function formatDispatchBlock(
+	ctx: {
+		caller: string;
+		objective: string;
+		hint?: string | null;
+		mode: { kind: string };
+	},
+	hasMessage: boolean,
+): string {
 	const lines = [
 		"## Dispatch context",
 		`Caller: ${ctx.caller}`,
@@ -14,7 +21,7 @@ function formatDispatchBlock(ctx: {
 		...(ctx.hint ? [`Hint: ${ctx.hint}`] : []),
 		`Mode: ${ctx.mode.kind}`,
 	];
-	if (ctx.mode.kind === "cron") {
+	if (!hasMessage) {
 		lines.push(
 			"",
 			"Note: This is a scheduled invocation — there is no inbound message.",
@@ -31,12 +38,14 @@ function formatDispatchBlock(ctx: {
 export const dispatchContextQuery: ContextVariable = {
 	name: "dispatch_context",
 	priority: -1, // never trimmed
-	async run(turn): Promise<ContextVariableResult> {
+	async run(
+		turn: Omit<TurnContext, "assembled">,
+	): Promise<ContextVariableResult> {
 		if (!turn.dispatchContext) {
 			return { tokenCount: 0, truncate: "never" };
 		}
 
-		const content = formatDispatchBlock(turn.dispatchContext);
+		const content = formatDispatchBlock(turn.dispatchContext, !!turn.message);
 		return {
 			content,
 			tokenCount: Math.ceil(content.length / 4),

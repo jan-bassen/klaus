@@ -36,10 +36,7 @@ export interface InboundMessage {
 
 // -- Dispatch --
 
-export type DispatchMode =
-	| { kind: "inline" }
-	| { kind: "async" }
-	| { kind: "cron"; schedule: string; oneTime?: boolean };
+export type DispatchMode = { kind: "inline" } | { kind: "async" };
 
 export interface DispatchOptions {
 	agent: string;
@@ -48,7 +45,6 @@ export interface DispatchOptions {
 	mode: DispatchMode;
 	chatId: string;
 	caller?: string;
-	parentTaskId?: string;
 	/** Chain depth — incremented on each recursive dispatch. Enforces maxChainDepth. */
 	depth?: number;
 }
@@ -59,8 +55,6 @@ export interface TurnContext {
 	chatId: string;
 	/** Present for WhatsApp turns; undefined for dispatched agent invocations */
 	message?: InboundMessage;
-	/** Set for all dispatched agents (async and inline) */
-	taskId?: string;
 	agent: AgentDefinition;
 	flags: Record<string, boolean>;
 	assembled: AssembledContext;
@@ -173,7 +167,7 @@ export interface OutboundMessage {
 	chatId: string;
 	content: string | Buffer;
 	mimeType?: string;
-	/** Dedup key: (task_id, ordinal) for task follow-ups or (message_id, ordinal) for direct replies */
+	/** Dedup key: (message_id, ordinal) for deduplicating outbound messages */
 	dedupKey: string;
 	/** When set, the message is sent as a WhatsApp quote-reply to this message. */
 	quoted?: { externalId: string; fromMe: boolean };

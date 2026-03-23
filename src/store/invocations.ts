@@ -5,7 +5,6 @@ export interface InvocationRecord {
 	agent: string;
 	model: string;
 	messageId?: string;
-	taskId?: string;
 	systemPrompt?: string;
 	userMessage?: string;
 	steps: unknown[];

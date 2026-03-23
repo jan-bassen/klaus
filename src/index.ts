@@ -11,7 +11,7 @@ import path from "node:path";
 import { agentRegistry, loadAgents } from "./core/agent";
 import { loadContextVariables, setContextVariables } from "./core/assemble";
 import { dispatch } from "./core/dispatch";
-import { initQueue, registerCronCallback } from "./core/queue";
+import { initQueue } from "./core/queue";
 import { loadAllTools } from "./core/registry";
 import { startWatching, stopWatching } from "./core/watcher";
 import { startWorkers } from "./core/worker";
@@ -21,8 +21,14 @@ import { settings } from "./settings";
 import { loadBudgets } from "./store/budgets";
 import { rebuildIndexes as rebuildConversationIndexes } from "./store/conversation";
 import { rebuildFileIndex } from "./store/files";
-import { loadSchedules } from "./store/schedules";
-import { recoverRunningTasks } from "./store/tasks";
+import {
+	addSchedule,
+	loadSchedules,
+	setOnCronFire,
+	startAllSchedules,
+	stopAllSchedules,
+} from "./store/schedules";
+import { loadTimers, setOnTimerFire, stopAllTimers } from "./store/timers";
 import { loadSkills, skillRegistry } from "./tools/skill";
 import {
 	closeSocket,
@@ -63,9 +69,9 @@ async function shutdown(signal: string): Promise<void> {
 	// 4. Stop file watchers.
 	stopWatching();
 
-	// 5. Stop cron schedules.
-	const { stopAllSchedules } = await import("./store/schedules");
+	// 5. Stop cron schedules and timers.
 	stopAllSchedules();
+	stopAllTimers();
 
 	log.info("[shutdown] complete");
 	process.exit(0);
@@ -95,12 +101,6 @@ async function main(): Promise<void> {
 		settings.dataDir,
 		path.join(settings.dataDir, "conversations"),
 		path.join(settings.dataDir, "conversations", "archive"),
-		path.join(settings.dataDir, "tasks"),
-		path.join(settings.dataDir, "tasks", "pending"),
-		path.join(settings.dataDir, "tasks", "running"),
-		path.join(settings.dataDir, "tasks", "done"),
-		path.join(settings.dataDir, "tasks", "failed"),
-		path.join(settings.dataDir, "tasks", "cancelled"),
 		path.join(settings.dataDir, "costs"),
 		path.join(settings.dataDir, "invocations"),
 		path.join(settings.dataDir, "files"),
@@ -157,48 +157,60 @@ async function main(): Promise<void> {
 	await rebuildConversationIndexes();
 	await rebuildFileIndex();
 
-	// 4. Init in-memory queue, recover tasks
+	// 4. Init in-memory queue and workers
 	log.info("[startup] initializing queue and workers");
-	await recoverRunningTasks();
 	await initQueue();
 	await startWorkers();
 
-	// 5. Load and register cron schedules
+	// 5. Load schedules and timers, register callbacks
 	await loadSchedules();
 	await loadBudgets();
 
-	// Register cron schedules for agents that declare a schedule field
+	// Register frontmatter schedules for agents that declare a schedule field
 	for (const def of agentRegistry.values()) {
 		if (def.schedule) {
-			log.info("[startup] registering cron schedule", {
+			log.info("[startup] registering frontmatter schedule", {
 				agent: def.name,
 				schedule: def.schedule,
 			});
-			await dispatch({
-				agent: def.name,
-				objective: `Scheduled run of ${def.name}`,
-				mode: { kind: "cron", schedule: def.schedule },
+			await addSchedule({
+				id: `frontmatter:${def.name}`,
+				agentName: def.name,
+				pattern: def.schedule,
 				chatId: "system",
-				caller: "scheduler",
+				objective: `Scheduled run of ${def.name}`,
+				label: `${def.name} (frontmatter)`,
+				createdBy: "scheduler",
+				createdAt: new Date().toISOString(),
 			});
 		}
 	}
 
-	// Start cron evaluation
-	registerCronCallback(async (entry) => {
-		const stored = entry.payload as {
-			dispatchContext?: { objective?: string; hint?: string; caller?: string };
-		};
-		const ctx = stored.dispatchContext;
+	// Register cron fire callback — dispatches scheduled agents into the queue
+	setOnCronFire(async (entry) => {
 		await dispatch({
 			agent: entry.agentName,
-			objective: ctx?.objective ?? `Scheduled run of ${entry.agentName}`,
-			...(ctx?.hint !== undefined && { hint: ctx.hint }),
+			objective: entry.objective,
+			...(entry.hint ? { hint: entry.hint } : {}),
 			mode: { kind: "async" },
 			chatId: entry.chatId,
-			caller: ctx?.caller ?? "scheduler",
+			caller: entry.createdBy,
 		});
 	});
+	startAllSchedules();
+
+	// Register timer fire callback — dispatches timed agents into the queue
+	setOnTimerFire(async (entry) => {
+		await dispatch({
+			agent: entry.agentName,
+			objective: entry.objective,
+			...(entry.hint ? { hint: entry.hint } : {}),
+			mode: { kind: "async" },
+			chatId: entry.chatId,
+			caller: entry.createdBy,
+		});
+	});
+	await loadTimers();
 
 	// 6. Watch agent, skill, and flag directories for hot-reload
 	startWatching(agentsDir, skillsDir, flagsDir);

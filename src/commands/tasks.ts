@@ -1,6 +1,8 @@
 import type { Command } from "@/commands";
+import { getActiveJobs } from "@/core/queue";
 import { settings } from "@/settings";
-import { listTasks } from "@/store/tasks";
+import { getSchedules } from "@/store/schedules";
+import { listTimers } from "@/store/timers";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
@@ -12,29 +14,54 @@ const timeFormatter = new Intl.DateTimeFormat(settings.locale, {
 
 export const tasksCommand: Command = {
 	name: "tasks",
-	description: "List active tasks",
+	description: "List active jobs, schedules, and timers",
 	async execute(msg: InboundMessage, _args: string[]): Promise<void> {
 		try {
-			const tasks = await listTasks({ status: ["pending", "running"] });
+			const jobs = getActiveJobs();
+			const schedules = getSchedules();
+			const timers = listTimers();
 
-			if (tasks.length === 0) {
+			if (jobs.length === 0 && schedules.length === 0 && timers.length === 0) {
 				enqueueMessage({
 					chatId: msg.chatId,
-					content: "No active tasks.",
+					content: "No active jobs, schedules, or timers.",
 					dedupKey: `${msg.id}:tasks`,
 				});
 				return;
 			}
 
-			const lines = tasks.map((t) => {
-				const agent = t.assignedTo ?? "unknown";
-				const since = timeFormatter.format(new Date(t.createdAt));
-				return `• ${agent} — ${t.objective} (since ${since})`;
-			});
+			const lines: string[] = [];
+
+			if (jobs.length > 0) {
+				lines.push(`*Active jobs* (${jobs.length})`);
+				for (const job of jobs) {
+					const since = timeFormatter.format(new Date(job.startedAt));
+					lines.push(`• ${job.agentName} — ${job.objective} (since ${since})`);
+				}
+			}
+
+			if (schedules.length > 0) {
+				if (lines.length > 0) lines.push("");
+				lines.push(`*Schedules* (${schedules.length})`);
+				for (const s of schedules) {
+					lines.push(
+						`• ${s.agentName} — ${s.pattern} — ${s.label ?? s.objective}`,
+					);
+				}
+			}
+
+			if (timers.length > 0) {
+				if (lines.length > 0) lines.push("");
+				lines.push(`*Timers* (${timers.length})`);
+				for (const t of timers) {
+					const at = timeFormatter.format(new Date(t.runAt));
+					lines.push(`• ${t.agentName} — ${t.objective} (at ${at})`);
+				}
+			}
 
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `*Active tasks* (${tasks.length})\n${lines.join("\n")}`,
+				content: lines.join("\n"),
 				dedupKey: `${msg.id}:tasks`,
 			});
 		} catch {
