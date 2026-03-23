@@ -45,7 +45,7 @@ export const settings = {
 
 	// ElevenLabs TTS voice to use for outbound voice messages.
 	tts: {
-		voiceId: "b8LIQ0QhJtoYJJMO947e",
+		voiceId: "Qqi8SzIZjZsatCWjDOp7",
 	},
 
 	// Retry policy for transient failures in async task jobs.
