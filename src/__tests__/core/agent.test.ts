@@ -27,13 +27,13 @@ mock.module("@/store/conversation", () => ({
 }));
 
 import { loadAgentDefinition, runAgent } from "@/core/agent";
+import { flagRegistry } from "@/core/flags";
 import {
 	registerTool,
 	registerToolset,
 	toolRegistry,
 	toolsetRegistry,
 } from "@/core/registry";
-import { flagRegistry } from "@/core/flags";
 import type { AssembledContext, TurnContext } from "@/types";
 
 // ---- runAgent helpers ----
@@ -64,6 +64,9 @@ function makeTurn(
 			name: "test",
 			modelTier: "default",
 			tools: [],
+			toolsets: [],
+			providerTools: [],
+			skills: [],
 			promptPath: "/dev/null",
 		},
 		flags: {},
@@ -209,14 +212,14 @@ describe("loadAgentDefinition", () => {
 		});
 	});
 
-	test("missing toolsets produces no toolsets property", async () => {
+	test("missing toolsets defaults to empty array", async () => {
 		await withFixture(
 			"no-toolsets",
 			"name: plain-agent\nmodelTier: default\ntools: []",
 			"## Hi\n",
 			async (p) => {
 				const def = await loadAgentDefinition(p);
-				expect(def.toolsets).toBeUndefined();
+				expect(def.toolsets).toEqual([]);
 			},
 		);
 	});
@@ -232,14 +235,14 @@ describe("loadAgentDefinition", () => {
 		});
 	});
 
-	test("missing skills produces no skills property", async () => {
+	test("missing skills defaults to empty array", async () => {
 		await withFixture(
 			"no-skills",
 			"name: plain-agent\nmodelTier: default\ntools: []",
 			"## Hi\n",
 			async (p) => {
 				const def = await loadAgentDefinition(p);
-				expect(def.skills).toBeUndefined();
+				expect(def.skills).toEqual([]);
 			},
 		);
 	});

@@ -3,6 +3,10 @@ import { z } from "zod";
 import { log } from "@/logger";
 import type { ToolDefinition } from "@/types";
 
+export const SkillFrontmatterSchema = z.object({
+	description: z.string().min(1).optional(),
+});
+
 export interface SkillMeta {
 	name: string;
 	description: string;
@@ -24,9 +28,9 @@ export async function loadSkills(skillsDir: string): Promise<void> {
 
 		let description = name;
 		if (match) {
-			const front = parseYaml(match[1] ?? "") as Record<string, unknown>;
-			if (typeof front.description === "string" && front.description) {
-				description = front.description;
+			const front = SkillFrontmatterSchema.safeParse(parseYaml(match[1] ?? ""));
+			if (front.success && front.data.description) {
+				description = front.data.description;
 			}
 		}
 

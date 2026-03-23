@@ -13,12 +13,12 @@ import { tool } from "ai";
 import sharp from "sharp";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
+import { flagRegistry } from "@/core/flags";
 import {
 	generateMetaTool,
 	toolRegistry,
 	toolsetRegistry,
 } from "@/core/registry";
-import { flagRegistry } from "@/core/flags";
 import { log } from "@/logger";
 import { settings } from "@/settings";
 import {
@@ -34,7 +34,7 @@ import type { AgentDefinition, ToolDefinition, TurnContext } from "@/types";
 import { hbs } from "./hbs";
 import { callModel, type ModelCallStep } from "./model-router";
 
-const AgentFrontmatterSchema = z.object({
+export const AgentFrontmatterSchema = z.object({
 	name: z.string().min(1),
 	modelTier: z.enum(["default", "low", "high"]),
 	tools: z.array(z.string()).default([]),
@@ -562,9 +562,9 @@ export async function loadAgentDefinition(
 		name,
 		modelTier,
 		tools,
-		...(toolsets.length > 0 ? { toolsets } : {}),
-		...(providerTools.length > 0 ? { providerTools } : {}),
-		...(skills.length > 0 ? { skills } : {}),
+		toolsets,
+		providerTools,
+		skills,
 		...(schedule ? { schedule } : {}),
 		...(vaultScope ? { vaultScope } : {}),
 		...(conversationLimit !== undefined ? { conversationLimit } : {}),

@@ -36,6 +36,9 @@ const mockLoadAgentDefinition = mock(
 		name: "helper",
 		modelTier: "default",
 		tools: [],
+		toolsets: [],
+		providerTools: [],
+		skills: [],
 		promptPath: "/agents/helper.md",
 	}),
 );
@@ -119,6 +122,9 @@ describe("dispatch", () => {
 			name: "helper",
 			modelTier: "default",
 			tools: [],
+			toolsets: [],
+			providerTools: [],
+			skills: [],
 			promptPath: "/agents/helper.md",
 		};
 		agentRegistry.set("helper", cached);

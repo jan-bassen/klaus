@@ -1,5 +1,10 @@
 import { parse as parseYaml } from "yaml";
+import { z } from "zod";
 import { log } from "@/logger";
+
+export const FlagFrontmatterSchema = z.object({
+	description: z.string().min(1).optional(),
+});
 
 export interface FlagMeta {
 	name: string;
@@ -30,9 +35,9 @@ export async function loadFlags(flagsDir: string): Promise<void> {
 		let prompt = raw.trim();
 
 		if (match) {
-			const front = parseYaml(match[1] ?? "") as Record<string, unknown>;
-			if (typeof front.description === "string" && front.description) {
-				description = front.description;
+			const front = FlagFrontmatterSchema.safeParse(parseYaml(match[1] ?? ""));
+			if (front.success && front.data.description) {
+				description = front.data.description;
 			}
 			prompt = raw.slice(match[0].length).trim();
 		}

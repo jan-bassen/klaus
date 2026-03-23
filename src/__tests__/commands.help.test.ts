@@ -37,7 +37,9 @@ function makeAgent(
 		name,
 		modelTier: "default",
 		tools,
-		...(toolsets !== undefined && { toolsets }),
+		toolsets: toolsets ?? [],
+		providerTools: [],
+		skills: [],
 		promptPath: `/fake/agents/${name}.md`,
 	};
 }

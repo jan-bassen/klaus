@@ -66,13 +66,13 @@ mock.module("@/store/files", () => ({
 import { registry } from "@/commands";
 import { agentRegistry } from "@/core/agent";
 import { setContextVariables } from "@/core/assemble";
+import { flagRegistry } from "@/core/flags";
 import {
 	_clearAgentRunnerForTest,
 	_setAgentRunnerForTest,
 	handleTurn,
 } from "@/core/pipeline";
 import { _resetForTest, checkMessageRate } from "@/core/rate-limiter";
-import { flagRegistry } from "@/core/flags";
 import { settings } from "@/settings";
 
 // ─── Test seam — captures agent turns without mock.module pollution ──────────
@@ -385,6 +385,9 @@ describe("handleTurn — agent routing", () => {
 			name: "__cached__",
 			modelTier: "default",
 			tools: [],
+			toolsets: [],
+			providerTools: [],
+			skills: [],
 			promptPath: join(tmpDir, "vault", "Klaus", "agents", "thinking.md"),
 		};
 		agentRegistry.set("__cached__", cachedDef);

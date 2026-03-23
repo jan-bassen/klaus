@@ -16,6 +16,9 @@ const dummyAgent: AgentDefinition = {
 	name: "test",
 	modelTier: "default",
 	tools: [],
+	toolsets: [],
+	providerTools: [],
+	skills: [],
 	promptPath: "/dev/null",
 };
 

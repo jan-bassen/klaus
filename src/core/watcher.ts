@@ -1,11 +1,19 @@
 import type { FSWatcher } from "node:fs";
 import { existsSync, watch } from "node:fs";
 import { parse as parseYaml } from "yaml";
-import { type FlagMeta, flagRegistry } from "@/core/flags";
+import {
+	FlagFrontmatterSchema,
+	type FlagMeta,
+	flagRegistry,
+} from "@/core/flags";
 import { log } from "@/logger";
 import { settings } from "@/settings";
 import { addSchedule, findSchedule, removeSchedule } from "@/store/schedules";
-import { type SkillMeta, skillRegistry } from "@/tools/skill";
+import {
+	SkillFrontmatterSchema,
+	type SkillMeta,
+	skillRegistry,
+} from "@/tools/skill";
 import { agentRegistry, loadAgentDefinition } from "./agent";
 
 const watchers: FSWatcher[] = [];
@@ -131,9 +139,9 @@ async function handleSkillChange(
 		const match = raw.match(/^---\n([\s\S]*?)\n---/);
 		let description = name;
 		if (match) {
-			const front = parseYaml(match[1] ?? "") as Record<string, unknown>;
-			if (typeof front.description === "string" && front.description) {
-				description = front.description;
+			const front = SkillFrontmatterSchema.safeParse(parseYaml(match[1] ?? ""));
+			if (front.success && front.data.description) {
+				description = front.data.description;
 			}
 		}
 		skillRegistry.set(name, { name, description } satisfies SkillMeta);
@@ -168,9 +176,9 @@ async function handleFlagChange(
 		let prompt = raw.trim();
 
 		if (match) {
-			const front = parseYaml(match[1] ?? "") as Record<string, unknown>;
-			if (typeof front.description === "string" && front.description) {
-				description = front.description;
+			const front = FlagFrontmatterSchema.safeParse(parseYaml(match[1] ?? ""));
+			if (front.success && front.data.description) {
+				description = front.data.description;
 			}
 			prompt = raw.slice(match[0].length).trim();
 		}

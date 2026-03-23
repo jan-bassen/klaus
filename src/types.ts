@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { ModelTier } from "./settings";
+import type { AgentFrontmatterSchema } from "./core/agent";
 
 // -- WhatsApp / transport --
 
@@ -86,25 +86,10 @@ export interface TurnResult {
 
 // -- Agent system --
 
-export interface AgentDefinition {
-	name: string;
-	modelTier: ModelTier;
-	tools: string[];
-	/** Toolset names — expanded to all `{name}.*` tools at runtime */
-	toolsets?: string[];
-	/** cron schedule string (e.g. "0 3 * * *") for scheduled agents */
-	schedule?: string;
-	/** Override the default conversation history limit for this agent */
-	conversationLimit?: number;
-	/** Anthropic provider tool names (e.g. "web_search", "web_fetch", "code_execution") */
-	providerTools?: string[];
-	/** Skill document names this agent can load on demand (filenames without .md in skills/) */
-	skills?: string[];
-	/** Optional vault subdirectory this agent is restricted to, e.g. "Training" */
-	vaultScope?: string;
+export type AgentDefinition = z.infer<typeof AgentFrontmatterSchema> & {
 	/** Absolute path to the .md file — used for hot-reload */
 	promptPath: string;
-}
+};
 
 // -- Tool system --
 

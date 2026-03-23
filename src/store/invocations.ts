@@ -1,18 +1,21 @@
+import { z } from "zod";
 import { settings } from "@/settings";
 import { appendJsonl } from "./jsonl";
 
-export interface InvocationRecord {
-	agent: string;
-	model: string;
-	messageId?: string;
-	systemPrompt?: string;
-	userMessage?: string;
-	steps: unknown[];
-	promptTokens: number;
-	completionTokens: number;
-	durationMs: number;
-	createdAt: string;
-}
+export const InvocationRecordSchema = z.object({
+	agent: z.string(),
+	model: z.string(),
+	messageId: z.string().optional(),
+	systemPrompt: z.string().optional(),
+	userMessage: z.string().optional(),
+	steps: z.array(z.unknown()),
+	promptTokens: z.number(),
+	completionTokens: z.number(),
+	durationMs: z.number(),
+	createdAt: z.string(),
+});
+
+export type InvocationRecord = z.infer<typeof InvocationRecordSchema>;
 
 /** Append an invocation trace to the daily JSONL file. */
 export async function recordInvocation(

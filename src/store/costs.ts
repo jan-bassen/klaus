@@ -1,13 +1,16 @@
+import { z } from "zod";
 import { settings } from "@/settings";
 import { appendJsonl, readJsonl } from "./jsonl";
 
-interface CostRecord {
-	service: string;
-	units: number;
-	costUsd: number;
-	chatId?: string;
-	createdAt: string;
-}
+const CostRecordSchema = z.object({
+	service: z.string(),
+	units: z.number(),
+	costUsd: z.number(),
+	chatId: z.string().optional(),
+	createdAt: z.string(),
+});
+
+type CostRecord = z.infer<typeof CostRecordSchema>;
 
 /** Append a cost record to the daily JSONL file. */
 export async function recordCost(
@@ -54,7 +57,12 @@ export async function getCostSummary(
 		periodLabel = "last_month";
 	}
 
-	const records = await readJsonl<CostRecord>(costsDir(), "costs", days);
+	const records = await readJsonl<CostRecord>(
+		costsDir(),
+		"costs",
+		days,
+		CostRecordSchema,
+	);
 
 	const byService: Record<string, number> = {};
 	let total = 0;
