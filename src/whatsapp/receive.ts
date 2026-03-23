@@ -15,9 +15,9 @@ import type { InboundMessage } from "@/types";
 import { onReaction } from "./confirm";
 import { enqueueMessage, setSocket } from "./send";
 
-const MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024; // 64 MB
+const MAX_DOWNLOAD_BYTES = settings.whatsapp.maxDownloadBytes;
 const STARTUP_AT = Date.now();
-const OFFLINE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const OFFLINE_WINDOW_MS = settings.whatsapp.offlineWindowMs;
 
 const MIME_TO_EXT: Record<string, string> = {
 	"image/jpeg": "jpg",

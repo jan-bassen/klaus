@@ -9,9 +9,9 @@ mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 
 // ─── Import after mocks ───────────────────────────────────────────────────────
 
+import { modelCommand } from "@/commands/model";
 import { agentRegistry } from "@/core/agent";
 import { _resetDefaultsForTest } from "@/core/defaults";
-import { modelCommand } from "@/commands/model";
 import type { AgentDefinition, InboundMessage } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

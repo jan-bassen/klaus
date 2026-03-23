@@ -87,7 +87,7 @@ export async function callModel(
 	const timeoutMs = settings.llm.timeoutMs;
 
 	// Retry transient failures (network errors, 5xx) with exponential backoff.
-	const MAX_ATTEMPTS = 3;
+	const MAX_ATTEMPTS = settings.retries.max;
 	let result: Awaited<ReturnType<typeof generateText>> | undefined;
 	let lastErr: unknown;
 	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -107,7 +107,7 @@ export async function callModel(
 					...(opts.tools && Object.keys(opts.tools).length > 0
 						? {
 								tools: opts.tools,
-								stopWhen: stepCountIs(10),
+								stopWhen: stepCountIs(settings.llm.maxSteps),
 								...(opts.activeTools
 									? { activeTools: opts.activeTools as Array<keyof ToolSet> }
 									: {}),
@@ -143,7 +143,7 @@ export async function callModel(
 				throw err;
 			}
 			if (attempt < MAX_ATTEMPTS) {
-				const delayMs = 1_000 * 2 ** (attempt - 1); // 1s, 2s
+				const delayMs = settings.retries.backoffMs * 2 ** (attempt - 1);
 				log.warn("[model-router] generateText failed, retrying", {
 					model: modelId,
 					attempt,

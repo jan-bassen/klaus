@@ -115,7 +115,7 @@ async function main(): Promise<void> {
 	);
 	await loadAllTools(path.join(import.meta.dir, "tools"));
 
-	const agentsDir = path.join(settings.vault.dir, "Klaus", "agents");
+	const agentsDir = settings.vault.agentsDir;
 	await mkdir(agentsDir, { recursive: true });
 	await loadAgents(agentsDir);
 
@@ -124,18 +124,18 @@ async function main(): Promise<void> {
 	);
 	setContextVariables(contextVariables);
 
-	const snippetsDir = path.join(settings.vault.dir, "Klaus", "snippets");
+	const snippetsDir = settings.vault.snippetsDir;
 	await mkdir(snippetsDir, { recursive: true });
 
-	const skillsDir = path.join(settings.vault.dir, "Klaus", "skills");
+	const skillsDir = settings.vault.skillsDir;
 	await mkdir(skillsDir, { recursive: true });
 	await loadSkills(skillsDir);
 
-	const flagsDir = path.join(settings.vault.dir, "Klaus", "flags");
+	const flagsDir = settings.vault.flagsDir;
 	await mkdir(flagsDir, { recursive: true });
 	await loadFlags(flagsDir);
 
-	const notesDir = path.join(settings.vault.dir, "Klaus", "notes");
+	const notesDir = settings.vault.notesDir;
 	await mkdir(notesDir, { recursive: true });
 
 	await import("./commands/register");

@@ -6,7 +6,7 @@ import { assembleContext } from "./assemble";
 import type { AgentRunPayload } from "./queue";
 import { setWorker } from "./queue";
 
-const AGENTS_DIR = path.join(settings.vault.dir, "Klaus", "agents");
+const AGENTS_DIR = settings.vault.agentsDir;
 
 /**
  * Registers the queue worker for agent-run jobs.

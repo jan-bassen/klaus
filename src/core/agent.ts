@@ -1,4 +1,3 @@
-import path from "node:path";
 import type {
 	AssistantContent,
 	ImagePart,
@@ -20,7 +19,7 @@ import {
 	toolsetRegistry,
 } from "@/core/registry";
 import { log } from "@/logger";
-import { settings } from "@/settings";
+import { type ModelTier, modelTiers, settings } from "@/settings";
 import {
 	appendTrace,
 	type ConversationMessage,
@@ -36,7 +35,7 @@ import { callModel, type ModelCallStep } from "./model-router";
 
 export const AgentFrontmatterSchema = z.object({
 	name: z.string().min(1),
-	modelTier: z.enum(["default", "low", "high"]),
+	modelTier: z.enum(modelTiers).transform((v) => v as ModelTier),
 	tools: z.array(z.string()).default([]),
 	toolsets: z.array(z.string()).default([]),
 	providerTools: z.array(z.string()).default([]),
@@ -46,8 +45,7 @@ export const AgentFrontmatterSchema = z.object({
 	conversationLimit: z.number().optional(),
 });
 
-// Max long-edge dimension for vision images. A 2048px image → at most 4×4 = 16 tiles ≈ 24k tokens.
-const MAX_IMAGE_DIMENSION = 2048;
+const MAX_IMAGE_DIMENSION = settings.vision.maxImageDimension;
 
 function buildSystemPrompt(
 	body: string,
@@ -115,11 +113,10 @@ function buildUserMessageText(turn: TurnContext): string {
 
 // -- Conversation message reconstruction --
 
-const CHARS_PER_TOKEN = 4;
-const MAX_REASONING_CHARS = 2000;
-const MAX_TOOL_RESULT_CHARS = 2000;
-/** Number of recent turns (user messages) that get full trace replay */
-const TRACE_DEPTH = 3;
+const CHARS_PER_TOKEN = settings.context.charsPerToken;
+const MAX_REASONING_CHARS = settings.context.maxReasoningChars;
+const MAX_TOOL_RESULT_CHARS = settings.context.maxToolResultChars;
+const TRACE_DEPTH = settings.context.traceDepth;
 
 /**
  * Build the conversation messages array for the SDK, reconstructing full
@@ -399,7 +396,7 @@ export async function runAgent(
 
 	// Skills — per-agent scoped tool, registered only when agent declares skills
 	if (def.skills?.length) {
-		const skillsDir = path.resolve(settings.vault.dir, "Klaus", "skills");
+		const skillsDir = settings.vault.skillsDir;
 		const skillTool = buildSkillTool(def.skills, skillsDir);
 		const sdkName = skillTool.name.replace(/\./g, "_");
 		allTools[sdkName] = wrap(skillTool);

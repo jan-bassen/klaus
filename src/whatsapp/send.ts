@@ -24,7 +24,7 @@ let _queue: Promise<void> = Promise.resolve();
 // In-memory dedup: skip re-sending a key within the current process lifetime.
 // Capped at MAX_SEEN_SIZE to prevent unbounded memory growth in long-running processes.
 const _seen = new Set<string>();
-const MAX_SEEN_SIZE = 10_000;
+const MAX_SEEN_SIZE = settings.whatsapp.maxSeenSize;
 
 /**
  * Enqueue an outbound message for delivery: ensures FIFO ordering, deduplication
@@ -113,8 +113,10 @@ async function sendWithRetry(
 		);
 		return result?.key?.id ?? null;
 	} catch (err) {
-		if (attempt < 3) {
-			await new Promise<void>((r) => setTimeout(r, 1_000 * attempt));
+		if (attempt < settings.retries.max) {
+			await new Promise<void>((r) =>
+				setTimeout(r, settings.retries.backoffMs * attempt),
+			);
 			return sendWithRetry(msg, attempt + 1);
 		}
 		throw err;

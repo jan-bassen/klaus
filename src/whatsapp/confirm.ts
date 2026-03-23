@@ -1,10 +1,11 @@
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 import { getSocket } from "./connection";
 
 export type ConfirmResult = "confirmed" | "rejected" | "timeout";
 
-const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_TIMEOUT_MS = settings.whatsapp.confirmTimeoutMs;
 
 // Pending confirmations keyed by the ID of the prompt message Klaus sent.
 // Each entry is a resolve function that accepts the final result.
@@ -22,7 +23,7 @@ const pending = new Map<string, (result: ConfirmResult) => void>();
 export async function awaitConfirmation(
 	msg: InboundMessage,
 	prompt: string,
-	timeoutMs = DEFAULT_TIMEOUT_MS,
+	timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): Promise<ConfirmResult> {
 	const socket = getSocket();
 	let sent: Awaited<ReturnType<typeof socket.sendMessage>>;

@@ -119,7 +119,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | Path | Concern |
 |------|---------|
 | `src/types.ts` | All core interfaces (InboundMessage, TurnContext, AgentDefinition, ToolDefinition, ContextVariable) |
-| `src/settings.ts` | Model tiers, pricing, context budgets, rate limits, timeouts, locale, dataDir |
+| `src/settings.ts` | Model tiers, pricing, context budgets, rate limits, timeouts, vision, whatsapp transport, vault subdirectory getters, locale, dataDir |
 | `src/core/flags.ts` | Flag registry — loads `.md` flag definitions from vault, hot-reloaded |
 | `src/core/pipeline.ts` | Message orchestrator |
 | `src/core/agent.ts` | Agent executor + agentRegistry |
@@ -178,7 +178,7 @@ Published as `janbassen1/klaus` on Docker Hub. The Dockerfile includes OCI label
 - Errors are values — return don't throw (except at true system boundaries)
 - No `any` types; explicit return types on exported functions
 - Prefer `const` and pure functions; minimize mutable state
-- Config lives in `src/settings.ts` (not scattered env reads)
+- Config lives in `src/settings.ts` (not scattered env reads). All tunable constants (token budgets, retry counts, dimension limits, timeout values, max sizes) belong in `settings.ts` — never inline magic numbers. Vault subdirectory paths use `settings.vault.*Dir` getters. The `modelTiers` array and `ModelTier` type are derived from `settings.models` — keep schemas (e.g. agent frontmatter) in sync via `z.enum(modelTiers)`.
 - One concern per file
 - Path alias `@/` maps to `src/`
 - No unnecessary comments — code should be self-explanatory; comments explain *why*, never *what*

@@ -33,6 +33,10 @@ export const settings = {
 		conversationTokens: 20_000, // recent message history (trimmed oldest-first)
 		activeTasksTokens: 5_000, // in-flight async tasks
 		defaultConversationLimit: 20, // max messages in conversation history
+		charsPerToken: 4, // rough estimate: 1 token ≈ 4 characters
+		maxReasoningChars: 2_000, // truncation limit for reasoning in trace replay
+		maxToolResultChars: 2_000, // truncation limit for tool results in trace replay
+		traceDepth: 3, // number of recent user turns that get full trace replay
 	},
 
 	// Sliding-window rate limits. Two independent gates:
@@ -62,6 +66,7 @@ export const settings = {
 	// Timeout for a single LLM generateText() call.
 	llm: {
 		timeoutMs: 120_000, // 2 minutes
+		maxSteps: 10, // max agentic loop steps per generateText call
 	},
 
 	// Startup connection timing. Used for warning/logging only — not fatal.
@@ -95,11 +100,41 @@ export const settings = {
 		debounceMs: 1_000,
 	},
 
+	// Max long-edge dimension for vision images.
+	// A 2048px image → at most 4×4 = 16 tiles ≈ 24k tokens.
+	vision: {
+		maxImageDimension: 2048,
+	},
+
+	// WhatsApp transport constants.
+	whatsapp: {
+		maxDownloadBytes: 64 * 1024 * 1024, // 64 MB
+		offlineWindowMs: 5 * 60 * 1000, // 5 minutes
+		maxSeenSize: 10_000, // dedup set cap
+		confirmTimeoutMs: 60_000, // confirmation reaction timeout
+	},
+
 	// Obsidian vault directory — agents, skills, and memory all live here.
 	vault: {
 		get dir() {
 			return process.env.VAULT_DIR ?? path.join(process.cwd(), "vault");
 		},
+		get agentsDir() {
+			return path.join(this.dir, "Klaus", "agents");
+		},
+		get skillsDir() {
+			return path.join(this.dir, "Klaus", "skills");
+		},
+		get snippetsDir() {
+			return path.join(this.dir, "Klaus", "snippets");
+		},
+		get flagsDir() {
+			return path.join(this.dir, "Klaus", "flags");
+		},
+		get notesDir() {
+			return path.join(this.dir, "Klaus", "notes");
+		},
+		maxListEntries: 200,
 	},
 
 	// Data directory for operational data (conversations, costs, tasks, etc.).
@@ -113,3 +148,9 @@ export const settings = {
 } as const;
 
 export type ModelTier = keyof typeof settings.models;
+
+/** Model tier names derived from settings.models, suitable for z.enum(). */
+export const modelTiers = Object.keys(settings.models) as [
+	ModelTier,
+	...ModelTier[],
+];

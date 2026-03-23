@@ -34,7 +34,7 @@ import { assembleContext } from "./assemble";
 import { formatUserError } from "./errors";
 
 function agentsDir(): string {
-	return path.join(settings.vault.dir, "Klaus", "agents");
+	return settings.vault.agentsDir;
 }
 
 /**

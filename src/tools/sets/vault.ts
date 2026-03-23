@@ -133,7 +133,7 @@ export const vaultListTool: ToolDefinition<typeof vaultListSchema> = {
 		const base = safePath(effectiveDir, context.agent.vaultScope);
 		if (!base) return scopeError(context.agent.vaultScope);
 
-		const MAX_ENTRIES = 200;
+		const MAX_ENTRIES = settings.vault.maxListEntries;
 		const lines: string[] = [];
 
 		async function walk(

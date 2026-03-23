@@ -7,7 +7,7 @@ import { assembleContext } from "./assemble";
 import { enqueueJob } from "./queue";
 
 function agentsDir(): string {
-	return path.join(settings.vault.dir, "Klaus", "agents");
+	return settings.vault.agentsDir;
 }
 
 // Test seam — allows dispatch.test.ts to override agent functions without mock.module.

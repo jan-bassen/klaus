@@ -5,7 +5,7 @@ import { log } from "@/logger";
 import { settings } from "@/settings";
 import type { ToolDefinition, ToolsetDefinition } from "@/types";
 
-const notesDir = () => path.join(settings.vault.dir, "Klaus", "notes");
+const notesDir = () => settings.vault.notesDir;
 
 const KEBAB_CASE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 

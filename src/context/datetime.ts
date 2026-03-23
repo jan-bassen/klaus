@@ -1,8 +1,7 @@
 import { settings } from "@/settings";
 import type { ContextVariable } from "@/types";
 
-// Rough token estimate: 1 token ≈ 4 characters (good enough for short strings).
-const CHARS_PER_TOKEN = 4;
+const CHARS_PER_TOKEN = settings.context.charsPerToken;
 
 export const dateQuery: ContextVariable = {
 	name: "date",
