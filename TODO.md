@@ -1,14 +1,5 @@
 # TODO
 
-## Iteration
-- [ ] React/reply flow/anweisungen verbessern (ist wierd manchmal - zB. Ich stell ne Frage und es kommt nur 👍, oder es kommen beides ne Reaktion und Antwort, wenn eins gereicht hätte)
-- [ ] use _ for toolset tools? Klaus tried to use them like that a few times already
-
-## Prompts
-- [ ] Es gibt kein <cite> support bei Whatsapp! 
-- [ ] Nachrichten sind zu lang, Klaus fällt häufig in den default assistant zurück statt passend für Whatsapp...
-- [ ] Improve voice prompt (ist gerade sehr langsam/ erzählerisch/ unnatürlich). Current: "Eine tiefe, raue Stimme mit leichtem Knarzen — wie ein alter Seemann aus Norddeutschland, der viel erlebt hat. Ruhig und warm im Kern, aber mit einer trockenen, knorrigen Kante. Spricht bedächtig, fast gemütlich, kann aber auch mal brummig werden. Norddeutsch nüchtern, nie überschwänglich — Herzlichkeit zeigt sich eher zwischen den Zeilen als in der Lautstärke. Ein Hauch von Salz und Wind in der Stimme."
-
 ## New commands
 - [ ] /stop - stop the current task gracefully, but promptly (in case Klaus decides to do something i don't want)
   - [ ] Add good instructions for it too (eg. Note structure/ headings overview)
