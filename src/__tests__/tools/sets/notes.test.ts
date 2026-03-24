@@ -20,8 +20,14 @@ afterAll(async () => {
 });
 
 // Import after env is set
-const { noteSearchTool, noteWriteTool, noteEditTool, noteDeleteTool } =
-	await import("@/tools/sets/notes");
+const {
+	noteListTool,
+	noteReadTool,
+	noteSearchTool,
+	noteWriteTool,
+	noteEditTool,
+	noteDeleteTool,
+} = await import("@/tools/sets/notes");
 
 // Minimal context stub — note tools don't use TurnContext
 const ctx = {} as Parameters<typeof noteWriteTool.execute>[1];
@@ -152,8 +158,101 @@ describe("notes.edit", () => {
 	});
 });
 
+describe("notes.list", () => {
+	test("lists all notes alphabetically", async () => {
+		await noteWriteTool.execute(
+			{ name: "zzz-last", content: "last note" },
+			ctx,
+		);
+		await noteWriteTool.execute(
+			{ name: "aaa-first", content: "first note" },
+			ctx,
+		);
+
+		const result = await noteListTool.execute({}, ctx);
+		const lines = (result as string).split("\n");
+		const aIdx = lines.findIndex((l) => l.startsWith("aaa-first"));
+		const zIdx = lines.findIndex((l) => l.startsWith("zzz-last"));
+		expect(aIdx).toBeLessThan(zIdx);
+	});
+
+	test("includes description when present", async () => {
+		await noteWriteTool.execute(
+			{
+				name: "described-list",
+				content: "body",
+				description: "A listed note",
+			},
+			ctx,
+		);
+
+		const result = await noteListTool.execute({}, ctx);
+		expect(result).toContain("described-list — A listed note");
+	});
+
+	test("shows name only when no description", async () => {
+		await noteWriteTool.execute(
+			{ name: "bare-list", content: "just body" },
+			ctx,
+		);
+
+		const result = await noteListTool.execute({}, ctx);
+		expect(result).toContain("bare-list");
+		// Should not have a dash separator for description-less notes
+		expect(result).not.toContain("bare-list —");
+	});
+
+	test("respects limit", async () => {
+		const result = await noteListTool.execute({ limit: 2 }, ctx);
+		const lines = (result as string).split("\n");
+		expect(lines.length).toBeLessThanOrEqual(2);
+	});
+
+	test("returns message when no notes exist", async () => {
+		// Use a fresh empty dir
+		const emptyTemp = await mkdtemp(join(tmpdir(), "note-empty-"));
+		const emptyNotes = join(emptyTemp, "Klaus", "notes");
+		await mkdir(emptyNotes, { recursive: true });
+		const origVault = process.env.VAULT_DIR;
+		process.env.VAULT_DIR = emptyTemp;
+
+		const result = await noteListTool.execute({}, ctx);
+		expect(result).toBe("No notes found.");
+
+		process.env.VAULT_DIR = origVault;
+		await rm(emptyTemp, { recursive: true, force: true });
+	});
+});
+
+describe("notes.read", () => {
+	test("reads full content of an existing note", async () => {
+		await noteWriteTool.execute(
+			{
+				name: "read-target",
+				content: "Full body content here",
+				description: "Readable note",
+			},
+			ctx,
+		);
+
+		const result = await noteReadTool.execute({ name: "read-target" }, ctx);
+		expect(result).toContain("description: Readable note");
+		expect(result).toContain("Full body content here");
+	});
+
+	test("returns error for nonexistent note", async () => {
+		const result = await noteReadTool.execute({ name: "no-such-note" }, ctx);
+		expect(result).toContain("not found");
+	});
+
+	test("rejects non-kebab-case names", async () => {
+		const result = await noteReadTool.execute({ name: "Not Valid" }, ctx);
+		expect(result).toContain("Invalid name");
+	});
+});
+
 describe("notes.search", () => {
-	test("matches by filename", async () => {
+	test("matches by filename and returns compact result", async () => {
 		await noteWriteTool.execute(
 			{ name: "alpha-search", content: "unrelated body" },
 			ctx,
@@ -164,7 +263,8 @@ describe("notes.search", () => {
 			ctx,
 		);
 		expect(result).toContain("alpha-search");
-		expect(result).toContain("unrelated body");
+		// Compact format: should NOT contain full body dump with ── separators
+		expect(result).not.toContain("── alpha-search ──");
 	});
 
 	test("matches by body content", async () => {
@@ -214,8 +314,8 @@ describe("notes.search", () => {
 			ctx,
 		);
 		const matches = (result as string)
-			.split("──")
-			.filter((s) => s.includes("limited-"));
+			.split("\n")
+			.filter((s) => s.match(/^limited-\d/));
 		expect(matches.length).toBeLessThanOrEqual(2);
 	});
 
@@ -225,6 +325,24 @@ describe("notes.search", () => {
 			ctx,
 		);
 		expect(result).toBe("Empty query.");
+	});
+
+	test("includes preview line in results", async () => {
+		await noteWriteTool.execute(
+			{
+				name: "preview-test",
+				content: "First line\nThe searchable keyword line\nThird line",
+				description: "Preview note",
+			},
+			ctx,
+		);
+
+		const result = await noteSearchTool.execute(
+			{ query: "searchable", limit: 10 },
+			ctx,
+		);
+		expect(result).toContain("preview-test — Preview note");
+		expect(result).toContain("The searchable keyword line");
 	});
 });
 
