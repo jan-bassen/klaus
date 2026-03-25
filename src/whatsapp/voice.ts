@@ -37,6 +37,7 @@ export async function transcribe(
 			method: "POST",
 			headers: { "xi-api-key": apiKey },
 			body: form,
+			signal: AbortSignal.timeout(settings.stt.timeoutMs),
 		});
 
 		if (!res.ok) {

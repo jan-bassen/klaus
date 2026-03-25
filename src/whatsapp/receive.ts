@@ -232,7 +232,15 @@ export async function normalizeMessage(
 			});
 		} else
 			try {
-				const buffer = await downloadMediaMessage(raw, "buffer", {});
+				const buffer = await Promise.race([
+					downloadMediaMessage(raw, "buffer", {}),
+					new Promise<never>((_, reject) =>
+						setTimeout(
+							() => reject(new Error("media download timed out")),
+							settings.whatsapp.mediaDownloadTimeoutMs,
+						),
+					),
+				]);
 
 				const date = new Date().toISOString().slice(0, 10);
 				const id = crypto.randomUUID();

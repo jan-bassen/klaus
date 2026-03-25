@@ -22,6 +22,7 @@ mock.module("@/store/costs", () => ({
 	})),
 }));
 
+import { settings } from "@/settings";
 import { transcribe } from "@/whatsapp/voice";
 
 let tmpDir: string;
@@ -101,6 +102,32 @@ describe("transcribe", () => {
 		const result = await transcribe(fakeAudioPath, "audio/ogg");
 		expect(result).toBeInstanceOf(Error);
 		expect((result as Error).message).toBe("Network failure");
+	});
+
+	test("returns Error when transcription API times out", async () => {
+		const original = settings.stt.timeoutMs;
+		(settings.stt as { timeoutMs: number }).timeoutMs = 50;
+
+		globalThis.fetch = mock(async (_url: string | URL, init?: RequestInit) => {
+			return new Promise<Response>((resolve, reject) => {
+				const timer = setTimeout(
+					() => resolve(new Response("late", { status: 200 })),
+					5_000,
+				);
+				init?.signal?.addEventListener("abort", () => {
+					clearTimeout(timer);
+					reject(init.signal?.reason ?? new Error("aborted"));
+				});
+			});
+		}) as unknown as typeof fetch;
+
+		try {
+			const result = await transcribe(fakeAudioPath, "audio/ogg");
+			expect(result).toBeInstanceOf(Error);
+			expect((result as Error).message).toMatch(/abort|timed? ?out/i);
+		} finally {
+			(settings.stt as { timeoutMs: number }).timeoutMs = original;
+		}
 	});
 
 	test("sends xi-api-key header with the configured API key", async () => {

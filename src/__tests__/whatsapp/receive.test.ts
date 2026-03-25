@@ -1,5 +1,21 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import type { WAMessage } from "@whiskeysockets/baileys";
+
+// Mock downloadMediaMessage to control download behavior in tests
+const downloadMediaMessageMock = mock(async () => {
+	throw new Error("no real socket");
+});
+mock.module("@whiskeysockets/baileys", () => ({
+	downloadMediaMessage: downloadMediaMessageMock,
+	normalizeMessageContent: (m: Record<string, unknown>) =>
+		(m as { ephemeralMessage?: { message?: unknown } }).ephemeralMessage
+			?.message ?? m,
+}));
+mock.module("@/store/files", () => ({
+	saveFileMeta: mock(async () => ({ id: "file-id" })),
+}));
+
+import { settings } from "@/settings";
 import { normalizeMessage } from "@/whatsapp/receive";
 
 function makeRaw(overrides: Record<string, unknown> = {}): WAMessage {
@@ -115,6 +131,41 @@ describe("normalizeMessage", () => {
 	test("falls back to remoteJid as senderId in 1:1 messages", async () => {
 		const result = await normalizeMessage(makeRaw());
 		expect(result?.senderId).toBe("user@s.whatsapp.net");
+	});
+});
+
+describe("normalizeMessage — media download timeout", () => {
+	test("produces voice note fallback when media download times out", async () => {
+		const original = settings.whatsapp.mediaDownloadTimeoutMs;
+		(
+			settings.whatsapp as { mediaDownloadTimeoutMs: number }
+		).mediaDownloadTimeoutMs = 50;
+
+		downloadMediaMessageMock.mockImplementationOnce(
+			() => new Promise((resolve) => setTimeout(resolve, 5_000)),
+		);
+
+		try {
+			const result = await normalizeMessage(
+				makeRaw({
+					message: {
+						audioMessage: {
+							mimetype: "audio/ogg",
+							ptt: true,
+							fileLength: 1024,
+						},
+					},
+				}),
+			);
+
+			expect(result).not.toBeNull();
+			expect(result?.text).toBe("(voice note — could not be downloaded)");
+			expect(result?.media).toBeUndefined();
+		} finally {
+			(
+				settings.whatsapp as { mediaDownloadTimeoutMs: number }
+			).mediaDownloadTimeoutMs = original;
+		}
 	});
 });
 

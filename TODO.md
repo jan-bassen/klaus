@@ -1,8 +1,5 @@
 # TODO
 
-## Fixes
-- [ ] Long voice messages get ignored
-
 ## Iteration
 - [x] Make persistence (recurring calls) explicit — `persistent: true` frontmatter + structured output `{ nextRun, objective }`
 - [ ] Add traces conversion limit param to agents for finer control

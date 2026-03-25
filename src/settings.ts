@@ -52,6 +52,11 @@ export const settings = {
 		voiceId: "Qqi8SzIZjZsatCWjDOp7",
 	},
 
+	// ElevenLabs Scribe STT settings.
+	stt: {
+		timeoutMs: 30_000, // 30s for transcription API
+	},
+
 	// Retry policy for transient failures in async task jobs.
 	retries: {
 		max: 3, // attempts before marking a task failed
@@ -116,6 +121,7 @@ export const settings = {
 	// WhatsApp transport constants.
 	whatsapp: {
 		maxDownloadBytes: 64 * 1024 * 1024, // 64 MB
+		mediaDownloadTimeoutMs: 30_000, // 30s for media download from WhatsApp CDN
 		offlineWindowMs: 5 * 60 * 1000, // 5 minutes
 		maxSeenSize: 10_000, // dedup set cap
 		confirmTimeoutMs: 60_000, // confirmation reaction timeout
