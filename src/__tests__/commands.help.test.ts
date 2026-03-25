@@ -40,6 +40,7 @@ function makeAgent(
 		toolsets: toolsets ?? [],
 		providerTools: [],
 		skills: [],
+		persistent: false,
 		promptPath: `/fake/agents/${name}.md`,
 	};
 }

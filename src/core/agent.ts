@@ -8,7 +8,7 @@ import type {
 	ToolSet,
 	UserContent,
 } from "ai";
-import { tool } from "ai";
+import { Output, tool } from "ai";
 import sharp from "sharp";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
@@ -27,7 +27,9 @@ import {
 	getTraces,
 	type TraceStep,
 } from "@/store/conversation";
+import { addTimer, listTimers, removeTimer } from "@/store/timers";
 import { buildProviderTool } from "@/tools/provider";
+import { parseRunAt } from "@/tools/sets/dispatch";
 import { buildSkillTool } from "@/tools/skill";
 import type { AgentDefinition, ToolDefinition, TurnContext } from "@/types";
 import { hbs } from "./hbs";
@@ -41,8 +43,16 @@ export const AgentFrontmatterSchema = z.object({
 	providerTools: z.array(z.string()).default([]),
 	skills: z.array(z.string()).default([]),
 	schedule: z.string().optional(),
+	persistent: z.boolean().default(false),
 	vaultScope: z.string().optional(),
 	conversationLimit: z.number().optional(),
+});
+
+const PersistentOutputSchema = z.object({
+	nextRun: z
+		.string()
+		.describe("When to run next: delay string ('2h','1d') or ISO datetime"),
+	objective: z.string().describe("What the next run should focus on"),
 });
 
 const MAX_IMAGE_DIMENSION = settings.vision.maxImageDimension;
@@ -334,6 +344,71 @@ function toTraceSteps(steps: ModelCallStep[]): TraceStep[] {
 }
 
 /**
+ * Clamp a run-at ISO string to the configured min/max bounds.
+ * Returns a new ISO string, clamped if necessary.
+ */
+export function clampNextRun(isoRunAt: string): string {
+	const runAtMs = new Date(isoRunAt).getTime();
+	const nowMs = Date.now();
+	const delayMs = runAtMs - nowMs;
+	const clamped = Math.max(
+		settings.persistent.minNextRunMs,
+		Math.min(delayMs, settings.persistent.maxNextRunMs),
+	);
+	if (clamped !== delayMs) {
+		return new Date(nowMs + clamped).toISOString();
+	}
+	return isoRunAt;
+}
+
+/**
+ * Cancel existing timers for the same agent+chatId combination.
+ * Prevents timer accumulation across runs.
+ */
+async function cancelExistingPersistentTimers(
+	agentName: string,
+	chatId: string,
+): Promise<void> {
+	const existing = listTimers().filter(
+		(t) =>
+			t.agentName === agentName &&
+			t.chatId === chatId &&
+			t.createdBy === `persistent:${agentName}`,
+	);
+	for (const t of existing) {
+		await removeTimer(t.id);
+	}
+}
+
+/**
+ * Schedule the next persistent timer from structured output or fallback.
+ */
+async function schedulePersistentTimer(
+	agentName: string,
+	chatId: string,
+	nextRun: string,
+	objective: string,
+): Promise<void> {
+	await cancelExistingPersistentTimers(agentName, chatId);
+	const absoluteRunAt = parseRunAt(nextRun);
+	const clampedRunAt = clampNextRun(absoluteRunAt);
+	await addTimer({
+		id: crypto.randomUUID(),
+		agentName,
+		chatId,
+		objective,
+		runAt: clampedRunAt,
+		createdBy: `persistent:${agentName}`,
+		createdAt: new Date().toISOString(),
+	});
+	log.info("[agent] persistent timer scheduled", {
+		agent: agentName,
+		runAt: clampedRunAt,
+		objective,
+	});
+}
+
+/**
  * Generic agent execution engine used by all agents.
  * Loads the agent's prompt, runs the agentic loop via the Vercel AI SDK.
  * All agents produce free-text output via the reply tool — no structured return.
@@ -497,6 +572,9 @@ export async function runAgent(
 						prepareStep: buildActiveTools,
 					}
 				: {}),
+			...(def.persistent
+				? { output: Output.object({ schema: PersistentOutputSchema }) }
+				: {}),
 		});
 
 		log.info("[agent] model call completed", {
@@ -515,7 +593,49 @@ export async function runAgent(
 				);
 			}
 		}
+
+		// Persistent agents: schedule next run from structured output
+		if (def.persistent) {
+			const parsed = PersistentOutputSchema.safeParse(result.output);
+			if (parsed.success) {
+				await schedulePersistentTimer(
+					def.name,
+					turn.chatId,
+					parsed.data.nextRun,
+					parsed.data.objective,
+				);
+			} else {
+				log.warn("[agent] persistent output parse failed, using fallback", {
+					agent: def.name,
+				});
+				const fallbackObjective =
+					turn.dispatchContext?.objective ?? "Continue persistent check-in";
+				await schedulePersistentTimer(
+					def.name,
+					turn.chatId,
+					settings.persistent.defaultNextRun,
+					fallbackObjective,
+				);
+			}
+		}
 	} catch (err) {
+		// Persistent agents must always reschedule, even on failure
+		if (def.persistent) {
+			const fallbackObjective =
+				turn.dispatchContext?.objective ?? "Continue persistent check-in";
+			await schedulePersistentTimer(
+				def.name,
+				turn.chatId,
+				settings.persistent.defaultNextRun,
+				fallbackObjective,
+			).catch((timerErr) =>
+				log.error("[agent] failed to schedule recovery timer", {
+					agent: def.name,
+					error:
+						timerErr instanceof Error ? timerErr.message : String(timerErr),
+				}),
+			);
+		}
 		log.error("[agent] callModel failed", {
 			agent: def.name,
 			error: err instanceof Error ? err.message : String(err),
@@ -549,6 +669,7 @@ export async function loadAgentDefinition(
 		providerTools,
 		skills,
 		schedule,
+		persistent,
 		vaultScope,
 		conversationLimit,
 	} = front;
@@ -563,6 +684,7 @@ export async function loadAgentDefinition(
 		providerTools,
 		skills,
 		...(schedule ? { schedule } : {}),
+		persistent,
 		...(vaultScope ? { vaultScope } : {}),
 		...(conversationLimit !== undefined ? { conversationLimit } : {}),
 		promptPath,

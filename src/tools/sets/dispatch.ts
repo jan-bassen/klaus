@@ -223,7 +223,7 @@ const dispatchCancelTool: ToolDefinition<typeof dispatchCancelSchema> = {
 	requiresConfirmation: true,
 };
 
-export { parseRunAt as _parseRunAtForTest };
+export { parseRunAt };
 
 export const dispatchToolset: ToolsetDefinition = {
 	name: "dispatch",

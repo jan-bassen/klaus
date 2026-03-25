@@ -39,6 +39,7 @@ const dummyAgent: AgentDefinition = {
 	toolsets: [],
 	providerTools: [],
 	skills: [],
+	persistent: false,
 	promptPath: "/tmp/test.md",
 };
 

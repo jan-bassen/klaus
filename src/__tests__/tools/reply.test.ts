@@ -44,6 +44,7 @@ const dummyAgent: AgentDefinition = {
 	toolsets: [],
 	providerTools: [],
 	skills: [],
+	persistent: false,
 	promptPath: "/dev/null",
 };
 

@@ -27,6 +27,8 @@ export interface ModelCallOptions {
 	activeTools?: string[];
 	/** Called before each step; return updated active tool names to expand the allowlist. */
 	prepareStep?: (steps: StepResult<ToolSet>[]) => string[];
+	/** Structured output schema (e.g. Output.object). Passed directly to generateText. */
+	output?: unknown;
 }
 
 export interface ModelCallStep {
@@ -51,6 +53,8 @@ export interface ModelCallResult {
 		costUsd: number;
 	};
 	steps: ModelCallStep[];
+	/** Structured output from Output.object(), if provided. */
+	output?: unknown;
 }
 
 /**
@@ -104,6 +108,7 @@ export async function callModel(
 					model,
 					...(opts.system ? { system: opts.system } : {}),
 					messages: opts.messages,
+					...(opts.output ? { output: opts.output as never } : {}),
 					...(opts.tools && Object.keys(opts.tools).length > 0
 						? {
 								tools: opts.tools,
@@ -253,5 +258,8 @@ export async function callModel(
 		content: result.text,
 		usage: { promptTokens, completionTokens, costUsd },
 		steps: modelSteps,
+		...("output" in result && result.output !== undefined
+			? { output: result.output }
+			: {}),
 	};
 }

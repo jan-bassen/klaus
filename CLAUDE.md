@@ -78,12 +78,15 @@ toolsets: [vault, dispatch]    # expands to use_* meta-tools; tools loaded lazil
 providerTools: [web_search]    # Anthropic built-ins
 skills: [workout-plan]        # on-demand .md docs from {vault}/Klaus/skills/
 schedule: "0 3 * * *"         # optional cron
+persistent: true              # optional: forces structured nextRun output, auto-reschedules
 vaultScope: "Training"        # optional: restricts all vault tools to this subdirectory
 ---
 Prompt body with {{contextVar}} Handlebars interpolation.
 ```
 
 `agentRegistry` (Map<name, AgentDefinition>) is populated at startup from all `.md` files. The `runAgent()` function loads the prompt, builds system prompt via Handlebars, registers tools, and drives the Vercel AI SDK agentic loop.
+
+**Persistent agents** (`persistent: true`) use AI SDK `Output.object()` to force the model to produce a structured `{ nextRun, objective }` declaration as its final step. After execution, the system automatically creates a one-shot timer for `nextRun` (delay string or ISO datetime, clamped to min/max bounds from `settings.persistent`). If the model call fails or output parsing fails, a fallback timer is created at `settings.persistent.defaultNextRun`. Existing timers for the same agent+chatId are cancelled before scheduling to prevent accumulation. This guarantees persistent agents never silently stop — the chain is unbreakable.
 
 **Toolsets** are groups of tools loaded lazily via meta-tools (e.g., `use_vault`). Defined in `src/tools/sets/`.
 

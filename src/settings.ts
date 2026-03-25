@@ -88,6 +88,13 @@ export const settings = {
 		maxChainDepth: 10,
 	},
 
+	// Persistent agent settings — structured output forces a nextRun declaration.
+	persistent: {
+		minNextRunMs: 60_000, // 1 min floor (prevent tight loops)
+		maxNextRunMs: 7 * 86_400_000, // 7 day ceiling
+		defaultNextRun: "1h", // fallback if output parsing fails
+	},
+
 	// Log output format. "pretty" for human-readable console, "json" for JSONL.
 	log: {
 		format: (process.env.LOG_FORMAT === "json" ? "json" : "pretty") as

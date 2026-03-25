@@ -388,6 +388,7 @@ describe("handleTurn — agent routing", () => {
 			toolsets: [],
 			providerTools: [],
 			skills: [],
+			persistent: false,
 			promptPath: join(tmpDir, "vault", "Klaus", "agents", "thinking.md"),
 		};
 		agentRegistry.set("__cached__", cachedDef);

@@ -35,9 +35,7 @@ mock.module("@/logger", () => ({
 	},
 }));
 
-const { dispatchToolset, _parseRunAtForTest: parseRunAt } = await import(
-	"@/tools/sets/dispatch"
-);
+const { dispatchToolset, parseRunAt } = await import("@/tools/sets/dispatch");
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -48,6 +46,7 @@ const dummyAgent: AgentDefinition = {
 	toolsets: [],
 	providerTools: [],
 	skills: [],
+	persistent: false,
 	promptPath: "/dev/null",
 };
 

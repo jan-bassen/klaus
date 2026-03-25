@@ -40,6 +40,7 @@ Commands start with `/` and bypass the LLM entirely:
 - `/tasks` — list active background tasks
 - `/new` — archive the current conversation and start fresh
 - `/default <agent>` — set the default agent for this chat
+- `/model [low|default|high]` — change the model tier of the current default agent
 - `/register` — register the current chat ID
 - `/help [commands|agents|flags]` — show available commands, agents, and flags; optional filter narrows to one section
 
@@ -92,11 +93,6 @@ Fill in your API keys in .env.
 ```bash
 docker run -d --restart unless-stopped \
   --env-file .env \
-  -e PORT=3000 \
-  -e BAILEYS_AUTH_FOLDER=/app/config/baileys \
-  -e DATA_DIR=/app/data \
-  -e VAULT_DIR=/app/vault \
-  -e STARTUP_CONNECTION_WARN_AFTER_MS=60000 \
   -v klaus-config:/app/config \
   -v klaus-vault:/app/vault \
   -v klaus-data:/app/data \
@@ -198,15 +194,19 @@ docker rm -f <container-name> && docker volume rm klaus-config klaus-vault klaus
 
 API keys and host-specific settings, gitignored, never committed.
 
-| Variable            | Description                             |
-| ------------------- | --------------------------------------- |
-| ANTHROPIC_API_KEY   | Claude API key                          |
-| ELEVENLABS_API_KEY  | ElevenLabs TTS/STT key                  |
-| ALLOWED_CHAT_ID     | WhatsApp chat ID to allow (fail-closed) |
-| LOG_FORMAT          | Log output: `pretty` (default) or `json` |
-| STARTUP_CONNECTION_WARN_AFTER_MS | Warn if WhatsApp pairing/connection is still pending after this many ms (default: `60000`) |
+| Variable            | Default | Description                             |
+| ------------------- | ------- | --------------------------------------- |
+| ANTHROPIC_API_KEY   | —       | Claude API key (required)               |
+| ELEVENLABS_API_KEY  | —       | ElevenLabs TTS/STT key (required)       |
+| ALLOWED_CHAT_ID     | —       | WhatsApp chat ID to allow (fail-closed, required) |
+| LOG_FORMAT          | `pretty` | Log output: `pretty` or `json`         |
+| STARTUP_CONNECTION_WARN_AFTER_MS | `60000` | Warn if WhatsApp connection is still pending after this many ms |
+| PORT                | `3000`  | HTTP port for `/healthz`                |
+| BAILEYS_AUTH_FOLDER | `<cwd>/.baileys-auth` | WhatsApp auth state directory |
+| DATA_DIR            | `~/.klaus/data` | Operational data (conversations, costs, etc.) |
+| VAULT_DIR           | `<cwd>/vault` | Obsidian vault root               |
 
-Non-secret config (PORT, BAILEYS_AUTH_FOLDER, path overrides) is passed as environment variables to the container. For local dev, all values have sensible defaults in code — no extra env file needed.
+All path variables default to sensible local values — no extra config needed for local dev.
 
 ---
 
@@ -238,10 +238,13 @@ providerTools: [web_search, web_fetch, code_execution]
 toolsets: [vault, dispatch, files]
 skills: [workout-plan]        # optional — on-demand .md docs from Klaus/skills/
 schedule: "0 3 * * *"         # optional — makes it a cron agent
+persistent: true              # optional — forces structured nextRun output, auto-reschedules
 ---
 ```
 
 Agent and skill files are watched for changes at runtime — edits to prompt text, YAML frontmatter (model tier, tools, toolsets, schedule, etc.), or adding/removing files take effect automatically with no restart needed. Schedule changes are reconciled immediately (old cron removed, new one registered).
+
+**Persistent agents** (`persistent: true`) use structured output to guarantee they always reschedule themselves. After each run, the model must declare `{ nextRun, objective }` — when to run next and what to focus on. The system creates a one-shot timer automatically. If the model call fails, a fallback timer ensures the chain never breaks. Use this for recurring check-ins (fitness coach, language teacher, daily reminders) where the agent dynamically decides its own interval.
 
 Built-in agents:
 
@@ -261,7 +264,7 @@ Built-in agents:
 | vault    | read, search, list, write, append, backlinks, etc.  | Obsidian vault + memory                |
 | dispatch | agent, schedule, timer, list, cancel                | Agent dispatch, cron, one-time timers  |
 | files    | upload, download, list, delete                      | File management                        |
-| notes    | search, write, edit, delete                         | Auto-managed knowledge notes           |
+| notes    | list, read, search, write, edit, delete              | Auto-managed knowledge notes           |
 
 **Standalone tools** are opt-in per agent via `tools:` in frontmatter:
 
@@ -286,8 +289,10 @@ Klaus has three types of knowledge content, forming a spectrum from always-loade
 
 **Skills** are `.md` files in `Klaus/skills/` with optional `description:` frontmatter. Declare `skills: [name1, name2]` in an agent's frontmatter to grant access via a `skill_get` tool scoped to those names via `z.enum`. The `{{skills}}` Handlebars var lists available skills in the prompt. Zero token overhead for agents without skills.
 
-**Notes** are auto-managed, topic-keyed `.md` files in `Klaus/notes/`. Four tools in the `notes` toolset:
-- `notes.search` — substring match across filenames, descriptions, and body
+**Notes** are auto-managed, topic-keyed `.md` files in `Klaus/notes/`. Six tools in the `notes` toolset:
+- `notes.list` — list all note names with descriptions
+- `notes.read` — read a specific note by name
+- `notes.search` — substring match across filenames, descriptions, and body (compact results)
 - `notes.write` — create or overwrite with optional `description:` frontmatter
 - `notes.edit` — find-and-replace within an existing note
 - `notes.delete` — delete a note (requires `confirm: true`)

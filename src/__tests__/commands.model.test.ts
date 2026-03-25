@@ -50,6 +50,7 @@ function makeAgent(tier: AgentDefinition["modelTier"]): AgentDefinition {
 		toolsets: [],
 		providerTools: [],
 		skills: [],
+		persistent: false,
 		promptPath: AGENT_FILE,
 	};
 }

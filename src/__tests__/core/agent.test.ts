@@ -67,6 +67,7 @@ function makeTurn(
 			toolsets: [],
 			providerTools: [],
 			skills: [],
+			persistent: false,
 			promptPath: "/dev/null",
 		},
 		flags: {},

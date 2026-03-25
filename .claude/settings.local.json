@@ -60,7 +60,9 @@
 			"Bash(bunx biome:*)",
 			"Bash(find /Users/janbassen/Vaults/Jan/Klaus/agents -name *.md -type f)",
 			"Bash(grep -E \"\\\\.\\(ts|json|toml|yml|yaml\\)$|Dockerfile\")",
-			"Bash(grep:*)"
+			"Bash(grep:*)",
+			"Bash(find /Users/janbassen/Code/klaus/src/__tests__ -type f -name *.test.ts)",
+			"WebFetch(domain:ai-sdk.dev)"
 		]
 	}
 }
