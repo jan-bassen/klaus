@@ -1,15 +1,20 @@
 # TODO
 
-## Commit to vault as core
+## Harden vault as core 
 - [ ] Have a simple generalized way to handle vaults with different structures (multiple vaults and folders) - doesn't need to be obsidian, but is designed with it in mind.
 - [ ] Implement generalized verification system accross it, for safe defaults (not fully clear how, but maybe via file paths or with a in-code-defined schema)
-- [ ] Extend flags to be more then pure injects - add !accept for auto-accept general behaviour and !accept-all for unsafe behavior (make the whole flags system more flexible and powerful, without clutter)
-- [ ] Give Klaus its own explicit knowledge vault/folder à la [Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 
 - [ ] Move settings into vault (=iteration in obsidian, not repo - only tools and commands there)
 - [ ] Validate dynamic vault part loading on load and warn per WhatsApp
-- [ ] Remove note system
-- [ ] Have trailing logs in vault, but careful: That shouldn’t be too heavy on sync!
+
+## Move more functions to vault
+- [ ] Give Klaus its own explicit knowledge vault/folder à la [Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 
 - [ ] Add message template to vault for easy iteration on formatting ("transcript from voice message", flags, ...)
+- [ ] Add trailing logs to vault for easy debug, but careful: That shouldn’t be too heavy on sync!
+
+## Flags overhaul
+- [ ] Extend flags to be more then pure injects (make the whole flags system more flexible and powerful, without clutter)
+- [ ] add !accept for auto-accept general behaviour 
+- [ ] add !accept-all for unsafe behavior 
 
 ## Remove bloat
 - [ ] Remove cost tracking and budgets then merge data and files into one Klaus volume (data + config -> klaus; vault stays separate). Subfolders: auth/ for headless-obsidian and baileys, logs/, files/
@@ -41,19 +46,3 @@
 - [ ] Geo - Geography teacher/expert agent to learn and ask about geology (https://rapidapi.com/mmplabsadm/api/geography4)
 - [ ] ??? - Life Coach (?)
 - [ ] Ingest - As input handler from source to wiki/knowledge store
-
-# Later
-
-## Security
-- [ ] Look at the tool verification pipeline again. Probably use 👍/👎 for feedback and ✅/⛔ or /yes + /no for acceptance. Will need a flow for good ux (short description + tool name + maybe even params)
-- [ ] Think about a potential "undo" operation. Maybe thats good?
-
-## Internationalization (only when simple)
-- [ ] Add support for multiple languages for all user-facing (and probably even agent-facing) strings
-
-## Evals
-- [ ] Add `*.eval.ts` files for non-deterministic behavior (pipeline end-to-end, agent tool selection, memory search relevance)
-- [ ] See `AGENT.md` for eval conventions
-
-## Maybe's
-- [ ] Voice language field in settings.ts against awkward accents
