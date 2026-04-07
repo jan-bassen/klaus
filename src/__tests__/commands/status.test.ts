@@ -78,7 +78,6 @@ describe("/status", () => {
 		expect(content).toContain(`@${settings.defaultAgent}`);
 		expect(content).toContain("2");
 		expect(content).toMatch(/active/i);
-		expect(content).toMatch(/notes/i);
 	});
 
 	test("uses getDefaultAgent override when set", async () => {

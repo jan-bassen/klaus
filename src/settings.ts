@@ -130,9 +130,6 @@ export const settings = {
 		get flagsDir() {
 			return path.join(this.dir, "Klaus", "flags");
 		},
-		get notesDir() {
-			return path.join(this.dir, "Klaus", "notes");
-		},
 		maxListEntries: 200,
 	},
 

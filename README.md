@@ -36,7 +36,7 @@ The default agent can be changed per-chat with the `/default` command.
 
 Commands start with `/` and bypass the LLM entirely:
 
-- `/status` — show current agent, active tasks, and vault note count
+- `/status` — show current agent and active jobs
 - `/tasks` — list active background tasks
 - `/new` — archive the current conversation and start fresh
 - `/default <agent>` — set the default agent for this chat
@@ -264,8 +264,6 @@ Built-in agents:
 | vault    | read, search, list, write, append, backlinks, etc.  | Obsidian vault + memory                |
 | dispatch | agent, schedule, timer, list, cancel                | Agent dispatch, cron, one-time timers  |
 | files    | upload, download, list, delete                      | File management                        |
-| notes    | list, read, search, write, edit, delete              | Auto-managed knowledge notes           |
-
 **Standalone tools** are opt-in per agent via `tools:` in frontmatter:
 
 | Tool                 | Purpose                                                                 |
@@ -282,21 +280,12 @@ Klaus has three types of knowledge content, forming a spectrum from always-loade
 | ------------ | --------------------- | ------------- | ---------- | ------------------------------------ |
 | **Snippets** | `Klaus/snippets/`     | Always loaded | Static     | Core prompt content (soul, architecture, user profile) — injected as `{{vars}}` |
 | **Skills**   | `Klaus/skills/`       | On demand     | Static     | Reference material loaded via `skill_get` tool when needed |
-| **Notes**    | `Klaus/notes/`        | On demand     | Dynamic    | Runtime knowledge written/searched by agents via `notes.*` tools |
 
 **Snippets** are `.md` files in `Klaus/snippets/` plus `Klaus/user.md`. They are loaded every turn as Handlebars template variables (e.g., `{{personality}}`, `{{user}}`, `{{architecture}}`). Always in context — use for core identity and instructions.
 
 **Skills** are `.md` files in `Klaus/skills/` with optional `description:` frontmatter. Declare `skills: [name1, name2]` in an agent's frontmatter to grant access via a `skill_get` tool scoped to those names via `z.enum`. The `{{skills}}` Handlebars var lists available skills in the prompt. Zero token overhead for agents without skills.
 
-**Notes** are auto-managed, topic-keyed `.md` files in `Klaus/notes/`. Six tools in the `notes` toolset:
-- `notes.list` — list all note names with descriptions
-- `notes.read` — read a specific note by name
-- `notes.search` — substring match across filenames, descriptions, and body (compact results)
-- `notes.write` — create or overwrite with optional `description:` frontmatter
-- `notes.edit` — find-and-replace within an existing note
-- `notes.delete` — delete a note (requires `confirm: true`)
-
-Agents opt in by adding `notes` to their `toolsets:` list. All knowledge files are watched and hot-reloaded.
+All knowledge files are watched and hot-reloaded.
 
 ### Context assembly
 
@@ -348,13 +337,12 @@ src/
 ├── core/          # Pipeline, agent runner, dispatch, queue, model router
 ├── store/         # Flat-file storage (conversations, schedules, timers, files, etc.)
 ├── tools/         # Tool definitions and toolsets
-│   └── sets/      # Toolset definitions (vault, dispatch, files, notes)
+│   └── sets/      # Toolset definitions (vault, dispatch, files)
 └── whatsapp/      # Transport layer (connection, receive, send, TTS, STT)
 
 vault/Klaus/       # Klaus's own directory in the Obsidian vault
 ├── agents/        # Agent prompt files (.md with YAML frontmatter)
 ├── flags/         # Flag definitions (.md with description frontmatter)
-├── notes/         # Auto-managed knowledge notes (written/searched by agents at runtime)
 ├── skills/        # Static .md reference documents (loaded on demand by agents)
 ├── snippets/      # Static prompt content (soul.md, architecture.md)
 └── user.md        # User profile (updated by memorize agent)

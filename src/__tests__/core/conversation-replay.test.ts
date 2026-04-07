@@ -208,8 +208,8 @@ describe("buildConversationMessages", () => {
 					},
 					{
 						toolCallId: "tc-2",
-						toolName: "notes_write",
-						args: '{"title":"foo","body":"bar"}',
+						toolName: "vault_write",
+						args: '{"path":"foo.md","content":"bar"}',
 					},
 				],
 				toolResults: [

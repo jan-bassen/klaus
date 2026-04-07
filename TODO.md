@@ -1,8 +1,8 @@
 # TODO v0.2.0 (ignore migration paths, we're able to fully reset still)
 
 ## Remove bloat
-- [ ] Remove cost tracking and budgets then merge data and files into one Klaus volume (data + config -> klaus; vault stays separate). Subfolders: auth/ for headless-obsidian and baileys, logs/, files/
-- [ ] Remove note system (replaced by knowledge vault/folder)
+- [x] Remove cost tracking and budgets then merge data and files into one Klaus volume (data + config -> klaus; vault stays separate). Subfolders: auth/ for headless-obsidian and baileys, logs/, files/
+- [x] Remove note system (replaced by knowledge vault/folder)
 
 ## Harden vault as flexible core
 - [ ] Have a simple generalized way to handle vaults with different structures (multiple vaults and folders) - doesn't need to be obsidian, but is designed with it in mind (probably with just multi-vault support and folder-level permissions: read|append|write + always/request)

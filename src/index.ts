@@ -133,9 +133,6 @@ async function main(): Promise<void> {
 	await mkdir(flagsDir, { recursive: true });
 	await loadFlags(flagsDir);
 
-	const notesDir = settings.vault.notesDir;
-	await mkdir(notesDir, { recursive: true });
-
 	await import("./commands/register");
 
 	// Validate skill references
