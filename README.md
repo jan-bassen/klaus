@@ -281,7 +281,7 @@ Klaus has three types of knowledge content, forming a spectrum from always-loade
 | **Snippets** | `Klaus/snippets/`     | Always loaded | Static     | Core prompt content (soul, architecture, user profile) — injected as `{{vars}}` |
 | **Skills**   | `Klaus/skills/`       | On demand     | Static     | Reference material loaded via `skill_get` tool when needed |
 
-**Snippets** are `.md` files in `Klaus/snippets/` plus `Klaus/user.md`. They are loaded every turn as Handlebars template variables (e.g., `{{personality}}`, `{{user}}`, `{{architecture}}`). Always in context — use for core identity and instructions.
+**Snippets** are `.md` files in `Klaus/snippets/` plus `Klaus/user.md`. They are loaded every turn as template variables (e.g., `{{personality}}`, `{{user}}`, `{{architecture}}`). Always in context — use for core identity and instructions. Snippets support optional YAML frontmatter with a `scope` field (`system` | `user` | `both`, default: `system`). System-scoped snippets are available as `{{var}}` in agent prompts. User-scoped snippets are available as `$var` in WhatsApp messages. `both` makes them available everywhere.
 
 **Skills** are `.md` files in `Klaus/skills/` with optional `description:` frontmatter. Declare `skills: [name1, name2]` in an agent's frontmatter to grant access via a `skill_get` tool scoped to those names via `z.enum`. The `{{skills}}` Handlebars var lists available skills in the prompt. Zero token overhead for agents without skills.
 
@@ -289,16 +289,23 @@ All knowledge files are watched and hot-reloaded.
 
 ### Context assembly
 
-The prompt body uses `{{variable}}` placeholders filled by **context variables** — modular async functions in `src/context/`. Variables run in parallel. Each has a priority (lower = trimmed first when the token budget overflows) and a truncation strategy (never, always, oldest).
+Context variables are modular async functions in `src/context/` that provide dynamic content. They run in parallel and support two interpolation syntaxes:
+
+- **System prompts**: Handlebars `{{variable}}` placeholders (full HBS support with helpers)
+- **User messages**: `$variable` syntax (mobile-friendly, typed in WhatsApp)
+
+Both syntaxes support params: `{{active_tasks?limit=3}}` or `$active_tasks?limit=3`. Params are passed to the variable's `run()` function at execution time. Unknown `$names` in user messages pass through unchanged.
+
+Each variable has a priority (lower = trimmed first when the token budget overflows) and a truncation strategy (never, always, oldest).
 
 Context variables:
 
-| Variable           | Priority | Purpose                                                        |
-| ------------------ | -------- | -------------------------------------------------------------- |
-| `snippets`         | -1       | Loads `Klaus/snippets/*.md` + `user.md` as Handlebars template vars |
-| `date`, `time`, `weekday` | -1 | Current datetime (locale-aware, never trimmed)               |
-| `dispatch_context` | -1       | Dispatch metadata when invoked via `dispatch.agent`            |
-| `active_tasks`     | 4        | Running async jobs and pending timers                          |
+| Variable           | Priority | Params        | Purpose                                                        |
+| ------------------ | -------- | ------------- | -------------------------------------------------------------- |
+| `snippets`         | -1       | —             | Loads `Klaus/snippets/*.md` + `user.md` as template vars (scope-aware) |
+| `date`, `time`, `weekday` | -1 | —           | Current datetime (locale-aware, never trimmed)               |
+| `dispatch_context` | -1       | —             | Dispatch metadata when invoked via `dispatch.agent`            |
+| `active_tasks`     | 4        | `limit=N`     | Running async jobs and pending timers                          |
 
 ### Storage
 
@@ -432,7 +439,7 @@ export const myVar: ContextVariable = {
 };
 ```
 
-Then use {{my_context}} in any agent prompt. Params are supported: {{my_context?key=value}}.
+Then use `{{my_context}}` in any agent prompt or `$my_context` in WhatsApp messages. Params are supported: `{{my_context?key=value}}` or `$my_context?key=value` — they are passed as the second argument to `run()`.
 
 ### Add a new command
 

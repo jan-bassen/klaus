@@ -32,6 +32,11 @@ import { enqueueMessage } from "@/whatsapp/send";
 import { transcribe } from "@/whatsapp/voice";
 import { assembleContext } from "./assemble";
 import { formatUserError } from "./errors";
+import {
+	extractVarParams,
+	mergeVarParams,
+	readPromptBody,
+} from "./interpolate";
 
 function agentsDir(): string {
 	return settings.vault.agentsDir;
@@ -219,8 +224,19 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			messageId,
 		};
 
+		// Extract var params from agent prompt and user message
+		const promptBody = await readPromptBody(def.promptPath);
+		const varParams = mergeVarParams(
+			extractVarParams(promptBody, "hbs"),
+			extractVarParams(effectiveMsg.text ?? "", "dollar"),
+		);
+
 		// Step 7: Assemble context (all queries in parallel)
-		const assembled = await assembleContext(partialTurn);
+		const assembled = await assembleContext(
+			partialTurn,
+			undefined,
+			Object.keys(varParams).length > 0 ? varParams : undefined,
+		);
 		log.info("[pipeline] context assembled", {
 			chatId: effectiveMsg.chatId,
 			totalTokens: assembled.totalTokens,

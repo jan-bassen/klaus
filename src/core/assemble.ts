@@ -26,10 +26,12 @@ export function setContextVariables(variables: ContextVariable[]): void {
 export async function assembleContext(
 	turn: Omit<TurnContext, "assembled">,
 	queries: ContextVariable[] = loadedVariables,
+	varParams?: Record<string, Record<string, string>>,
 ): Promise<AssembledContext> {
 	const settled = await Promise.allSettled(
 		queries.map((q) => {
-			return q.run(turn).then((result) => ({ query: q, result }));
+			const params = varParams?.[q.name];
+			return q.run(turn, params).then((result) => ({ query: q, result }));
 		}),
 	);
 
@@ -92,14 +94,17 @@ export async function assembleContext(
 	}
 
 	const vars: Record<string, unknown> = {};
+	const userVars: Record<string, unknown> = {};
 
 	for (const { query, result } of items) {
 		if (result.content !== undefined) vars[query.name] = result.content;
 		if (result.vars) Object.assign(vars, result.vars);
+		if (result.userVars) Object.assign(userVars, result.userVars);
 	}
 
 	return {
 		vars,
+		userVars,
 		messageRefs: {},
 		totalTokens: Math.max(0, totalTokens),
 	};

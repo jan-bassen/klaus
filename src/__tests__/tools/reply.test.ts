@@ -66,6 +66,7 @@ function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
 		flags: {},
 		assembled: {
 			vars: {},
+			userVars: {},
 			messageRefs: {},
 			totalTokens: 0,
 		},
@@ -143,6 +144,7 @@ describe("replyTool", () => {
 		const ctx = makeContext({
 			assembled: {
 				vars: {},
+				userVars: {},
 				messageRefs: {
 					"3": { externalId: "ext-3", role: "assistant" },
 				},

@@ -4,6 +4,7 @@ import { settings } from "@/settings";
 import type { DispatchOptions, TurnContext } from "@/types";
 import { agentRegistry, loadAgentDefinition, runAgent } from "./agent";
 import { assembleContext } from "./assemble";
+import { extractVarParams, readPromptBody } from "./interpolate";
 import { enqueueJob } from "./queue";
 
 function agentsDir(): string {
@@ -81,7 +82,13 @@ export async function dispatch(
 			_replyCollector: replyCollector,
 		};
 
-		const assembled = await assembleContext(partialTurn);
+		const promptBody = await readPromptBody(def.promptPath);
+		const varParams = extractVarParams(promptBody, "hbs");
+		const assembled = await assembleContext(
+			partialTurn,
+			undefined,
+			Object.keys(varParams).length > 0 ? varParams : undefined,
+		);
 		const turn: TurnContext = { ...partialTurn, assembled };
 
 		await _runAgent(turn, def);

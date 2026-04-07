@@ -203,4 +203,58 @@ describe("assembleContext", () => {
 		const result = await assembleContext(makeTurn(), queries);
 		expect(result.totalTokens).toBe(protectedTokens);
 	});
+
+	// ─── varParams ──────────────────────────────────────────────────────────
+
+	test("varParams are passed to context variable run()", async () => {
+		let receivedParams: Record<string, string> | undefined;
+		const q: ContextVariable = {
+			name: "tasks",
+			priority: 2,
+			run: async (_turn, params) => {
+				receivedParams = params;
+				return { content: "ok", tokenCount: 1, truncate: "always" };
+			},
+		};
+		await assembleContext(makeTurn(), [q], { tasks: { limit: "3" } });
+		expect(receivedParams).toEqual({ limit: "3" });
+	});
+
+	test("varParams are undefined when not provided for a variable", async () => {
+		let receivedParams: Record<string, string> | undefined = { x: "y" };
+		const q: ContextVariable = {
+			name: "date",
+			priority: -1,
+			run: async (_turn, params) => {
+				receivedParams = params;
+				return { content: "Monday", tokenCount: 1, truncate: "never" };
+			},
+		};
+		await assembleContext(makeTurn(), [q], { tasks: { limit: "3" } });
+		expect(receivedParams).toBeUndefined();
+	});
+
+	// ─── userVars ────────────────────────────────────────────────────────────
+
+	test("userVars are collected from context variable results", async () => {
+		const q: ContextVariable = {
+			name: "snippets",
+			priority: -1,
+			run: async () => ({
+				tokenCount: 0,
+				truncate: "never" as const,
+				vars: { arch: "system content" },
+				userVars: { greeting: "user content" },
+			}),
+		};
+		const result = await assembleContext(makeTurn(), [q]);
+		expect(result.vars.arch).toBe("system content");
+		expect(result.userVars.greeting).toBe("user content");
+	});
+
+	test("userVars defaults to empty object when no variables provide it", async () => {
+		const q = makeQuery("memory", 2, "data", 5, "always");
+		const result = await assembleContext(makeTurn(), [q]);
+		expect(result.userVars).toEqual({});
+	});
 });

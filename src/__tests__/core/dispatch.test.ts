@@ -4,7 +4,12 @@ import type { AgentDefinition, DispatchOptions } from "@/types";
 
 // ─── mocks (avoid mock.module('@/core/agent') — it poisons agent.test.ts) ───
 
-const mockAssembleContext = mock(async () => ({ vars: {}, totalTokens: 0 }));
+const mockAssembleContext = mock(async () => ({
+	vars: {},
+	userVars: {},
+	messageRefs: {},
+	totalTokens: 0,
+}));
 mock.module("@/core/assemble", () => ({
 	assembleContext: mockAssembleContext,
 }));

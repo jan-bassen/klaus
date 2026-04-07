@@ -60,6 +60,7 @@ function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
 		messageId: "mid-1",
 		assembled: {
 			vars: {},
+			userVars: {},
 			messageRefs: {},
 			totalTokens: 0,
 		},

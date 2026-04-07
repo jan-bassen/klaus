@@ -14,9 +14,9 @@
 - [x] Add dynamic loading incl. validation via zod schema on load and warn per WhatsApp (keep last valid state)
 
 ## Context variable extension
-- [ ] Add context variable support to live messages (not just system prompt) - syntax in message is $var bc hds are annoying to type out on mobile, system prompt keeps full hbs support
-- [ ] Add back simple params as core part of vars {{tasks?limit=3}} or $tasks?limit=3
-- [ ] Keep snippets folder for now both system and user messages, but now with frontmatter to define scope and maybe params (?)
+- [x] Add context variable support to live messages (not just system prompt) - syntax in message is $var bc hds are annoying to type out on mobile, system prompt keeps full hbs support
+- [x] Add back simple params as core part of vars {{tasks?limit=3}} or $tasks?limit=3
+- [x] Keep snippets folder for now both system and user messages, but now with frontmatter to define scope and maybe params (?)
 
 ## Flags repurpose
 - [ ] Turn flags from injections (those are now handled with $vars) to add inline programmatic overwrites/control over the current message (closer to commands, but only for the current message)

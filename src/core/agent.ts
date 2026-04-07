@@ -33,6 +33,7 @@ import { parseRunAt } from "@/tools/sets/dispatch";
 import { buildSkillTool } from "@/tools/skill";
 import type { AgentDefinition, ToolDefinition, TurnContext } from "@/types";
 import { hbs } from "./hbs";
+import { interpolateUserVars, stripHbsParams } from "./interpolate";
 import { callModel, type ModelCallStep } from "./model-router";
 
 export const AgentFrontmatterSchema = z.object({
@@ -61,7 +62,8 @@ function buildSystemPrompt(
 	body: string,
 	vars: Record<string, unknown>,
 ): string {
-	const template = hbs.compile(body, { noEscape: true });
+	const clean = stripHbsParams(body);
+	const template = hbs.compile(clean, { noEscape: true });
 	return template(vars)
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
@@ -118,7 +120,11 @@ function buildUserMessageText(turn: TurnContext): string {
 		parts.push(messageText);
 	}
 
-	return parts.join("\n");
+	const raw = parts.join("\n");
+
+	// Interpolate $var references in user message text
+	const allVars = { ...turn.assembled.vars, ...turn.assembled.userVars };
+	return interpolateUserVars(raw, allVars);
 }
 
 // -- Conversation message reconstruction --

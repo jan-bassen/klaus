@@ -62,7 +62,7 @@ Every inbound WhatsApp message goes through a pipeline in `src/core/pipeline.ts`
 5. **Parse routing** — extract `@agentName` prefix and `!flags` from text
 6. **Resolve agent** — look up `agentRegistry` or hot-load from `.md` file
 7. **Persist** — append message to conversation JSONL, resolve quote-reply
-8. **Assemble context** — all context variables run in parallel, trimmed to token budget
+8. **Assemble context** — extract `?params` from prompt template + user message, run all context variables in parallel (with params), trim to token budget
 9. **Execute agent** — `runAgent()` via Vercel AI SDK agentic loop
 
 ### Agent system (core/agent.ts)
@@ -81,7 +81,7 @@ schedule: "0 3 * * *"         # optional cron
 persistent: true              # optional: forces structured nextRun output, auto-reschedules
 vaultScope: "Training"        # optional: restricts all vault tools to this subdirectory
 ---
-Prompt body with {{contextVar}} Handlebars interpolation.
+Prompt body with {{contextVar}} Handlebars interpolation (supports params: {{contextVar?key=val}}).
 ```
 
 `agentRegistry` (Map<name, AgentDefinition>) is populated at startup from all `.md` files. The `runAgent()` function loads the prompt, builds system prompt via Handlebars, registers tools, and drives the Vercel AI SDK agentic loop.
@@ -124,7 +124,8 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/core/flags.ts` | Flag registry — loads `.md` flag definitions from vault, hot-reloaded |
 | `src/core/pipeline.ts` | Message orchestrator |
 | `src/core/agent.ts` | Agent executor + agentRegistry |
-| `src/core/assemble.ts` | Context assembly — runs context variables in parallel, enforces token budget |
+| `src/core/assemble.ts` | Context assembly — runs context variables in parallel (with params), enforces token budget |
+| `src/core/interpolate.ts` | `$var` user message interpolation, `?params` extraction, HBS param stripping |
 | `src/core/registry.ts` | Tool + toolset registry, meta-tool generation, dynamic tool loading |
 | `src/core/dispatch.ts` | Unified dispatch function (inline/async modes) |
 | `src/core/model-router.ts` | LLM call routing |
@@ -151,7 +152,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter
 - `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
 - `{vault}/Klaus/flags/` — `.md` flag definitions with `description:` frontmatter, hot-reloaded
-- `{vault}/Klaus/snippets/` — static prompt content (soul.md, architecture.md) injected as template vars
+- `{vault}/Klaus/snippets/` — static prompt content with optional `scope:` frontmatter (`system`|`user`|`both`, default: `system`). System-scoped → `{{var}}` in prompts; user-scoped → `$var` in messages
 - `{vault}/Klaus/settings.yml` — user-facing settings (models, context budgets, rate limits, etc.), hot-reloaded with Zod validation
 - `{vault}/Klaus/user.md` — user profile, updated by memorize agent
 

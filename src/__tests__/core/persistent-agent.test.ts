@@ -46,6 +46,7 @@ import type { AssembledContext, TurnContext } from "@/types";
 
 const emptyAssembled: AssembledContext = {
 	vars: {},
+	userVars: {},
 	messageRefs: {},
 	totalTokens: 0,
 };

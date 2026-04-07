@@ -95,6 +95,7 @@ const dummyContext = {
 	flags: {},
 	assembled: {
 		vars: {},
+		userVars: {},
 		messageRefs: {},
 		totalTokens: 0,
 	} as AssembledContext,

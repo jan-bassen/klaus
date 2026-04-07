@@ -55,7 +55,7 @@ function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
 		chatId: "user@s.whatsapp.net",
 		agent: dummyAgent,
 		flags: {},
-		assembled: { vars: {}, messageRefs: {}, totalTokens: 0 },
+		assembled: { vars: {}, userVars: {}, messageRefs: {}, totalTokens: 0 },
 		...overrides,
 	};
 }

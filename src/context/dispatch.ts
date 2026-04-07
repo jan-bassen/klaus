@@ -40,6 +40,7 @@ export const dispatchContextQuery: ContextVariable = {
 	priority: -1, // never trimmed
 	async run(
 		turn: Omit<TurnContext, "assembled">,
+		_params?: Record<string, string>,
 	): Promise<ContextVariableResult> {
 		if (!turn.dispatchContext) {
 			return { tokenCount: 0, truncate: "never" };

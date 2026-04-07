@@ -6,7 +6,7 @@ import type { ContextVariable, ContextVariableResult } from "@/types";
 export const activeTasksQuery: ContextVariable = {
 	name: "active_tasks",
 	priority: 4,
-	run: async (): Promise<ContextVariableResult> => {
+	run: async (_turn, params): Promise<ContextVariableResult> => {
 		const jobs = getActiveJobs();
 		const timers = listTimers();
 
@@ -22,7 +22,13 @@ export const activeTasksQuery: ContextVariable = {
 			lines.push(`- [timer ${timer.runAt}] ${timer.objective}`);
 		}
 
-		const content = lines.join("\n");
+		const limit = params?.limit ? Number.parseInt(params.limit, 10) : undefined;
+		const limited =
+			limit !== undefined && !Number.isNaN(limit)
+				? lines.slice(0, limit)
+				: lines;
+
+		const content = limited.join("\n");
 		const tokenCount = Math.ceil(content.length / 4);
 		return { content, tokenCount, truncate: "always" };
 	},

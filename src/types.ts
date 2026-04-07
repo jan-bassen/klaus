@@ -74,6 +74,8 @@ export interface TurnContext {
 export interface AssembledContext {
 	/** Context variables keyed by query name — directly available as {{variable}} in prompts */
 	vars: Record<string, unknown>;
+	/** Vars available only in user message $var interpolation */
+	userVars: Record<string, unknown>;
 	/** Label → externalId mapping for message references (reply/react tools) */
 	messageRefs: Record<string, { externalId: string; role: string }>;
 	totalTokens: number;
@@ -118,7 +120,10 @@ export interface ContextVariable {
 	name: string;
 	/** Lower number = trimmed first on overflow */
 	priority: number;
-	run(turn: Omit<TurnContext, "assembled">): Promise<ContextVariableResult>;
+	run(
+		turn: Omit<TurnContext, "assembled">,
+		params?: Record<string, string>,
+	): Promise<ContextVariableResult>;
 }
 
 export interface ContextVariableResult {
@@ -128,6 +133,8 @@ export interface ContextVariableResult {
 	truncate: "never" | "always" | "oldest";
 	/** Named vars to inject beyond vars[query.name]. Token-free. */
 	vars?: Record<string, unknown>;
+	/** Vars available only in user message $var interpolation. Token-free. */
+	userVars?: Record<string, unknown>;
 }
 
 // -- Evals --

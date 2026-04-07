@@ -3,6 +3,7 @@ import { log } from "@/logger";
 import { settings } from "@/settings";
 import { agentRegistry, loadAgentDefinition, runAgent } from "./agent";
 import { assembleContext } from "./assemble";
+import { extractVarParams, readPromptBody } from "./interpolate";
 import type { AgentRunPayload } from "./queue";
 import { setWorker } from "./queue";
 
@@ -31,7 +32,13 @@ export async function startWorkers(): Promise<void> {
 		};
 
 		try {
-			const assembled = await assembleContext(partialTurn);
+			const promptBody = await readPromptBody(def.promptPath);
+			const varParams = extractVarParams(promptBody, "hbs");
+			const assembled = await assembleContext(
+				partialTurn,
+				undefined,
+				Object.keys(varParams).length > 0 ? varParams : undefined,
+			);
 			const turn = { ...partialTurn, assembled };
 
 			log.info("[worker] starting agent", { agentName, depth });
