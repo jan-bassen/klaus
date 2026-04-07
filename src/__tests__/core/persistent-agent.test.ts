@@ -77,6 +77,7 @@ function makeTurn(
 			...agentOverrides,
 		},
 		flags: {},
+		overrides: {},
 		assembled: { ...emptyAssembled },
 	};
 }

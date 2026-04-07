@@ -89,6 +89,8 @@ const LlmSchema = z
 	.object({
 		timeoutMs: z.number().default(120_000),
 		maxSteps: z.number().default(10),
+		coldTemperature: z.number().default(0),
+		hotTemperature: z.number().default(1),
 	})
 	.strict()
 	.default({});

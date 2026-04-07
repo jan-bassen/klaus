@@ -32,6 +32,7 @@ import { enqueueMessage } from "@/whatsapp/send";
 import { transcribe } from "@/whatsapp/voice";
 import { assembleContext } from "./assemble";
 import { formatUserError } from "./errors";
+import { resolveOverrides } from "./flags";
 import {
 	extractVarParams,
 	mergeVarParams,
@@ -146,6 +147,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 
 		// Parse flags from cleanText BEFORE stripping
 		const flags = parseFlags({ ...processedMsg, text: cleanText });
+		const overrides = resolveOverrides(flags);
 		const strippedText = stripFlags(cleanText);
 
 		// Strip flags and routing prefix from msg text
@@ -191,27 +193,33 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			}
 		}
 
-		// Persist inbound message to conversation
-		const flagNames = Object.keys(flags);
-		const messageId = await appendMessage({
-			role: "user",
-			content: effectiveMsg.text ?? null,
-			externalId: effectiveMsg.id,
-			...(effectiveMsg.quotedMessage?.text
-				? { quotedText: effectiveMsg.quotedMessage.text, quotedRole: "user" }
-				: {}),
-			...(flagNames.length > 0 ? { flags: flagNames } : {}),
-		});
+		// Persist inbound message to conversation (skip for ghost mode)
+		let messageId: string | undefined;
+		if (!overrides.ghost) {
+			const flagNames = Object.keys(flags);
+			messageId = await appendMessage({
+				role: "user",
+				content: effectiveMsg.text ?? null,
+				externalId: effectiveMsg.id,
+				...(effectiveMsg.quotedMessage?.text
+					? {
+							quotedText: effectiveMsg.quotedMessage.text,
+							quotedRole: "user",
+						}
+					: {}),
+				...(flagNames.length > 0 ? { flags: flagNames } : {}),
+			});
 
-		if (effectiveMsg.media?.fileId && messageId) {
-			const backfill = await updateFileMessageId(
-				effectiveMsg.media.fileId,
-				messageId,
-			);
-			if (backfill instanceof Error) {
-				log.warn("[pipeline] updateFileMessageId failed", {
-					error: backfill.message,
-				});
+			if (effectiveMsg.media?.fileId && messageId) {
+				const backfill = await updateFileMessageId(
+					effectiveMsg.media.fileId,
+					messageId,
+				);
+				if (backfill instanceof Error) {
+					log.warn("[pipeline] updateFileMessageId failed", {
+						error: backfill.message,
+					});
+				}
 			}
 		}
 
@@ -221,7 +229,8 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			message: effectiveMsg,
 			agent: def,
 			flags,
-			messageId,
+			overrides,
+			...(messageId ? { messageId } : {}),
 		};
 
 		// Extract var params from agent prompt and user message

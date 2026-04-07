@@ -3,34 +3,19 @@ import { flagRegistry } from "@/core/flags";
 import type { InboundMessage } from "@/types";
 import { parseFlags, stripFlags } from "@/whatsapp/flags";
 
-// Pre-populate registry before deriving test flag names
+// Add a test-only flag to the registry (voice is already code-defined)
 beforeAll(() => {
 	flagRegistry.set("test", {
-		name: "test",
+		name: "test" as never,
 		description: "mark as a test message",
-		prompt: "This is a test.",
-	});
-	flagRegistry.set("voice", {
-		name: "voice",
-		description: "reply as a voice note",
-		prompt: "Answer as a voice message.",
 	});
 });
 
 afterEach(() => {
-	// Restore to baseline after each test (in case a test mutates the registry)
 	if (!flagRegistry.has("test")) {
 		flagRegistry.set("test", {
-			name: "test",
+			name: "test" as never,
 			description: "mark as a test message",
-			prompt: "This is a test.",
-		});
-	}
-	if (!flagRegistry.has("voice")) {
-		flagRegistry.set("voice", {
-			name: "voice",
-			description: "reply as a voice note",
-			prompt: "Answer as a voice message.",
 		});
 	}
 });

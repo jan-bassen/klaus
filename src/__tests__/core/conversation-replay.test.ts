@@ -56,6 +56,7 @@ function makeTurn(
 		},
 		agent: dummyAgent,
 		flags: {},
+		overrides: {},
 		...overrides,
 	};
 }

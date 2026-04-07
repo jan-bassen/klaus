@@ -56,18 +56,20 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			quoted = { externalId: ref.externalId, fromMe: ref.role !== "user" };
 		}
 
-		// Persist assistant message to conversation
+		// Persist assistant message to conversation (skip for ghost mode)
 		let rowId: string | undefined;
-		try {
-			rowId = await appendMessage({
-				role: "assistant",
-				content,
-			});
-		} catch (err) {
-			log.warn("[reply] failed to persist assistant message", {
-				chatId: context.chatId,
-				error: err instanceof Error ? err.message : String(err),
-			});
+		if (!context.overrides?.ghost) {
+			try {
+				rowId = await appendMessage({
+					role: "assistant",
+					content,
+				});
+			} catch (err) {
+				log.warn("[reply] failed to persist assistant message", {
+					chatId: context.chatId,
+					error: err instanceof Error ? err.message : String(err),
+				});
+			}
 		}
 
 		const onSent = rowId
@@ -85,7 +87,8 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			? `${context.message.id}:reply:${crypto.randomUUID()}`
 			: `${context.chatId}:reply:${crypto.randomUUID()}`;
 		const quotedPart = quoted ? { quoted } : {};
-		if (voice) {
+		const useVoice = voice || context.overrides?.forceVoice;
+		if (useVoice) {
 			const audio = await textToSpeech(content);
 			if (audio instanceof Error) {
 				log.warn("[reply] TTS failed — falling back to text", {

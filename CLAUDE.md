@@ -59,7 +59,7 @@ Every inbound WhatsApp message goes through a pipeline in `src/core/pipeline.ts`
 2. **Rate limit** — per-chat message/min guard
 3. **Normalize** — transcribe voice notes (STT), downscale large images
 4. **Parse commands** — `/command` handlers bypass LLM, return early
-5. **Parse routing** — extract `@agentName` prefix and `!flags` from text
+5. **Parse routing** — extract `@agentName` prefix, `!flags` from text, resolve flag overrides
 6. **Resolve agent** — look up `agentRegistry` or hot-load from `.md` file
 7. **Persist** — append message to conversation JSONL, resolve quote-reply
 8. **Assemble context** — extract `?params` from prompt template + user message, run all context variables in parallel (with params), trim to token budget
@@ -92,7 +92,7 @@ Prompt body with {{contextVar}} Handlebars interpolation (supports params: {{con
 
 **Skills** are static `.md` reference documents in `{vault}/Klaus/skills/` with optional YAML frontmatter (`description:` field). Agents that declare `skills:` in frontmatter get a `skill_get` tool scoped to those names via `z.enum`. Skill descriptions are included in the tool description to help the model decide when to load. The `{{skills}}` Handlebars var is injected so agents can list available skills in the prompt. Zero token overhead for agents without skills.
 
-**Flags** are `.md` files in `{vault}/Klaus/flags/` with a `description:` frontmatter field and a body that is injected into the prompt when active. Users activate flags with `!flagName` in their message. `src/core/flags.ts` manages the `flagRegistry` (Map<name, FlagMeta>), loaded at startup and hot-reloaded by the watcher. Flag text is stripped from the user message and injected via `buildUserMessageText` in the pipeline.
+**Flags** are code-defined programmatic overrides that control pipeline/agent behavior for the current message. Users activate flags with `!flagName` in their message (e.g. `!voice`, `!large`, `!clean`). `src/core/flags.ts` defines the static `flagRegistry` (Map<name, FlagDef>), the `FlagOverrides` interface, and `resolveOverrides()` which maps parsed flags to typed effects. Overrides are applied at specific pipeline/agent execution points (model tier, TTS, conversation history, temperature, tool choice, confirmation gating, persistence) rather than injected as prompt text. Current flags: `!voice` (TTS), `!clean` (skip history), `!small|medium|large` (model tier), `!accept` (auto-accept confirmations), `!cold|hot` (temperature from settings), `!no-tools|use-tools` (tool choice), `!ghost` (ephemeral — no persistence, implies clean).
 
 **Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and registered in `src/commands/register.ts`. Current commands: `/status`, `/tasks`, `/default`, `/help`, `/new`. Each command implements the `Command` interface (name, description, execute).
 
@@ -111,7 +111,7 @@ All operational data is stored as flat files — no database.
 | `schedules.ts` | JSON + croner cron jobs | Recurring schedule persistence |
 | `timers.ts` | JSON + setTimeout | One-time future execution |
 
-The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[wikilinks]]` are edges, YAML frontmatter is metadata. Vault tools provide search, read, write, and link traversal. The vault has folder-level permissions (`read|append|full`) with optional elevated access via WhatsApp reaction confirmation. The internal folder (`Klaus/`) containing agents, skills, snippets, and flags is separate but accessible (default: read, request: full).
+The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[wikilinks]]` are edges, YAML frontmatter is metadata. Vault tools provide search, read, write, and link traversal. The vault has folder-level permissions (`read|append|full`) with optional elevated access via WhatsApp reaction confirmation. The internal folder (`Klaus/`) containing agents, skills, and snippets is separate but accessible (default: read, request: full).
 
 ### Key modules
 
@@ -121,7 +121,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/settings.ts` | Thin getter layer — composes `config.ts` (infra) + YAML settings from vault |
 | `src/config.ts` | Env-derived infrastructure: vault paths, dataDir, log format, startup timing |
 | `src/core/settings-loader.ts` | Loads + validates `Klaus/settings.yml` via Zod, hot-reloads on change, WhatsApp warnings on invalid config |
-| `src/core/flags.ts` | Flag registry — loads `.md` flag definitions from vault, hot-reloaded |
+| `src/core/flags.ts` | Flag registry — code-defined programmatic overrides (FlagDef, FlagOverrides, resolveOverrides) |
 | `src/core/pipeline.ts` | Message orchestrator |
 | `src/core/agent.ts` | Agent executor + agentRegistry |
 | `src/core/assemble.ts` | Context assembly — runs context variables in parallel (with params), enforces token budget |
@@ -131,7 +131,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/core/model-router.ts` | LLM call routing |
 | `src/core/queue.ts` | In-memory job queue + active job tracking |
 | `src/core/vault-access.ts` | Vault path resolution, folder-level permission checks, confirmation gating |
-| `src/core/watcher.ts` | File watcher for hot-reloading agents, skills, and flags |
+| `src/core/watcher.ts` | File watcher for hot-reloading agents and skills |
 | `src/store/` | Flat-file storage modules (conversations, schedules, timers, files, etc.) |
 | `src/context/` | Context variable modules (inject dynamic content into prompts) |
 | `src/tools/` | Tool definitions + toolset loaders |
@@ -151,7 +151,6 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - `/context` — one file per context variable
 - `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter
 - `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
-- `{vault}/Klaus/flags/` — `.md` flag definitions with `description:` frontmatter, hot-reloaded
 - `{vault}/Klaus/snippets/` — static prompt content with optional `scope:` frontmatter (`system`|`user`|`both`, default: `system`). System-scoped → `{{var}}` in prompts; user-scoped → `$var` in messages
 - `{vault}/Klaus/settings.yml` — user-facing settings (models, context budgets, rate limits, etc.), hot-reloaded with Zod validation
 - `{vault}/Klaus/user.md` — user profile, updated by memorize agent

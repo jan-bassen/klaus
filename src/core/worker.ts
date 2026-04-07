@@ -28,6 +28,7 @@ export async function startWorkers(): Promise<void> {
 			chatId,
 			agent: def,
 			flags: {} as Record<string, boolean>,
+			overrides: {},
 			dispatchContext,
 		};
 

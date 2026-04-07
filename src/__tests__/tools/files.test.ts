@@ -93,6 +93,7 @@ const dummyContext = {
 		promptPath: "/dev/null",
 	},
 	flags: {},
+	overrides: {},
 	assembled: {
 		vars: {},
 		userVars: {},

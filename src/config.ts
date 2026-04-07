@@ -19,9 +19,6 @@ export const config = {
 		get snippetsDir() {
 			return path.join(this.internalPath, "snippets");
 		},
-		get flagsDir() {
-			return path.join(this.internalPath, "flags");
-		},
 		get settingsPath() {
 			return path.join(this.internalPath, "settings.yml");
 		},

@@ -15,7 +15,6 @@ mock.module("@/config", () => ({
 			agentsDir: path.join(TEST_DIR, "agents"),
 			skillsDir: path.join(TEST_DIR, "skills"),
 			snippetsDir: path.join(TEST_DIR, "snippets"),
-			flagsDir: path.join(TEST_DIR, "flags"),
 			settingsPath: SETTINGS_PATH,
 		},
 		dataDir: TEST_DIR,

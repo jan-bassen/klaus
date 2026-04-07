@@ -32,6 +32,7 @@ const dummyTurn = {
 		promptPath: "/dev/null",
 	},
 	flags: {},
+	overrides: {},
 };
 
 describe("snippetsQuery scope", () => {

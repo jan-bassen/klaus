@@ -118,16 +118,14 @@ beforeAll(async () => {
 
 	savedAllowedChatId = process.env.ALLOWED_CHAT_ID;
 
-	// Pre-populate flag registry so flag parsing works in pipeline tests
+	// Add test-only flags to the code-defined registry
 	flagRegistry.set("verbose", {
-		name: "verbose",
+		name: "verbose" as never,
 		description: "verbose response",
-		prompt: "Answer verbosely, please!",
 	});
 	flagRegistry.set("en", {
-		name: "en",
+		name: "en" as never,
 		description: "respond in English",
-		prompt: "Answer in English, please!",
 	});
 
 	// Use no context variables so assembleContext always returns { vars: {}, totalTokens: 0 }

@@ -12,7 +12,6 @@ import { Output, tool } from "ai";
 import sharp from "sharp";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { flagRegistry } from "@/core/flags";
 import {
 	generateMetaTool,
 	toolRegistry,
@@ -32,6 +31,7 @@ import { buildProviderTool } from "@/tools/provider";
 import { parseRunAt } from "@/tools/sets/dispatch";
 import { buildSkillTool } from "@/tools/skill";
 import type { AgentDefinition, ToolDefinition, TurnContext } from "@/types";
+import { awaitConfirmation } from "@/whatsapp/confirm";
 import { hbs } from "./hbs";
 import { interpolateUserVars, stripHbsParams } from "./interpolate";
 import { callModel, type ModelCallStep } from "./model-router";
@@ -102,16 +102,6 @@ function buildUserMessageText(turn: TurnContext): string {
 	// Quoted message
 	if (msg.quotedMessage?.text) {
 		parts.push(`> Quoted: ${msg.quotedMessage.text}`);
-	}
-
-	// Flags
-	const flagPrompts = Object.keys(turn.flags)
-		.filter((k) => turn.flags[k] && flagRegistry.has(k))
-		.map((k) => flagRegistry.get(k)?.prompt ?? "")
-		.filter(Boolean)
-		.join("\n");
-	if (flagPrompts) {
-		parts.push(flagPrompts);
 	}
 
 	// Actual message text: transcript for voice, plain text otherwise
@@ -428,7 +418,18 @@ export async function runAgent(
 		tool({
 			description: t.description,
 			inputSchema: t.inputSchema,
-			execute: (input) => t.execute(input, turn),
+			execute: async (input) => {
+				if (t.requiresConfirmation && !turn.overrides?.autoAccept) {
+					if (!turn.message)
+						return "Cannot request confirmation — no inbound message context.";
+					const result = await awaitConfirmation(
+						turn.message,
+						`Confirm ${t.name}? React 👍 to proceed.`,
+					);
+					if (result !== "confirmed") return "Operation cancelled by user.";
+				}
+				return t.execute(input, turn);
+			},
 		});
 
 	// All registered tools visible to the model (core tools + meta-tools + all toolset tools).
@@ -501,7 +502,10 @@ export async function runAgent(
 		return [...active];
 	};
 
-	const modelId = settings.models[def.modelTier];
+	const effectiveTier = turn.overrides?.modelTier ?? def.modelTier;
+	const effectiveTemperature = turn.overrides?.temperature;
+	const effectiveToolChoice = turn.overrides?.toolChoice;
+	const modelId = settings.models[effectiveTier];
 	log.info("[agent] calling model", {
 		agent: def.name,
 		model: modelId,
@@ -509,9 +513,17 @@ export async function runAgent(
 	});
 
 	try {
-		// Build conversation history with traces
-		const { messages: historyMessages, messageRefs } =
-			await buildConversationMessages(turn);
+		// Build conversation history with traces (skip if !clean flag)
+		const { messages: historyMessages, messageRefs } = turn.overrides
+			?.skipHistory
+			? {
+					messages: [] as ModelMessage[],
+					messageRefs: {} as Record<
+						string,
+						{ externalId: string; role: string }
+					>,
+				}
+			: await buildConversationMessages(turn);
 
 		// Inject messageRefs into assembled context for reply/react tools
 		Object.assign(turn.assembled.messageRefs, messageRefs);
@@ -565,17 +577,26 @@ export async function runAgent(
 		const system = buildSystemPrompt(promptBody, turn.assembled.vars);
 
 		const result = await callModel({
-			tier: def.modelTier,
+			tier: effectiveTier,
 			agentName: def.name,
 			chatId: turn.chatId,
 			...(turn.messageId ? { messageId: turn.messageId } : {}),
 			system,
 			messages,
+			...(effectiveTemperature !== undefined
+				? { temperature: effectiveTemperature }
+				: {}),
+			...(effectiveToolChoice === "required"
+				? { toolChoice: "required" as const }
+				: {}),
 			...(Object.keys(allTools).length > 0
 				? {
 						tools: allTools,
-						activeTools: initialActive,
-						prepareStep: buildActiveTools,
+						activeTools:
+							effectiveToolChoice === "none" ? ["reply"] : initialActive,
+						...(effectiveToolChoice !== "none"
+							? { prepareStep: buildActiveTools }
+							: {}),
 					}
 				: {}),
 			...(def.persistent

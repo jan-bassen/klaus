@@ -46,16 +46,15 @@ Commands start with `/` and bypass the LLM entirely:
 
 ### Flags
 
-Flags start with `!` and can appear anywhere in your message. They modify how Klaus responds:
+Flags start with `!` and can appear anywhere in your message. They are programmatic overrides that control pipeline and agent behavior for the current message:
 
-- `!verbose` / `!concise` — control response length
-- `!voice` — reply as a voice note
-- `!de` / `!en` — force response language
-- `!formal` — use formal tone
+- `!voice` — guaranteed voice reply (TTS)
+- `!clean` — call without conversation history
+- `!small` / `!medium` / `!large` — override model tier (low / default / high)
 
-Flags are stripped from the message text before it reaches the agent, so they don't interfere with your actual message. Combine freely: `@think !verbose !en Explain quantum computing`.
+Flags are stripped from the message text before it reaches the agent, so they don't interfere with your actual message. Combine freely: `@think !voice !large Explain quantum computing`.
 
-Flags are defined as `.md` files in `{vault}/Klaus/flags/` with a `description:` frontmatter field (shown in `/help flags`) and a body that is injected into the prompt when the flag is active. The watcher hot-reloads flag changes without restart.
+Flags are code-defined in `src/core/flags.ts`. Each flag maps to a typed override applied at the relevant pipeline/agent execution point.
 
 ### Media
 
@@ -220,7 +219,7 @@ Every inbound WhatsApp message flows through the same pipeline:
 2. **Rate limit** — per-chat rate limiting; soft reject with retry message
 3. **Normalize** — transcribe voice notes (ElevenLabs STT), downscale large images
 4. **Parse** — extract /command (execute directly, bypass LLM) or @agent routing prefix
-5. **Strip flags** — pull out !flag tokens
+5. **Strip flags** — pull out !flag tokens, resolve programmatic overrides
 6. **Persist** — append message to conversation JSONL, resolve quote-reply
 7. **Assemble context** — run all context variables in parallel, trim to token budget
 8. **Execute agent** — Vercel AI SDK agentic loop with tools, send response via WhatsApp
@@ -350,7 +349,6 @@ src/
 {VAULT_DIR}/           # Vault root — folders with per-folder permissions
 ├── Klaus/             # Internal folder (default: read, request: full)
 │   ├── agents/        # Agent prompt files (.md with YAML frontmatter)
-│   ├── flags/         # Flag definitions (.md with description frontmatter)
 │   ├── settings.yml   # User-facing settings (models, budgets, permissions, etc.)
 │   ├── skills/        # Static .md reference documents (loaded on demand)
 │   └── snippets/      # Static prompt content (soul.md, architecture.md)

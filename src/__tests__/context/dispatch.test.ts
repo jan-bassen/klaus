@@ -21,6 +21,7 @@ function makeTurn(
 		chatId: "user@s.whatsapp.net",
 		agent: dummyAgent,
 		flags: {},
+		overrides: {},
 	};
 	if (dispatchContext) base.dispatchContext = dispatchContext;
 	if (hasMessage) {

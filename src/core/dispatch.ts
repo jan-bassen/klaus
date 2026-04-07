@@ -78,6 +78,7 @@ export async function dispatch(
 			chatId,
 			agent: def,
 			flags: {},
+			overrides: {},
 			dispatchContext,
 			_replyCollector: replyCollector,
 		};

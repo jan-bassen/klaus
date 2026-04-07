@@ -15,6 +15,9 @@
 - [ ] /accept <duration> to set the agent in auto-accept mode for a limited time
 - [ ] /voice <duration> to set the agent in always tts mode for a limited time
 
+## Deffered stuff
+- [ ] Maybe !accept-vault and accept-tools (+ unsafe versions) for finer control? (deferred — extend autoAccept type if needed)
+
 ## Internationalization (only when simple)
 - [ ] Add support for multiple languages for all user-facing (and probably even agent-facing) strings
 

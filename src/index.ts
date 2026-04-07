@@ -11,7 +11,6 @@ import path from "node:path";
 import { agentRegistry, loadAgents } from "./core/agent";
 import { loadContextVariables, setContextVariables } from "./core/assemble";
 import { dispatch } from "./core/dispatch";
-import { loadFlags } from "./core/flags";
 import { initQueue } from "./core/queue";
 import { loadAllTools } from "./core/registry";
 import {
@@ -143,10 +142,6 @@ async function main(): Promise<void> {
 	await mkdir(skillsDir, { recursive: true });
 	await loadSkills(skillsDir);
 
-	const flagsDir = settings.vault.flagsDir;
-	await mkdir(flagsDir, { recursive: true });
-	await loadFlags(flagsDir);
-
 	await import("./commands/register");
 
 	// Validate skill references
@@ -221,7 +216,7 @@ async function main(): Promise<void> {
 
 	// 6. Watch settings, agent, skill, and flag directories for hot-reload
 	watchSettings();
-	startWatching(agentsDir, skillsDir, flagsDir);
+	startWatching(agentsDir, skillsDir);
 
 	// 7. Start HTTP server before WhatsApp so the process stays up during first-time pairing.
 	Bun.serve({

@@ -63,7 +63,6 @@ beforeAll(() => {
 	flagRegistry.set("voice", {
 		name: "voice",
 		description: "reply as a voice note",
-		prompt: "Answer as a voice message.",
 	});
 });
 

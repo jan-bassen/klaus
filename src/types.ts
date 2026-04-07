@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { AgentFrontmatterSchema } from "./core/agent";
+import type { FlagOverrides } from "./core/flags";
 
 // -- WhatsApp / transport --
 
@@ -57,6 +58,7 @@ export interface TurnContext {
 	message?: InboundMessage;
 	agent: AgentDefinition;
 	flags: Record<string, boolean>;
+	overrides: FlagOverrides;
 	assembled: AssembledContext;
 	/** Internal message ID — set in pipeline after insert */
 	messageId?: string;

@@ -19,17 +19,14 @@
 - [x] Keep snippets folder for now both system and user messages, but now with frontmatter to define scope and maybe params (?)
 
 ## Flags repurpose
-- [ ] Turn flags from injections (those are now handled with $vars) to add inline programmatic overwrites/control over the current message (closer to commands, but only for the current message)
-- [ ] keep !voice, but as guaranteed switch to tts
-- [ ] !accept for auto-accept mode (vault and tools) 
-- [ ] !accept-unsafe for unsafe auto-accept (aka above the limit of request permission)
-- [ ] Maybe !accept-vault and accept-tools (+ unsafe versions) for finer control?
-- [ ] !small|medium|large for direct model control
-- [ ] !chatgpt|claude|gemini (dynamic - see below) for direct model set control
-- [ ] !cold|hot for temperature control
-- [ ] !no-tools|use-tools for enforced tool-use
-- [ ] !clean for a call without messages context
-- [ ] !ghost for a call that doesn't get logged or added to history + auto-deleted (where possible/easy)
+- [x] Turn flags from injections (those are now handled with $vars) to add inline programmatic overwrites/control over the current message (closer to commands, but only for the current message)
+- [x] keep !voice, but as guaranteed switch to tts
+- [x] !accept for auto-accept mode (vault and tools) — also enforces requiresConfirmation on tools
+- [x] !small|medium|large for direct model control
+- [x] !cold|hot for temperature control (values from settings.llm.coldTemperature/hotTemperature)
+- [x] !no-tools|use-tools for enforced tool-use control
+- [x] !clean for a call without messages context
+- [x] !ghost for ephemeral call — no persistence, skipHistory implied (WA message deletion deferred)
 
 ## Help command overhaul
 - [ ] Maybe switch to /? (?)
@@ -47,6 +44,11 @@
 - [ ] Add a generalized model picker (free map, maybe with different sets of [small|medium|large] (schema changible) - default three sets: chatGPT, claude, gemini)
 - [ ] Include unified map of provider tools and options
 - [ ] add /models and update /model commands for changing model set and default in the set (changes the frontmatter field in the agent file/ the settings.yml file)
+- [ ] Add !chatgpt|claude|gemini flags for dynamic model set control (from flags repurpose section)
+
+## Fix randomness control
+- [ ] Move the randomness settings temperature (!hot/cold, coldTemperature: 0 / hotTemperature: 1 in settings) into provider/model config
+- [ ] Add well-researched defaults for the three default provider model sets
 
 ## Provider option flags (not all providers are the same, see what's possible. When not supported ignore and inform)
 - [ ] !low|high for reasoning effort control (should be available for all three main providers)

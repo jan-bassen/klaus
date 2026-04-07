@@ -101,9 +101,6 @@ export const settings = {
 		get snippetsDir() {
 			return config.vault.snippetsDir;
 		},
-		get flagsDir() {
-			return config.vault.flagsDir;
-		},
 	},
 	get dataDir() {
 		return config.dataDir;

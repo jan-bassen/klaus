@@ -26,6 +26,10 @@ export interface ModelCallOptions {
 	activeTools?: string[];
 	/** Called before each step; return updated active tool names to expand the allowlist. */
 	prepareStep?: (steps: StepResult<ToolSet>[]) => string[];
+	/** Override temperature (0–1). If omitted, uses provider default. */
+	temperature?: number;
+	/** Tool choice constraint: "none" disables tools, "required" forces tool use. */
+	toolChoice?: "none" | "required";
 	/** Structured output schema (e.g. Output.object). Passed directly to generateText. */
 	output?: unknown;
 }
@@ -106,7 +110,11 @@ export async function callModel(
 					model,
 					...(opts.system ? { system: opts.system } : {}),
 					messages: opts.messages,
+					...(opts.temperature !== undefined
+						? { temperature: opts.temperature }
+						: {}),
 					...(opts.output ? { output: opts.output as never } : {}),
+					...(opts.toolChoice ? { toolChoice: opts.toolChoice } : {}),
 					...(opts.tools && Object.keys(opts.tools).length > 0
 						? {
 								tools: opts.tools,

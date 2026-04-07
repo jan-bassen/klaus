@@ -27,7 +27,7 @@ mock.module("@/store/conversation", () => ({
 }));
 
 import { loadAgentDefinition, runAgent } from "@/core/agent";
-import { flagRegistry } from "@/core/flags";
+
 import {
 	registerTool,
 	registerToolset,
@@ -72,6 +72,7 @@ function makeTurn(
 			promptPath: "/dev/null",
 		},
 		flags: {},
+		overrides: {},
 		assembled: { ...emptyAssembled, vars },
 	};
 }
@@ -417,23 +418,18 @@ describe("runAgent", () => {
 		expect(lastMsg?.content).toContain('Caption: "see this"');
 	});
 
-	test("user message includes flags", async () => {
-		flagRegistry.set("voice", {
-			name: "voice",
-			description: "reply as voice",
-			prompt: "Answer as a voice message!",
-		});
+	test("flags do not inject prompt text into user message", async () => {
 		const turn = makeTurn({}, { text: "hello" });
 		turn.flags = { voice: true };
 		turn.agent.promptPath = tmpPath;
 		await runAgent(turn, turn.agent);
 		cleanup();
-		flagRegistry.delete("voice");
 		const opts = lastArg(mockCallModel) as {
 			messages: Array<{ role: string; content: string }>;
 		};
 		const lastMsg = opts.messages[opts.messages.length - 1];
-		expect(lastMsg?.content).toContain("Answer as a voice message!");
+		// Flags are programmatic overrides now — no prompt text injected
+		expect(lastMsg?.content).toBe("hello");
 	});
 
 	test("system prompt includes memory when present", async () => {
@@ -601,6 +597,7 @@ describe("runAgent", () => {
 			chatId: base.chatId,
 			agent: { ...base.agent, promptPath: tmpPath },
 			flags: {},
+			overrides: {},
 			assembled: base.assembled,
 			dispatchContext: {
 				caller: "thinking",
