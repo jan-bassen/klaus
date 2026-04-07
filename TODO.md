@@ -1,4 +1,4 @@
-# TODO (ignore migration paths, we're able to fully reset still)
+# TODO v0.2.0 (ignore migration paths, we're able to fully reset still)
 
 ## Harden vault as flexible core
 - [ ] Have a simple generalized way to handle vaults with different structures (multiple vaults and folders) - doesn't need to be obsidian, but is designed with it in mind (probably with just multi-vault support and folder-level permissions: read|append|write + always/request)
@@ -11,10 +11,9 @@
 - [ ] Add dynamic loading incl. validation via zod schema on load and warn per WhatsApp (keep last valid state)
 
 ## Context variable extension
-- [ ] Reexplore params as core part of vars - ie. {{tasks?limit=3}} or $tasks?limit=3 (allows for more efficient var setups, but adds complexity)
-- [ ] Add var support to live messages (not just system prompt) - syntax prob $var?param=value (open for alternatives)
+- [ ] Add context variable support to live messages (not just system prompt) - syntax in message is $var bc hds are annoying to type out on mobile
+- [ ] Add back simple params as core part of vars {{tasks?limit=3}} or $tasks?limit=3
 - [ ] Keep snippets folder for now both system and user messages, but now with frontmatter to define scope and maybe params (?)
-- [ ] Add raw message in logs alongside the full normalized message
 
 ## Flags repurpose
 - [ ] Turn flags from injections (those are now handled with $vars) to add inline programmatic control over the current message (more similar to commands)
