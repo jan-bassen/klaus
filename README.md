@@ -204,7 +204,7 @@ API keys and host-specific settings, gitignored, never committed.
 | PORT                | `3000`  | HTTP port for `/healthz`                |
 | BAILEYS_AUTH_FOLDER | `<cwd>/.baileys-auth` | WhatsApp auth state directory |
 | DATA_DIR            | `~/.klaus/data` | Operational data (conversations, etc.) |
-| VAULT_DIR           | `<cwd>/vault` | Vault root (folders configured in `settings.ts` with per-folder permissions) |
+| VAULT_DIR           | `<cwd>/vault` | Vault root (folders configured in `Klaus/settings.yml` with per-folder permissions) |
 
 All path variables default to sensible local values — no extra config needed for local dev.
 
@@ -344,9 +344,10 @@ src/
 ├── Klaus/             # Internal folder (default: read, request: full)
 │   ├── agents/        # Agent prompt files (.md with YAML frontmatter)
 │   ├── flags/         # Flag definitions (.md with description frontmatter)
+│   ├── settings.yml   # User-facing settings (models, budgets, permissions, etc.)
 │   ├── skills/        # Static .md reference documents (loaded on demand)
 │   └── snippets/      # Static prompt content (soul.md, architecture.md)
-├── Leben/             # User content folders — permissions configured in settings.ts
+├── Leben/             # User content folders — permissions configured in Klaus/settings.yml
 ├── Projekte/
 └── *.md               # Root-level files
 ```

@@ -10,8 +10,8 @@
 - [x] Keep internal folder (with agents/, skills/, ...) separate (but able to be colocated) for efficient watcher and clear separatation of concern. (default: read, request: full)
 
 ## Move Settings to vault
-- [ ] Move settings.ts into vault as settings.yml (=iteration in obsidian, not repo - only tools and commands there) - settings that need to stay in code can go into a config.ts file instead.
-- [ ] Add dynamic loading incl. validation via zod schema on load and warn per WhatsApp (keep last valid state)
+- [x] Move settings.ts into vault as settings.yml (=iteration in obsidian, not repo - only tools and commands there) - settings that need to stay in code can go into a config.ts file instead.
+- [x] Add dynamic loading incl. validation via zod schema on load and warn per WhatsApp (keep last valid state)
 
 ## Context variable extension
 - [ ] Add context variable support to live messages (not just system prompt) - syntax in message is $var bc hds are annoying to type out on mobile, system prompt keeps full hbs support
@@ -68,6 +68,9 @@ Goal: create a simple unified data store for a) execution and b) debugging
 - [ ] Geo - Geography teacher/expert agent to learn and ask about geology (https://rapidapi.com/mmplabsadm/api/geography4)
 - [ ] ??? - Life Coach (?)
 - [ ] Ingest - As input handler from source to wiki/knowledge store à la [Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
+
+## Onboarding
+- [ ] Auto-generate default settings.yml (and full internal folder structure) in vault on first startup
 
 ## Documentation
 - [ ] Update readme and check code comments etc

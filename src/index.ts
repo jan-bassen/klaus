@@ -14,6 +14,11 @@ import { dispatch } from "./core/dispatch";
 import { loadFlags } from "./core/flags";
 import { initQueue } from "./core/queue";
 import { loadAllTools } from "./core/registry";
+import {
+	loadSettingsFromDisk,
+	stopSettingsWatcher,
+	watchSettings,
+} from "./core/settings-loader";
 import { startWatching, stopWatching } from "./core/watcher";
 import { startWorkers } from "./core/worker";
 import { log } from "./logger";
@@ -66,6 +71,7 @@ async function shutdown(signal: string): Promise<void> {
 	await stopQueue();
 
 	// 4. Stop file watchers.
+	stopSettingsWatcher();
 	stopWatching();
 
 	// 5. Stop cron schedules and timers.
@@ -83,7 +89,15 @@ process.on("SIGINT", () => {
 });
 
 async function main(): Promise<void> {
-	// 0. Validate required env vars
+	// 0. Load settings from vault YAML (before anything else)
+	const settingsResult = await loadSettingsFromDisk();
+	if (!settingsResult.ok) {
+		log.warn("[startup] settings.yml invalid or missing, using defaults", {
+			error: settingsResult.error,
+		});
+	}
+
+	// 1. Validate required env vars
 	const required = ["ANTHROPIC_API_KEY", "ALLOWED_CHAT_ID"] as const;
 	const missing = required.filter((k) => !process.env[k]);
 	if (missing.length > 0) {
@@ -205,7 +219,8 @@ async function main(): Promise<void> {
 	});
 	await loadTimers();
 
-	// 6. Watch agent, skill, and flag directories for hot-reload
+	// 6. Watch settings, agent, skill, and flag directories for hot-reload
+	watchSettings();
 	startWatching(agentsDir, skillsDir, flagsDir);
 
 	// 7. Start HTTP server before WhatsApp so the process stays up during first-time pairing.

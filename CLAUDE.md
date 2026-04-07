@@ -118,7 +118,9 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | Path | Concern |
 |------|---------|
 | `src/types.ts` | All core interfaces (InboundMessage, TurnContext, AgentDefinition, ToolDefinition, ContextVariable) |
-| `src/settings.ts` | Model tiers, context budgets, rate limits, timeouts, vision, whatsapp transport, vault folder config + permissions, locale, dataDir |
+| `src/settings.ts` | Thin getter layer — composes `config.ts` (infra) + YAML settings from vault |
+| `src/config.ts` | Env-derived infrastructure: vault paths, dataDir, log format, startup timing |
+| `src/core/settings-loader.ts` | Loads + validates `Klaus/settings.yml` via Zod, hot-reloads on change, WhatsApp warnings on invalid config |
 | `src/core/flags.ts` | Flag registry — loads `.md` flag definitions from vault, hot-reloaded |
 | `src/core/pipeline.ts` | Message orchestrator |
 | `src/core/agent.ts` | Agent executor + agentRegistry |
@@ -150,6 +152,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
 - `{vault}/Klaus/flags/` — `.md` flag definitions with `description:` frontmatter, hot-reloaded
 - `{vault}/Klaus/snippets/` — static prompt content (soul.md, architecture.md) injected as template vars
+- `{vault}/Klaus/settings.yml` — user-facing settings (models, context budgets, rate limits, etc.), hot-reloaded with Zod validation
 - `{vault}/Klaus/user.md` — user profile, updated by memorize agent
 
 Live Vault is located at /Users/janbassen/Vaults/Jan/Klaus on this pc
@@ -175,7 +178,7 @@ Published as `janbassen1/klaus` on Docker Hub. The Dockerfile includes OCI label
 - Errors are values — return don't throw (except at true system boundaries)
 - No `any` types; explicit return types on exported functions
 - Prefer `const` and pure functions; minimize mutable state
-- Config lives in `src/settings.ts` (not scattered env reads). All tunable constants (token budgets, retry counts, dimension limits, timeout values, max sizes) belong in `settings.ts` — never inline magic numbers. Vault subdirectory paths use `settings.vault.*Dir` getters. The `modelTiers` array and `ModelTier` type are derived from `settings.models` — keep schemas (e.g. agent frontmatter) in sync via `z.enum(modelTiers)`.
+- User-facing settings live in `Klaus/settings.yml` (vault), loaded and validated by `src/core/settings-loader.ts`. Infrastructure config (env-derived paths, log format) lives in `src/config.ts`. `src/settings.ts` is a thin getter layer composing both — all consumers import `{ settings }` from it unchanged. The `modelTiers` array and `ModelTier` type are static literals in `settings.ts`. Never inline magic numbers — add them to the Zod schema defaults in `settings-loader.ts`.
 - One concern per file
 - Path alias `@/` maps to `src/`
 - No unnecessary comments — code should be self-explanatory; comments explain *why*, never *what*
