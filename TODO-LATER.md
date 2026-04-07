@@ -13,6 +13,7 @@
 
 ## Maybe's
 - [ ] Voice language field in settings.ts against awkward accents
+- [ ] Access to github
 
 ## Code Cleanup (Notes)
 - [ ] else if -> switch (eg help command)

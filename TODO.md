@@ -1,6 +1,6 @@
 # TODO
 
-## Harden vault as core 
+## Harden vault as core (Instructions unclear still!)
 - [ ] Have a simple generalized way to handle vaults with different structures (multiple vaults and folders) - doesn't need to be obsidian, but is designed with it in mind.
 - [ ] Implement generalized verification system accross it, for safe defaults (not fully clear how, but maybe via file paths or with a in-code-defined schema)
 - [ ] Move settings into vault (=iteration in obsidian, not repo - only tools and commands there)
@@ -29,7 +29,7 @@
 - [ ] Make new snippet for communication with clearer instructions for WA formatting and voice handling
 - [ ] Make @agent and !flags in voice messages possible
 
-## Provider indipendence
+## Provider independence
 - [ ] Make it explicitly easy to use common providers and switch fluently
 - [ ] Maybe (?) enable OpenAI OAuth?
 
