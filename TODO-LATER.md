@@ -4,6 +4,9 @@
 - [ ] Look at the tool verification pipeline again. Probably use 👍/👎 for feedback and ✅/⛔ or /yes + /no for acceptance. Will need a flow for good ux (short description + tool name + maybe even params)
 - [ ] Think about a potential "undo" operation. Maybe thats good?
 
+## UX Improvements
+- [ ] Make initial auth flow way better!
+
 ## Internationalization (only when simple)
 - [ ] Add support for multiple languages for all user-facing (and probably even agent-facing) strings
 
