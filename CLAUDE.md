@@ -111,14 +111,14 @@ All operational data is stored as flat files — no database.
 | `schedules.ts` | JSON + croner cron jobs | Recurring schedule persistence |
 | `timers.ts` | JSON + setTimeout | One-time future execution |
 
-The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[wikilinks]]` are edges, YAML frontmatter is metadata. Vault tools provide search, read, write, and link traversal.
+The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[wikilinks]]` are edges, YAML frontmatter is metadata. Vault tools provide search, read, write, and link traversal. The vault has folder-level permissions (`read|append|full`) with optional elevated access via WhatsApp reaction confirmation. The internal folder (`Klaus/`) containing agents, skills, snippets, and flags is separate but accessible (default: read, request: full).
 
 ### Key modules
 
 | Path | Concern |
 |------|---------|
 | `src/types.ts` | All core interfaces (InboundMessage, TurnContext, AgentDefinition, ToolDefinition, ContextVariable) |
-| `src/settings.ts` | Model tiers, context budgets, rate limits, timeouts, vision, whatsapp transport, vault subdirectory getters, locale, dataDir |
+| `src/settings.ts` | Model tiers, context budgets, rate limits, timeouts, vision, whatsapp transport, vault folder config + permissions, locale, dataDir |
 | `src/core/flags.ts` | Flag registry — loads `.md` flag definitions from vault, hot-reloaded |
 | `src/core/pipeline.ts` | Message orchestrator |
 | `src/core/agent.ts` | Agent executor + agentRegistry |
@@ -127,6 +127,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/core/dispatch.ts` | Unified dispatch function (inline/async modes) |
 | `src/core/model-router.ts` | LLM call routing |
 | `src/core/queue.ts` | In-memory job queue + active job tracking |
+| `src/core/vault-access.ts` | Vault path resolution, folder-level permission checks, confirmation gating |
 | `src/core/watcher.ts` | File watcher for hot-reloading agents, skills, and flags |
 | `src/store/` | Flat-file storage modules (conversations, schedules, timers, files, etc.) |
 | `src/context/` | Context variable modules (inject dynamic content into prompts) |

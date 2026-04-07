@@ -6,8 +6,22 @@ import { join } from "node:path";
 // Mock settings before importing vault tools
 mock.module("@/settings", () => ({
 	settings: {
-		vault: { dir: "" }, // overridden per-test via setVaultDir
+		vault: {
+			root: "",
+			internal: "Klaus",
+			folders: [{ path: "", default: "full" }],
+			internalPermission: { default: "read", request: "full" },
+			get internalPath() {
+				return join(this.root, this.internal);
+			},
+			maxListEntries: 200,
+		},
 	},
+}));
+
+// Mock awaitConfirmation to auto-confirm (tests don't have WhatsApp context)
+mock.module("@/whatsapp/confirm", () => ({
+	awaitConfirmation: async () => "confirmed" as const,
 }));
 
 import { settings } from "@/settings";
@@ -23,7 +37,7 @@ import type { AgentDefinition, TurnContext } from "@/types";
 let tmpDir: string;
 
 function setVaultDir(dir: string): void {
-	(settings.vault as { dir: string }).dir = dir;
+	(settings.vault as { root: string }).root = dir;
 }
 
 function makeContext(vaultScope?: string): TurnContext {

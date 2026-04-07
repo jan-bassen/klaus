@@ -5,8 +5,9 @@
 - [x] Remove note system (replaced by knowledge vault/folder)
 
 ## Harden vault as flexible core
-- [ ] Have a simple generalized way to handle vaults with different structures (multiple vaults and folders) - doesn't need to be obsidian, but is designed with it in mind (probably with just multi-vault support and folder-level permissions: read|append|write + always/request)
-- [ ] Keep internal folder (with agents/, skills/, ...) separate (but able to be colocated) for efficient watcher and clear separatation of concern (maybe add layout check?)
+- [x] Make sure the setup works in a generalized way to handle vaults with different structures (multiple vaults and folders) - doesn't need to be obsidian, but is designed with it in mind
+- [x] add folder-level permissions limits: read|append|full (default(always) is required, on-request limit optional - eg when you want: read only, append on request (verification flow), never write)
+- [x] Keep internal folder (with agents/, skills/, ...) separate (but able to be colocated) for efficient watcher and clear separatation of concern. (default: read, request: full)
 
 ## Move Settings to vault
 - [ ] Move settings.ts into vault as settings.yml (=iteration in obsidian, not repo - only tools and commands there) - settings that need to stay in code can go into a config.ts file instead.
@@ -21,7 +22,7 @@
 - [ ] Turn flags from injections (those are now handled with $vars) to add inline programmatic overwrites/control over the current message (closer to commands, but only for the current message)
 - [ ] keep !voice, but as guaranteed switch to tts
 - [ ] !accept for auto-accept mode (vault and tools) 
-- [ ] !accept-unsafe for unsafe auto-accept (vault and tools) 
+- [ ] !accept-unsafe for unsafe auto-accept (aka above the limit of request permission)
 - [ ] Maybe !accept-vault and accept-tools (+ unsafe versions) for finer control?
 - [ ] !small|medium|large for direct model control
 - [ ] !chatgpt|claude|gemini (dynamic - see below) for direct model set control

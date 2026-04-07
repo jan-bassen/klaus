@@ -1,5 +1,16 @@
 import path from "node:path";
 
+export type VaultPermission = "none" | "read" | "append" | "full";
+
+export interface VaultFolder {
+	/** Relative to vault root, e.g. "Leben". Empty string "" for root-level files. */
+	path: string;
+	/** Always-on permission level. */
+	default: VaultPermission;
+	/** Elevated permission available via WhatsApp reaction confirmation. */
+	request?: VaultPermission;
+}
+
 export const settings = {
 	// Model tier map — change model IDs here to swap providers/versions globally.
 	// Each tier is referenced by name throughout the codebase; no other file hardcodes model IDs.
@@ -113,22 +124,43 @@ export const settings = {
 		confirmTimeoutMs: 60_000, // confirmation reaction timeout
 	},
 
-	// Obsidian vault directory — agents, skills, and memory all live here.
+	// Vault — folder-aware with per-folder permissions.
+	// Agents see natural paths (e.g. "Leben/notes.md"). The internal folder
+	// (agents, skills, snippets, flags) is separate but accessible.
 	vault: {
-		get dir() {
+		get root() {
 			return process.env.VAULT_DIR ?? path.join(process.cwd(), "vault");
 		},
+		/** Relative to root — contains agents/, skills/, snippets/, flags/. */
+		internal: "Klaus",
+		/** Per-folder permission config. Matched longest-prefix-first. "" = root-level files. */
+		folders: [
+			{ path: "Leben", default: "full" },
+			{ path: "Projekte", default: "full" },
+			{ path: "Sammlung", default: "read", request: "full" },
+			{ path: "Wissen", default: "read" },
+			{ path: "", default: "full" },
+		] satisfies VaultFolder[],
+		/** Permissions for the internal folder (Klaus/). */
+		internalPermission: {
+			default: "read",
+			request: "full",
+		} as { default: VaultPermission; request?: VaultPermission },
+		// Derived getters
+		get internalPath() {
+			return path.join(this.root, this.internal);
+		},
 		get agentsDir() {
-			return path.join(this.dir, "Klaus", "agents");
+			return path.join(this.internalPath, "agents");
 		},
 		get skillsDir() {
-			return path.join(this.dir, "Klaus", "skills");
+			return path.join(this.internalPath, "skills");
 		},
 		get snippetsDir() {
-			return path.join(this.dir, "Klaus", "snippets");
+			return path.join(this.internalPath, "snippets");
 		},
 		get flagsDir() {
-			return path.join(this.dir, "Klaus", "flags");
+			return path.join(this.internalPath, "flags");
 		},
 		maxListEntries: 200,
 	},

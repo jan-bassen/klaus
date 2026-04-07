@@ -204,7 +204,7 @@ API keys and host-specific settings, gitignored, never committed.
 | PORT                | `3000`  | HTTP port for `/healthz`                |
 | BAILEYS_AUTH_FOLDER | `<cwd>/.baileys-auth` | WhatsApp auth state directory |
 | DATA_DIR            | `~/.klaus/data` | Operational data (conversations, etc.) |
-| VAULT_DIR           | `<cwd>/vault` | Obsidian vault root               |
+| VAULT_DIR           | `<cwd>/vault` | Vault root (folders configured in `settings.ts` with per-folder permissions) |
 
 All path variables default to sensible local values — no extra config needed for local dev.
 
@@ -261,7 +261,7 @@ Built-in agents:
 
 | Toolset  | Tools                                               | Purpose                                |
 | -------- | --------------------------------------------------- | -------------------------------------- |
-| vault    | read, search, list, write, append, backlinks, etc.  | Obsidian vault + memory                |
+| vault    | read, search, list, write, append, backlinks, etc.  | Vault notes with folder-level permissions |
 | dispatch | agent, schedule, timer, list, cancel                | Agent dispatch, cron, one-time timers  |
 | files    | upload, download, list, delete                      | File management                        |
 **Standalone tools** are opt-in per agent via `tools:` in frontmatter:
@@ -340,12 +340,15 @@ src/
 │   └── sets/      # Toolset definitions (vault, dispatch, files)
 └── whatsapp/      # Transport layer (connection, receive, send, TTS, STT)
 
-vault/Klaus/       # Klaus's own directory in the Obsidian vault
-├── agents/        # Agent prompt files (.md with YAML frontmatter)
-├── flags/         # Flag definitions (.md with description frontmatter)
-├── skills/        # Static .md reference documents (loaded on demand by agents)
-├── snippets/      # Static prompt content (soul.md, architecture.md)
-└── user.md        # User profile (updated by memorize agent)
+{VAULT_DIR}/           # Vault root — folders with per-folder permissions
+├── Klaus/             # Internal folder (default: read, request: full)
+│   ├── agents/        # Agent prompt files (.md with YAML frontmatter)
+│   ├── flags/         # Flag definitions (.md with description frontmatter)
+│   ├── skills/        # Static .md reference documents (loaded on demand)
+│   └── snippets/      # Static prompt content (soul.md, architecture.md)
+├── Leben/             # User content folders — permissions configured in settings.ts
+├── Projekte/
+└── *.md               # Root-level files
 ```
 
 ---

@@ -22,7 +22,7 @@ export const snippetsQuery: ContextVariable = {
 	name: "snippets",
 	priority: -1,
 	async run() {
-		const klausDir = path.join(settings.vault.dir, "Klaus");
+		const klausDir = settings.vault.internalPath;
 		const snippetsDir = settings.vault.snippetsDir;
 
 		const vars: Record<string, string> = {};
