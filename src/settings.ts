@@ -12,20 +12,6 @@ export const settings = {
 		vision: "claude-sonnet-4-20250514", // image analysis (Claude)
 	},
 
-	// Per-model pricing in USD per million tokens. Used by model-router to compute costUsd.
-	// Source: https://platform.claude.com/docs/en/about-claude/pricing (March 2026)
-	pricing: {
-		"claude-sonnet-4-20250514": { inputPerMTok: 3.0, outputPerMTok: 15.0 },
-		"claude-haiku-3-20250307": { inputPerMTok: 0.25, outputPerMTok: 1.25 },
-		"claude-opus-4-20250514": { inputPerMTok: 15.0, outputPerMTok: 75.0 },
-	},
-
-	// Per-service pricing for non-LLM API calls. Used to compute costUsd.
-	apiPricing: {
-		tts: { perMChars: 120.0 }, // ElevenLabs $0.12/1K chars
-		stt: { perHour: 0.39 }, // ElevenLabs Scribe $0.39/hr
-	},
-
 	// Token budgets for context assembly. The assembler fills up to totalTokens,
 	// then trims lower-priority sections first if everything doesn't fit.
 	context: {

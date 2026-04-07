@@ -3,7 +3,6 @@ import type { ModelMessage, StepResult, ToolSet } from "ai";
 import { generateText, stepCountIs } from "ai";
 import { log } from "@/logger";
 import { type ModelTier, settings } from "@/settings";
-import { recordCost } from "@/store/costs";
 import { recordInvocation } from "@/store/invocations";
 import { checkModelRate } from "./rate-limiter";
 
@@ -50,7 +49,6 @@ export interface ModelCallResult {
 	usage: {
 		promptTokens: number;
 		completionTokens: number;
-		costUsd: number;
 	};
 	steps: ModelCallStep[];
 	/** Structured output from Output.object(), if provided. */
@@ -179,21 +177,6 @@ export async function callModel(
 		(s, st) => s + (st.usage.outputTokens ?? 0),
 		0,
 	);
-	const pricing = settings.pricing as Record<
-		string,
-		{ inputPerMTok: number; outputPerMTok: number } | undefined
-	>;
-	const modelPricing = pricing[modelId];
-	const costUsd = modelPricing
-		? (promptTokens / 1_000_000) * modelPricing.inputPerMTok +
-			(completionTokens / 1_000_000) * modelPricing.outputPerMTok
-		: 0;
-	if (!modelPricing) {
-		log.warn("[model-router] no pricing entry for model — recording 0", {
-			model: modelId,
-		});
-	}
-
 	// Serialize steps for debugging.
 	const steps = result.steps.map((s) => ({
 		text: s.text,
@@ -227,19 +210,6 @@ export async function callModel(
 		}),
 	);
 
-	if (costUsd > 0) {
-		recordCost(
-			"llm",
-			promptTokens + completionTokens,
-			costUsd,
-			opts.chatId,
-		).catch((err) =>
-			log.warn("[cost] failed to record llm cost", {
-				error: err instanceof Error ? err.message : String(err),
-			}),
-		);
-	}
-
 	const modelSteps: ModelCallStep[] = result.steps.map((s) => ({
 		reasoning: s.reasoningText ?? "",
 		toolCalls: (s.toolCalls ?? []).map((tc) => ({
@@ -256,7 +226,7 @@ export async function callModel(
 
 	return {
 		content: result.text,
-		usage: { promptTokens, completionTokens, costUsd },
+		usage: { promptTokens, completionTokens },
 		steps: modelSteps,
 		...("output" in result && result.output !== undefined
 			? { output: result.output }

@@ -82,7 +82,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 					chatId: msg.chatId,
 					mimeType,
 				});
-				const transcript = await transcribe(filePath, mimeType, msg.chatId);
+				const transcript = await transcribe(filePath, mimeType);
 				if (!(transcript instanceof Error)) {
 					log.info("[pipeline] transcription ok", {
 						chatId: msg.chatId,

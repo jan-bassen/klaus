@@ -5,7 +5,6 @@
 
 import { log } from "@/logger";
 import { settings } from "@/settings";
-import { recordCost } from "@/store/costs";
 
 const TTS_BASE = "https://api.elevenlabs.io/v1/text-to-speech";
 
@@ -13,10 +12,7 @@ const TTS_BASE = "https://api.elevenlabs.io/v1/text-to-speech";
  * Convert text to speech using ElevenLabs.
  * Returns a Buffer (MP3 audio) or an Error value on failure.
  */
-export async function textToSpeech(
-	text: string,
-	chatId?: string,
-): Promise<Buffer | Error> {
+export async function textToSpeech(text: string): Promise<Buffer | Error> {
 	const apiKey = process.env.ELEVENLABS_API_KEY;
 	if (!apiKey) return new Error("textToSpeech: ELEVENLABS_API_KEY not set");
 	const voiceId = settings.tts.voiceId;
@@ -40,14 +36,6 @@ export async function textToSpeech(
 			log.warn("[tts] ElevenLabs API error", { status: res.status, body });
 			return new Error(`TTS API error ${res.status}: ${body}`);
 		}
-
-		const chars = text.length;
-		const costUsd = (chars / 1_000_000) * settings.apiPricing.tts.perMChars;
-		recordCost("tts", chars, costUsd, chatId).catch((err) =>
-			log.warn("[cost] failed to record tts cost", {
-				error: err instanceof Error ? err.message : String(err),
-			}),
-		);
 
 		return Buffer.from(await res.arrayBuffer());
 	} catch (err) {

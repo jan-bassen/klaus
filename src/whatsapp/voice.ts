@@ -5,7 +5,6 @@
 import path from "node:path";
 import { log } from "@/logger";
 import { settings } from "@/settings";
-import { recordCost } from "@/store/costs";
 
 const SCRIBE_URL = "https://api.elevenlabs.io/v1/speech-to-text";
 
@@ -16,7 +15,6 @@ const SCRIBE_URL = "https://api.elevenlabs.io/v1/speech-to-text";
 export async function transcribe(
 	filePath: string,
 	mimeType: string,
-	chatId?: string,
 ): Promise<string | Error> {
 	const apiKey = process.env.ELEVENLABS_API_KEY;
 	if (!apiKey) return new Error("transcribe: ELEVENLABS_API_KEY not set");
@@ -47,16 +45,6 @@ export async function transcribe(
 		}
 
 		const json = (await res.json()) as { text?: string };
-
-		// Estimate audio duration from file size (OGG Opus ~16 kbps for WhatsApp voice messages).
-		const estimatedSeconds = (blob.size * 8) / 16_000;
-		const costUsd = (estimatedSeconds / 3600) * settings.apiPricing.stt.perHour;
-		recordCost("stt", Math.round(estimatedSeconds), costUsd, chatId).catch(
-			(err) =>
-				log.warn("[cost] failed to record stt cost", {
-					error: err instanceof Error ? err.message : String(err),
-				}),
-		);
 
 		return json.text ?? "";
 	} catch (err) {

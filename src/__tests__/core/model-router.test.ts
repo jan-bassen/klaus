@@ -29,17 +29,8 @@ mock.module("@ai-sdk/anthropic", () => ({
 }));
 
 const mockRecordInvocation = mock(async () => {});
-const mockRecordCost = mock(async () => {});
 mock.module("@/store/invocations", () => ({
 	recordInvocation: mockRecordInvocation,
-}));
-mock.module("@/store/costs", () => ({
-	recordCost: mockRecordCost,
-	getCostSummary: mock(async () => ({
-		total: 0,
-		byService: {},
-		periodLabel: "today",
-	})),
 }));
 
 import { _resetForTest } from "@/core/rate-limiter";
@@ -58,7 +49,6 @@ beforeEach(() => {
 	_resetForTest();
 	mockGenerateText.mockClear();
 	mockRecordInvocation.mockClear();
-	mockRecordCost.mockClear();
 });
 
 // ---- Tests ----
@@ -92,12 +82,9 @@ describe("callModel", () => {
 		expect(result.usage.completionTokens).toBe(40);
 	});
 
-	test("records invocation and cost after each call", async () => {
+	test("records invocation after each call", async () => {
 		await callModel(BASE_OPTS);
 		expect(mockRecordInvocation).toHaveBeenCalledTimes(1);
-		// Cost is recorded asynchronously via .catch — give it a tick
-		await new Promise((r) => setTimeout(r, 10));
-		expect(mockRecordCost).toHaveBeenCalledTimes(1);
 	});
 
 	test("throws when LLM rate limit is exceeded", async () => {

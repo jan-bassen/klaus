@@ -8,7 +8,7 @@ import { join } from "node:path";
 // Mock callModel — not needed for buildConversationMessages but needed for agent import
 const mockCallModel = mock(async () => ({
 	content: "",
-	usage: { promptTokens: 0, completionTokens: 0, costUsd: 0 },
+	usage: { promptTokens: 0, completionTokens: 0 },
 	steps: [],
 }));
 mock.module("@/core/model-router", () => ({ callModel: mockCallModel }));

@@ -18,7 +18,6 @@ import { startWatching, stopWatching } from "./core/watcher";
 import { startWorkers } from "./core/worker";
 import { log } from "./logger";
 import { settings } from "./settings";
-import { loadBudgets } from "./store/budgets";
 import { rebuildIndexes as rebuildConversationIndexes } from "./store/conversation";
 import { rebuildFileIndex } from "./store/files";
 import {
@@ -101,7 +100,6 @@ async function main(): Promise<void> {
 		settings.dataDir,
 		path.join(settings.dataDir, "conversations"),
 		path.join(settings.dataDir, "conversations", "archive"),
-		path.join(settings.dataDir, "costs"),
 		path.join(settings.dataDir, "invocations"),
 		path.join(settings.dataDir, "files"),
 	];
@@ -164,8 +162,6 @@ async function main(): Promise<void> {
 
 	// 5. Load schedules and timers, register callbacks
 	await loadSchedules();
-	await loadBudgets();
-
 	// Register frontmatter schedules for agents that declare a schedule field
 	for (const def of agentRegistry.values()) {
 		if (def.schedule) {

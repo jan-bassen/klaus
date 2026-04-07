@@ -49,7 +49,7 @@ Klaus is a headless personal AI agent: WhatsApp messages → TypeScript pipeline
 
 Bun, TypeScript (strict), Baileys, Vercel AI SDK. Containerized as a single Docker image (`janbassen1/klaus`).
 
-Storage: JSONL flat files for operational data (conversations, costs, invocations), JSON files for schedules and timers, Obsidian vault for knowledge (notes, wikilinks, tags as the knowledge graph).
+Storage: JSONL flat files for operational data (conversations, invocations), JSON files for schedules and timers, Obsidian vault for knowledge (notes, wikilinks, tags as the knowledge graph).
 
 ### Message flow (pipeline.ts)
 
@@ -108,12 +108,10 @@ All operational data is stored as flat files — no database.
 |--------|--------|---------|
 | `conversation.ts` | JSONL (msg/ack/reaction/trace events) | Chat history with in-memory indexes |
 | `jsonl.ts` | Date-partitioned JSONL | Generic append/read utilities |
-| `costs.ts` | JSONL | Cost tracking by service |
 | `invocations.ts` | JSONL | LLM call traces |
 | `files.ts` | JSONL index + blob storage | File metadata |
 | `schedules.ts` | JSON + croner cron jobs | Recurring schedule persistence |
 | `timers.ts` | JSON + setTimeout | One-time future execution |
-| `budgets.ts` | JSON | Budget config |
 
 The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[wikilinks]]` are edges, YAML frontmatter is metadata. Vault tools provide search, read, write, and link traversal.
 
@@ -122,24 +120,23 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | Path | Concern |
 |------|---------|
 | `src/types.ts` | All core interfaces (InboundMessage, TurnContext, AgentDefinition, ToolDefinition, ContextVariable) |
-| `src/settings.ts` | Model tiers, pricing, context budgets, rate limits, timeouts, vision, whatsapp transport, vault subdirectory getters, locale, dataDir |
+| `src/settings.ts` | Model tiers, context budgets, rate limits, timeouts, vision, whatsapp transport, vault subdirectory getters, locale, dataDir |
 | `src/core/flags.ts` | Flag registry — loads `.md` flag definitions from vault, hot-reloaded |
 | `src/core/pipeline.ts` | Message orchestrator |
 | `src/core/agent.ts` | Agent executor + agentRegistry |
 | `src/core/assemble.ts` | Context assembly — runs context variables in parallel, enforces token budget |
 | `src/core/registry.ts` | Tool + toolset registry, meta-tool generation, dynamic tool loading |
 | `src/core/dispatch.ts` | Unified dispatch function (inline/async modes) |
-| `src/core/model-router.ts` | LLM call routing + cost logging |
+| `src/core/model-router.ts` | LLM call routing |
 | `src/core/queue.ts` | In-memory job queue + active job tracking |
 | `src/core/watcher.ts` | File watcher for hot-reloading agents, skills, and flags |
-| `src/store/` | Flat-file storage modules (conversations, schedules, timers, costs, files, etc.) |
+| `src/store/` | Flat-file storage modules (conversations, schedules, timers, files, etc.) |
 | `src/context/` | Context variable modules (inject dynamic content into prompts) |
 | `src/tools/` | Tool definitions + toolset loaders |
 | `src/tools/skill.ts` | `buildSkillTool()` — per-agent skill.get tool builder |
 | `src/tools/sets/dispatch.ts` | `dispatch` toolset: `dispatch.agent`, `dispatch.schedule`, `dispatch.timer`, `dispatch.list`, `dispatch.cancel` |
 | `src/tools/sets/notes.ts` | `notes` toolset: `notes.search`, `notes.write`, `notes.edit`, `notes.delete` — auto-managed knowledge notes |
 | `src/tools/conversation.ts` | Standalone tool: search conversation history (text, around message, time range) |
-| `src/tools/cost-tracking.ts` | Standalone tool: query LLM/TTS/STT spend and budget status |
 | `src/commands/` | /command handlers |
 | `src/commands/register.ts` | Registers all commands into the command registry |
 | `src/whatsapp/` | Transport layer (Baileys connection, send, receive, TTS, STT, presence) |

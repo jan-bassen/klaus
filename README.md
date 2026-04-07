@@ -13,7 +13,7 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Obsidian Va
 | STT / TTS    | ElevenLabs                                   |
 | WhatsApp     | Baileys (unofficial WA Web API, multi-device)|
 | Knowledge    | Obsidian vault (notes, wikilinks, tags)       |
-| Storage      | JSONL flat files (conversations, costs, etc.) |
+| Storage      | JSONL flat files (conversations, etc.)        |
 | Task queue   | In-memory job queue                           |
 | Hosting      | Docker Hub image (`janbassen1/klaus`)             |
 
@@ -203,7 +203,7 @@ API keys and host-specific settings, gitignored, never committed.
 | STARTUP_CONNECTION_WARN_AFTER_MS | `60000` | Warn if WhatsApp connection is still pending after this many ms |
 | PORT                | `3000`  | HTTP port for `/healthz`                |
 | BAILEYS_AUTH_FOLDER | `<cwd>/.baileys-auth` | WhatsApp auth state directory |
-| DATA_DIR            | `~/.klaus/data` | Operational data (conversations, costs, etc.) |
+| DATA_DIR            | `~/.klaus/data` | Operational data (conversations, etc.) |
 | VAULT_DIR           | `<cwd>/vault` | Obsidian vault root               |
 
 All path variables default to sensible local values — no extra config needed for local dev.
@@ -233,7 +233,7 @@ An agent is a .md file in the vault (`Klaus/agents/`) with YAML frontmatter + a 
 ---
 name: thinking
 modelTier: high
-tools: [reply, react, cost_tracking]
+tools: [reply, react]
 providerTools: [web_search, web_fetch, code_execution]
 toolsets: [vault, dispatch, files]
 skills: [workout-plan]        # optional — on-demand .md docs from Klaus/skills/
@@ -271,7 +271,6 @@ Built-in agents:
 | Tool                 | Purpose                                                                 |
 | -------------------- | ----------------------------------------------------------------------- |
 | conversation         | Search conversation history by text, around a message, or time range    |
-| cost_tracking        | Query total LLM/TTS/STT spend and budget status                        |
 
 Agents can also use **provider tools** — Anthropic built-in capabilities like web_search, web_fetch, and code_execution that are injected directly via the Vercel AI SDK.
 
@@ -317,7 +316,6 @@ Context variables:
 All operational data is stored as flat files — no database required.
 
 - **Conversations** — JSONL files in `{dataDir}/conversations/`. Four event types: `msg`, `ack` (WhatsApp delivery confirmation), `reaction`, `trace` (LLM tool-call traces). Merged in-memory on read.
-- **Costs** — date-partitioned JSONL in `{dataDir}/costs/`
 - **Invocations** — date-partitioned JSONL in `{dataDir}/invocations/` (LLM call traces)
 - **Files** — blob storage in `{filesDir}/` with a JSONL metadata index
 - **Schedules** — `{dataDir}/schedules.json`
@@ -348,7 +346,7 @@ src/
 ├── commands/      # /command handlers
 ├── context/       # Context variable modules (one file per variable)
 ├── core/          # Pipeline, agent runner, dispatch, queue, model router
-├── store/         # Flat-file storage (conversations, schedules, timers, costs, files, etc.)
+├── store/         # Flat-file storage (conversations, schedules, timers, files, etc.)
 ├── tools/         # Tool definitions and toolsets
 │   └── sets/      # Toolset definitions (vault, dispatch, files, notes)
 └── whatsapp/      # Transport layer (connection, receive, send, TTS, STT)

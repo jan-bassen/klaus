@@ -12,16 +12,6 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// Mock store/costs before importing voice.ts (which records STT costs)
-mock.module("@/store/costs", () => ({
-	recordCost: mock(async () => {}),
-	getCostSummary: mock(async () => ({
-		total: 0,
-		byService: {},
-		periodLabel: "today",
-	})),
-}));
-
 import { settings } from "@/settings";
 import { transcribe } from "@/whatsapp/voice";
 

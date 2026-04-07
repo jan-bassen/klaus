@@ -86,7 +86,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			: `${context.chatId}:reply:${crypto.randomUUID()}`;
 		const quotedPart = quoted ? { quoted } : {};
 		if (voice) {
-			const audio = await textToSpeech(content, context.chatId);
+			const audio = await textToSpeech(content);
 			if (audio instanceof Error) {
 				log.warn("[reply] TTS failed — falling back to text", {
 					chatId: context.chatId,

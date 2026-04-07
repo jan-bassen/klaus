@@ -5,7 +5,7 @@ import * as path from "node:path";
 // ---- Mocks (must be set up before importing agent.ts) ----
 const mockCallModel = mock(async () => ({
 	content: "",
-	usage: { promptTokens: 10, completionTokens: 5, costUsd: 0 },
+	usage: { promptTokens: 10, completionTokens: 5 },
 	steps: [],
 	output: undefined as unknown,
 }));
@@ -108,7 +108,7 @@ describe("persistent agents", () => {
 		mockListTimers.mockImplementation(() => []);
 		mockCallModel.mockImplementation(async () => ({
 			content: "",
-			usage: { promptTokens: 10, completionTokens: 5, costUsd: 0 },
+			usage: { promptTokens: 10, completionTokens: 5 },
 			steps: [],
 			output: { nextRun: "2h", objective: "Check vocabulary progress" },
 		}));
@@ -158,7 +158,7 @@ describe("persistent agents", () => {
 	test("fallback timer when output is undefined", async () => {
 		mockCallModel.mockImplementation(async () => ({
 			content: "",
-			usage: { promptTokens: 10, completionTokens: 5, costUsd: 0 },
+			usage: { promptTokens: 10, completionTokens: 5 },
 			steps: [],
 			output: undefined,
 		}));

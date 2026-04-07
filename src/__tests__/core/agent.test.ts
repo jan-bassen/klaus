@@ -6,7 +6,7 @@ import { z } from "zod";
 // ---- Mocks for runAgent (must be set up before importing agent.ts) ----
 const mockCallModel = mock(async () => ({
 	content: "",
-	usage: { promptTokens: 10, completionTokens: 5, costUsd: 0 },
+	usage: { promptTokens: 10, completionTokens: 5 },
 	steps: [],
 }));
 mock.module("../../core/model-router", () => ({ callModel: mockCallModel }));
@@ -302,7 +302,7 @@ describe("runAgent", () => {
 		mockCallModel.mockClear();
 		mockCallModel.mockImplementation(async () => ({
 			content: "",
-			usage: { promptTokens: 10, completionTokens: 5, costUsd: 0 },
+			usage: { promptTokens: 10, completionTokens: 5 },
 			steps: [],
 		}));
 		await writeAgentFile(
