@@ -27,7 +27,7 @@ Send a WhatsApp message to the paired number. That's it — Klaus responds using
 
 Prefix your message with `@agent` to route it to a specific agent instead of the default:
 
-- `@think What are the trade-offs between X and Y?` — routes to the thinking agent (high-tier model, extended reasoning)
+- `@think What are the trade-offs between X and Y?` — routes to the thinking agent (large-tier model, extended reasoning)
 - `@vault Create a note about today's meeting` — routes to the vault agent (Obsidian read/write)
 
 The default agent can be changed per-chat with the `/default` command.
@@ -40,7 +40,9 @@ Commands start with `/` and bypass the LLM entirely:
 - `/tasks` — list active background tasks
 - `/new` — archive the current conversation and start fresh
 - `/default <agent>` — set the default agent for this chat
-- `/model [low|default|high]` — change the model tier of the current default agent
+- `/model [small|medium|large]` — change the model tier of the current default agent
+- `/model [claude|chatgpt|gemini]` — switch the active provider for this chat
+- `/models` — list all configured providers and their models
 - `/register` — register the current chat ID
 - `/help [commands|agents|flags]` — show available commands, agents, and flags; optional filter narrows to one section
 
@@ -50,7 +52,10 @@ Flags start with `!` and can appear anywhere in your message. They are programma
 
 - `!voice` — guaranteed voice reply (TTS)
 - `!clean` — call without conversation history
-- `!small` / `!medium` / `!large` — override model tier (low / default / high)
+- `!small` / `!medium` / `!large` — override model tier
+- `!claude` / `!chatgpt` / `!gemini` — switch provider for this message
+- `!cold` / `!hot` — temperature control (per-provider values)
+- `!creative` / `!rigid` — topP control (per-provider values)
 
 Flags are stripped from the message text before it reaches the agent, so they don't interfere with your actual message. Combine freely: `@think !voice !large Explain quantum computing`.
 
@@ -231,9 +236,9 @@ An agent is a .md file in the vault (`Klaus/agents/`) with YAML frontmatter + a 
 ```yaml
 ---
 name: thinking
-modelTier: high
+modelTier: large
 tools: [reply, react]
-providerTools: [web_search, web_fetch, code_execution]
+providerTools: [web_search, code_execution]
 toolsets: [vault, dispatch, files]
 skills: [workout-plan]        # optional — on-demand .md docs from Klaus/skills/
 schedule: "0 3 * * *"         # optional — makes it a cron agent
@@ -269,7 +274,7 @@ Built-in agents:
 | -------------------- | ----------------------------------------------------------------------- |
 | conversation         | Search conversation history by text, around a message, or time range    |
 
-Agents can also use **provider tools** — Anthropic built-in capabilities like web_search, web_fetch, and code_execution that are injected directly via the Vercel AI SDK.
+Agents can also use **provider tools** — provider-specific capabilities like web_search and code_execution that are injected directly via the Vercel AI SDK. Tools use canonical names in agent frontmatter (e.g. `web_search`) and are automatically resolved to the correct provider-specific implementation based on the active provider. If the active provider doesn't support a requested tool, it's silently skipped.
 
 ### Knowledge layer
 
@@ -349,7 +354,7 @@ src/
 {VAULT_DIR}/           # Vault root — folders with per-folder permissions
 ├── Klaus/             # Internal folder (default: read, request: full)
 │   ├── agents/        # Agent prompt files (.md with YAML frontmatter)
-│   ├── settings.yml   # User-facing settings (models, budgets, permissions, etc.)
+│   ├── settings.yml   # User-facing settings (providers, budgets, permissions, etc.)
 │   ├── skills/        # Static .md reference documents (loaded on demand)
 │   └── snippets/      # Static prompt content (soul.md, architecture.md)
 ├── Leben/             # User content folders — permissions configured in Klaus/settings.yml
@@ -372,7 +377,7 @@ Example — a minimal agent that can reply and search the web:
 ```yaml
 ---
 name: research
-modelTier: high
+modelTier: large
 tools: [reply, react]
 providerTools: [web_search]
 toolsets: [vault]

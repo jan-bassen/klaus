@@ -34,20 +34,21 @@
 - [x] Make @agent and !flags in voice messages possible via fuzzy matching (agent routing at the start ("hey", "at", "an", "to", ... + {one of the agent names}) and flags at the end ("flags", "flagged with", "tags", "tagged with", ... + names of flags))
 
 ## Provider independence
-- [ ] Make it explicitly easy to use common providers and switch fluently (maybe default to Vercel Gateway/OpenRouter?)
-- [ ] Create well designed model config
-- [ ] Add a generalized model picker (free map, maybe with different sets of [small|medium|large] (schema changible) - default three sets: chatGPT, claude, gemini)
-- [ ] Include unified map of provider tools and options
-- [ ] add /models and update /model commands for changing model set and default in the set (changes the frontmatter field in the agent file/ the settings.yml file)
-- [ ] Add !chatgpt|claude|gemini flags for dynamic model set control (from flags repurpose section)
+- [x] Make it explicitly easy to use common providers and switch fluently (providers config in settings.yml with named entries: claude, chatgpt, gemini)
+- [x] Create well designed model config (providers with sdk + small/medium/large/vision tiers)
+- [x] Add a generalized model picker (three default providers: claude, chatgpt, gemini — extensible via catchall schema)
+- [x] Include unified map of provider tools and options (canonical names: web_search, code_execution — resolved per provider SDK)
+- [x] add /models and update /model commands for changing provider and tier (/model claude, /model large, /models to list all)
+- [x] Add !chatgpt|claude|gemini flags for dynamic provider control
 
 ## Fix randomness control
-- [ ] Move the randomness settings temperature (!hot/cold, coldTemperature: 0 / hotTemperature: 1 in settings) into provider/model config
-- [ ] Add well-researched defaults for the three default provider model sets
+- [x] Move the randomness settings temperature (!hot/cold, coldTemperature: 0 / hotTemperature: 1 in settings) into provider/model config
+- [x] Add well-researched defaults for the three default provider model sets
+- [x] Add topP control with !creative/!rigid flags (per-provider creativeTopP/rigidTopP)
 
 ## Provider option flags (not all providers are the same, see what's possible. When not supported ignore and inform)
-- [ ] !low|high for reasoning effort control (should be available for all three main providers)
-- [ ] !fast for fast mode (available on some)
+- [x] !low|high for reasoning effort control (should be available for all three main providers)
+- [x] !fast for fast mode (available on some)
 
 ## Conversations overhaul 
 Goal: create a simple unified data store for a) execution and b) debugging

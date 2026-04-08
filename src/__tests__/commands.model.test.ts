@@ -12,6 +12,7 @@ mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 import { modelCommand } from "@/commands/model";
 import { agentRegistry } from "@/core/agent";
 import { _resetDefaultsForTest } from "@/core/defaults";
+import { _resetProviderDefaultsForTest } from "@/core/provider-defaults";
 import type { AgentDefinition, InboundMessage } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -33,7 +34,7 @@ const AGENT_FILE = join(tmpdir(), `test-agent-${Date.now()}.md`);
 
 const AGENT_CONTENT = `---
 name: klaus
-modelTier: default
+modelTier: medium
 tools: [reply]
 toolsets: []
 providerTools: []
@@ -59,8 +60,9 @@ function makeAgent(tier: AgentDefinition["modelTier"]): AgentDefinition {
 
 beforeEach(async () => {
 	await Bun.write(AGENT_FILE, AGENT_CONTENT);
-	agentRegistry.set("klaus", makeAgent("default"));
+	agentRegistry.set("klaus", makeAgent("medium"));
 	_resetDefaultsForTest();
+	_resetProviderDefaultsForTest();
 	mockEnqueueMessage.mockClear();
 });
 
@@ -71,7 +73,7 @@ afterEach(() => {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("/model", () => {
-	test("no args: shows current model", async () => {
+	test("no args: shows current model and provider", async () => {
 		await modelCommand.execute(makeMsg(), []);
 
 		expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
@@ -79,28 +81,29 @@ describe("/model", () => {
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
 		)[0];
 		expect(content).toContain("@klaus");
-		expect(content).toContain("tier: default");
+		expect(content).toContain("tier: medium");
+		expect(content).toContain("provider: claude");
 	});
 
-	test("switch to high tier", async () => {
-		await modelCommand.execute(makeMsg(), ["high"]);
+	test("switch to large tier", async () => {
+		await modelCommand.execute(makeMsg(), ["large"]);
 
 		expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
 		const { content } = (
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
 		)[0];
-		expect(content).toContain("tier: high");
+		expect(content).toContain("tier: large");
 
 		// Registry updated
-		expect(agentRegistry.get("klaus")?.modelTier).toBe("high");
+		expect(agentRegistry.get("klaus")?.modelTier).toBe("large");
 
 		// File updated
 		const raw = await Bun.file(AGENT_FILE).text();
-		expect(raw).toContain("modelTier: high");
+		expect(raw).toContain("modelTier: large");
 	});
 
 	test("same tier is a no-op", async () => {
-		await modelCommand.execute(makeMsg(), ["default"]);
+		await modelCommand.execute(makeMsg(), ["medium"]);
 
 		const { content } = (
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
@@ -108,23 +111,32 @@ describe("/model", () => {
 		expect(content).toContain("Already using");
 	});
 
-	test("unknown tier returns error", async () => {
+	test("unknown tier or provider returns error", async () => {
 		await modelCommand.execute(makeMsg(), ["turbo"]);
 
 		const { content } = (
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
 		)[0];
-		expect(content).toContain("Unknown tier");
-		expect(content).toContain("default, low, high");
+		expect(content).toContain("Unknown tier or provider");
 	});
 
 	test("unknown agent returns error", async () => {
 		agentRegistry.delete("klaus");
-		await modelCommand.execute(makeMsg(), ["high"]);
+		await modelCommand.execute(makeMsg(), ["large"]);
 
 		const { content } = (
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
 		)[0];
 		expect(content).toContain("not found");
+	});
+
+	test("switch provider by name", async () => {
+		await modelCommand.execute(makeMsg(), ["chatgpt"]);
+
+		const { content } = (
+			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
+		)[0];
+		expect(content).toContain("chatgpt");
+		expect(content).toContain("provider");
 	});
 });

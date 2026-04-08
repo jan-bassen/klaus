@@ -28,7 +28,7 @@ export async function textToSpeech(text: string): Promise<Buffer | Error> {
 				"Content-Type": "application/json",
 				Accept: "audio/mpeg",
 			},
-			body: JSON.stringify({ text, model_id: settings.models.tts }),
+			body: JSON.stringify({ text, model_id: settings.tts.model }),
 		});
 
 		if (!res.ok) {

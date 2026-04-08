@@ -18,7 +18,12 @@ import {
 	toolsetRegistry,
 } from "@/core/registry";
 import { log } from "@/logger";
-import { type ModelTier, modelTiers, settings } from "@/settings";
+import {
+	type ModelTier,
+	modelTiers,
+	resolveProvider,
+	settings,
+} from "@/settings";
 import {
 	appendTrace,
 	type ConversationMessage,
@@ -449,11 +454,17 @@ export async function runAgent(
 		initialActive.push(sdkName);
 	}
 
-	// Provider tools — injected directly (no wrapping), always active
+	// Provider tools — injected directly (no wrapping), always active.
+	// Resolve SDK from the effective provider for this turn.
+	const effectiveProvider = turn.overrides?.provider;
+	const providerCfg = resolveProvider(turn.chatId, effectiveProvider);
 	for (const name of def.providerTools ?? []) {
-		const pt = buildProviderTool(name);
+		const pt = buildProviderTool(name, providerCfg.sdk);
 		if (!pt) {
-			log.warn("[agent] unknown provider tool", { tool: name });
+			log.warn("[agent] provider tool not available", {
+				tool: name,
+				sdk: providerCfg.sdk,
+			});
 			continue;
 		}
 		allTools[name] = pt;
@@ -503,12 +514,83 @@ export async function runAgent(
 	};
 
 	const effectiveTier = turn.overrides?.modelTier ?? def.modelTier;
-	const effectiveTemperature = turn.overrides?.temperature;
 	const effectiveToolChoice = turn.overrides?.toolChoice;
-	const modelId = settings.models[effectiveTier];
+
+	let effectiveTemperature: number | undefined;
+	const tempPreset = turn.overrides?.temperaturePreset;
+	if (tempPreset === "cold") {
+		effectiveTemperature = providerCfg.coldTemperature ?? 0;
+	} else if (tempPreset === "hot") {
+		effectiveTemperature = providerCfg.hotTemperature ?? 1;
+	} else if (providerCfg.temperature !== undefined) {
+		effectiveTemperature = providerCfg.temperature;
+	}
+
+	let effectiveTopP: number | undefined;
+	const topPPreset = turn.overrides?.topPPreset;
+	if (topPPreset === "creative") {
+		effectiveTopP = providerCfg.creativeTopP ?? 0.95;
+	} else if (topPPreset === "rigid") {
+		effectiveTopP = providerCfg.rigidTopP ?? 0.1;
+	} else if (providerCfg.topP !== undefined) {
+		effectiveTopP = providerCfg.topP;
+	}
+	// Build providerOptions from flag overrides
+	let providerOptions: Record<string, Record<string, unknown>> | undefined;
+	const sdkName = providerCfg.sdk;
+
+	const reasoningEffort = turn.overrides?.reasoningEffort;
+	if (reasoningEffort) {
+		switch (sdkName) {
+			case "anthropic":
+				providerOptions ??= {};
+				providerOptions.anthropic = {
+					...providerOptions.anthropic,
+					effort: reasoningEffort,
+				};
+				break;
+			case "openai":
+				providerOptions ??= {};
+				providerOptions.openai = {
+					...providerOptions.openai,
+					reasoningEffort,
+				};
+				break;
+			case "google":
+				providerOptions ??= {};
+				providerOptions.google = {
+					...providerOptions.google,
+					thinkingConfig: { thinkingLevel: reasoningEffort },
+				};
+				break;
+			default:
+				log.warn("[agent] reasoning effort not supported for provider", {
+					sdk: sdkName,
+				});
+		}
+	}
+
+	if (turn.overrides?.fast) {
+		switch (sdkName) {
+			case "anthropic":
+				providerOptions ??= {};
+				providerOptions.anthropic = {
+					...providerOptions.anthropic,
+					speed: "fast",
+				};
+				break;
+			default:
+				log.warn("[agent] fast mode not supported for provider", {
+					sdk: sdkName,
+				});
+		}
+	}
+
+	const modelId = providerCfg[effectiveTier];
 	log.info("[agent] calling model", {
 		agent: def.name,
 		model: modelId,
+		sdk: providerCfg.sdk,
 		activeTools: initialActive,
 	});
 
@@ -578,6 +660,7 @@ export async function runAgent(
 
 		const result = await callModel({
 			tier: effectiveTier,
+			provider: effectiveProvider,
 			agentName: def.name,
 			chatId: turn.chatId,
 			...(turn.messageId ? { messageId: turn.messageId } : {}),
@@ -586,6 +669,8 @@ export async function runAgent(
 			...(effectiveTemperature !== undefined
 				? { temperature: effectiveTemperature }
 				: {}),
+			...(effectiveTopP !== undefined ? { topP: effectiveTopP } : {}),
+			...(providerOptions ? { providerOptions } : {}),
 			...(effectiveToolChoice === "required"
 				? { toolChoice: "required" as const }
 				: {}),

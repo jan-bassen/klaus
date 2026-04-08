@@ -63,7 +63,7 @@ function makeTurn(
 		},
 		agent: {
 			name: "test",
-			modelTier: "default",
+			modelTier: "medium",
 			tools: [],
 			toolsets: [],
 			providerTools: [],
@@ -80,7 +80,7 @@ function makeTurn(
 async function writeAgentFile(promptPath: string, body: string): Promise<void> {
 	await Bun.write(
 		promptPath,
-		`---\nname: test-agent\nmodelTier: default\ntools: []\n---\n${body}`,
+		`---\nname: test-agent\nmodelTier: medium\ntools: []\n---\n${body}`,
 	);
 }
 
@@ -110,24 +110,24 @@ describe("loadAgentDefinition", () => {
 	test("parses name and modelTier from frontmatter", async () => {
 		await withFixture(
 			"basic",
-			"name: my-agent\nmodelTier: default\ntools: []",
+			"name: my-agent\nmodelTier: medium\ntools: []",
 			"## Hi\n",
 			async (p) => {
 				const def = await loadAgentDefinition(p);
 				expect(def.name).toBe("my-agent");
-				expect(def.modelTier).toBe("default");
+				expect(def.modelTier).toBe("medium");
 			},
 		);
 	});
 
-	test('parses "high" modelTier correctly', async () => {
+	test('parses "large" modelTier correctly', async () => {
 		await withFixture(
 			"high-tier",
-			"name: deep-agent\nmodelTier: high\ntools: []",
+			"name: deep-agent\nmodelTier: large\ntools: []",
 			"## Hi\n",
 			async (p) => {
 				const def = await loadAgentDefinition(p);
-				expect(def.modelTier).toBe("high");
+				expect(def.modelTier).toBe("large");
 			},
 		);
 	});
@@ -135,7 +135,7 @@ describe("loadAgentDefinition", () => {
 	test("promptPath is the absolute path passed in", async () => {
 		await withFixture(
 			"path",
-			"name: path-agent\nmodelTier: default\ntools: []",
+			"name: path-agent\nmodelTier: medium\ntools: []",
 			"## Hi\n",
 			async (p) => {
 				const def = await loadAgentDefinition(p);
@@ -149,7 +149,7 @@ describe("loadAgentDefinition", () => {
 	test("tools are parsed as an array of strings", async () => {
 		await withFixture(
 			"tools",
-			"name: tool-agent\nmodelTier: default\ntools: [alpha, beta]",
+			"name: tool-agent\nmodelTier: medium\ntools: [alpha, beta]",
 			"## Hi\n",
 			async (p) => {
 				const def = await loadAgentDefinition(p);
@@ -162,7 +162,7 @@ describe("loadAgentDefinition", () => {
 
 	test("schedule string is parsed from frontmatter", async () => {
 		const fm =
-			'name: scheduled-agent\nmodelTier: default\ntools: []\nschedule: "0 3 * * *"';
+			'name: scheduled-agent\nmodelTier: medium\ntools: []\nschedule: "0 3 * * *"';
 		await withFixture("schedule", fm, "## Hi\n", async (p) => {
 			const def = await loadAgentDefinition(p);
 			expect(def.schedule).toBe("0 3 * * *");
@@ -172,7 +172,7 @@ describe("loadAgentDefinition", () => {
 	test("no schedule field when schedule key is absent", async () => {
 		await withFixture(
 			"no-schedule",
-			"name: quiet-agent\nmodelTier: default\ntools: []",
+			"name: quiet-agent\nmodelTier: medium\ntools: []",
 			"## Hi\n",
 			async (p) => {
 				const def = await loadAgentDefinition(p);
@@ -185,7 +185,7 @@ describe("loadAgentDefinition", () => {
 
 	test("conversationLimit is parsed from frontmatter", async () => {
 		const fm =
-			"name: limit-agent\nmodelTier: default\ntools: []\nconversationLimit: 10";
+			"name: limit-agent\nmodelTier: medium\ntools: []\nconversationLimit: 10";
 		await withFixture("conv-limit", fm, "## Hi\n", async (p) => {
 			const def = await loadAgentDefinition(p);
 			expect(def.conversationLimit).toBe(10);
@@ -195,7 +195,7 @@ describe("loadAgentDefinition", () => {
 	test("missing conversationLimit produces no property", async () => {
 		await withFixture(
 			"no-conv-limit",
-			"name: plain-agent\nmodelTier: default\ntools: []",
+			"name: plain-agent\nmodelTier: medium\ntools: []",
 			"## Hi\n",
 			async (p) => {
 				const def = await loadAgentDefinition(p);
@@ -208,7 +208,7 @@ describe("loadAgentDefinition", () => {
 
 	test("toolsets: YAML key is parsed into toolsets array", async () => {
 		const fm =
-			"name: ts-agent\nmodelTier: default\ntools: []\ntoolsets: [vault, files]";
+			"name: ts-agent\nmodelTier: medium\ntools: []\ntoolsets: [vault, files]";
 		await withFixture("toolsets", fm, "## Hi\n", async (p) => {
 			const def = await loadAgentDefinition(p);
 			expect(def.toolsets).toEqual(["vault", "files"]);
@@ -218,7 +218,7 @@ describe("loadAgentDefinition", () => {
 	test("missing toolsets defaults to empty array", async () => {
 		await withFixture(
 			"no-toolsets",
-			"name: plain-agent\nmodelTier: default\ntools: []",
+			"name: plain-agent\nmodelTier: medium\ntools: []",
 			"## Hi\n",
 			async (p) => {
 				const def = await loadAgentDefinition(p);
@@ -231,7 +231,7 @@ describe("loadAgentDefinition", () => {
 
 	test("skills: YAML key is parsed into skills array", async () => {
 		const fm =
-			"name: skill-agent\nmodelTier: default\ntools: []\nskills: [workout, meal]";
+			"name: skill-agent\nmodelTier: medium\ntools: []\nskills: [workout, meal]";
 		await withFixture("skills", fm, "## Hi\n", async (p) => {
 			const def = await loadAgentDefinition(p);
 			expect(def.skills).toEqual(["workout", "meal"]);
@@ -241,7 +241,7 @@ describe("loadAgentDefinition", () => {
 	test("missing skills defaults to empty array", async () => {
 		await withFixture(
 			"no-skills",
-			"name: plain-agent\nmodelTier: default\ntools: []",
+			"name: plain-agent\nmodelTier: medium\ntools: []",
 			"## Hi\n",
 			async (p) => {
 				const def = await loadAgentDefinition(p);
@@ -254,7 +254,7 @@ describe("loadAgentDefinition", () => {
 
 	test("unknown frontmatter fields are silently ignored", async () => {
 		const fm =
-			"name: extra-agent\nmodelTier: default\ntools: []\nunknown_key: some_value";
+			"name: extra-agent\nmodelTier: medium\ntools: []\nunknown_key: some_value";
 		await withFixture("unknown-field", fm, "## Hi\n", async (p) => {
 			const def = await loadAgentDefinition(p);
 			expect(def.name).toBe("extra-agent");
@@ -333,7 +333,7 @@ describe("runAgent", () => {
 		cleanup();
 		expect(mockCallModel).toHaveBeenCalledTimes(1);
 		const opts = lastArg(mockCallModel);
-		expect((opts as { tier: string }).tier).toBe("default");
+		expect((opts as { tier: string }).tier).toBe("medium");
 		expect((opts as { chatId: string }).chatId).toBe("user@s.whatsapp.net");
 	});
 
@@ -591,6 +591,60 @@ describe("runAgent", () => {
 		expect((opts as { tools?: Record<string, unknown> }).tools).toBeUndefined();
 	});
 
+	test("cold preset resolves to provider coldTemperature", async () => {
+		const turn = makeTurn();
+		turn.agent.promptPath = tmpPath;
+		turn.overrides = { temperaturePreset: "cold" };
+		await runAgent(turn, turn.agent);
+		cleanup();
+		const opts = lastArg(mockCallModel) as { temperature?: number };
+		expect(opts.temperature).toBe(0);
+	});
+
+	test("hot preset resolves to provider hotTemperature", async () => {
+		const turn = makeTurn();
+		turn.agent.promptPath = tmpPath;
+		turn.overrides = { temperaturePreset: "hot" };
+		await runAgent(turn, turn.agent);
+		cleanup();
+		const opts = lastArg(mockCallModel) as { temperature?: number };
+		// Default claude provider has hotTemperature: 1
+		expect(opts.temperature).toBe(1);
+	});
+
+	test("creative preset resolves to provider creativeTopP", async () => {
+		const turn = makeTurn();
+		turn.agent.promptPath = tmpPath;
+		turn.overrides = { topPPreset: "creative" };
+		await runAgent(turn, turn.agent);
+		cleanup();
+		const opts = lastArg(mockCallModel) as { topP?: number };
+		expect(opts.topP).toBe(0.95);
+	});
+
+	test("rigid preset resolves to provider rigidTopP", async () => {
+		const turn = makeTurn();
+		turn.agent.promptPath = tmpPath;
+		turn.overrides = { topPPreset: "rigid" };
+		await runAgent(turn, turn.agent);
+		cleanup();
+		const opts = lastArg(mockCallModel) as { topP?: number };
+		expect(opts.topP).toBe(0.1);
+	});
+
+	test("no preset leaves temperature and topP undefined", async () => {
+		const turn = makeTurn();
+		turn.agent.promptPath = tmpPath;
+		await runAgent(turn, turn.agent);
+		cleanup();
+		const opts = lastArg(mockCallModel) as {
+			temperature?: number;
+			topP?: number;
+		};
+		expect(opts.temperature).toBeUndefined();
+		expect(opts.topP).toBeUndefined();
+	});
+
 	test("dispatched agent uses objective as user message", async () => {
 		const base = makeTurn();
 		const turn: TurnContext = {
@@ -619,7 +673,7 @@ describe("runAgent", () => {
 		const p = path.join(import.meta.dir, "__hbs-nested.md");
 		await Bun.write(
 			p,
-			"---\nname: test-agent\nmodelTier: default\ntools: []\n---\n{{#if outer}}A{{#if inner}}B{{/if}}C{{/if}}",
+			"---\nname: test-agent\nmodelTier: medium\ntools: []\n---\n{{#if outer}}A{{#if inner}}B{{/if}}C{{/if}}",
 		);
 		const turn = makeTurn({ outer: true, inner: true });
 		turn.agent.promptPath = p;
@@ -636,7 +690,7 @@ describe("runAgent", () => {
 		const p = path.join(import.meta.dir, "__hbs-eq.md");
 		await Bun.write(
 			p,
-			'---\nname: test-agent\nmodelTier: default\ntools: []\n---\n{{#if (eq message_type "voice")}}voice!{{/if}}',
+			'---\nname: test-agent\nmodelTier: medium\ntools: []\n---\n{{#if (eq message_type "voice")}}voice!{{/if}}',
 		);
 		const turn = makeTurn({ message_type: "voice" });
 		turn.agent.promptPath = p;
@@ -655,7 +709,7 @@ describe("runAgent", () => {
 		const p = path.join(import.meta.dir, "__hbs-eq-miss.md");
 		await Bun.write(
 			p,
-			'---\nname: test-agent\nmodelTier: default\ntools: []\n---\n{{#if (eq message_type "voice")}}voice!{{/if}}',
+			'---\nname: test-agent\nmodelTier: medium\ntools: []\n---\n{{#if (eq message_type "voice")}}voice!{{/if}}',
 		);
 		const turn = makeTurn({ message_type: "text" });
 		turn.agent.promptPath = p;
@@ -672,7 +726,7 @@ describe("runAgent", () => {
 		const p = path.join(import.meta.dir, "__hbs-each.md");
 		await Bun.write(
 			p,
-			"---\nname: test-agent\nmodelTier: default\ntools: []\n---\n{{#each items}}-{{this}}{{/each}}",
+			"---\nname: test-agent\nmodelTier: medium\ntools: []\n---\n{{#each items}}-{{this}}{{/each}}",
 		);
 		const turn = makeTurn({ items: ["a", "b", "c"] });
 		turn.agent.promptPath = p;
@@ -691,7 +745,7 @@ describe("runAgent", () => {
 		const p = path.join(import.meta.dir, "__hbs-escape.md");
 		await Bun.write(
 			p,
-			"---\nname: test-agent\nmodelTier: default\ntools: []\n---\n{{val}}",
+			"---\nname: test-agent\nmodelTier: medium\ntools: []\n---\n{{val}}",
 		);
 		const turn = makeTurn({ val: "a & b" });
 		turn.agent.promptPath = p;

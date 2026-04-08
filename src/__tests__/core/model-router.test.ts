@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { ModelMessage } from "ai";
-import { settings } from "@/settings";
+import { resolveProvider, settings } from "@/settings";
 
 // ---- Mocks (must be set up before any import of the module under test) ----
 
@@ -24,8 +24,8 @@ mock.module("ai", () => ({
 	stepCountIs: mockStepCountIs,
 	tool: mock((opts: unknown) => opts),
 }));
-mock.module("@ai-sdk/anthropic", () => ({
-	anthropic: mock((id: string) => ({ id })),
+mock.module("@/core/provider-factory", () => ({
+	createModel: mock((sdk: string, id: string) => ({ sdk, id })),
 }));
 
 const mockRecordInvocation = mock(async () => {});
@@ -40,7 +40,7 @@ const { callModel } = await import("../../core/model-router");
 // ---- Helpers ----
 
 const BASE_OPTS = {
-	tier: "default" as const,
+	tier: "medium" as const,
 	chatId: "user@s.whatsapp.net",
 	messages: [{ role: "user", content: "hi" }] as ModelMessage[],
 };
@@ -97,20 +97,22 @@ describe("callModel", () => {
 	});
 
 	test("uses the model ID from config for the requested tier", async () => {
-		for (const tier of ["default", "high", "low"] as const) {
+		const provider = resolveProvider();
+		for (const tier of ["medium", "large", "small"] as const) {
 			mockGenerateText.mockClear();
 			await callModel({ ...BASE_OPTS, tier });
 			const [modelArg] = mockGenerateText.mock.calls[0] ?? [];
 			expect((modelArg as { model: { id: string } }).model.id).toBe(
-				settings.models[tier],
+				provider[tier],
 			);
 		}
 	});
 
 	test("each tier resolves to a distinct model ID", () => {
-		expect(settings.models.default).not.toBe(settings.models.high);
-		expect(settings.models.default).not.toBe(settings.models.low);
-		expect(settings.models.high).not.toBe(settings.models.low);
+		const provider = resolveProvider();
+		expect(provider.medium).not.toBe(provider.large);
+		expect(provider.medium).not.toBe(provider.small);
+		expect(provider.large).not.toBe(provider.small);
 	});
 
 	test("passes system prompt when provided", async () => {

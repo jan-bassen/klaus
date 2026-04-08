@@ -11,6 +11,8 @@
 	},
 	"dependencies": {
 		"@ai-sdk/anthropic": "^3.0.48",
+		"@ai-sdk/google": "^3.0.60",
+		"@ai-sdk/openai": "^3.0.52",
 		"@whiskeysockets/baileys": "^6.7.0",
 		"ai": "^6.0.103",
 		"croner": "^10.0.1",

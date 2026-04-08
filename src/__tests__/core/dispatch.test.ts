@@ -39,7 +39,7 @@ const mockRunAgent = mock(async () => {});
 const mockLoadAgentDefinition = mock(
 	async (_path: string): Promise<AgentDefinition> => ({
 		name: "helper",
-		modelTier: "default",
+		modelTier: "medium",
 		tools: [],
 		toolsets: [],
 		providerTools: [],
@@ -126,7 +126,7 @@ describe("dispatch", () => {
 	test("uses cached agent when in registry", async () => {
 		const cached: AgentDefinition = {
 			name: "helper",
-			modelTier: "default",
+			modelTier: "medium",
 			tools: [],
 			toolsets: [],
 			providerTools: [],

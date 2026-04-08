@@ -1,6 +1,6 @@
 ---
 name: test-agent
-modelTier: default
+modelTier: medium
 tools: []
 ---
 ## Instructions

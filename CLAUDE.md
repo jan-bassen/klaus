@@ -47,7 +47,7 @@ Klaus is a headless personal AI agent: WhatsApp messages → TypeScript pipeline
 
 ### Stack
 
-Bun, TypeScript (strict), Baileys, Vercel AI SDK. Containerized as a single Docker image (`janbassen1/klaus`).
+Bun, TypeScript (strict), Baileys, Vercel AI SDK (multi-provider: `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google`). Containerized as a single Docker image (`janbassen1/klaus`).
 
 Storage: JSONL flat files for operational data (conversations, invocations), JSON files for schedules and timers, Obsidian vault for knowledge (notes, wikilinks, tags as the knowledge graph).
 
@@ -73,10 +73,10 @@ Agents are defined as `.md` files in `{vault}/Klaus/agents/` with YAML frontmatt
 ```yaml
 ---
 name: agentName
-modelTier: default|low|high    # maps to model IDs in settings.ts
+modelTier: small|medium|large  # maps to model IDs in active provider config
 tools: [reply, send, react]
 toolsets: [vault, dispatch]    # expands to use_* meta-tools; tools loaded lazily
-providerTools: [web_search]    # Anthropic built-ins
+providerTools: [web_search]    # provider built-ins (canonical names, resolved per provider)
 skills: [workout-plan]        # on-demand .md docs from {vault}/Klaus/skills/
 schedule: "0 3 * * *"         # optional cron
 persistent: true              # optional: forces structured nextRun output, auto-reschedules
@@ -93,9 +93,9 @@ Prompt body with {{contextVar}} Handlebars interpolation (supports params: {{con
 
 **Skills** are static `.md` reference documents in `{vault}/Klaus/skills/` with optional YAML frontmatter (`description:` field). Agents that declare `skills:` in frontmatter get a `skill_get` tool scoped to those names via `z.enum`. Skill descriptions are included in the tool description to help the model decide when to load. The `{{skills}}` Handlebars var is injected so agents can list available skills in the prompt. Zero token overhead for agents without skills.
 
-**Flags** are code-defined programmatic overrides that control pipeline/agent behavior for the current message. Users activate flags with `!flagName` in their message (e.g. `!voice`, `!large`, `!clean`). `src/core/flags.ts` defines the static `flagRegistry` (Map<name, FlagDef>), the `FlagOverrides` interface, and `resolveOverrides()` which maps parsed flags to typed effects. Overrides are applied at specific pipeline/agent execution points (model tier, TTS, conversation history, temperature, tool choice, confirmation gating, persistence) rather than injected as prompt text. Current flags: `!voice` (TTS), `!clean` (skip history), `!small|medium|large` (model tier), `!accept` (auto-accept confirmations), `!cold|hot` (temperature from settings), `!no-tools|use-tools` (tool choice), `!ghost` (ephemeral — no persistence, implies clean).
+**Flags** are code-defined programmatic overrides that control pipeline/agent behavior for the current message. Users activate flags with `!flagName` in their message (e.g. `!voice`, `!large`, `!clean`). `src/core/flags.ts` defines the static `flagRegistry` (Map<name, FlagDef>), the `FlagOverrides` interface, and `resolveOverrides()` which maps parsed flags to typed effects. Overrides are applied at specific pipeline/agent execution points (model tier, provider, TTS, conversation history, temperature, topP, reasoning effort, speed, tool choice, confirmation gating, persistence) rather than injected as prompt text. Temperature and topP flags resolve to presets (`"cold"|"hot"`, `"creative"|"rigid"`) that are resolved per-provider in `agent.ts` using `providerCfg.coldTemperature`/`hotTemperature`/`creativeTopP`/`rigidTopP`. Reasoning effort and fast mode resolve to provider-specific `providerOptions` in `agent.ts` (Anthropic `effort`/`speed`, OpenAI `reasoningEffort`, Google `thinkingConfig.thinkingLevel`; unsupported combos log a warning and are ignored). Current flags: `!voice` (TTS), `!clean` (skip history), `!small|medium|large` (model tier), `!claude|chatgpt|gemini` (provider switching), `!accept` (auto-accept confirmations), `!cold|hot` (temperature preset, per-provider), `!creative|rigid` (topP preset, per-provider), `!low|high` (reasoning effort, per-provider), `!fast` (fast inference, Anthropic only), `!no-tools|use-tools` (tool choice), `!ghost` (ephemeral — no persistence, implies clean).
 
-**Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and registered in `src/commands/register.ts`. Current commands: `/status`, `/tasks`, `/default`, `/help`, `/new`. Each command implements the `Command` interface (name, description, execute).
+**Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and registered in `src/commands/register.ts`. Current commands: `/status`, `/tasks`, `/default`, `/model`, `/models`, `/help`, `/new`. Each command implements the `Command` interface (name, description, execute).
 
 **Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new context variable = new file implementing `ContextVariable`. Extend by adding, not modifying.
 
@@ -129,7 +129,9 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/core/interpolate.ts` | `$var` user message interpolation, `?params` extraction, HBS param stripping |
 | `src/core/registry.ts` | Tool + toolset registry, meta-tool generation, dynamic tool loading |
 | `src/core/dispatch.ts` | Unified dispatch function (inline/async modes) |
-| `src/core/model-router.ts` | LLM call routing |
+| `src/core/model-router.ts` | LLM call routing (provider-agnostic via provider-factory) |
+| `src/core/provider-factory.ts` | SDK factory — lazy-loads `@ai-sdk/{anthropic,openai,google}` by name |
+| `src/core/provider-defaults.ts` | Per-chat active provider override (like defaults.ts for agents) |
 | `src/core/queue.ts` | In-memory job queue + active job tracking |
 | `src/core/voice-parse.ts` | Voice transcript fuzzy matching — rewrites spoken agent/flag patterns to canonical tokens |
 | `src/core/vault-access.ts` | Vault path resolution, folder-level permission checks, confirmation gating |
@@ -154,7 +156,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter
 - `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
 - `{vault}/Klaus/snippets/` — static prompt content with optional `scope:` frontmatter (`system`|`user`|`both`, default: `system`). System-scoped → `{{var}}` in prompts; user-scoped → `$var` in messages
-- `{vault}/Klaus/settings.yml` — user-facing settings (models, context budgets, rate limits, etc.), hot-reloaded with Zod validation
+- `{vault}/Klaus/settings.yml` — user-facing settings (providers, context budgets, rate limits, etc.), hot-reloaded with Zod validation
 - `{vault}/Klaus/user.md` — user profile, updated by memorize agent
 
 Live Vault is located at /Users/janbassen/Vaults/Jan/Klaus on this pc
@@ -180,7 +182,7 @@ Published as `janbassen1/klaus` on Docker Hub. The Dockerfile includes OCI label
 - Errors are values — return don't throw (except at true system boundaries)
 - No `any` types; explicit return types on exported functions
 - Prefer `const` and pure functions; minimize mutable state
-- User-facing settings live in `Klaus/settings.yml` (vault), loaded and validated by `src/core/settings-loader.ts`. Infrastructure config (env-derived paths, log format) lives in `src/config.ts`. `src/settings.ts` is a thin getter layer composing both — all consumers import `{ settings }` from it unchanged. The `modelTiers` array and `ModelTier` type are static literals in `settings.ts`. Never inline magic numbers — add them to the Zod schema defaults in `settings-loader.ts`.
+- User-facing settings live in `Klaus/settings.yml` (vault), loaded and validated by `src/core/settings-loader.ts`. Infrastructure config (env-derived paths, log format) lives in `src/config.ts`. `src/settings.ts` is a thin getter layer composing both — all consumers import `{ settings }` from it unchanged. The `modelTiers` array (`"small" | "medium" | "large" | "vision"`) and `ModelTier` type are static literals in `settings.ts`. Providers are configured as named entries under `settings.providers` (each with `sdk`, `small`, `medium`, `large`, `vision` model fields, plus optional randomness controls: `temperature`, `coldTemperature`, `hotTemperature`, `topP`, `creativeTopP`, `rigidTopP`). `resolveProvider(chatId?, override?)` returns the active provider config. Never inline magic numbers — add them to the Zod schema defaults in `settings-loader.ts`.
 - One concern per file
 - Path alias `@/` maps to `src/`
 - No unnecessary comments — code should be self-explanatory; comments explain *why*, never *what*

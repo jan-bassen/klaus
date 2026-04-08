@@ -41,7 +41,7 @@ const { dispatchToolset, parseRunAt } = await import("@/tools/sets/dispatch");
 
 const dummyAgent: AgentDefinition = {
 	name: "klaus",
-	modelTier: "default",
+	modelTier: "medium",
 	tools: [],
 	toolsets: [],
 	providerTools: [],

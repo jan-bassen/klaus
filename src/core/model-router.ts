@@ -1,9 +1,10 @@
-import { anthropic } from "@ai-sdk/anthropic";
+import type { ProviderOptions } from "@ai-sdk/provider-utils";
 import type { ModelMessage, StepResult, ToolSet } from "ai";
 import { generateText, stepCountIs } from "ai";
 import { log } from "@/logger";
-import { type ModelTier, settings } from "@/settings";
+import { type ModelTier, resolveProvider, settings } from "@/settings";
 import { recordInvocation } from "@/store/invocations";
+import { createModel } from "./provider-factory";
 import { checkModelRate } from "./rate-limiter";
 
 export class LlmTimeoutError extends Error {
@@ -16,6 +17,8 @@ export class LlmTimeoutError extends Error {
 export interface ModelCallOptions {
 	tier: ModelTier;
 	chatId?: string;
+	/** Override provider name (e.g. "claude", "chatgpt", "gemini") for this call. */
+	provider?: string | undefined;
 	system?: string;
 	messages: ModelMessage[];
 	tools?: ToolSet;
@@ -26,12 +29,16 @@ export interface ModelCallOptions {
 	activeTools?: string[];
 	/** Called before each step; return updated active tool names to expand the allowlist. */
 	prepareStep?: (steps: StepResult<ToolSet>[]) => string[];
-	/** Override temperature (0–1). If omitted, uses provider default. */
+	/** Override temperature. Range varies by provider (0–1 for Claude, 0–2 for OpenAI/Gemini). */
 	temperature?: number;
+	/** Override nucleus sampling (topP). If omitted, uses provider default. */
+	topP?: number;
 	/** Tool choice constraint: "none" disables tools, "required" forces tool use. */
 	toolChoice?: "none" | "required";
 	/** Structured output schema (e.g. Output.object). Passed directly to generateText. */
 	output?: unknown;
+	/** Provider-specific options passed through to the AI SDK's providerOptions. */
+	providerOptions?: Record<string, Record<string, unknown>>;
 }
 
 export interface ModelCallStep {
@@ -86,8 +93,9 @@ export async function callModel(
 		throw new Error(`LLM rate limit exceeded. Retry in ${rate.retryAfterMs}ms`);
 	}
 
-	const modelId = settings.models[opts.tier];
-	const model = anthropic(modelId);
+	const providerCfg = resolveProvider(opts.chatId, opts.provider);
+	const modelId = providerCfg[opts.tier];
+	const model = createModel(providerCfg.sdk, modelId);
 
 	const startTime = Date.now();
 	const timeoutMs = settings.llm.timeoutMs;
@@ -113,8 +121,14 @@ export async function callModel(
 					...(opts.temperature !== undefined
 						? { temperature: opts.temperature }
 						: {}),
+					...(opts.topP !== undefined ? { topP: opts.topP } : {}),
 					...(opts.output ? { output: opts.output as never } : {}),
 					...(opts.toolChoice ? { toolChoice: opts.toolChoice } : {}),
+					...(opts.providerOptions
+						? {
+								providerOptions: opts.providerOptions as ProviderOptions,
+							}
+						: {}),
 					...(opts.tools && Object.keys(opts.tools).length > 0
 						? {
 								tools: opts.tools,

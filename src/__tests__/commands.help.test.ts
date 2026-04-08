@@ -35,7 +35,7 @@ function makeAgent(
 ): AgentDefinition {
 	return {
 		name,
-		modelTier: "default",
+		modelTier: "medium",
 		tools,
 		toolsets: toolsets ?? [],
 		providerTools: [],

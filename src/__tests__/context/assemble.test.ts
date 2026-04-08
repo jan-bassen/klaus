@@ -14,7 +14,7 @@ const CHAT_ID = "user@s.whatsapp.net";
 
 const dummyAgent: AgentDefinition = {
 	name: "test",
-	modelTier: "default",
+	modelTier: "medium",
 	tools: [],
 	toolsets: [],
 	providerTools: [],

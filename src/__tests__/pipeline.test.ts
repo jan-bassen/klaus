@@ -107,11 +107,11 @@ beforeAll(async () => {
 		`---\nname: ${name}\nmodelTier: ${tier}\ntools: []\n---\n`;
 	await writeFile(
 		join(agentsDir, "klaus.md"),
-		minimalFrontmatter("klaus", "default"),
+		minimalFrontmatter("klaus", "medium"),
 	);
 	await writeFile(
 		join(agentsDir, "thinking.md"),
-		minimalFrontmatter("thinking", "high"),
+		minimalFrontmatter("thinking", "large"),
 	);
 	savedVaultDir = process.env.VAULT_DIR;
 	process.env.VAULT_DIR = join(tmpDir, "vault");
@@ -381,7 +381,7 @@ describe("handleTurn — agent routing", () => {
 	test("uses cached agent from registry without calling loadAgentDefinition", async () => {
 		const cachedDef: AgentDefinition = {
 			name: "__cached__",
-			modelTier: "default",
+			modelTier: "medium",
 			tools: [],
 			toolsets: [],
 			providerTools: [],

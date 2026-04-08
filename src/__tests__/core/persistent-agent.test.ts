@@ -67,7 +67,7 @@ function makeTurn(
 		},
 		agent: {
 			name: "test",
-			modelTier: "default",
+			modelTier: "medium",
 			tools: [],
 			toolsets: [],
 			providerTools: [],
@@ -115,7 +115,7 @@ describe("persistent agents", () => {
 			output: { nextRun: "2h", objective: "Check vocabulary progress" },
 		}));
 		await writeAgentFile(
-			"name: test\nmodelTier: default\ntools: []\npersistent: true",
+			"name: test\nmodelTier: medium\ntools: []\npersistent: true",
 		);
 	});
 
@@ -148,7 +148,7 @@ describe("persistent agents", () => {
 	});
 
 	test("does not pass output to callModel when not persistent", async () => {
-		await writeAgentFile("name: test\nmodelTier: default\ntools: []");
+		await writeAgentFile("name: test\nmodelTier: medium\ntools: []");
 		const turn = makeTurn({ persistent: false, promptPath: tmpPath });
 		await runAgent(turn, turn.agent);
 
@@ -238,14 +238,14 @@ describe("persistent agents", () => {
 
 	test("persistent: true is parsed from frontmatter", async () => {
 		await writeAgentFile(
-			"name: persist-agent\nmodelTier: default\ntools: []\npersistent: true",
+			"name: persist-agent\nmodelTier: medium\ntools: []\npersistent: true",
 		);
 		const def = await loadAgentDefinition(tmpPath);
 		expect(def.persistent).toBe(true);
 	});
 
 	test("persistent defaults to false when omitted", async () => {
-		await writeAgentFile("name: normal-agent\nmodelTier: default\ntools: []");
+		await writeAgentFile("name: normal-agent\nmodelTier: medium\ntools: []");
 		const def = await loadAgentDefinition(tmpPath);
 		expect(def.persistent).toBe(false);
 	});

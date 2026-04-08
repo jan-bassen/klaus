@@ -40,7 +40,10 @@ describe("SettingsSchema", () => {
 		const result = SettingsSchema.safeParse({});
 		expect(result.success).toBe(true);
 		if (!result.success) return;
-		expect(result.data.models.default).toBe("claude-sonnet-4-20250514");
+		expect(result.data.providers.active).toBe("claude");
+		expect(result.data.providers.claude.medium).toBe(
+			"claude-sonnet-4-20250514",
+		);
 		expect(result.data.locale).toBe("de-DE");
 		expect(result.data.context.totalTokens).toBe(100_000);
 		expect(result.data.defaultAgent).toBe("klaus");
@@ -48,13 +51,21 @@ describe("SettingsSchema", () => {
 
 	test("accepts partial overrides", () => {
 		const result = SettingsSchema.safeParse({
-			models: { default: "gpt-4o" },
+			providers: {
+				claude: {
+					sdk: "anthropic",
+					small: "custom-small",
+					medium: "custom-medium",
+					large: "custom-large",
+					vision: "custom-vision",
+				},
+			},
 			locale: "en-US",
 		});
 		expect(result.success).toBe(true);
 		if (!result.success) return;
-		expect(result.data.models.default).toBe("gpt-4o");
-		expect(result.data.models.low).toBe("claude-haiku-3-20250307");
+		expect(result.data.providers.claude.medium).toBe("custom-medium");
+		expect(result.data.providers.chatgpt.medium).toBe("gpt-4o");
 		expect(result.data.locale).toBe("en-US");
 	});
 
@@ -63,11 +74,19 @@ describe("SettingsSchema", () => {
 		expect(result.success).toBe(false);
 	});
 
-	test("rejects unknown nested keys", () => {
+	test("accepts custom provider entries via catchall", () => {
 		const result = SettingsSchema.safeParse({
-			models: { default: "x", bogus: "y" },
+			providers: {
+				custom: {
+					sdk: "openai",
+					small: "a",
+					medium: "b",
+					large: "c",
+					vision: "d",
+				},
+			},
 		});
-		expect(result.success).toBe(false);
+		expect(result.success).toBe(true);
 	});
 
 	test("validates vault folder permissions", () => {
@@ -88,22 +107,23 @@ describe("loadSettingsFromDisk", () => {
 	});
 
 	test("loads valid YAML", async () => {
-		writeFileSync(
-			SETTINGS_PATH,
-			stringifyYaml({ models: { default: "custom-model" }, locale: "en-US" }),
-		);
+		writeFileSync(SETTINGS_PATH, stringifyYaml({ locale: "en-US" }));
 		const result = await loadSettingsFromDisk();
 		expect(result.ok).toBe(true);
-		expect(getYamlSettings().models.default).toBe("custom-model");
 		expect(getYamlSettings().locale).toBe("en-US");
 	});
 
 	test("returns error for invalid YAML values", async () => {
-		writeFileSync(SETTINGS_PATH, stringifyYaml({ models: { default: 123 } }));
+		writeFileSync(
+			SETTINGS_PATH,
+			stringifyYaml({
+				providers: { claude: { sdk: 123 } },
+			}),
+		);
 		const result = await loadSettingsFromDisk();
 		expect(result.ok).toBe(false);
 		if (result.ok) return;
-		expect(result.error).toContain("models.default");
+		expect(result.error).toContain("providers");
 	});
 
 	test("returns error for unknown keys", async () => {

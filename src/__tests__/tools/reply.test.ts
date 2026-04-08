@@ -39,7 +39,7 @@ const { replyTool } = await import("@/tools/reply");
 
 const dummyAgent: AgentDefinition = {
 	name: "test",
-	modelTier: "default",
+	modelTier: "medium",
 	tools: [],
 	toolsets: [],
 	providerTools: [],

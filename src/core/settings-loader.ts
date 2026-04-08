@@ -15,16 +15,60 @@ const VaultFolderSchema = z
 	})
 	.strict();
 
-const ModelsSchema = z
+const ProviderSchema = z
 	.object({
-		default: z.string().default("claude-sonnet-4-20250514"),
-		low: z.string().default("claude-haiku-3-20250307"),
-		high: z.string().default("claude-opus-4-20250514"),
-		tts: z.string().default("eleven_multilingual_v2"),
-		stt: z.string().default("scribe_v1"),
-		vision: z.string().default("claude-sonnet-4-20250514"),
+		sdk: z.string(),
+		small: z.string(),
+		medium: z.string(),
+		large: z.string(),
+		vision: z.string(),
+		temperature: z.number().optional(),
+		coldTemperature: z.number().optional(),
+		hotTemperature: z.number().optional(),
+		topP: z.number().optional(),
+		creativeTopP: z.number().optional(),
+		rigidTopP: z.number().optional(),
 	})
-	.strict()
+	.strict();
+
+const ProvidersSchema = z
+	.object({
+		active: z.string().default("claude"),
+		claude: ProviderSchema.default({
+			sdk: "anthropic",
+			small: "claude-haiku-3-20250307",
+			medium: "claude-sonnet-4-20250514",
+			large: "claude-opus-4-20250514",
+			vision: "claude-sonnet-4-20250514",
+			coldTemperature: 0,
+			hotTemperature: 1,
+			creativeTopP: 0.95,
+			rigidTopP: 0.1,
+		}),
+		chatgpt: ProviderSchema.default({
+			sdk: "openai",
+			small: "gpt-4o-mini",
+			medium: "gpt-4o",
+			large: "o3",
+			vision: "gpt-4o",
+			coldTemperature: 0,
+			hotTemperature: 1.5,
+			creativeTopP: 0.95,
+			rigidTopP: 0.1,
+		}),
+		gemini: ProviderSchema.default({
+			sdk: "google",
+			small: "gemini-2.0-flash-lite",
+			medium: "gemini-2.5-pro",
+			large: "gemini-2.5-pro",
+			vision: "gemini-2.5-pro",
+			coldTemperature: 0,
+			hotTemperature: 1.5,
+			creativeTopP: 0.95,
+			rigidTopP: 0.1,
+		}),
+	})
+	.catchall(ProviderSchema)
 	.default({});
 
 const ContextSchema = z
@@ -58,6 +102,7 @@ const RateLimitsSchema = z
 
 const TtsSchema = z
 	.object({
+		model: z.string().default("eleven_multilingual_v2"),
 		voiceId: z.string().default("Qqi8SzIZjZsatCWjDOp7"),
 	})
 	.strict()
@@ -65,6 +110,7 @@ const TtsSchema = z
 
 const SttSchema = z
 	.object({
+		model: z.string().default("scribe_v1"),
 		timeoutMs: z.number().default(30_000),
 		agentTriggers: z
 			.array(z.string())
@@ -95,8 +141,6 @@ const LlmSchema = z
 	.object({
 		timeoutMs: z.number().default(120_000),
 		maxSteps: z.number().default(10),
-		coldTemperature: z.number().default(0),
-		hotTemperature: z.number().default(1),
 	})
 	.strict()
 	.default({});
@@ -165,7 +209,7 @@ const VaultYamlSchema = z
 
 export const SettingsSchema = z
 	.object({
-		models: ModelsSchema,
+		providers: ProvidersSchema,
 		context: ContextSchema,
 		rateLimits: RateLimitsSchema,
 		tts: TtsSchema,

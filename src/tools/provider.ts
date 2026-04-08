@@ -1,24 +1,62 @@
-import { anthropic } from "@ai-sdk/anthropic";
 import type { Tool } from "ai";
+import { log } from "@/logger";
 
 /**
- * Build an Anthropic built-in provider tool by name. Tools are handled server-side
- * by Anthropic and injected directly into the Vercel AI SDK ToolSet without wrapping.
+ * Build a provider tool by canonical name, resolved to the correct SDK implementation.
+ * All tools use canonical names in agent frontmatter (e.g. `web_search`, `code_execution`).
+ * The SDK parameter determines which provider's implementation to use.
  *
- * Reference them by name in agent frontmatter:
- *   providerTools: [web_search, web_fetch, code_execution]
- *
- * Lazy construction (called per-agent-run) avoids issues when the Anthropic SDK
- * is not configured at module load time (e.g. during tests).
+ * Returns undefined if the provider does not support the requested tool.
  */
-export function buildProviderTool(name: string): Tool | undefined {
+export function buildProviderTool(name: string, sdk: string): Tool | undefined {
+	switch (sdk) {
+		case "anthropic":
+			return buildAnthropicTool(name);
+		case "openai":
+			return buildOpenAITool(name);
+		case "google":
+			return buildGoogleTool(name);
+		default: {
+			log.warn("[provider-tool] unknown SDK, skipping tool", {
+				sdk,
+				tool: name,
+			});
+			return undefined;
+		}
+	}
+}
+
+function buildAnthropicTool(name: string): Tool | undefined {
+	const { anthropic } = require("@ai-sdk/anthropic");
 	switch (name) {
 		case "web_search":
 			return anthropic.tools.webSearch_20250305() as unknown as Tool;
-		case "web_fetch":
-			return anthropic.tools.webFetch_20250910() as unknown as Tool;
 		case "code_execution":
 			return anthropic.tools.codeExecution_20260120() as unknown as Tool;
+		default:
+			return undefined;
+	}
+}
+
+function buildOpenAITool(name: string): Tool | undefined {
+	const { openai } = require("@ai-sdk/openai");
+	switch (name) {
+		case "web_search":
+			return openai.tools.webSearchPreview() as unknown as Tool;
+		case "code_execution":
+			return openai.tools.codeInterpreter() as unknown as Tool;
+		default:
+			return undefined;
+	}
+}
+
+function buildGoogleTool(name: string): Tool | undefined {
+	const { google } = require("@ai-sdk/google");
+	switch (name) {
+		case "web_search":
+			return google.tools.googleSearch() as unknown as Tool;
+		case "code_execution":
+			return google.tools.codeExecution() as unknown as Tool;
 		default:
 			return undefined;
 	}

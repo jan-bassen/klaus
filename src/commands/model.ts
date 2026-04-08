@@ -1,17 +1,23 @@
 import type { Command } from "@/commands";
 import { agentRegistry } from "@/core/agent";
 import { getDefaultAgent } from "@/core/defaults";
-import { settings } from "@/settings";
+import {
+	getActiveProvider,
+	getProviderNames,
+	setActiveProvider,
+} from "@/core/provider-defaults";
+import { resolveProvider, settings } from "@/settings";
 import type { AgentDefinition, InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
 type LlmTier = AgentDefinition["modelTier"];
 
-const VALID_TIERS: Set<string> = new Set(["default", "low", "high"]);
+const VALID_TIERS: Set<string> = new Set(["small", "medium", "large"]);
 
 export const modelCommand: Command = {
 	name: "model",
-	description: "Show or switch the default agent's model tier",
+	description:
+		"Show or switch the default agent's model tier, or switch provider for this chat",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const agentName = getDefaultAgent(msg.chatId);
 		const def = agentRegistry.get(agentName);
@@ -27,10 +33,12 @@ export const modelCommand: Command = {
 
 		// No args — show current model
 		if (!args[0]) {
-			const modelId = settings.models[def.modelTier];
+			const providerName = getActiveProvider(msg.chatId);
+			const providerCfg = resolveProvider(msg.chatId);
+			const modelId = providerCfg[def.modelTier];
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `@${agentName} model: *${modelId}* (tier: ${def.modelTier})`,
+				content: `@${agentName} model: *${modelId}* (tier: ${def.modelTier}, provider: ${providerName})`,
 				dedupKey: `${msg.id}:model`,
 			});
 			return;
@@ -38,10 +46,24 @@ export const modelCommand: Command = {
 
 		const input = args[0].toLowerCase();
 
+		// Check if it's a provider name
+		const providerNames = getProviderNames();
+		if (providerNames.includes(input)) {
+			setActiveProvider(msg.chatId, input);
+			const providerCfg = resolveProvider(msg.chatId);
+			const modelId = providerCfg[def.modelTier];
+			enqueueMessage({
+				chatId: msg.chatId,
+				content: `Switched to *${input}* provider. @${agentName}: *${modelId}* (tier: ${def.modelTier})`,
+				dedupKey: `${msg.id}:model`,
+			});
+			return;
+		}
+
 		if (!VALID_TIERS.has(input)) {
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `Unknown tier. Options: default, low, high`,
+				content: `Unknown tier or provider. Tiers: small, medium, large. Providers: ${providerNames.join(", ")}`,
 				dedupKey: `${msg.id}:model-unknown`,
 			});
 			return;
@@ -50,9 +72,10 @@ export const modelCommand: Command = {
 		const tier = input as LlmTier;
 
 		if (def.modelTier === tier) {
+			const providerCfg = resolveProvider(msg.chatId);
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `Already using tier "${tier}" (${settings.models[tier]}).`,
+				content: `Already using tier "${tier}" (${providerCfg[tier]}).`,
 				dedupKey: `${msg.id}:model-noop`,
 			});
 			return;
@@ -71,7 +94,8 @@ export const modelCommand: Command = {
 			// Update registry immediately (watcher will also reload, but this is instant)
 			def.modelTier = tier;
 
-			const modelId = settings.models[tier];
+			const providerCfg = resolveProvider(msg.chatId);
+			const modelId = providerCfg[tier];
 			enqueueMessage({
 				chatId: msg.chatId,
 				content: `@${agentName} switched to *${modelId}* (tier: ${tier}).`,

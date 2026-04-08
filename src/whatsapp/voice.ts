@@ -23,7 +23,7 @@ export async function transcribe(
 	const fileName = path.basename(filePath);
 
 	const form = new FormData();
-	form.append("model_id", settings.models.stt);
+	form.append("model_id", settings.stt.model);
 	form.append(
 		"file",
 		new Blob([await blob.arrayBuffer()], { type: mimeType }),

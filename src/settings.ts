@@ -1,4 +1,5 @@
 import { config } from "./config";
+import { getActiveProvider } from "./core/provider-defaults";
 import { getYamlSettings } from "./core/settings-loader";
 
 export type VaultPermission = "none" | "read" | "append" | "full";
@@ -12,21 +13,58 @@ export interface VaultFolder {
 	request?: VaultPermission | undefined;
 }
 
-export type ModelTier = "default" | "low" | "high" | "tts" | "stt" | "vision";
+export type ModelTier = "small" | "medium" | "large" | "vision";
 
 /** Model tier names suitable for z.enum(). */
 export const modelTiers: [ModelTier, ...ModelTier[]] = [
-	"default",
-	"low",
-	"high",
-	"tts",
-	"stt",
+	"small",
+	"medium",
+	"large",
 	"vision",
 ];
 
+/** Resolve the active provider config for a chat (respects per-chat override). */
+export function resolveProvider(
+	chatId?: string,
+	override?: string,
+): ProviderConfig {
+	const name = override ?? getActiveProvider(chatId);
+	const providers = getYamlSettings().providers;
+	const cfg = (providers as Record<string, unknown>)[name] as
+		| ProviderConfig
+		| undefined;
+	if (!cfg || typeof cfg !== "object" || !("sdk" in cfg)) {
+		throw new Error(`Unknown provider: ${name}`);
+	}
+	return cfg;
+}
+
+/** Resolve model ID for a tier + chat (uses active provider). */
+export function resolveModelId(
+	tier: ModelTier,
+	chatId?: string,
+	providerOverride?: string,
+): string {
+	return resolveProvider(chatId, providerOverride)[tier];
+}
+
+export interface ProviderConfig {
+	sdk: string;
+	small: string;
+	medium: string;
+	large: string;
+	vision: string;
+	temperature?: number;
+	coldTemperature?: number;
+	hotTemperature?: number;
+	topP?: number;
+	creativeTopP?: number;
+	rigidTopP?: number;
+}
+
 export const settings = {
-	get models() {
-		return getYamlSettings().models;
+	get providers() {
+		return getYamlSettings().providers;
 	},
 	get context() {
 		return getYamlSettings().context;
