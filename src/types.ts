@@ -120,6 +120,10 @@ export interface ToolsetDefinition {
 
 export interface ContextVariable {
 	name: string;
+	/** Short description for /help output */
+	description?: string;
+	/** Named parameters this variable accepts, e.g. { limit: "max items" } */
+	params?: Record<string, string>;
 	/** Lower number = trimmed first on overflow */
 	priority: number;
 	run(

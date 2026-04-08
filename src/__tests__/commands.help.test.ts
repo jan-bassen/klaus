@@ -5,6 +5,51 @@ import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
 const mockEnqueueMessage = mock((_opts: unknown) => undefined);
 mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 
+const mockGetContextVariables = mock(() => [
+	{
+		name: "date",
+		description: "Current date",
+		priority: -1,
+		run: async () => ({
+			content: "",
+			tokenCount: 0,
+			truncate: "never" as const,
+		}),
+	},
+	{
+		name: "active_tasks",
+		description: "Running jobs and pending timers",
+		params: { limit: "max items" },
+		priority: 4,
+		run: async () => ({
+			content: "",
+			tokenCount: 0,
+			truncate: "always" as const,
+		}),
+	},
+	{
+		name: "dispatch_context",
+		description: "Dispatch caller and objective",
+		priority: -1,
+		run: async () => ({
+			content: "",
+			tokenCount: 0,
+			truncate: "never" as const,
+		}),
+	},
+]);
+mock.module("@/core/assemble", () => ({
+	getContextVariables: mockGetContextVariables,
+	setContextVariables: () => {},
+	loadContextVariables: async () => [],
+	assembleContext: async () => ({
+		vars: {},
+		userVars: {},
+		messageRefs: {},
+		totalTokens: 0,
+	}),
+}));
+
 // ─── Import after mocks ───────────────────────────────────────────────────────
 
 import { registry } from "@/commands";
@@ -73,7 +118,7 @@ afterEach(() => {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("/help", () => {
-	test("no args: includes all three sections", async () => {
+	test("no args: includes all five sections", async () => {
 		await helpCommand.execute(makeMsg(), []);
 
 		expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
@@ -86,6 +131,8 @@ describe("/help", () => {
 		expect(content).toContain(`@${TEST_AGENT_NAME}`);
 		expect(content).toContain("*Flags*");
 		expect(content).toContain("!voice");
+		expect(content).toContain("*Variables*");
+		expect(content).toContain("*Vault*");
 	});
 
 	test("commands arg: only commands section", async () => {
@@ -129,6 +176,60 @@ describe("/help", () => {
 		)[0];
 		expect(content).toContain("tools: reply");
 		expect(content).toContain("toolsets: vault");
+	});
+
+	test("vars arg: only vars section", async () => {
+		await helpCommand.execute(makeMsg(), ["vars"]);
+
+		const { content } = (
+			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
+		)[0];
+		expect(content).toContain("*Variables*");
+		expect(content).toContain("$date");
+		expect(content).toContain("$active_tasks");
+		expect(content).not.toContain("*Commands*");
+		expect(content).not.toContain("*Agents*");
+	});
+
+	test("vars section shows descriptions and params", async () => {
+		await helpCommand.execute(makeMsg(), ["vars"]);
+
+		const { content } = (
+			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
+		)[0];
+		expect(content).toContain("Current date");
+		expect(content).toContain("params: limit: max items");
+	});
+
+	test("vars section excludes dispatch_context", async () => {
+		await helpCommand.execute(makeMsg(), ["vars"]);
+
+		const { content } = (
+			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
+		)[0];
+		expect(content).not.toContain("dispatch_context");
+	});
+
+	test("vault arg: only vault section", async () => {
+		await helpCommand.execute(makeMsg(), ["vault"]);
+
+		const { content } = (
+			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
+		)[0];
+		expect(content).toContain("*Vault*");
+		expect(content).not.toContain("*Commands*");
+		expect(content).not.toContain("*Agents*");
+	});
+
+	test("vault section shows folders with permissions", async () => {
+		await helpCommand.execute(makeMsg(), ["vault"]);
+
+		const { content } = (
+			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
+		)[0];
+		// Checks against default schema values
+		expect(content).toContain("(root)");
+		expect(content).toContain("Klaus/");
 	});
 
 	test("uses dedupKey based on message id", async () => {

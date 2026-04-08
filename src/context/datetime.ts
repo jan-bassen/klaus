@@ -5,6 +5,7 @@ const CHARS_PER_TOKEN = settings.context.charsPerToken;
 
 export const dateQuery: ContextVariable = {
 	name: "date",
+	description: "Current date",
 	priority: -1,
 	run: async (_turn, _params) => {
 		const content = new Date().toLocaleDateString(settings.locale, {
@@ -24,6 +25,7 @@ export const dateQuery: ContextVariable = {
 
 export const timeQuery: ContextVariable = {
 	name: "time",
+	description: "Current time",
 	priority: -1,
 	run: async (_turn, _params) => {
 		const content = new Date().toLocaleTimeString(settings.locale, {
@@ -42,6 +44,7 @@ export const timeQuery: ContextVariable = {
 
 export const weekdayQuery: ContextVariable = {
 	name: "weekday",
+	description: "Day of the week",
 	priority: -1,
 	run: async (_turn, _params) => {
 		const content = new Date().toLocaleDateString(settings.locale, {

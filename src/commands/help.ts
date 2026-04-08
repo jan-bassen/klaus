@@ -1,7 +1,9 @@
 import type { Command } from "@/commands";
 import { registry } from "@/commands";
 import { agentRegistry } from "@/core/agent";
+import { getContextVariables } from "@/core/assemble";
 import { flagRegistry } from "@/core/flags";
+import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
@@ -31,9 +33,51 @@ function buildFlagsSection(): string {
 	return `*Flags*\n${lines.join("\n")}`;
 }
 
+function buildVarsSection(): string {
+	const vars = getContextVariables().filter(
+		(v) => v.name !== "dispatch_context",
+	);
+
+	const lines: string[] = [];
+	for (const v of vars) {
+		const desc = v.description ? ` — ${v.description}` : "";
+		let line = `• $${v.name}${desc}`;
+		if (v.params) {
+			const paramStr = Object.entries(v.params)
+				.map(([k, d]) => `${k}: ${d}`)
+				.join(", ");
+			line += `\n  params: ${paramStr}`;
+		}
+		lines.push(line);
+	}
+
+	lines.push("", "_$var in messages, {{var}} in prompts_");
+	return `*Variables*\n${lines.join("\n")}`;
+}
+
+function buildVaultSection(): string {
+	const lines: string[] = [];
+
+	for (const folder of settings.vault.folders) {
+		const name = folder.path || "(root)";
+		const perm = folder.request
+			? `${folder.default} (request: ${folder.request})`
+			: folder.default;
+		lines.push(`• ${name} — ${perm}`);
+	}
+
+	const internal = settings.vault.internalPermission;
+	const internalPerm = internal.request
+		? `${internal.default} (request: ${internal.request})`
+		: internal.default;
+	lines.push(`• ${settings.vault.internal}/ — ${internalPerm}`);
+
+	return `*Vault*\n${lines.join("\n")}`;
+}
+
 export const helpCommand: Command = {
 	name: "help",
-	description: "Show available commands, agents, and flags",
+	description: "Show commands, agents, flags, vars, and vault",
 	execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const section = args[0]?.toLowerCase();
 
@@ -44,11 +88,17 @@ export const helpCommand: Command = {
 			content = buildAgentsSection();
 		} else if (section === "flags") {
 			content = buildFlagsSection();
+		} else if (section === "vars") {
+			content = buildVarsSection();
+		} else if (section === "vault") {
+			content = buildVaultSection();
 		} else {
 			content = [
 				buildCommandsSection(),
 				buildAgentsSection(),
 				buildFlagsSection(),
+				buildVarsSection(),
+				buildVaultSection(),
 			].join("\n\n");
 		}
 

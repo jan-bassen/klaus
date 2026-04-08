@@ -53,6 +53,7 @@ async function readSnippet(filePath: string): Promise<SnippetMeta> {
  */
 export const snippetsQuery: ContextVariable = {
 	name: "snippets",
+	description: "Named vars from snippets/*.md and user.md",
 	priority: -1,
 	async run(_turn, _params) {
 		const klausDir = settings.vault.internalPath;

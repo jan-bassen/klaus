@@ -50,6 +50,15 @@
 - [x] !low|high for reasoning effort control (should be available for all three main providers)
 - [x] !fast for fast mode (available on some)
 
+## Help command overhaul
+- [x] Add $vars (incl. params) 
+- [x] Add vault overview incl. permissions
+
+## Aliasses system
+- [ ] make it possible to use aliasses for agents, flags, commands, and maybe variables
+- [ ] implement !s|m|l for model size
+- [ ] implement /? for help
+
 ## Conversations overhaul 
 Goal: create a simple unified data store for a) execution and b) debugging
 - [ ] Add message.md template with handlebars to vault for easy iteration on formatting ("transcript from voice message", flags, ...)
@@ -58,11 +67,6 @@ Goal: create a simple unified data store for a) execution and b) debugging
 - [ ] Rework the invocations as logs to have full overview of the pipeline (incl. raw message, params, full message, ...) and a clearer steps array (currently very nested and badly readible - see EXAMPLES folder)
 - [ ] Add trailing logs (maybe last 3 days) to vault /Klaus/trail/ for easy debug (minimize load on sync)
 - [ ] Add agent.md frontmatter option for control over tool use in context (default on)
-
-## Help command overhaul
-- [ ] Maybe switch to /? (?)
-- [ ] Add $vars (incl. params) 
-- [ ] Add vault overview incl. permissions
 
 ## Agents
 - [ ] Fitness - An agent that tracks my fitness goals/progress, manage my trainingplan and helps me stay on track. I want to call him directly with @fitness during training sessions and he should be able to provide me with motivation and insights, mostly through random (for me unexpected) dispatches to motivate me. Espescially on training days.

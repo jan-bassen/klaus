@@ -44,7 +44,7 @@ Commands start with `/` and bypass the LLM entirely:
 - `/model [claude|chatgpt|gemini]` — switch the active provider for this chat
 - `/models` — list all configured providers and their models
 - `/register` — register the current chat ID
-- `/help [commands|agents|flags]` — show available commands, agents, and flags; optional filter narrows to one section
+- `/help [commands|agents|flags|vars|vault]` — show commands, agents, flags, context variables, and vault overview; optional filter narrows to one section
 
 ### Flags
 

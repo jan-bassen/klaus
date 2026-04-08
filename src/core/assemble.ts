@@ -16,6 +16,10 @@ export function setContextVariables(variables: ContextVariable[]): void {
 	loadedVariables = variables;
 }
 
+export function getContextVariables(): ContextVariable[] {
+	return loadedVariables;
+}
+
 /**
  * Runs all registered context queries in parallel, enforces the total token budget,
  * and trims lowest-priority results first according to each query's truncate strategy.

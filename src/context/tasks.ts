@@ -5,6 +5,8 @@ import type { ContextVariable, ContextVariableResult } from "@/types";
 /** Provides active_tasks: running async jobs and pending timers. */
 export const activeTasksQuery: ContextVariable = {
 	name: "active_tasks",
+	description: "Running jobs and pending timers",
+	params: { limit: "max items" },
 	priority: 4,
 	run: async (_turn, params): Promise<ContextVariableResult> => {
 		const jobs = getActiveJobs();
