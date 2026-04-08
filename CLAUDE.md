@@ -58,12 +58,13 @@ Every inbound WhatsApp message goes through a pipeline in `src/core/pipeline.ts`
 1. **Auth** — allowlist check (fail-closed)
 2. **Rate limit** — per-chat message/min guard
 3. **Normalize** — transcribe voice notes (STT), downscale large images
-4. **Parse commands** — `/command` handlers bypass LLM, return early
-5. **Parse routing** — extract `@agentName` prefix, `!flags` from text, resolve flag overrides
-6. **Resolve agent** — look up `agentRegistry` or hot-load from `.md` file
-7. **Persist** — append message to conversation JSONL, resolve quote-reply
-8. **Assemble context** — extract `?params` from prompt template + user message, run all context variables in parallel (with params), trim to token budget
-9. **Execute agent** — `runAgent()` via Vercel AI SDK agentic loop
+4. **Voice rewrite** — for voice transcripts only: fuzzy-match spoken agent/flag patterns into canonical `@agent`/`!flag` tokens (`src/core/voice-parse.ts`). Trigger words configurable via `settings.stt.agentTriggers` and `settings.stt.flagTriggers`
+5. **Parse commands** — `/command` handlers bypass LLM, return early
+6. **Parse routing** — extract `@agentName` prefix, `!flags` from text, resolve flag overrides
+7. **Resolve agent** — look up `agentRegistry` or hot-load from `.md` file
+8. **Persist** — append message to conversation JSONL, resolve quote-reply
+9. **Assemble context** — extract `?params` from prompt template + user message, run all context variables in parallel (with params), trim to token budget
+10. **Execute agent** — `runAgent()` via Vercel AI SDK agentic loop
 
 ### Agent system (core/agent.ts)
 
@@ -130,6 +131,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/core/dispatch.ts` | Unified dispatch function (inline/async modes) |
 | `src/core/model-router.ts` | LLM call routing |
 | `src/core/queue.ts` | In-memory job queue + active job tracking |
+| `src/core/voice-parse.ts` | Voice transcript fuzzy matching — rewrites spoken agent/flag patterns to canonical tokens |
 | `src/core/vault-access.ts` | Vault path resolution, folder-level permission checks, confirmation gating |
 | `src/core/watcher.ts` | File watcher for hot-reloading agents and skills |
 | `src/store/` | Flat-file storage modules (conversations, schedules, timers, files, etc.) |

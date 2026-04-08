@@ -24,7 +24,7 @@ const replySchema = z.object({
 export const replyTool: ToolDefinition<typeof replySchema> = {
 	name: "reply",
 	description:
-		'Send a WhatsApp message — works both as a reply to an inbound message and as a proactive/scheduled send. Formatting: *bold* (yes, only *one* asterisk) _italic_ ~strikethrough~ ```monospace``` > blockquote. Lists: "1." ordered, "-" unordered. Use messageRef to quote-reply to a specific message from the conversation history.',
+		"Send a WhatsApp message — works both as a reply to an inbound message and as a proactive/scheduled send.",
 	inputSchema: replySchema,
 	execute: async ({ content, voice, messageRef }, context) => {
 		// Inline dispatch: capture reply for caller instead of sending to WhatsApp

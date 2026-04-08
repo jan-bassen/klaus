@@ -28,15 +28,10 @@
 - [x] !clean for a call without messages context
 - [x] !ghost for ephemeral call — no persistence, skipHistory implied (WA message deletion deferred)
 
-## Help command overhaul
-- [ ] Maybe switch to /? (?)
-- [ ] Add $vars (incl. params) 
-- [ ] Add vault overview incl. permissions
-
-## Voice/tone overhaul
-- [ ] Make voice the default output for longer messages
-- [ ] Make new snippet for communication with clearer instructions for WA formatting and voice handling
-- [ ] Make @agent and !flags in voice messages possible via fuzzy matching (agent routing at the start ("hey", "at", "an", "to", ... + {one of the agent names}) and flags at the end ("flags", "flagged with", "tags", "tagged with", ... + names of flags))
+## Voice "mode" overhaul
+- [x] Make voice the default output for longer messages
+- [x] Make new snippet for communication with clearer instructions for WA formatting and voice handling
+- [x] Make @agent and !flags in voice messages possible via fuzzy matching (agent routing at the start ("hey", "at", "an", "to", ... + {one of the agent names}) and flags at the end ("flags", "flagged with", "tags", "tagged with", ... + names of flags))
 
 ## Provider independence
 - [ ] Make it explicitly easy to use common providers and switch fluently (maybe default to Vercel Gateway/OpenRouter?)
@@ -62,6 +57,11 @@ Goal: create a simple unified data store for a) execution and b) debugging
 - [ ] Rework the invocations as logs to have full overview of the pipeline (incl. raw message, params, full message, ...) and a clearer steps array (currently very nested and badly readible - see EXAMPLES folder)
 - [ ] Add trailing logs (maybe last 3 days) to vault /Klaus/trail/ for easy debug (minimize load on sync)
 - [ ] Add agent.md frontmatter option for control over tool use in context (default on)
+
+## Help command overhaul
+- [ ] Maybe switch to /? (?)
+- [ ] Add $vars (incl. params) 
+- [ ] Add vault overview incl. permissions
 
 ## Agents
 - [ ] Fitness - An agent that tracks my fitness goals/progress, manage my trainingplan and helps me stay on track. I want to call him directly with @fitness during training sessions and he should be able to provide me with motivation and insights, mostly through random (for me unexpected) dispatches to motivate me. Espescially on training days.

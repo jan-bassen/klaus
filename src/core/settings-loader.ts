@@ -66,6 +66,12 @@ const TtsSchema = z
 const SttSchema = z
 	.object({
 		timeoutMs: z.number().default(30_000),
+		agentTriggers: z
+			.array(z.string())
+			.default(["hey", "at", "an", "to", "dear"]),
+		flagTriggers: z
+			.array(z.string())
+			.default(["flagged with", "tagged with", "flags", "tags", "flag", "tag"]),
 	})
 	.strict()
 	.default({});

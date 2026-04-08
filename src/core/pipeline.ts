@@ -32,12 +32,13 @@ import { enqueueMessage } from "@/whatsapp/send";
 import { transcribe } from "@/whatsapp/voice";
 import { assembleContext } from "./assemble";
 import { formatUserError } from "./errors";
-import { resolveOverrides } from "./flags";
+import { flagRegistry, resolveOverrides } from "./flags";
 import {
 	extractVarParams,
 	mergeVarParams,
 	readPromptBody,
 } from "./interpolate";
+import { rewriteVoiceTranscript } from "./voice-parse";
 
 function agentsDir(): string {
 	return settings.vault.agentsDir;
@@ -115,7 +116,18 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			}
 		}
 
-		const rawText = processedMsg.text ?? "";
+		// Step 3b: Voice fuzzy matching — rewrite spoken agent/flag patterns
+		let rawText = processedMsg.text ?? "";
+		if (processedMsg.media?.transcription) {
+			rawText = rewriteVoiceTranscript(
+				rawText,
+				new Set(agentRegistry.keys()),
+				new Set(flagRegistry.keys()),
+				settings.stt.agentTriggers,
+				settings.stt.flagTriggers,
+			);
+			processedMsg = { ...processedMsg, text: rawText };
+		}
 
 		// Step 4a: /commands bypass the LLM entirely
 		const cmd = parseCommand(processedMsg);
