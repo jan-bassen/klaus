@@ -84,6 +84,7 @@ const dummyContext = {
 	chatId: "user@s.whatsapp.net",
 	agent: {
 		name: "test",
+		aliases: [],
 		modelTier: "medium" as const,
 		tools: [],
 		toolsets: [],

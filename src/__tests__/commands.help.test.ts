@@ -80,6 +80,7 @@ function makeAgent(
 ): AgentDefinition {
 	return {
 		name,
+		aliases: [],
 		modelTier: "medium",
 		tools,
 		toolsets: toolsets ?? [],

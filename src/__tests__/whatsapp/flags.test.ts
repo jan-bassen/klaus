@@ -96,11 +96,32 @@ describe("parseFlags", () => {
 		expect(parseFlags(makeMsg("hey ! what"))).toEqual({});
 	});
 
-	test("parses all flags loaded in registry", () => {
-		const names = [...flagRegistry.keys()];
-		const text = names.map((f) => `!${f}`).join(" ");
-		const expected = Object.fromEntries(names.map((f) => [f, true]));
+	test("parses all flags loaded in registry (canonical names)", () => {
+		const canonicalNames = [
+			...new Set([...flagRegistry.values()].map((f) => f.name)),
+		];
+		const text = canonicalNames.map((f) => `!${f}`).join(" ");
+		const expected = Object.fromEntries(canonicalNames.map((f) => [f, true]));
 		expect(parseFlags(makeMsg(text))).toEqual(expected);
+	});
+
+	test("alias resolves to canonical name", () => {
+		expect(parseFlags(makeMsg("!s hello"))).toEqual({ small: true });
+	});
+
+	test("multiple aliases resolve to canonical names", () => {
+		expect(parseFlags(makeMsg("!s !v !nt explain"))).toEqual({
+			small: true,
+			voice: true,
+			"no-tools": true,
+		});
+	});
+
+	test("mixing canonical names and aliases", () => {
+		expect(parseFlags(makeMsg("!small !v text"))).toEqual({
+			small: true,
+			voice: true,
+		});
 	});
 });
 
@@ -135,5 +156,9 @@ describe("stripFlags", () => {
 
 	test("leaves bare ! intact", () => {
 		expect(stripFlags("hey ! what")).toBe("hey ! what");
+	});
+
+	test("strips alias tokens", () => {
+		expect(stripFlags("!s !v tell me more")).toBe("tell me more");
 	});
 });

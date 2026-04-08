@@ -8,28 +8,45 @@ import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
 function buildCommandsSection(): string {
-	const lines = registry
-		.getAll()
-		.map((cmd) => `• /${cmd.name} — ${cmd.description}`);
+	const lines = registry.getAll().map((cmd) => {
+		const aliasStr = cmd.aliases?.length
+			? ` (${cmd.aliases.map((a) => `/${a}`).join(", ")})`
+			: "";
+		return `• /${cmd.name}${aliasStr} — ${cmd.description}`;
+	});
 	return `*Commands*\n${lines.join("\n")}`;
 }
 
 function buildAgentsSection(): string {
-	const lines = [...agentRegistry.values()].map((agent) => {
+	const seen = new Set<string>();
+	const lines: string[] = [];
+	for (const agent of agentRegistry.values()) {
+		if (seen.has(agent.name)) continue;
+		seen.add(agent.name);
+		const aliasStr = agent.aliases.length
+			? ` (${agent.aliases.map((a) => `@${a}`).join(", ")})`
+			: "";
 		const parts: string[] = [];
 		if (agent.tools.length > 0) parts.push(`tools: ${agent.tools.join(", ")}`);
 		if (agent.toolsets && agent.toolsets.length > 0)
 			parts.push(`toolsets: ${agent.toolsets.join(", ")}`);
 		const detail = parts.length > 0 ? ` — ${parts.join(" | ")}` : "";
-		return `• @${agent.name}${detail}`;
-	});
+		lines.push(`• @${agent.name}${aliasStr}${detail}`);
+	}
 	return `*Agents*\n${lines.join("\n")}`;
 }
 
 function buildFlagsSection(): string {
-	const lines = [...flagRegistry.values()].map(
-		({ name, description }) => `• !${name} — ${description}`,
-	);
+	const seen = new Set<string>();
+	const lines: string[] = [];
+	for (const flag of flagRegistry.values()) {
+		if (seen.has(flag.name)) continue;
+		seen.add(flag.name);
+		const aliasStr = flag.aliases?.length
+			? ` (${flag.aliases.map((a) => `!${a}`).join(", ")})`
+			: "";
+		lines.push(`• !${flag.name}${aliasStr} — ${flag.description}`);
+	}
 	return `*Flags*\n${lines.join("\n")}`;
 }
 
@@ -77,6 +94,7 @@ function buildVaultSection(): string {
 
 export const helpCommand: Command = {
 	name: "help",
+	aliases: ["?"],
 	description: "Show commands, agents, flags, vars, and vault",
 	execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const section = args[0]?.toLowerCase();

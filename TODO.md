@@ -55,9 +55,9 @@
 - [x] Add vault overview incl. permissions
 
 ## Aliasses system
-- [ ] make it possible to use aliasses for agents, flags, commands, and maybe variables
-- [ ] implement !s|m|l for model size
-- [ ] implement /? for help
+- [x] make it possible to use aliasses for agents, flags, commands, and maybe variables
+- [x] implement !s|m|l for model size
+- [x] implement /? for help
 
 ## Conversations overhaul 
 Goal: create a simple unified data store for a) execution and b) debugging

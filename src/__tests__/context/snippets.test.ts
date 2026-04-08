@@ -23,6 +23,7 @@ const dummyTurn = {
 	chatId: "test@s.whatsapp.net",
 	agent: {
 		name: "test",
+		aliases: [],
 		modelTier: "medium" as const,
 		tools: [],
 		toolsets: [],

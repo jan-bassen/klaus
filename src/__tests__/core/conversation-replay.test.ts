@@ -31,6 +31,7 @@ let origDataDir: string | undefined;
 
 const dummyAgent: AgentDefinition = {
 	name: "test",
+	aliases: [],
 	modelTier: "medium",
 	tools: [],
 	toolsets: [],

@@ -43,6 +43,7 @@ import { callModel, type ModelCallStep } from "./model-router";
 
 export const AgentFrontmatterSchema = z.object({
 	name: z.string().min(1),
+	aliases: z.array(z.string()).default([]),
 	modelTier: z.enum(modelTiers).transform((v) => v as ModelTier),
 	tools: z.array(z.string()).default([]),
 	toolsets: z.array(z.string()).default([]),
@@ -775,6 +776,7 @@ export async function loadAgentDefinition(
 
 	const {
 		name,
+		aliases,
 		modelTier,
 		tools,
 		toolsets,
@@ -790,6 +792,7 @@ export async function loadAgentDefinition(
 
 	return {
 		name,
+		aliases,
 		modelTier,
 		tools,
 		toolsets,
@@ -818,6 +821,18 @@ export async function loadAgents(agentsDir: string): Promise<void> {
 		try {
 			const def = await loadAgentDefinition(`${agentsDir}/${file}`);
 			agentRegistry.set(def.name, def);
+			for (const alias of def.aliases) {
+				const existing = agentRegistry.get(alias);
+				if (existing && existing.name !== def.name) {
+					log.warn("[agent] alias collision, skipping", {
+						alias,
+						agent: def.name,
+						existing: existing.name,
+					});
+					continue;
+				}
+				agentRegistry.set(alias, def);
+			}
 		} catch (err) {
 			log.error("[agent] failed to load agent definition", {
 				file,

@@ -16,6 +16,7 @@ const VALID_TIERS: Set<string> = new Set(["small", "medium", "large"]);
 
 export const modelCommand: Command = {
 	name: "model",
+	aliases: ["m"],
 	description:
 		"Show or switch the default agent's model tier, or switch provider for this chat",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {

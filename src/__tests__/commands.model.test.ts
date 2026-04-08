@@ -46,6 +46,7 @@ You are Klaus.
 function makeAgent(tier: AgentDefinition["modelTier"]): AgentDefinition {
 	return {
 		name: "klaus",
+		aliases: [],
 		modelTier: tier,
 		tools: ["reply"],
 		toolsets: [],

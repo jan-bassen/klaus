@@ -2,6 +2,7 @@ import type { InboundMessage } from "@/types";
 
 export interface Command {
 	name: string;
+	aliases?: string[];
 	description: string;
 	execute: (msg: InboundMessage, args: string[]) => Promise<void>;
 }
@@ -11,6 +12,11 @@ export class CommandRegistry {
 
 	register(command: Command): void {
 		this.commands.set(command.name, command);
+		if (command.aliases) {
+			for (const alias of command.aliases) {
+				this.commands.set(alias, command);
+			}
+		}
 	}
 
 	get(name: string): Command | undefined {
@@ -22,7 +28,7 @@ export class CommandRegistry {
 	}
 
 	getAll(): Command[] {
-		return [...this.commands.values()];
+		return [...new Set(this.commands.values())];
 	}
 }
 

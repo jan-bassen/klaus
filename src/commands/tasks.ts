@@ -14,6 +14,7 @@ const timeFormatter = new Intl.DateTimeFormat(settings.locale, {
 
 export const tasksCommand: Command = {
 	name: "tasks",
+	aliases: ["t"],
 	description: "List active jobs, schedules, and timers",
 	async execute(msg: InboundMessage, _args: string[]): Promise<void> {
 		try {

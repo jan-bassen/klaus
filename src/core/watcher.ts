@@ -44,7 +44,11 @@ async function handleAgentChange(
 		// File deleted — remove from registry and clean up schedule
 		const old = findAgentByPath(promptPath);
 		if (old) {
+			const oldDef = agentRegistry.get(old.name);
 			agentRegistry.delete(old.name);
+			if (oldDef) {
+				for (const alias of oldDef.aliases) agentRegistry.delete(alias);
+			}
 			const schedule = findSchedule(old.name);
 			if (schedule) await removeSchedule(schedule.id);
 			log.info("[watcher] agent removed", { name: old.name, file: filename });
@@ -60,6 +64,11 @@ async function handleAgentChange(
 		const old = findAgentByPath(promptPath);
 		const oldDef = old ? agentRegistry.get(old.name) : undefined;
 
+		// Clean up old aliases
+		if (oldDef) {
+			for (const alias of oldDef.aliases) agentRegistry.delete(alias);
+		}
+
 		// If name changed, remove old entry
 		if (old && old.name !== newDef.name) {
 			agentRegistry.delete(old.name);
@@ -70,6 +79,9 @@ async function handleAgentChange(
 		}
 
 		agentRegistry.set(newDef.name, newDef);
+		for (const alias of newDef.aliases) {
+			agentRegistry.set(alias, newDef);
+		}
 
 		// Reconcile schedule
 		const oldSchedule = oldDef?.schedule;

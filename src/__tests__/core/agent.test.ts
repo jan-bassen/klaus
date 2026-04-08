@@ -63,6 +63,7 @@ function makeTurn(
 		},
 		agent: {
 			name: "test",
+			aliases: [],
 			modelTier: "medium",
 			tools: [],
 			toolsets: [],

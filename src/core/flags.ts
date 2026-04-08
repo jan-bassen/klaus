@@ -25,6 +25,7 @@ export type FlagName =
 /** Describes a single flag's metadata. */
 export interface FlagDef {
 	name: FlagName;
+	aliases?: string[];
 	description: string;
 }
 
@@ -56,38 +57,93 @@ export interface FlagOverrides {
 
 /** Static registry of all flags. */
 export const FLAG_DEFS: readonly FlagDef[] = [
-	{ name: "voice", description: "Reply as a voice message (TTS)" },
-	{ name: "clean", description: "Call without conversation history" },
-	{ name: "small", description: "Use low-tier model" },
-	{ name: "medium", description: "Use default-tier model" },
-	{ name: "large", description: "Use high-tier model" },
-	{ name: "accept", description: "Auto-accept confirmation prompts" },
-	{ name: "cold", description: "Set temperature to low (deterministic)" },
-	{ name: "hot", description: "Set temperature to high (creative)" },
-	{ name: "creative", description: "Use high topP (diverse sampling)" },
-	{ name: "rigid", description: "Use low topP (focused sampling)" },
-	{ name: "no-tools", description: "Disable all tools except reply" },
-	{ name: "use-tools", description: "Force tool use (model must call a tool)" },
-	{ name: "ghost", description: "Ephemeral call — no history, auto-delete" },
-	{ name: "low", description: "Low reasoning effort (faster, cheaper)" },
+	{
+		name: "voice",
+		aliases: ["v"],
+		description: "Reply as a voice message (TTS)",
+	},
+	{
+		name: "clean",
+		aliases: ["cl"],
+		description: "Call without conversation history",
+	},
+	{ name: "small", aliases: ["s"], description: "Use low-tier model" },
+	{ name: "medium", aliases: ["m"], description: "Use default-tier model" },
+	{ name: "large", aliases: ["l"], description: "Use high-tier model" },
+	{
+		name: "accept",
+		aliases: ["a"],
+		description: "Auto-accept confirmation prompts",
+	},
+	{
+		name: "cold",
+		aliases: ["c"],
+		description: "Set temperature to low (deterministic)",
+	},
+	{
+		name: "hot",
+		aliases: ["h"],
+		description: "Set temperature to high (creative)",
+	},
+	{
+		name: "creative",
+		aliases: ["cr"],
+		description: "Use high topP (diverse sampling)",
+	},
+	{
+		name: "rigid",
+		aliases: ["r"],
+		description: "Use low topP (focused sampling)",
+	},
+	{
+		name: "no-tools",
+		aliases: ["nt"],
+		description: "Disable all tools except reply",
+	},
+	{
+		name: "use-tools",
+		aliases: ["ut"],
+		description: "Force tool use (model must call a tool)",
+	},
+	{
+		name: "ghost",
+		aliases: ["g"],
+		description: "Ephemeral call — no history, auto-delete",
+	},
+	{
+		name: "low",
+		aliases: ["lo"],
+		description: "Low reasoning effort (faster, cheaper)",
+	},
 	{
 		name: "high",
+		aliases: ["hi"],
 		description: "High reasoning effort (slower, more thorough)",
 	},
-	{ name: "fast", description: "Fast inference mode (provider-dependent)" },
+	{
+		name: "fast",
+		aliases: ["f"],
+		description: "Fast inference mode (provider-dependent)",
+	},
 	{ name: "claude", description: "Use Claude provider for this turn" },
 	{ name: "chatgpt", description: "Use ChatGPT provider for this turn" },
 	{ name: "gemini", description: "Use Gemini provider for this turn" },
 ] as const;
 
-/** Map for O(1) lookup — replaces the old mutable file-loaded registry. */
+/** Map for O(1) lookup — indexes both canonical names and aliases. */
 export const flagRegistry = new Map<string, FlagDef>(
-	FLAG_DEFS.map((f) => [f.name, f]),
+	FLAG_DEFS.flatMap((f) => {
+		const entries: [string, FlagDef][] = [[f.name, f]];
+		if (f.aliases) {
+			for (const alias of f.aliases) entries.push([alias, f]);
+		}
+		return entries;
+	}),
 );
 
-/** Returns all known flag names. */
+/** Returns all known flag names and aliases. */
 export function getKnownFlags(): string[] {
-	return FLAG_DEFS.map((f) => f.name);
+	return [...flagRegistry.keys()];
 }
 
 /** Resolve parsed flags into typed overrides for the pipeline. */

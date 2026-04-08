@@ -6,6 +6,7 @@ import { enqueueMessage } from "@/whatsapp/send";
 
 export const statusCommand: Command = {
 	name: "status",
+	aliases: ["s"],
 	description: "Show current agent and system status",
 	async execute(msg: InboundMessage, _args: string[]): Promise<void> {
 		try {

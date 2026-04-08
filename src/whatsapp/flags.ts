@@ -1,11 +1,11 @@
 import { flagRegistry } from "@/core/flags";
 import type { InboundMessage } from "@/types";
 
-/** Returns the flag name if a token is a recognized !flag, otherwise null. */
+/** Returns the canonical flag name if a token is a recognized !flag or alias, otherwise null. */
 function flagName(token: string): string | null {
 	if (!token.startsWith("!") || token.length <= 1) return null;
-	const name = token.slice(1);
-	return flagRegistry.has(name) ? name : null;
+	const def = flagRegistry.get(token.slice(1));
+	return def ? def.name : null;
 }
 
 /**

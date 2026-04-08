@@ -4,6 +4,7 @@ import type { AgentDefinition, TurnContext } from "@/types";
 
 const dummyAgent: AgentDefinition = {
 	name: "test",
+	aliases: [],
 	modelTier: "medium",
 	tools: [],
 	toolsets: [],

@@ -1,5 +1,22 @@
 import { describe, expect, test } from "bun:test";
-import { resolveOverrides } from "@/core/flags";
+import { flagRegistry, getKnownFlags, resolveOverrides } from "@/core/flags";
+
+describe("flagRegistry aliases", () => {
+	test("alias keys resolve to the correct FlagDef", () => {
+		expect(flagRegistry.get("s")?.name).toBe("small");
+		expect(flagRegistry.get("m")?.name).toBe("medium");
+		expect(flagRegistry.get("l")?.name).toBe("large");
+		expect(flagRegistry.get("v")?.name).toBe("voice");
+		expect(flagRegistry.get("nt")?.name).toBe("no-tools");
+	});
+
+	test("getKnownFlags includes aliases", () => {
+		const known = getKnownFlags();
+		expect(known).toContain("small");
+		expect(known).toContain("s");
+		expect(known).toContain("nt");
+	});
+});
 
 describe("resolveOverrides", () => {
 	test("returns empty object for no flags", () => {

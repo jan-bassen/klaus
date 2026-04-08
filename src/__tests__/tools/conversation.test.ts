@@ -34,6 +34,7 @@ const { conversationTool } = await import("@/tools/conversation");
 
 const dummyAgent: AgentDefinition = {
 	name: "test",
+	aliases: [],
 	modelTier: "medium",
 	tools: [],
 	toolsets: [],

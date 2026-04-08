@@ -74,6 +74,13 @@ describe("parseCommand", () => {
 	test("returns null for empty text", () => {
 		expect(parseCommand(makeMsg(""))).toBeNull();
 	});
+
+	test("parses /? as command name '?'", () => {
+		expect(parseCommand(makeMsg("/?"))).toEqual({
+			name: "?",
+			args: [],
+		});
+	});
 });
 
 describe("CommandRegistry", () => {
@@ -106,6 +113,32 @@ describe("CommandRegistry", () => {
 	test("has returns false for unknown command", () => {
 		const reg = new CommandRegistry();
 		expect(reg.has("missing")).toBe(false);
+	});
+
+	test("alias resolves to the same command", () => {
+		const reg = new CommandRegistry();
+		const cmd = {
+			name: "help",
+			aliases: ["?", "h"],
+			description: "show help",
+			execute: async () => {},
+		};
+		reg.register(cmd);
+		expect(reg.get("?")).toBe(cmd);
+		expect(reg.get("h")).toBe(cmd);
+		expect(reg.get("help")).toBe(cmd);
+	});
+
+	test("getAll does not return duplicates for aliased commands", () => {
+		const reg = new CommandRegistry();
+		const cmd = {
+			name: "help",
+			aliases: ["?"],
+			description: "show help",
+			execute: async () => {},
+		};
+		reg.register(cmd);
+		expect(reg.getAll()).toHaveLength(1);
 	});
 
 	test("later registration overwrites earlier one", () => {

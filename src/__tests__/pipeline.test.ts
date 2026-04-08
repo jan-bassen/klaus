@@ -381,6 +381,7 @@ describe("handleTurn — agent routing", () => {
 	test("uses cached agent from registry without calling loadAgentDefinition", async () => {
 		const cachedDef: AgentDefinition = {
 			name: "__cached__",
+			aliases: [],
 			modelTier: "medium",
 			tools: [],
 			toolsets: [],
