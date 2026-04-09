@@ -35,7 +35,18 @@ const { agentRegistry, runAgent, loadAgentDefinition } = await import(
 	"@/core/agent"
 );
 
-const mockRunAgent = mock(async () => {});
+const mockRunAgent = mock(async () => ({
+	usage: { promptTokens: 0, completionTokens: 0 },
+	durationMs: 0,
+	steps: [],
+	model: "test-model",
+	provider: "anthropic",
+	tier: "medium",
+	conversationMessages: 0,
+	systemPrompt: "",
+	userMessage: "",
+	replyContent: "",
+}));
 const mockLoadAgentDefinition = mock(
 	async (_path: string): Promise<AgentDefinition> => ({
 		name: "helper",
@@ -48,6 +59,7 @@ const mockLoadAgentDefinition = mock(
 		persistent: false,
 		voiceMode: "auto",
 		acceptMode: "off",
+		showToolsInContext: true,
 		promptPath: "/agents/helper.md",
 	}),
 );
@@ -138,6 +150,7 @@ describe("dispatch", () => {
 			persistent: false,
 			voiceMode: "auto",
 			acceptMode: "off",
+			showToolsInContext: true,
 			promptPath: "/agents/helper.md",
 		};
 		agentRegistry.set("helper", cached);

@@ -81,6 +81,7 @@ const ContextSchema = z
 		maxReasoningChars: z.number().default(2_000),
 		maxToolResultChars: z.number().default(2_000),
 		traceDepth: z.number().default(3),
+		conversationLookbackDays: z.number().default(7),
 	})
 	.strict()
 	.default({});
@@ -161,6 +162,14 @@ const PersistentSchema = z
 	.strict()
 	.default({});
 
+const TrailSchema = z
+	.object({
+		enabled: z.boolean().default(true),
+		retentionDays: z.number().default(3),
+	})
+	.strict()
+	.default({});
+
 const WatcherSchema = z
 	.object({
 		debounceMs: z.number().default(1_000),
@@ -222,6 +231,7 @@ export const SettingsSchema = z
 		timezone: z.string().default("Europe/Berlin"),
 		dispatch: DispatchSchema,
 		persistent: PersistentSchema,
+		trail: TrailSchema,
 		watcher: WatcherSchema,
 		vision: VisionSchema,
 		whatsapp: WhatsAppSchema,

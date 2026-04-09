@@ -32,11 +32,23 @@ mock.module("@/store/conversation", () => ({
 	appendMessage: mockAppendMessage,
 	appendAck: mock(async () => {}),
 	appendReaction: mock(async () => {}),
+	appendTrace: mock(async () => {}),
+	appendBreak: mock(async () => {}),
 	findByExternalId: mockFindByExternalId,
 	resolveExternalId: mock(() => null),
+	resolveMessageId: mock(() => null),
 	getConversation: mock(async () => []),
+	getTraces: mock(async () => new Map()),
+	readAllMessages: mock(async () => []),
+	searchConversation: mock(async () => []),
 	rebuildIndexes: mock(async () => {}),
 	_clearIndexesForTest: mock(() => {}),
+}));
+
+// @/store/turn-log — mock turn log recording
+mock.module("@/store/turn-log", () => ({
+	recordTurnLog: mock(async () => {}),
+	toLogSteps: mock(() => []),
 }));
 
 // @/store/files — mock file operations
@@ -81,6 +93,18 @@ const capturedTurns: TurnContext[] = [];
 const mockAgentRunner = mock(
 	async (turn: TurnContext, _def: AgentDefinition) => {
 		capturedTurns.push(turn);
+		return {
+			usage: { promptTokens: 0, completionTokens: 0 },
+			durationMs: 0,
+			steps: [],
+			model: "test-model",
+			provider: "anthropic",
+			tier: "medium",
+			conversationMessages: 0,
+			systemPrompt: "",
+			userMessage: "",
+			replyContent: "",
+		};
 	},
 );
 
@@ -390,6 +414,7 @@ describe("handleTurn — agent routing", () => {
 			persistent: false,
 			voiceMode: "auto",
 			acceptMode: "off",
+			showToolsInContext: true,
 			promptPath: join(tmpDir, "vault", "Klaus", "agents", "thinking.md"),
 		};
 		agentRegistry.set("__cached__", cachedDef);

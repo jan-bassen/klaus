@@ -28,11 +28,6 @@ mock.module("@/core/provider-factory", () => ({
 	createModel: mock((sdk: string, id: string) => ({ sdk, id })),
 }));
 
-const mockRecordInvocation = mock(async () => {});
-mock.module("@/store/invocations", () => ({
-	recordInvocation: mockRecordInvocation,
-}));
-
 import { _resetForTest } from "@/core/rate-limiter";
 
 const { callModel } = await import("../../core/model-router");
@@ -48,7 +43,6 @@ const BASE_OPTS = {
 beforeEach(() => {
 	_resetForTest();
 	mockGenerateText.mockClear();
-	mockRecordInvocation.mockClear();
 });
 
 // ---- Tests ----
@@ -82,9 +76,10 @@ describe("callModel", () => {
 		expect(result.usage.completionTokens).toBe(40);
 	});
 
-	test("records invocation after each call", async () => {
-		await callModel(BASE_OPTS);
-		expect(mockRecordInvocation).toHaveBeenCalledTimes(1);
+	test("returns durationMs", async () => {
+		const result = await callModel(BASE_OPTS);
+		expect(typeof result.durationMs).toBe("number");
+		expect(result.durationMs).toBeGreaterThanOrEqual(0);
 	});
 
 	test("throws when LLM rate limit is exceeded", async () => {

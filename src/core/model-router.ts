@@ -3,7 +3,6 @@ import type { ModelMessage, StepResult, ToolSet } from "ai";
 import { generateText, stepCountIs } from "ai";
 import { log } from "@/logger";
 import { type ModelTier, resolveProvider, settings } from "@/settings";
-import { recordInvocation } from "@/store/invocations";
 import { createModel } from "./provider-factory";
 import { checkModelRate } from "./rate-limiter";
 
@@ -53,6 +52,8 @@ export interface ModelCallStep {
 		toolName: string;
 		result: unknown;
 	}>;
+	finishReason?: string;
+	usage?: { inputTokens: number; outputTokens: number };
 }
 
 export interface ModelCallResult {
@@ -62,6 +63,7 @@ export interface ModelCallResult {
 		completionTokens: number;
 	};
 	steps: ModelCallStep[];
+	durationMs: number;
 	/** Structured output from Output.object(), if provided. */
 	output?: unknown;
 }
@@ -199,38 +201,6 @@ export async function callModel(
 		(s, st) => s + (st.usage.outputTokens ?? 0),
 		0,
 	);
-	// Serialize steps for debugging.
-	const steps = result.steps.map((s) => ({
-		text: s.text,
-		reasoning: s.reasoning,
-		toolCalls: s.toolCalls,
-		toolResults: s.toolResults,
-		finishReason: s.finishReason,
-		usage: s.usage,
-	}));
-
-	const last = opts.messages[opts.messages.length - 1];
-	const userMessage = last
-		? typeof last.content === "string"
-			? last.content
-			: JSON.stringify(last.content)
-		: undefined;
-
-	recordInvocation({
-		agent: opts.agentName ?? "unknown",
-		model: modelId,
-		...(opts.messageId ? { messageId: opts.messageId } : {}),
-		...(opts.system ? { systemPrompt: opts.system } : {}),
-		...(userMessage ? { userMessage } : {}),
-		steps,
-		promptTokens,
-		completionTokens,
-		durationMs,
-	}).catch((err) =>
-		log.warn("[model-router] failed to record invocation", {
-			error: err instanceof Error ? err.message : String(err),
-		}),
-	);
 
 	const modelSteps: ModelCallStep[] = result.steps.map((s) => ({
 		reasoning: s.reasoningText ?? "",
@@ -244,12 +214,18 @@ export async function callModel(
 			toolName: tr.toolName,
 			result: tr.output,
 		})),
+		finishReason: s.finishReason,
+		usage: {
+			inputTokens: s.usage.inputTokens ?? 0,
+			outputTokens: s.usage.outputTokens ?? 0,
+		},
 	}));
 
 	return {
 		content: result.text,
 		usage: { promptTokens, completionTokens },
 		steps: modelSteps,
+		durationMs,
 		...("output" in result && result.output !== undefined
 			? { output: result.output }
 			: {}),

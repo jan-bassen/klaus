@@ -93,6 +93,7 @@ const dummyContext = {
 		persistent: false,
 		voiceMode: "auto",
 		acceptMode: "off",
+		showToolsInContext: true,
 		promptPath: "/dev/null",
 	},
 	flags: {},

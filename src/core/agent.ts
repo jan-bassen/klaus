@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type {
 	AssistantContent,
 	ImagePart,
@@ -59,6 +60,7 @@ export const AgentFrontmatterSchema = z.object({
 	persistent: z.boolean().default(false),
 	vaultScope: z.string().optional(),
 	conversationLimit: z.number().optional(),
+	showToolsInContext: z.boolean().default(true),
 	voiceMode: z.enum(voiceModes).default("auto"),
 	acceptMode: z.enum(acceptModes).default("off"),
 	provider: z.string().optional(),
@@ -84,11 +86,8 @@ function buildSystemPrompt(
 		.trim();
 }
 
-/**
- * Build the rich user message content directly from turn.message.
- * Includes message type prefix, quoted text, flags, and the actual message text.
- */
-function buildUserMessageText(turn: TurnContext): string {
+/** Hardcoded fallback when message.md template is missing or invalid. */
+function buildUserMessageFallback(turn: TurnContext): string {
 	const msg = turn.message;
 	if (!msg) return "";
 
@@ -99,7 +98,6 @@ function buildUserMessageText(turn: TurnContext): string {
 
 	const parts: string[] = [];
 
-	// Message type prefix
 	if (isVoice) {
 		const voiceCaption = media?.voiceCaption;
 		const line = voiceCaption
@@ -114,18 +112,55 @@ function buildUserMessageText(turn: TurnContext): string {
 		if (name) parts.push(`Attached: ${name} (${mime ?? ""})`);
 	}
 
-	// Quoted message
 	if (msg.quotedMessage?.text) {
 		parts.push(`> Quoted: ${msg.quotedMessage.text}`);
 	}
 
-	// Actual message text: transcript for voice, plain text otherwise
 	const messageText = isVoice ? (media?.transcription ?? "") : (msg.text ?? "");
-	if (messageText) {
-		parts.push(messageText);
-	}
+	if (messageText) parts.push(messageText);
 
-	const raw = parts.join("\n");
+	return parts.join("\n");
+}
+
+function messageTemplatePath(): string {
+	return `${settings.vault.internalPath}/message.md`;
+}
+
+/**
+ * Build the rich user message content from turn.message.
+ * Uses {vault}/Klaus/message.md Handlebars template if present, otherwise falls back to hardcoded format.
+ */
+function buildUserMessageText(turn: TurnContext): string {
+	const msg = turn.message;
+	if (!msg) return "";
+
+	const media = msg.media;
+	const isVoice = !!media && media.mimeType.startsWith("audio/");
+	const isImage = !!media && media.mimeType.startsWith("image/");
+	const isDocument = !!media && !isVoice && !isImage;
+	const messageText = isVoice ? (media?.transcription ?? "") : (msg.text ?? "");
+
+	let raw: string;
+
+	try {
+		const templateRaw = readFileSync(messageTemplatePath(), "utf-8");
+		const template = hbs.compile(templateRaw, { noEscape: true });
+		raw = template({
+			isVoice,
+			isImage,
+			isDocument,
+			voiceCaption: media?.voiceCaption ?? "",
+			fileName: media?.fileName ?? "",
+			mimeType: media?.mimeType ?? "",
+			quotedText: msg.quotedMessage?.text ?? "",
+			messageText,
+			flags: Object.keys(turn.flags),
+		})
+			.replace(/\n{3,}/g, "\n\n")
+			.trim();
+	} catch {
+		raw = buildUserMessageFallback(turn);
+	}
 
 	// Interpolate $var references in user message text
 	const allVars = { ...turn.assembled.vars, ...turn.assembled.userVars };
@@ -138,6 +173,37 @@ const CHARS_PER_TOKEN = settings.context.charsPerToken;
 const MAX_REASONING_CHARS = settings.context.maxReasoningChars;
 const MAX_TOOL_RESULT_CHARS = settings.context.maxToolResultChars;
 const TRACE_DEPTH = settings.context.traceDepth;
+const MAX_SUMMARY_ARG_CHARS = 40;
+
+/**
+ * Produce a compact one-line summary of tool usage across trace steps.
+ * Example: "[Used vault.read("Training/Plan.md"), vault.search("workout") → replied]"
+ */
+function summarizeTrace(steps: TraceStep[]): string {
+	const calls: string[] = [];
+	for (const step of steps) {
+		for (const tc of step.toolCalls) {
+			if (tc.toolName === "reply") continue;
+			let argSnippet = "";
+			try {
+				const parsed = JSON.parse(tc.args);
+				const firstVal = Object.values(parsed)[0];
+				if (firstVal !== undefined) {
+					const s = String(firstVal);
+					argSnippet =
+						s.length > MAX_SUMMARY_ARG_CHARS
+							? `${s.slice(0, MAX_SUMMARY_ARG_CHARS)}…`
+							: s;
+				}
+			} catch {
+				// unparseable args — skip snippet
+			}
+			calls.push(argSnippet ? `${tc.toolName}("${argSnippet}")` : tc.toolName);
+		}
+	}
+	if (calls.length === 0) return "";
+	return `[Used ${calls.join(", ")} → replied]`;
+}
 
 /**
  * Build the conversation messages array for the SDK, reconstructing full
@@ -170,18 +236,32 @@ export async function buildConversationMessages(
 	const recent = filtered.slice(-limit);
 
 	// Budget-aware inclusion (work backwards)
+	// Only count full trace tokens for turns within TRACE_DEPTH;
+	// older turns get compact summaries (negligible cost).
 	const budget = settings.context.conversationTokens;
+	const showTools = turn.agent.showToolsInContext;
 	let tokenCount = 0;
 	const included: ConversationMessage[] = [];
+
+	// Pre-count user messages for trace depth threshold
+	let recentUserCount = 0;
+	for (let i = recent.length - 1; i >= 0; i--) {
+		if (recent[i]?.role === "user") recentUserCount++;
+	}
+	const budgetTraceThreshold = recentUserCount - TRACE_DEPTH;
+	let budgetUsersSeen = 0;
 
 	for (let i = recent.length - 1; i >= 0; i--) {
 		const row = recent[i];
 		if (!row || !row.content) continue;
+		if (row.role === "user") budgetUsersSeen++;
 		const msgTokens = Math.ceil(row.content.length / CHARS_PER_TOKEN);
-		// Add rough estimate for trace tokens
-		const trace = traces.get(row.id);
-		const traceTokens = trace
-			? Math.ceil(
+		// Only count full trace tokens for recent turns within TRACE_DEPTH
+		let traceTokens = 0;
+		if (showTools && budgetUsersSeen <= TRACE_DEPTH) {
+			const trace = traces.get(row.id);
+			if (trace) {
+				traceTokens = Math.ceil(
 					trace.reduce(
 						(sum, s) =>
 							sum +
@@ -194,8 +274,9 @@ export async function buildConversationMessages(
 							),
 						0,
 					) / CHARS_PER_TOKEN,
-				)
-			: 0;
+				);
+			}
+		}
 		if (tokenCount + msgTokens + traceTokens > budget) break;
 		included.unshift(row);
 		tokenCount += msgTokens + traceTokens;
@@ -232,9 +313,9 @@ export async function buildConversationMessages(
 		} else {
 			// Assistant turn — traces are keyed by the triggering user message ID
 			const trace = lastUserId ? traces.get(lastUserId) : undefined;
-			const useTrace = trace && usersSeen > traceThreshold;
+			const useFullTrace = showTools && trace && usersSeen > traceThreshold;
 
-			if (useTrace) {
+			if (useFullTrace) {
 				// Reconstruct multi-step messages from trace
 				for (const step of trace) {
 					const assistantParts: AssistantContent = [];
@@ -298,11 +379,12 @@ export async function buildConversationMessages(
 					messages.push({ role: "assistant", content: row.content });
 				}
 			} else {
-				// Flat assistant message (no trace or outside trace window)
-				messages.push({
-					role: "assistant",
-					content: row.content ?? "",
-				});
+				// Compact summary for older turns with traces, or flat text
+				const summary = showTools && trace ? summarizeTrace(trace) : "";
+				const text = summary
+					? `${summary}\n${row.content ?? ""}`
+					: (row.content ?? "");
+				messages.push({ role: "assistant", content: text });
 			}
 		}
 	}
@@ -419,15 +501,29 @@ async function schedulePersistentTimer(
 	});
 }
 
+export interface AgentRunResult {
+	usage: { promptTokens: number; completionTokens: number };
+	durationMs: number;
+	steps: ModelCallStep[];
+	model: string;
+	provider: string;
+	tier: string;
+	conversationMessages: number;
+	systemPrompt: string;
+	userMessage: string;
+	replyContent: string;
+}
+
 /**
  * Generic agent execution engine used by all agents.
  * Loads the agent's prompt, runs the agentic loop via the Vercel AI SDK.
  * All agents produce free-text output via the reply tool — no structured return.
+ * Returns pipeline-relevant metadata for logging.
  */
 export async function runAgent(
 	turn: TurnContext,
 	def: AgentDefinition,
-): Promise<void> {
+): Promise<AgentRunResult> {
 	// Build Vercel AI SDK tools — closures over turn so execute receives TurnContext
 	const wrap = (t: ToolDefinition) =>
 		tool({
@@ -699,11 +795,6 @@ export async function runAgent(
 				: {}),
 		});
 
-		log.info("[agent] model call completed", {
-			agent: def.name,
-			usage: result.usage,
-		});
-
 		// Persist trace for multi-turn replay (fire-and-forget)
 		if (turn.messageId && result.steps.length > 0) {
 			const traceSteps = toTraceSteps(result.steps);
@@ -740,6 +831,35 @@ export async function runAgent(
 				);
 			}
 		}
+
+		// Extract reply content from reply tool calls for logging
+		const replyContent = result.steps
+			.flatMap((s) => s.toolCalls)
+			.filter((tc) => tc.toolName === "reply")
+			.map((tc) => {
+				const content = tc.args?.content;
+				return typeof content === "string" ? content : "";
+			})
+			.join("\n---\n");
+
+		// Build user message string for logging
+		const userMessageStr =
+			typeof userContent === "string"
+				? userContent
+				: JSON.stringify(userContent);
+
+		return {
+			usage: result.usage,
+			durationMs: result.durationMs,
+			steps: result.steps,
+			model: modelId,
+			provider: providerCfg.sdk,
+			tier: effectiveTier,
+			conversationMessages: historyMessages.length,
+			systemPrompt: system,
+			userMessage: userMessageStr,
+			replyContent,
+		};
 	} catch (err) {
 		// Persistent agents must always reschedule, even on failure
 		if (def.persistent) {
@@ -774,7 +894,6 @@ export async function runAgent(
 export async function loadAgentDefinition(
 	promptPath: string,
 ): Promise<AgentDefinition> {
-	log.debug("[agent] loading definition", { promptPath });
 	const raw = await Bun.file(promptPath).text();
 
 	const match = raw.match(/^---\n([\s\S]*?)\n---/);
@@ -795,12 +914,11 @@ export async function loadAgentDefinition(
 		persistent,
 		vaultScope,
 		conversationLimit,
+		showToolsInContext,
 		voiceMode,
 		acceptMode,
 		provider,
 	} = front;
-
-	log.info("[agent] loaded definition", { name, modelTier, tools });
 
 	return {
 		name,
@@ -814,6 +932,7 @@ export async function loadAgentDefinition(
 		persistent,
 		...(vaultScope ? { vaultScope } : {}),
 		...(conversationLimit !== undefined ? { conversationLimit } : {}),
+		showToolsInContext,
 		voiceMode,
 		acceptMode,
 		...(provider ? { provider } : {}),

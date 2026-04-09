@@ -15,6 +15,7 @@ function makeDef(overrides: Partial<AgentDefinition> = {}): AgentDefinition {
 		persistent: false,
 		voiceMode: "auto",
 		acceptMode: "off",
+		showToolsInContext: true,
 		promptPath: "/tmp/test.md",
 		...overrides,
 	};

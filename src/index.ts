@@ -112,8 +112,6 @@ async function main(): Promise<void> {
 	const dirs = [
 		settings.dataDir,
 		path.join(settings.dataDir, "conversations"),
-		path.join(settings.dataDir, "conversations", "archive"),
-		path.join(settings.dataDir, "invocations"),
 		path.join(settings.dataDir, "files"),
 	];
 	for (const dir of dirs) {

@@ -7,6 +7,7 @@ const mockCallModel = mock(async () => ({
 	content: "",
 	usage: { promptTokens: 10, completionTokens: 5 },
 	steps: [],
+	durationMs: 100,
 	output: undefined as unknown,
 }));
 mock.module("../../core/model-router", () => ({ callModel: mockCallModel }));
@@ -76,6 +77,7 @@ function makeTurn(
 			persistent: false,
 			voiceMode: "auto",
 			acceptMode: "off",
+			showToolsInContext: true,
 			promptPath: "/dev/null",
 			...agentOverrides,
 		},
@@ -115,6 +117,7 @@ describe("persistent agents", () => {
 			content: "",
 			usage: { promptTokens: 10, completionTokens: 5 },
 			steps: [],
+			durationMs: 100,
 			output: { nextRun: "2h", objective: "Check vocabulary progress" },
 		}));
 		await writeAgentFile(
@@ -156,6 +159,7 @@ describe("persistent agents", () => {
 			persistent: false,
 			voiceMode: "auto",
 			acceptMode: "off",
+			showToolsInContext: true,
 			promptPath: tmpPath,
 		});
 		await runAgent(turn, turn.agent);
@@ -170,6 +174,7 @@ describe("persistent agents", () => {
 			content: "",
 			usage: { promptTokens: 10, completionTokens: 5 },
 			steps: [],
+			durationMs: 100,
 			output: undefined,
 		}));
 

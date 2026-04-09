@@ -89,6 +89,7 @@ function makeAgent(
 		persistent: false,
 		voiceMode: "auto",
 		acceptMode: "off",
+		showToolsInContext: true,
 		promptPath: `/fake/agents/${name}.md`,
 	};
 }

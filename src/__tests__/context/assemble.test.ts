@@ -23,6 +23,7 @@ const dummyAgent: AgentDefinition = {
 	persistent: false,
 	voiceMode: "auto",
 	acceptMode: "off",
+	showToolsInContext: true,
 	promptPath: "/dev/null",
 };
 

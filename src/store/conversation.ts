@@ -1,8 +1,9 @@
-import { appendFile, mkdir, readdir, rename } from "node:fs/promises";
+import { appendFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { log } from "@/logger";
 import { settings } from "@/settings";
+import { localDateString } from "./date-utils";
 
 // -- Event schemas & types --
 
@@ -63,11 +64,17 @@ const ConversationTraceEventSchema = z.object({
 	steps: z.array(TraceStepSchema),
 });
 
+const ConversationBreakEventSchema = z.object({
+	kind: z.literal("break"),
+	createdAt: z.string(),
+});
+
 export const ConversationEventSchema = z.discriminatedUnion("kind", [
 	ConversationMessageEventSchema,
 	ConversationAckEventSchema,
 	ConversationReactionEventSchema,
 	ConversationTraceEventSchema,
+	ConversationBreakEventSchema,
 ]);
 
 export type ConversationMessageEvent = z.infer<
@@ -76,6 +83,9 @@ export type ConversationMessageEvent = z.infer<
 export type ConversationAckEvent = z.infer<typeof ConversationAckEventSchema>;
 export type ConversationReactionEvent = z.infer<
 	typeof ConversationReactionEventSchema
+>;
+export type ConversationBreakEvent = z.infer<
+	typeof ConversationBreakEventSchema
 >;
 type ConversationEvent = z.infer<typeof ConversationEventSchema>;
 
@@ -101,22 +111,41 @@ const idToExternal = new Map<string, string>();
 /** Map<externalId, messageId> — reverse index */
 const externalToId = new Map<string, string>();
 
+// -- File layout --
+
 function conversationsDir(): string {
 	return path.join(settings.dataDir, "conversations");
 }
 
-function currentFilePath(): string {
-	return path.join(conversationsDir(), "current.jsonl");
+function todayFilePath(): string {
+	const date = localDateString(settings.timezone);
+	return path.join(conversationsDir(), `${date}.jsonl`);
 }
 
+/** List all YYYY-MM-DD.jsonl files in conversations/, sorted chronologically. */
+async function listConversationFiles(): Promise<string[]> {
+	const dir = conversationsDir();
+	try {
+		const entries = await readdir(dir);
+		return entries
+			.filter((f) => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(f))
+			.sort()
+			.map((f) => path.join(dir, f));
+	} catch {
+		return [];
+	}
+}
+
+// -- Event merging --
+
 /** Parse JSONL lines, merge acks + reactions into ordered messages. */
-function mergeEvents(text: string): ConversationMessage[] {
+function mergeEvents(lines: string[]): ConversationMessage[] {
 	const messages = new Map<string, ConversationMessage>();
 	const acks = new Map<string, string>(); // messageId → externalId
 	const reactions: ConversationReactionEvent[] = [];
 	const order: string[] = [];
 
-	for (const line of text.split("\n")) {
+	for (const line of lines) {
 		if (!line.trim()) continue;
 		try {
 			const event = ConversationEventSchema.parse(JSON.parse(line));
@@ -140,6 +169,7 @@ function mergeEvents(text: string): ConversationMessage[] {
 			} else if (event.kind === "reaction") {
 				reactions.push(event);
 			}
+			// break and trace events are silently skipped
 		} catch {
 			log.warn("[conversation] skipping corrupt line", {
 				line: line.slice(0, 100),
@@ -191,21 +221,18 @@ function mergeEvents(text: string): ConversationMessage[] {
 		.filter((x): x is ConversationMessage => Boolean(x));
 }
 
-function archiveDir(): string {
-	return path.join(conversationsDir(), "archive");
-}
+// -- Write helpers --
 
-async function ensureDirs(): Promise<void> {
+async function ensureDir(): Promise<void> {
 	await mkdir(conversationsDir(), { recursive: true });
-	await mkdir(archiveDir(), { recursive: true });
 }
 
 async function appendEvent(event: ConversationEvent): Promise<void> {
-	await ensureDirs();
-	await appendFile(currentFilePath(), `${JSON.stringify(event)}\n`);
+	await ensureDir();
+	await appendFile(todayFilePath(), `${JSON.stringify(event)}\n`);
 }
 
-// -- Public API --
+// -- Public API: writes --
 
 /** Append a message event. Returns the generated UUID. */
 export async function appendMessage(msg: {
@@ -264,133 +291,82 @@ export async function appendReaction(reaction: {
 	});
 }
 
+/** Append a trace event (agent reasoning + tool calls for a turn). */
+export async function appendTrace(
+	messageId: string,
+	steps: TraceStep[],
+): Promise<void> {
+	await appendEvent({ kind: "trace", messageId, steps });
+}
+
+/** Append a break marker. Messages before the last break are excluded from context. */
+export async function appendBreak(): Promise<void> {
+	await appendEvent({ kind: "break", createdAt: new Date().toISOString() });
+}
+
+// -- Public API: reads --
+
 /**
- * Read current.jsonl, merge acks + reactions into messages.
- * Returns chronological list of conversation messages.
+ * Load recent conversation messages, respecting break markers.
+ * Reads day-partitioned files backwards from today up to lookbackDays.
+ * Stops at the most recent break marker — only messages after it are returned.
  */
 export async function getConversation(): Promise<ConversationMessage[]> {
-	let text: string;
-	try {
-		text = await Bun.file(currentFilePath()).text();
-	} catch {
-		return [];
-	}
+	const lookback = settings.context.conversationLookbackDays;
+	const allFiles = await listConversationFiles();
 
-	return mergeEvents(text);
-}
+	// Take files within lookback window (most recent N days)
+	const cutoff = allFiles.length > lookback ? allFiles.length - lookback : 0;
+	const relevantFiles = allFiles.slice(cutoff);
 
-/** Find a message by its WhatsApp externalId (in-memory lookup). */
-export function findByExternalId(
-	externalId: string,
-): { messageId: string } | null {
-	const messageId = externalToId.get(externalId);
-	return messageId ? { messageId } : null;
-}
-
-/** Get the internal message ID for a WhatsApp externalId. */
-export function resolveExternalId(externalId: string): string | null {
-	return externalToId.get(externalId) ?? null;
-}
-
-/** Get the WhatsApp externalId for an internal message ID. */
-export function resolveMessageId(messageId: string): string | null {
-	return idToExternal.get(messageId) ?? null;
-}
-
-/** Rotate current.jsonl to archive/{timestamp}.jsonl and start fresh. */
-export async function rotate(): Promise<void> {
-	await ensureDirs();
-	const current = currentFilePath();
-	try {
-		await Bun.file(current).text(); // Check exists
-	} catch {
-		return; // Nothing to rotate
-	}
-	const ts = new Date().toISOString().replace(/:/g, "-").slice(0, 19);
-	const archivePath = path.join(archiveDir(), `${ts}.jsonl`);
-	await rename(current, archivePath);
-	idToExternal.clear();
-	externalToId.clear();
-	log.info("[conversation] rotated", { archivePath });
-}
-
-/**
- * Rebuild in-memory indexes from current.jsonl.
- * Call once at startup.
- */
-export async function rebuildIndexes(): Promise<void> {
-	idToExternal.clear();
-	externalToId.clear();
-
-	let text: string;
-	try {
-		text = await Bun.file(currentFilePath()).text();
-	} catch {
-		return; // No conversation file yet
-	}
-
-	for (const line of text.split("\n")) {
-		if (!line.trim()) continue;
+	// Read all lines from relevant files in chronological order
+	const allLines: string[] = [];
+	for (const filePath of relevantFiles) {
 		try {
-			const event = ConversationEventSchema.parse(JSON.parse(line));
-
-			if (event.kind === "msg") {
-				if (event.externalId) {
-					idToExternal.set(event.id, event.externalId);
-					externalToId.set(event.externalId, event.id);
-				}
-			} else if (event.kind === "ack") {
-				idToExternal.set(event.messageId, event.externalId);
-				externalToId.set(event.externalId, event.messageId);
+			const text = await Bun.file(filePath).text();
+			for (const line of text.split("\n")) {
+				if (line.trim()) allLines.push(line);
 			}
 		} catch {
-			log.warn("[conversation] skipping corrupt line in index rebuild", {
-				line: line.slice(0, 100),
-			});
+			// File doesn't exist or read error — skip
 		}
 	}
 
-	log.info("[conversation] indexes rebuilt", {
-		messages: idToExternal.size,
-	});
+	// Find the last break marker and discard everything before it
+	let startIndex = 0;
+	for (let i = allLines.length - 1; i >= 0; i--) {
+		try {
+			const parsed = JSON.parse(allLines[i]!);
+			if (parsed.kind === "break") {
+				startIndex = i + 1;
+				break;
+			}
+		} catch {
+			// corrupt line — skip
+		}
+	}
+
+	return mergeEvents(allLines.slice(startIndex));
 }
 
-/** Read and merge all JSONL files (current + archive), returning messages sorted by createdAt. */
+/** Read and merge all JSONL files (all time), returning messages sorted by createdAt. */
 export async function readAllMessages(): Promise<ConversationMessage[]> {
-	const files: string[] = [];
+	const allFiles = await listConversationFiles();
+	const allLines: string[] = [];
 
-	// Archive files first (oldest to newest)
-	try {
-		const archiveFiles = await readdir(archiveDir());
-		for (const f of archiveFiles.sort()) {
-			if (f.endsWith(".jsonl")) {
-				files.push(path.join(archiveDir(), f));
-			}
-		}
-	} catch {
-		// No archive dir yet
-	}
-
-	// Current file last
-	files.push(currentFilePath());
-
-	const allMessages: ConversationMessage[] = [];
-
-	for (const filePath of files) {
-		let text: string;
+	for (const filePath of allFiles) {
 		try {
-			text = await Bun.file(filePath).text();
-		} catch {
-			continue;
-		}
-
-		allMessages.push(...mergeEvents(text));
+			const text = await Bun.file(filePath).text();
+			for (const line of text.split("\n")) {
+				if (line.trim()) allLines.push(line);
+			}
+		} catch {}
 	}
 
-	return allMessages;
+	return mergeEvents(allLines);
 }
 
-/** Search conversation history across current + archived JSONL files. */
+/** Search conversation history across all JSONL files. */
 export async function searchConversation(opts: {
 	query?: string;
 	around?: string;
@@ -438,40 +414,102 @@ export async function searchConversation(opts: {
 	return filtered.slice(-limit);
 }
 
-/** Append a trace event (agent reasoning + tool calls for a turn). */
-export async function appendTrace(
-	messageId: string,
-	steps: TraceStep[],
-): Promise<void> {
-	await appendEvent({ kind: "trace", messageId, steps });
+/** Find a message by its WhatsApp externalId (in-memory lookup). */
+export function findByExternalId(
+	externalId: string,
+): { messageId: string } | null {
+	const messageId = externalToId.get(externalId);
+	return messageId ? { messageId } : null;
 }
 
-/** Read all trace events from current.jsonl, keyed by messageId. */
+/** Get the internal message ID for a WhatsApp externalId. */
+export function resolveExternalId(externalId: string): string | null {
+	return externalToId.get(externalId) ?? null;
+}
+
+/** Get the WhatsApp externalId for an internal message ID. */
+export function resolveMessageId(messageId: string): string | null {
+	return idToExternal.get(messageId) ?? null;
+}
+
+/** Read all trace events from recent files, keyed by messageId. */
 export async function getTraces(): Promise<Map<string, TraceStep[]>> {
 	const traces = new Map<string, TraceStep[]>();
-	let text: string;
-	try {
-		text = await Bun.file(currentFilePath()).text();
-	} catch {
-		return traces;
-	}
+	const lookback = settings.context.conversationLookbackDays;
+	const allFiles = await listConversationFiles();
+	const cutoff = allFiles.length > lookback ? allFiles.length - lookback : 0;
+	const relevantFiles = allFiles.slice(cutoff);
 
-	for (const line of text.split("\n")) {
-		if (!line.trim()) continue;
+	for (const filePath of relevantFiles) {
+		let text: string;
 		try {
-			const raw = JSON.parse(line);
-			if (raw.kind !== "trace") continue;
-			const event = ConversationTraceEventSchema.parse(raw);
-			traces.set(event.messageId, event.steps);
+			text = await Bun.file(filePath).text();
 		} catch {
-			// skip corrupt lines
+			continue;
+		}
+
+		for (const line of text.split("\n")) {
+			if (!line.trim()) continue;
+			try {
+				const raw = JSON.parse(line);
+				if (raw.kind !== "trace") continue;
+				const event = ConversationTraceEventSchema.parse(raw);
+				traces.set(event.messageId, event.steps);
+			} catch {
+				// skip corrupt lines
+			}
 		}
 	}
 
 	return traces;
 }
 
-/** Clear in-memory indexes. Used by rotate() and tests. */
+/**
+ * Rebuild in-memory indexes from all conversation files.
+ * Call once at startup.
+ */
+export async function rebuildIndexes(): Promise<void> {
+	idToExternal.clear();
+	externalToId.clear();
+
+	const allFiles = await listConversationFiles();
+
+	for (const filePath of allFiles) {
+		let text: string;
+		try {
+			text = await Bun.file(filePath).text();
+		} catch {
+			continue;
+		}
+
+		for (const line of text.split("\n")) {
+			if (!line.trim()) continue;
+			try {
+				const event = ConversationEventSchema.parse(JSON.parse(line));
+
+				if (event.kind === "msg") {
+					if (event.externalId) {
+						idToExternal.set(event.id, event.externalId);
+						externalToId.set(event.externalId, event.id);
+					}
+				} else if (event.kind === "ack") {
+					idToExternal.set(event.messageId, event.externalId);
+					externalToId.set(event.externalId, event.messageId);
+				}
+			} catch {
+				log.warn("[conversation] skipping corrupt line in index rebuild", {
+					line: line.slice(0, 100),
+				});
+			}
+		}
+	}
+
+	log.info("[conversation] indexes rebuilt", {
+		messages: idToExternal.size,
+	});
+}
+
+/** Clear in-memory indexes. Used by tests. */
 export function _clearIndexesForTest(): void {
 	idToExternal.clear();
 	externalToId.clear();

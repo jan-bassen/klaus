@@ -1,10 +1,10 @@
 import { registry } from "@/commands";
 import { acceptCommand } from "@/commands/accept";
+import { breakCommand } from "@/commands/break";
 import { defaultCommand } from "@/commands/default";
 import { helpCommand } from "@/commands/help";
 import { modelCommand } from "@/commands/model";
 import { modelsCommand } from "@/commands/models";
-import { newCommand } from "@/commands/new";
 import { statusCommand } from "@/commands/status";
 import { tasksCommand } from "@/commands/tasks";
 import { voiceCommand } from "@/commands/voice";
@@ -17,4 +17,4 @@ registry.register(modelsCommand);
 registry.register(voiceCommand);
 registry.register(acceptCommand);
 registry.register(helpCommand);
-registry.register(newCommand);
+registry.register(breakCommand);

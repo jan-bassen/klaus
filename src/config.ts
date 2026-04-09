@@ -19,6 +19,9 @@ export const config = {
 		get snippetsDir() {
 			return path.join(this.internalPath, "snippets");
 		},
+		get trailDir() {
+			return path.join(this.internalPath, "trail");
+		},
 		get settingsPath() {
 			return path.join(this.internalPath, "settings.yml");
 		},

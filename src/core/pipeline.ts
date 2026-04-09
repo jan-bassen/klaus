@@ -1,14 +1,21 @@
 import path from "node:path";
 import type { AgentDefinition, InboundMessage, TurnContext } from "@/types";
-import { agentRegistry, loadAgentDefinition, runAgent } from "./agent";
+import {
+	type AgentRunResult,
+	agentRegistry,
+	loadAgentDefinition,
+	runAgent,
+} from "./agent";
 import { checkAllowlist } from "./middleware";
 import { checkMessageRate } from "./rate-limiter";
 
 // ─── Test seam ────────────────────────────────────────────────────────────────
-let _agentRunner: (turn: TurnContext, def: AgentDefinition) => Promise<void> =
-	runAgent;
+let _agentRunner: (
+	turn: TurnContext,
+	def: AgentDefinition,
+) => Promise<AgentRunResult> = runAgent;
 export function _setAgentRunnerForTest(
-	fn: (turn: TurnContext, def: AgentDefinition) => Promise<void>,
+	fn: (turn: TurnContext, def: AgentDefinition) => Promise<AgentRunResult>,
 ): void {
 	_agentRunner = fn;
 }
@@ -26,6 +33,8 @@ import {
 	findFileByMessageId,
 	updateFileMessageId,
 } from "@/store/files";
+import { appendTrail } from "@/store/trail";
+import { recordTurnLog, toLogSteps } from "@/store/turn-log";
 import { parseFlags, stripFlags } from "@/whatsapp/flags";
 import { startTyping, stopTyping } from "@/whatsapp/presence";
 import { enqueueMessage } from "@/whatsapp/send";
@@ -64,8 +73,6 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			log.info("[pipeline] auth rejected", { chatId: msg.chatId });
 			return;
 		}
-		log.info("[pipeline] auth ok", { chatId: msg.chatId });
-
 		// Step 2: Rate check
 		const rate = checkMessageRate(msg);
 		if (!rate.allowed) {
@@ -92,10 +99,6 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 				});
 				const transcript = await transcribe(filePath, mimeType);
 				if (!(transcript instanceof Error)) {
-					log.info("[pipeline] transcription ok", {
-						chatId: msg.chatId,
-						chars: transcript.length,
-					});
 					processedMsg = {
 						...msg,
 						text: transcript,
@@ -262,28 +265,55 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			undefined,
 			Object.keys(varParams).length > 0 ? varParams : undefined,
 		);
-		log.info("[pipeline] context assembled", {
-			chatId: effectiveMsg.chatId,
-			totalTokens: assembled.totalTokens,
-		});
-
 		const turn: TurnContext = { ...partialTurn, assembled };
 
 		// Step 8: Execute agent
-		log.info("[pipeline] agent execution started", {
-			chatId: effectiveMsg.chatId,
-			agent: agentName,
-		});
 		if (msg.kind === "whatsapp") await startTyping(effectiveMsg.chatId);
+		let agentResult: Awaited<ReturnType<typeof _agentRunner>> | undefined;
 		try {
-			await _agentRunner(turn, def);
+			agentResult = await _agentRunner(turn, def);
 		} finally {
 			if (msg.kind === "whatsapp") await stopTyping(effectiveMsg.chatId);
 		}
-		log.info("[pipeline] agent execution completed", {
-			chatId: effectiveMsg.chatId,
-			agent: agentName,
-		});
+
+		// Record turn log + vault trail (fire-and-forget)
+		if (agentResult) {
+			const flagNames = Object.keys(flags);
+			const turnLogPayload = {
+				...(messageId ? { messageId } : {}),
+				chatId: effectiveMsg.chatId,
+				agent: agentName,
+				...(effectiveMsg.text ? { rawText: effectiveMsg.text } : {}),
+				flags: flagNames,
+				...(effectiveMsg.media
+					? { mediaType: effectiveMsg.media.mimeType }
+					: {}),
+				provider: agentResult.provider,
+				model: agentResult.model,
+				tier: agentResult.tier,
+				systemPrompt: agentResult.systemPrompt,
+				userMessage: agentResult.userMessage,
+				contextTokens: assembled.totalTokens,
+				conversationMessages: agentResult.conversationMessages,
+				steps: toLogSteps(agentResult.steps),
+				promptTokens: agentResult.usage.promptTokens,
+				completionTokens: agentResult.usage.completionTokens,
+				durationMs: agentResult.durationMs,
+				...(agentResult.replyContent
+					? { replyContent: agentResult.replyContent }
+					: {}),
+			};
+			recordTurnLog(turnLogPayload).catch((err) =>
+				log.warn("[pipeline] failed to record turn log", {
+					error: err instanceof Error ? err.message : String(err),
+				}),
+			);
+			appendTrail(turnLogPayload).catch((err) =>
+				log.warn("[pipeline] failed to append trail", {
+					error: err instanceof Error ? err.message : String(err),
+				}),
+			);
+		}
 	} catch (err) {
 		log.error("[pipeline] unhandled error", {
 			chatId: msg.chatId,

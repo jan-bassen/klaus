@@ -32,6 +32,7 @@ const dummyTurn = {
 		persistent: false,
 		voiceMode: "auto" as const,
 		acceptMode: "off" as const,
+		showToolsInContext: true,
 		promptPath: "/dev/null",
 	},
 	flags: {},

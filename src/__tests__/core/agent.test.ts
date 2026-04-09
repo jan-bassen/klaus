@@ -8,6 +8,7 @@ const mockCallModel = mock(async () => ({
 	content: "",
 	usage: { promptTokens: 10, completionTokens: 5 },
 	steps: [],
+	durationMs: 100,
 }));
 mock.module("../../core/model-router", () => ({ callModel: mockCallModel }));
 
@@ -72,6 +73,7 @@ function makeTurn(
 			persistent: false,
 			voiceMode: "auto",
 			acceptMode: "off",
+			showToolsInContext: true,
 			promptPath: "/dev/null",
 		},
 		flags: {},
@@ -309,6 +311,7 @@ describe("runAgent", () => {
 			content: "",
 			usage: { promptTokens: 10, completionTokens: 5 },
 			steps: [],
+			durationMs: 100,
 		}));
 		await writeAgentFile(
 			tmpPath,
@@ -444,12 +447,19 @@ describe("runAgent", () => {
 		expect((opts as { system: string }).system).toContain("### Node Title");
 	});
 
-	test("runAgent returns void", async () => {
+	test("runAgent returns AgentRunResult", async () => {
 		const turn = makeTurn();
 		turn.agent.promptPath = tmpPath;
 		const result = await runAgent(turn, turn.agent);
 		cleanup();
-		expect(result).toBeUndefined();
+		expect(result).toBeDefined();
+		expect(typeof result.durationMs).toBe("number");
+		expect(result.usage).toBeDefined();
+		expect(result.steps).toBeArray();
+		expect(typeof result.model).toBe("string");
+		expect(typeof result.provider).toBe("string");
+		expect(typeof result.tier).toBe("string");
+		expect(typeof result.conversationMessages).toBe("number");
 	});
 
 	test("tools from registry are wired into callModel", async () => {

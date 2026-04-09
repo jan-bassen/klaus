@@ -4,21 +4,25 @@ import type { InboundMessage } from "@/types";
 const mockEnqueueMessage = mock((_opts: unknown) => undefined);
 mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 
-const mockRotate = mock(async () => {});
+const mockAppendBreak = mock(async () => {});
 mock.module("@/store/conversation", () => ({
-	rotate: mockRotate,
+	appendBreak: mockAppendBreak,
 	appendMessage: mock(async () => "id"),
 	appendAck: mock(async () => {}),
 	appendReaction: mock(async () => {}),
+	appendTrace: mock(async () => {}),
 	getConversation: mock(async () => []),
 	findByExternalId: mock(() => null),
 	resolveExternalId: mock(() => null),
 	resolveMessageId: mock(() => null),
 	rebuildIndexes: mock(async () => {}),
+	readAllMessages: mock(async () => []),
+	searchConversation: mock(async () => []),
+	getTraces: mock(async () => new Map()),
 	_clearIndexesForTest: mock(() => {}),
 }));
 
-const { newCommand } = await import("@/commands/new");
+const { breakCommand } = await import("@/commands/break");
 
 function makeMsg(): InboundMessage {
 	return {
@@ -33,17 +37,17 @@ function makeMsg(): InboundMessage {
 
 beforeEach(() => {
 	mockEnqueueMessage.mockClear();
-	mockRotate.mockClear();
+	mockAppendBreak.mockClear();
 });
 
-describe("/new", () => {
-	test("calls rotate and sends confirmation", async () => {
-		await newCommand.execute(makeMsg(), []);
-		expect(mockRotate).toHaveBeenCalledTimes(1);
+describe("/break", () => {
+	test("calls appendBreak and sends confirmation", async () => {
+		await breakCommand.execute(makeMsg(), []);
+		expect(mockAppendBreak).toHaveBeenCalledTimes(1);
 		expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
 		const { content } = (
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
 		)[0];
-		expect(content).toMatch(/archived/i);
+		expect(content).toMatch(/break/i);
 	});
 });

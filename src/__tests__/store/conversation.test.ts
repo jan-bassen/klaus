@@ -30,11 +30,11 @@ const {
 	appendMessage,
 	appendAck,
 	appendReaction,
+	appendBreak,
 	getConversation,
 	findByExternalId,
 	resolveExternalId,
 	resolveMessageId,
-	rotate,
 	rebuildIndexes,
 	searchConversation,
 	_clearIndexesForTest,
@@ -45,22 +45,17 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-	// Clean current.jsonl and archive between tests
-	const {
-		unlink,
-		readdir: readdirAsync,
-		rm: rmAsync,
-	} = await import("node:fs/promises");
+	// Clean all conversation files between tests
+	const { readdir: readdirAsync, rm: rmAsync } = await import(
+		"node:fs/promises"
+	);
 	try {
-		await unlink(join(tmpDir, "conversations", "current.jsonl"));
-	} catch {
-		// doesn't exist
-	}
-	try {
-		const archiveDir = join(tmpDir, "conversations", "archive");
-		const files = await readdirAsync(archiveDir);
+		const convDir = join(tmpDir, "conversations");
+		const files = await readdirAsync(convDir);
 		for (const f of files) {
-			await rmAsync(join(archiveDir, f));
+			if (f.endsWith(".jsonl")) {
+				await rmAsync(join(convDir, f));
+			}
 		}
 	} catch {
 		// doesn't exist
@@ -181,16 +176,47 @@ describe("findByExternalId", () => {
 	});
 });
 
-describe("rotate", () => {
-	test("archives current conversation and starts fresh", async () => {
-		await appendMessage({ role: "user", content: "msg1", externalId: "e1" });
-		await appendMessage({ role: "user", content: "msg2" });
+describe("appendBreak", () => {
+	test("messages before break are excluded from getConversation", async () => {
+		await appendMessage({ role: "user", content: "before", externalId: "e1" });
+		await appendBreak();
+		await appendMessage({ role: "user", content: "after", externalId: "e2" });
 
-		await rotate();
+		const conv = await getConversation();
+		expect(conv).toHaveLength(1);
+		expect(conv[0]?.content).toBe("after");
+	});
+
+	test("multiple breaks — only last one matters", async () => {
+		await appendMessage({ role: "user", content: "msg1" });
+		await appendBreak();
+		await appendMessage({ role: "user", content: "msg2" });
+		await appendBreak();
+		await appendMessage({ role: "user", content: "msg3" });
+
+		const conv = await getConversation();
+		expect(conv).toHaveLength(1);
+		expect(conv[0]?.content).toBe("msg3");
+	});
+
+	test("break on empty day returns empty conversation", async () => {
+		await appendBreak();
 
 		const conv = await getConversation();
 		expect(conv).toHaveLength(0);
-		expect(findByExternalId("e1")).toBeNull();
+	});
+
+	test("break does not clear in-memory indexes", async () => {
+		await appendMessage({
+			role: "user",
+			content: "test",
+			externalId: "wa-brk-1",
+		});
+		await appendBreak();
+
+		// Index should still have the message for quote/reaction resolution
+		const found = findByExternalId("wa-brk-1");
+		expect(found).not.toBeNull();
 	});
 });
 
@@ -217,20 +243,13 @@ describe("rebuildIndexes", () => {
 });
 
 describe("searchConversation", () => {
-	test("searches by query text across current + archive", async () => {
-		// Write messages to current, rotate to archive, then write more
+	test("searches by query text, ignoring breaks", async () => {
 		await appendMessage({
 			role: "user",
 			content: "I love pizza",
 			externalId: "wa-s1",
 		});
-		await appendMessage({
-			role: "assistant",
-			content: "Me too!",
-			externalId: "wa-s2",
-		});
-		await rotate();
-
+		await appendBreak();
 		await appendMessage({
 			role: "user",
 			content: "Pizza is the best food",

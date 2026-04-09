@@ -54,6 +54,7 @@ function makeAgent(tier: AgentDefinition["modelTier"]): AgentDefinition {
 		persistent: false,
 		voiceMode: "auto",
 		acceptMode: "off",
+		showToolsInContext: true,
 		promptPath: AGENT_FILE,
 	};
 }

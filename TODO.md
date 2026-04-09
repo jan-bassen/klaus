@@ -69,13 +69,12 @@ Goal: A unified, but simple, modes system (auto-voice/no-voice/voice-only, auto-
 
 ## Conversations overhaul 
 Goal: create a simple unified data store for a) execution and b) debugging
-- [ ] Add message.md template with handlebars to vault for easy iteration on formatting ("transcript from voice message", flags, ...)
-- [ ] Rework the message history to be optimized for what the agent sees (runtime usage: ack's as fields not own message type, tool usages only as short summaries) 
-- [ ] Move to single jsonl file per day for message history. /new becomes /break as a new "no context from before here" marker
-- [ ] Rework the invocations as logs to have full overview of the pipeline (incl. raw message, params, full message, ...) and a clearer steps array (currently very nested and badly readible - see EXAMPLES folder)
-- [ ] Add trailing logs (maybe last 3 days) to vault /Klaus/trail/ for easy debug (minimize load on sync)
-- [ ] Add agent.md frontmatter option for control over tool use in context (default on)
-- [ ] Allow for handlebars in snippets (careful: edge case on self-insert)
+- [x] Add message.md template with handlebars to vault for easy iteration on formatting ("transcript from voice message", flags, ...)
+- [x] Rework the message history to be optimized for what the agent sees (runtime usage: ack's as fields not own message type, tool usages only as short summaries) 
+- [x] Move to single jsonl file per day for message history. /new becomes /break as a new "no context from before here" marker
+- [x] Rework the invocations as logs to have full overview of the pipeline (incl. raw message, params, full message, ...) and a clearer steps array (currently very nested and badly readible - see EXAMPLES folder)
+- [x] Add trailing logs (maybe last 3 days) to vault /Klaus/trail/ for easy debug (minimize load on sync)
+- [x] Add agent.md frontmatter option for control over tool use in context (default on)
 
 ## Agents
 - [ ] Fitness - An agent that tracks my fitness goals/progress, manage my trainingplan and helps me stay on track. I want to call him directly with @fitness during training sessions and he should be able to provide me with motivation and insights, mostly through random (for me unexpected) dispatches to motivate me. Espescially on training days.

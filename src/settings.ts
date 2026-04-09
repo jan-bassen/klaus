@@ -97,6 +97,9 @@ export const settings = {
 	get timezone() {
 		return getYamlSettings().timezone;
 	},
+	get trail() {
+		return getYamlSettings().trail;
+	},
 	get dispatch() {
 		return getYamlSettings().dispatch;
 	},

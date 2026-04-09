@@ -63,9 +63,10 @@ Every inbound WhatsApp message goes through a pipeline in `src/core/pipeline.ts`
 6. **Parse routing** — extract `@agentName` prefix, `!flags` from text, resolve flag overrides
 7. **Resolve agent** — look up `agentRegistry` or hot-load from `.md` file
 8. **Apply modes** — merge agent frontmatter modes (voiceMode, acceptMode, provider) into overrides; per-message flags take precedence
-9. **Persist** — append message to conversation JSONL, resolve quote-reply
-9. **Assemble context** — extract `?params` from prompt template + user message, run all context variables in parallel (with params), trim to token budget
-10. **Execute agent** — `runAgent()` via Vercel AI SDK agentic loop
+9. **Persist** — append message to day-partitioned conversation JSONL, resolve quote-reply
+10. **Assemble context** — extract `?params` from prompt template + user message, run all context variables in parallel (with params), trim to token budget
+11. **Execute agent** — `runAgent()` via Vercel AI SDK agentic loop
+12. **Log** — record structured turn log (routing, context, LLM steps, outcome) to `{dataDir}/logs/`
 
 ### Agent system (core/agent.ts)
 
@@ -86,11 +87,12 @@ vaultScope: "Training"        # optional: restricts all vault tools to this subd
 voiceMode: auto               # auto (agent decides) | on (always TTS) | off (never TTS)
 acceptMode: off               # off (ask for confirmation) | on (auto-accept)
 provider: claude              # optional: preferred provider (claude, chatgpt, gemini)
+showToolsInContext: true      # optional: include tool usage in conversation context (default true)
 ---
 Prompt body with {{contextVar}} Handlebars interpolation (supports params: {{contextVar?key=val}}).
 ```
 
-`agentRegistry` (Map<name, AgentDefinition>) is populated at startup from all `.md` files, indexing both canonical names and aliases. The `runAgent()` function loads the prompt, builds system prompt via Handlebars, registers tools, and drives the Vercel AI SDK agentic loop.
+`agentRegistry` (Map<name, AgentDefinition>) is populated at startup from all `.md` files, indexing both canonical names and aliases. The `runAgent()` function loads the prompt, builds system prompt via Handlebars, registers tools, drives the Vercel AI SDK agentic loop, and returns an `AgentRunResult` with pipeline metadata (usage, duration, steps, model info).
 
 **Persistent agents** (`persistent: true`) use AI SDK `Output.object()` to force the model to produce a structured `{ nextRun, objective }` declaration as its final step. After execution, the system automatically creates a one-shot timer for `nextRun` (delay string or ISO datetime, clamped to min/max bounds from `settings.persistent`). If the model call fails or output parsing fails, a fallback timer is created at `settings.persistent.defaultNextRun`. Existing timers for the same agent+chatId are cancelled before scheduling to prevent accumulation. This guarantees persistent agents never silently stop — the chain is unbreakable.
 
@@ -102,7 +104,7 @@ Prompt body with {{contextVar}} Handlebars interpolation (supports params: {{con
 
 **Modes** are persistent, agent-level behavioral defaults stored in frontmatter. They act as default overrides that per-message flags can still override. `voiceMode` controls TTS output (`auto`/`on`/`off`), `acceptMode` controls confirmation gating (`on`/`off`), and `provider` sets the preferred LLM provider. Resolution order: per-message flag → agent frontmatter mode → global settings. `src/core/modes.ts` defines `applyModeDefaults()` which merges mode defaults into `FlagOverrides` after flag parsing. The `{{modes}}` context variable injects active modes into prompts so agents are aware of their configuration. Commands `/voice` and `/accept` modify frontmatter of the default agent (same pattern as `/model`).
 
-**Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and registered in `src/commands/register.ts`. Current commands (with aliases): `/status` (`/s`), `/tasks` (`/t`), `/default`, `/model` (`/m`), `/models`, `/voice` (`/v`), `/accept` (`/a`), `/help` (`/?`), `/new` (`/n`). Each command implements the `Command` interface (name, aliases, description, execute). Aliases are indexed alongside canonical names in the `CommandRegistry`.
+**Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and registered in `src/commands/register.ts`. Current commands (with aliases): `/status` (`/s`), `/tasks` (`/t`), `/default`, `/model` (`/m`), `/models`, `/voice` (`/v`), `/accept` (`/a`), `/help` (`/?`), `/break` (`/b`). Each command implements the `Command` interface (name, aliases, description, execute). Aliases are indexed alongside canonical names in the `CommandRegistry`.
 
 **Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new context variable = new file implementing `ContextVariable`. Extend by adding, not modifying.
 
@@ -112,14 +114,24 @@ All operational data is stored as flat files — no database.
 
 | Module | Format | Purpose |
 |--------|--------|---------|
-| `conversation.ts` | JSONL (msg/ack/reaction/trace events) | Chat history with in-memory indexes |
+| `conversation.ts` | Day-partitioned JSONL (msg/ack/reaction/trace/break events) | Chat history with break markers and in-memory indexes |
 | `jsonl.ts` | Date-partitioned JSONL | Generic append/read utilities |
-| `invocations.ts` | JSONL | LLM call traces |
+| `turn-log.ts` | Date-partitioned JSONL | Structured per-turn execution record (routing, context, LLM steps, outcome) |
+| `trail.ts` | Day-partitioned Markdown in vault `Klaus/trail/` | Human-readable turn trail for Obsidian debugging (auto-cleanup, configurable retention) |
+| `date-utils.ts` | — | Timezone-aware date string utility |
 | `files.ts` | JSONL index + blob storage | File metadata |
 | `schedules.ts` | JSON + croner cron jobs | Recurring schedule persistence |
 | `timers.ts` | JSON + setTimeout | One-time future execution |
 
 The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[wikilinks]]` are edges, YAML frontmatter is metadata. Vault tools provide search, read, write, and link traversal. The vault has folder-level permissions (`read|append|full`) with optional elevated access via WhatsApp reaction confirmation. The internal folder (`Klaus/`) containing agents, skills, and snippets is separate but accessible (default: read, request: full).
+
+### Logging
+
+Two distinct systems — don't conflate them:
+
+- **`log`** (`src/logger.ts`) — transient console output for live monitoring (`docker logs`, terminal). Operational health: auth failures, rate limits, routing decisions, errors. Pretty-printed in dev, JSON in production (`LOG_FORMAT=json`).
+- **Turn log** (`src/store/turn-log.ts`) — persistent structured JSONL record per user turn. Full execution trace: prompts, tool calls, token usage, reply content. Written to `{dataDir}/logs/turn-YYYY-MM-DD.jsonl`. Use for debugging, auditing, and cost analysis.
+- **Trail** (`src/store/trail.ts`) — human-readable markdown mirror of turn logs written to `{vault}/Klaus/trail/trail-YYYY-MM-DD.md`. Syncs to Obsidian for cross-device debugging. Configurable via `settings.trail` (`enabled`, `retentionDays`). Old files auto-cleaned on each write.
 
 ### Key modules
 
@@ -164,6 +176,8 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter
 - `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
 - `{vault}/Klaus/snippets/` — static prompt content with optional `scope:` frontmatter (`system`|`user`|`both`, default: `system`). System-scoped → `{{var}}` in prompts; user-scoped → `$var` in messages
+- `{vault}/Klaus/trail/` — daily markdown turn logs for cross-device debugging (auto-managed, retention-limited)
+- `{vault}/Klaus/message.md` — Handlebars template for user message formatting (voice note prefix, quoted text, media info). Falls back to hardcoded format if missing.
 - `{vault}/Klaus/settings.yml` — user-facing settings (providers, context budgets, rate limits, etc.), hot-reloaded with Zod validation
 - `{vault}/Klaus/user.md` — user profile, updated by memorize agent
 
