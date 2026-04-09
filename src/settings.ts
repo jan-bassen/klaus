@@ -64,6 +64,13 @@ export interface ProviderConfig {
 }
 
 export const settings = {
+	get allowedChatId(): string | undefined {
+		return (
+			getYamlSettings().allowedChatId ??
+			process.env.ALLOWED_CHAT_ID ??
+			undefined
+		);
+	},
 	get providers() {
 		return getYamlSettings().providers;
 	},
@@ -142,6 +149,12 @@ export const settings = {
 		},
 		get snippetsDir() {
 			return config.vault.snippetsDir;
+		},
+		get loginDir() {
+			return config.vault.loginDir;
+		},
+		get loginQrPath() {
+			return config.vault.loginQrPath;
 		},
 	},
 	get dataDir() {

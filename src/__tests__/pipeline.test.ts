@@ -19,6 +19,26 @@ import type { AgentDefinition, InboundMessage, TurnContext } from "@/types";
 const mockEnqueueMessage = mock((_opts: unknown) => undefined);
 mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 
+// @/whatsapp/login — mock setup code flow
+const mockGetSetupCode = mock(() => "123456" as string | null);
+const mockClearSetupCode = mock(() => {});
+const mockClearLoginFolder = mock(async () => {});
+mock.module("@/whatsapp/login", () => ({
+	getSetupCode: mockGetSetupCode,
+	clearSetupCode: mockClearSetupCode,
+	clearLoginFolder: mockClearLoginFolder,
+	ensureLoginFolder: mock(async () => {}),
+	writeQrToVault: mock(async () => {}),
+}));
+
+// @/core/settings-loader — mock only updateAllowedChatId, keep real getYamlSettings
+const mockUpdateAllowedChatId = mock(async (_chatId: string) => {});
+const realSettingsLoader = await import("@/core/settings-loader");
+mock.module("@/core/settings-loader", () => ({
+	...realSettingsLoader,
+	updateAllowedChatId: mockUpdateAllowedChatId,
+}));
+
 // @/store/conversation — mock instead of real file I/O
 const capturedAppendMessages: Record<string, unknown>[] = [];
 const mockAppendMessage = mock(async (msg: unknown) => {
@@ -212,6 +232,12 @@ beforeEach(() => {
 		return "msg-id-1";
 	});
 	mockFindByExternalId.mockImplementation(() => null);
+
+	mockGetSetupCode.mockClear();
+	mockClearSetupCode.mockClear();
+	mockClearLoginFolder.mockClear();
+	mockUpdateAllowedChatId.mockClear();
+	mockGetSetupCode.mockImplementation(() => "123456");
 });
 
 // ─── Auth + rate limiting ─────────────────────────────────────────────────────
@@ -224,16 +250,30 @@ describe("handleTurn — guards", () => {
 		expect(mockEnqueueMessage).not.toHaveBeenCalled();
 	});
 
-	test("setup mode: sends chatId reply when ALLOWED_CHAT_ID is empty", async () => {
+	test("setup mode: sends instructions when code does not match", async () => {
 		delete process.env.ALLOWED_CHAT_ID;
-		await handleTurn(makeMsg());
+		await handleTurn(makeMsg({ text: "hello" }));
 		expect(mockAgentRunner).not.toHaveBeenCalled();
 		expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
 		const opts = (
 			mockEnqueueMessage.mock.calls as unknown as [{ content: string }][]
 		)[0]?.[0];
 		expect(opts?.content).toContain(TEST_CHAT_ID);
-		expect(opts?.content).toMatch(/ALLOWED_CHAT_ID/);
+		expect(opts?.content).toMatch(/setup code/i);
+		expect(mockUpdateAllowedChatId).not.toHaveBeenCalled();
+	});
+
+	test("setup mode: auto-configures when code matches", async () => {
+		delete process.env.ALLOWED_CHAT_ID;
+		await handleTurn(makeMsg({ text: "123456" }));
+		expect(mockAgentRunner).not.toHaveBeenCalled();
+		expect(mockUpdateAllowedChatId).toHaveBeenCalledWith(TEST_CHAT_ID);
+		expect(mockClearSetupCode).toHaveBeenCalledTimes(1);
+		expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
+		const opts = (
+			mockEnqueueMessage.mock.calls as unknown as [{ content: string }][]
+		)[0]?.[0];
+		expect(opts?.content).toMatch(/set up and ready/i);
 	});
 
 	test("rate limited: enqueues rate-limit message and skips runAgent", async () => {

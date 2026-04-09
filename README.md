@@ -92,7 +92,7 @@ git clone <repo-url> && cd klaus
 cp .env.example .env
 ```
 
-Fill in your `ANTHROPIC_API_KEY` (and optionally `ELEVENLABS_API_KEY` for voice). Leave `ALLOWED_CHAT_ID` empty for now — Klaus will help you find it.
+Fill in your `ANTHROPIC_API_KEY` (and optionally `ELEVENLABS_API_KEY` for voice).
 
 3. Start:
 
@@ -106,13 +106,11 @@ docker run -d --restart unless-stopped \
   janbassen1/klaus:latest
 ```
 
-4. Pair WhatsApp — open `http://localhost:3000/setup` in your browser and scan the QR code. The page auto-refreshes until the connection is established.
+4. Pair WhatsApp — on first start, Klaus writes a QR code to `{vault}/Klaus/_login/qr-code.svg`. Open it via Obsidian (syncs to your phone) or directly from the vault directory, then scan it in WhatsApp → Linked Devices → Link a Device. The QR refreshes automatically if it expires.
 
-   Alternatively, check the terminal logs (`docker logs -f <container-id>`), though QR rendering can be unreliable in some log viewers.
+5. Discover your chat ID — send any message to the paired WhatsApp number. Klaus is in **setup mode** (no `allowedChatId` configured), so it replies with your chat ID and instructions.
 
-5. Discover your chat ID — send any message to the paired WhatsApp number. Klaus is in **setup mode** (no `ALLOWED_CHAT_ID` set), so it replies with your chat ID and instructions.
-
-6. Set `ALLOWED_CHAT_ID` in your `.env` file with the chat ID from step 5, then restart the container.
+6. Add `allowedChatId: "<your-chat-id>"` to `Klaus/settings.yml` in your vault. Klaus hot-reloads settings, so no restart is needed.
 
 After this one-time setup, auth persists in the volume and no further QR scans are needed.
 
@@ -206,7 +204,7 @@ API keys and host-specific settings, gitignored, never committed.
 | ------------------- | ------- | --------------------------------------- |
 | ANTHROPIC_API_KEY   | —       | Claude API key (required)               |
 | ELEVENLABS_API_KEY  | —       | ElevenLabs TTS/STT key (required)       |
-| ALLOWED_CHAT_ID     | —       | WhatsApp chat ID to allow (fail-closed, required) |
+| ALLOWED_CHAT_ID     | —       | WhatsApp chat ID to allow (fallback — prefer `allowedChatId` in settings.yml) |
 | LOG_FORMAT          | `pretty` | Log output: `pretty` or `json`         |
 | STARTUP_CONNECTION_WARN_AFTER_MS | `60000` | Warn if WhatsApp connection is still pending after this many ms |
 | PORT                | `3000`  | HTTP port for `/healthz`                |

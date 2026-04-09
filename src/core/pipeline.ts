@@ -36,6 +36,11 @@ import {
 import { appendTrail } from "@/store/trail";
 import { recordTurnLog, toLogSteps } from "@/store/turn-log";
 import { parseFlags, stripFlags } from "@/whatsapp/flags";
+import {
+	clearLoginFolder,
+	clearSetupCode,
+	getSetupCode,
+} from "@/whatsapp/login";
 import { startTyping, stopTyping } from "@/whatsapp/presence";
 import { enqueueMessage } from "@/whatsapp/send";
 import { transcribe } from "@/whatsapp/voice";
@@ -48,6 +53,7 @@ import {
 	readPromptBody,
 } from "./interpolate";
 import { applyModeDefaults } from "./modes";
+import { updateAllowedChatId } from "./settings-loader";
 import { rewriteVoiceTranscript } from "./voice-parse";
 
 function agentsDir(): string {
@@ -72,14 +78,30 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		const auth = checkAllowlist(msg);
 		if (!auth.allowed) {
 			if (auth.setupMode) {
-				log.info("[pipeline] setup mode — sending chatId to user", {
-					chatId: msg.chatId,
-				});
-				enqueueMessage({
-					chatId: msg.chatId,
-					content: `*Klaus setup*\n\nYour chat ID:\n\`${msg.chatId}\`\n\nSet this as ALLOWED_CHAT_ID in your environment and restart Klaus.`,
-					dedupKey: `${msg.id}:setup`,
-				});
+				const setupCode = getSetupCode();
+				if (setupCode && msg.text?.trim() === setupCode) {
+					log.info("[pipeline] setup code matched, configuring allowedChatId", {
+						chatId: msg.chatId,
+					});
+					await updateAllowedChatId(msg.chatId);
+					clearSetupCode();
+					clearLoginFolder().catch(() => {});
+					enqueueMessage({
+						chatId: msg.chatId,
+						content: "Hey! Klaus is set up and ready to go 🤙",
+						dedupKey: `${msg.id}:setup-complete`,
+					});
+				} else {
+					log.info("[pipeline] setup mode — awaiting setup code", {
+						chatId: msg.chatId,
+					});
+					enqueueMessage({
+						chatId: msg.chatId,
+						content: `*Klaus setup*\n\nSend the setup code from the instructions in your vault to complete setup.\n\nYour chat ID: \`${msg.chatId}\``,
+						dedupKey: `${msg.id}:setup`,
+					});
+				}
+				return;
 			}
 			log.info("[pipeline] auth rejected", { chatId: msg.chatId });
 			return;

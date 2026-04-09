@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 type SocketOpenHandler = (socket: unknown) => void | Promise<void>;
 
-const mockQrGenerate = mock(() => {});
+const mockWriteQrToVault = mock(async (_qr: string) => {});
+const mockClearLoginFolder = mock(async () => {});
 
 type ConnectionUpdate = {
 	connection?: "open" | "close";
@@ -42,12 +43,10 @@ async function waitForConnectionHandler(): Promise<ConnectionUpdateHandler> {
 	throw new Error("connection.update handler was not installed");
 }
 
-mock.module("qrcode-terminal", () => ({
-	__esModule: true,
-	default: {
-		generate: mockQrGenerate,
-	},
-	generate: mockQrGenerate,
+mock.module("@/whatsapp/login", () => ({
+	writeQrToVault: mockWriteQrToVault,
+	clearLoginFolder: mockClearLoginFolder,
+	ensureLoginFolder: mock(async () => {}),
 }));
 
 mock.module("@/logger", () => ({
@@ -71,7 +70,8 @@ mock.module("@whiskeysockets/baileys", () => ({
 describe("whatsapp connection", () => {
 	beforeEach(() => {
 		lastConnectionUpdateHandler = null;
-		mockQrGenerate.mockClear();
+		mockWriteQrToVault.mockClear();
+		mockClearLoginFolder.mockClear();
 		mockMakeWASocket.mockClear();
 		mockUseMultiFileAuthState.mockClear();
 		mockFetchLatestBaileysVersion.mockClear();
@@ -84,16 +84,15 @@ describe("whatsapp connection", () => {
 
 		await updateConnection({ qr: "qr-1" });
 		expect(connection.getConnectionState()).toBe("pairing");
-		expect(mockQrGenerate).toHaveBeenCalledWith("qr-1", { small: true });
-		expect(mockQrGenerate).toHaveBeenCalledWith("qr-1", { small: true });
+		expect(mockWriteQrToVault).toHaveBeenCalledWith("qr-1");
 
 		await updateConnection({ qr: "qr-2" });
 		expect(connection.getConnectionState()).toBe("pairing");
-		expect(mockQrGenerate).toHaveBeenCalledWith("qr-2", { small: true });
+		expect(mockWriteQrToVault).toHaveBeenCalledWith("qr-2");
 
 		await updateConnection({ qr: "qr-3" });
 		expect(connection.getConnectionState()).toBe("pairing");
-		expect(mockQrGenerate).toHaveBeenCalledWith("qr-3", { small: true });
+		expect(mockWriteQrToVault).toHaveBeenCalledWith("qr-3");
 
 		await updateConnection({ connection: "open" });
 		await startPromise;

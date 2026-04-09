@@ -20,7 +20,6 @@ import {
 } from "./core/settings-loader";
 import { startWatching, stopWatching } from "./core/watcher";
 import { startWorkers } from "./core/worker";
-import { renderSetupPage } from "./http/setup";
 import { log } from "./logger";
 import { settings } from "./settings";
 import { rebuildIndexes as rebuildConversationIndexes } from "./store/conversation";
@@ -37,10 +36,10 @@ import { loadSkills, skillRegistry } from "./tools/skill";
 import {
 	closeSocket,
 	getConnectionState,
-	getLatestQr,
 	isConnected,
 	startConnection,
 } from "./whatsapp/connection";
+import { ensureLoginFolder } from "./whatsapp/login";
 import { attachReceiveHandler } from "./whatsapp/receive";
 import { drainQueue } from "./whatsapp/send";
 
@@ -106,9 +105,9 @@ async function main(): Promise<void> {
 			`Missing required environment variables: ${missing.join(", ")}`,
 		);
 	}
-	if (!process.env.ALLOWED_CHAT_ID) {
+	if (!settings.allowedChatId) {
 		log.warn(
-			"[startup] ALLOWED_CHAT_ID not set — running in setup mode (messages will not be processed)",
+			"[startup] allowedChatId not configured — running in setup mode (messages will not be processed)",
 		);
 	}
 
@@ -228,14 +227,6 @@ async function main(): Promise<void> {
 		port: PORT,
 		async fetch(req) {
 			const url = new URL(req.url);
-			if (url.pathname === "/setup") {
-				const state = getConnectionState();
-				const qr = getLatestQr();
-				const html = await renderSetupPage(state, qr);
-				return new Response(html, {
-					headers: { "Content-Type": "text/html; charset=utf-8" },
-				});
-			}
 			if (url.pathname === "/healthz") {
 				const whatsapp = getConnectionState();
 				const status = isConnected() ? "ok" : "degraded";
@@ -252,9 +243,11 @@ async function main(): Promise<void> {
 	});
 
 	log.info("[startup] ready", { port: PORT, whatsapp: getConnectionState() });
-	log.info(`[startup] setup page at http://localhost:${PORT}/setup`);
 
-	// 8. Connect to WhatsApp in the background.
+	// 8. Ensure login folder exists in vault (for QR code pairing).
+	await ensureLoginFolder();
+
+	// 9. Connect to WhatsApp in the background.
 	log.info("[startup] connecting to WhatsApp");
 	const warnAfterMs = settings.startup.connectionWarnAfterMs;
 	const connectionWarnTimer = setTimeout(() => {

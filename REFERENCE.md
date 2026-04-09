@@ -357,7 +357,6 @@ Folder-level access control for vault operations.
 | Endpoint | Response | Description |
 |----------|----------|-------------|
 | `/healthz` | JSON | Health check — status (`ok`/`degraded`), WhatsApp connection state, version |
-| `/setup` | HTML | Setup page — QR code as SVG during pairing, connection status, chat ID discovery instructions. Auto-refreshes every 5s while not connected |
 
 ---
 

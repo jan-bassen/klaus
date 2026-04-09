@@ -1,4 +1,5 @@
 import { log } from "@/logger";
+import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 
 export interface AuthResult {
@@ -8,11 +9,11 @@ export interface AuthResult {
 
 // --- Allowlist ---
 
-/** Verify the sender's chatId matches the single configured chat. Fail-closed: unset env blocks all. */
+/** Verify the sender's chatId matches the configured allowedChatId. Fail-closed: unset blocks all. */
 export function checkAllowlist(msg: InboundMessage): AuthResult {
-	const allowed = process.env.ALLOWED_CHAT_ID ?? "";
+	const allowed = settings.allowedChatId ?? "";
 	if (allowed === "") {
-		log.warn("[middleware] ALLOWED_CHAT_ID not set — setup mode", {
+		log.warn("[middleware] allowedChatId not configured — setup mode", {
 			chatId: msg.chatId,
 		});
 		return { allowed: false, setupMode: true };

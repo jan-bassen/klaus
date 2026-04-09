@@ -6,8 +6,8 @@ import makeWASocket, {
 	type WASocket,
 } from "@whiskeysockets/baileys";
 import type { ILogger } from "@whiskeysockets/baileys/lib/Utils/logger";
-import * as qrcode from "qrcode-terminal";
 import { log } from "@/logger";
+import { clearLoginFolder, writeQrToVault } from "@/whatsapp/login";
 
 const baileysLogger: ILogger = {
 	level: "warn",
@@ -67,7 +67,7 @@ export async function startConnection(
 			const sock = makeWASocket({
 				version,
 				auth: state,
-				printQRInTerminal: true,
+				printQRInTerminal: false,
 				logger: baileysLogger,
 			});
 
@@ -79,10 +79,13 @@ export async function startConnection(
 					if (qr) {
 						connectionState = "pairing";
 						latestQr = qr;
-						log.info("[connection] scan the WhatsApp QR code shown below");
-						qrcode.generate(qr, { small: true });
 						log.info(
-							`[connection] or open http://localhost:${process.env.PORT ?? 3000}/setup`,
+							"[connection] QR code written to vault — open in Obsidian to scan",
+						);
+						writeQrToVault(qr).catch((err) =>
+							log.error("[connection] failed to write QR to vault", {
+								error: err instanceof Error ? err.message : String(err),
+							}),
 						);
 					}
 					if (connection === "open") {
@@ -94,6 +97,7 @@ export async function startConnection(
 						connectionState = "connected";
 						latestQr = null;
 						retryCount = 0;
+						clearLoginFolder().catch(() => {});
 						if (onOpen) {
 							try {
 								await onOpen(sock);

@@ -22,6 +22,12 @@ export const config = {
 		get trailDir() {
 			return path.join(this.internalPath, "trail");
 		},
+		get loginDir() {
+			return path.join(this.internalPath, "_login");
+		},
+		get loginQrPath() {
+			return path.join(this.internalPath, "_login", "qr-code.svg");
+		},
 		get settingsPath() {
 			return path.join(this.internalPath, "settings.yml");
 		},

@@ -227,6 +227,7 @@ export const SettingsSchema = z
 		retries: RetriesSchema,
 		send: SendSchema,
 		llm: LlmSchema,
+		allowedChatId: z.string().optional(),
 		defaultAgent: z.string().default("klaus"),
 		locale: z.string().default("de-DE"),
 		timezone: z.string().default("Europe/Berlin"),
@@ -323,6 +324,23 @@ export function watchSettings(): void {
 	log.info("[settings] watching for changes", { path: filePath });
 }
 
+export async function updateAllowedChatId(chatId: string): Promise<void> {
+	const filePath = config.vault.settingsPath;
+	let parsed: Record<string, unknown> = {};
+
+	if (existsSync(filePath)) {
+		const raw = await Bun.file(filePath).text();
+		parsed = (parseYaml(raw) as Record<string, unknown>) ?? {};
+	}
+
+	parsed.allowedChatId = chatId;
+	const yaml = stringifyYaml(parsed, { lineWidth: 120 });
+	await Bun.write(filePath, yaml);
+
+	await loadSettingsFromDisk();
+	log.info("[settings] updated allowedChatId", { chatId });
+}
+
 export function stopSettingsWatcher(): void {
 	if (_watcher) {
 		_watcher.close();
@@ -335,7 +353,7 @@ export function stopSettingsWatcher(): void {
 }
 
 function warnViaWhatsApp(error: string): void {
-	const chatId = process.env.ALLOWED_CHAT_ID;
+	const chatId = _current.allowedChatId ?? process.env.ALLOWED_CHAT_ID;
 	if (!chatId) return;
 
 	// Lazy import to avoid circular dependency (send.ts imports settings.ts)
