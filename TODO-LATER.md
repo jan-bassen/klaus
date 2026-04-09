@@ -1,23 +1,5 @@
 # TODO Later
 
-## Security
-- [ ] Look at the tool verification pipeline again. Probably use 👍/👎 for feedback and ✅/⛔ or /yes + /no for acceptance. Will need a flow for good ux (short description + tool name + maybe even params)
-- [ ] Think about a potential "undo" operation. Maybe thats good?
-
-## UX Improvements for Auth Flow
-- [ ] Take QR out of the normal log flow
-- [ ] Make getting chatID easier somehow?
-- [ ] Add "me" mode (for people with no second number)
-
-## New commands
-- [ ] /undo with a quoted message
-- [ ] /retry on failed message
-- [ ] /accept <duration> to set the agent in auto-accept mode for a limited time
-- [ ] /voice <duration> to set the agent in always tts mode for a limited time
-
-## Deffered stuff
-- [ ] Maybe !accept-vault and accept-tools (+ unsafe versions) for finer control? (deferred — extend autoAccept type if needed)
-
 ## Internationalization (only when simple)
 - [ ] Add support for multiple languages for all user-facing (and probably even agent-facing) strings
 
@@ -28,6 +10,7 @@
 ## Maybe's
 - [ ] Voice language field in settings.ts against awkward accents
 - [ ] Access to github
+- [ ] !accept-vault and accept-tools (+ unsafe versions) for finer control? (deferred — extend autoAccept type if needed)
 
 ## Code Cleanup (Notes)
 - [ ] else if -> switch (eg help command)
