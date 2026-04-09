@@ -55,7 +55,7 @@ Storage: JSONL flat files for operational data (conversations, invocations), JSO
 
 Every inbound WhatsApp message goes through a pipeline in `src/core/pipeline.ts`:
 
-1. **Auth** — allowlist check (fail-closed)
+1. **Auth** — allowlist check (fail-closed). When `ALLOWED_CHAT_ID` is unset, enters **setup mode**: replies with the sender's chat ID and setup instructions instead of silently dropping
 2. **Rate limit** — per-chat message/min guard
 3. **Normalize** — transcribe voice notes (STT), downscale large images
 4. **Voice rewrite** — for voice transcripts only: fuzzy-match spoken agent/flag patterns into canonical `@agent`/`!flag` tokens (`src/core/voice-parse.ts`). Trigger words configurable via `settings.stt.agentTriggers` and `settings.stt.flagTriggers`
@@ -167,6 +167,7 @@ Two distinct systems — don't conflate them:
 | `src/commands/` | /command handlers |
 | `src/commands/register.ts` | Registers all commands into the command registry |
 | `src/whatsapp/` | Transport layer (Baileys connection, send, receive, TTS, STT, presence) |
+| `src/http/setup.ts` | Setup page renderer (QR code SVG, connection status) |
 
 ### Project boundaries
 
@@ -188,6 +189,8 @@ Live Vault is located at /Users/janbassen/Vaults/Jan/Klaus on this pc
 ### Deployment
 
 Published as `janbassen1/klaus` on Docker Hub. The Dockerfile includes OCI labels and a VERSION build arg that is exposed via the `/healthz` endpoint. The container runs as non-root (`USER bun`). `LOG_FORMAT=json` is recommended for NAS log viewers.
+
+HTTP endpoints: `/healthz` (JSON health check), `/setup` (HTML setup page — shows WhatsApp QR code as SVG during pairing, connection status, and chat ID discovery instructions when in setup mode).
 
 ### Testing conventions
 

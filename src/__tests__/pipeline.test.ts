@@ -221,6 +221,19 @@ describe("handleTurn — guards", () => {
 		process.env.ALLOWED_CHAT_ID = "other@s.whatsapp.net";
 		await handleTurn(makeMsg());
 		expect(mockAgentRunner).not.toHaveBeenCalled();
+		expect(mockEnqueueMessage).not.toHaveBeenCalled();
+	});
+
+	test("setup mode: sends chatId reply when ALLOWED_CHAT_ID is empty", async () => {
+		delete process.env.ALLOWED_CHAT_ID;
+		await handleTurn(makeMsg());
+		expect(mockAgentRunner).not.toHaveBeenCalled();
+		expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
+		const opts = (
+			mockEnqueueMessage.mock.calls as unknown as [{ content: string }][]
+		)[0]?.[0];
+		expect(opts?.content).toContain(TEST_CHAT_ID);
+		expect(opts?.content).toMatch(/ALLOWED_CHAT_ID/);
 	});
 
 	test("rate limited: enqueues rate-limit message and skips runAgent", async () => {

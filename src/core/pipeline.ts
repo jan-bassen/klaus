@@ -69,7 +69,18 @@ function agentsDir(): string {
 export async function handleTurn(msg: InboundMessage): Promise<void> {
 	try {
 		// Step 1: Auth
-		if (!checkAllowlist(msg).allowed) {
+		const auth = checkAllowlist(msg);
+		if (!auth.allowed) {
+			if (auth.setupMode) {
+				log.info("[pipeline] setup mode — sending chatId to user", {
+					chatId: msg.chatId,
+				});
+				enqueueMessage({
+					chatId: msg.chatId,
+					content: `*Klaus setup*\n\nYour chat ID:\n\`${msg.chatId}\`\n\nSet this as ALLOWED_CHAT_ID in your environment and restart Klaus.`,
+					dedupKey: `${msg.id}:setup`,
+				});
+			}
 			log.info("[pipeline] auth rejected", { chatId: msg.chatId });
 			return;
 		}

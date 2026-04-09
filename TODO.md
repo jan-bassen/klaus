@@ -1,9 +1,9 @@
 # TODO v0.2.0 (ignore migration paths, we're able to fully reset still)
 
 ## Onboarding and UX Improvements for Auth Flow
-- [ ] Auto-generate default settings.yml (and full internal folder structure) in vault on first startup
-- [ ] Take QR out of the normal log flow
-- [ ] Make getting chatID easier somehow?
+- [x] Auto-generate default settings.yml (and full internal folder structure) in vault on first startup
+- [x] Take QR out of the normal log flow — `/setup` HTTP endpoint serves QR as SVG
+- [x] Make getting chatID easier — setup mode replies with chatId when ALLOWED_CHAT_ID is unset
 
 ## Improve Whatsapp UX 
 - [ ] Add "me" mode (for people with no second number)
@@ -23,6 +23,6 @@
 - [ ] Ingest - As input handler from source to wiki/knowledge store à la [Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
 
 ## Documentation
-- [ ] Update readme and check code comments etc
+- [ ] Update readme and check code comments, everything should be up-to-date and fitting with the implemented code
 - [ ] Code cleanup (old code, repeated code, ...)
 - [ ] Making everything human readible if possible

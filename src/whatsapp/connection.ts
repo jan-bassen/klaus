@@ -34,6 +34,7 @@ export type WhatsAppConnectionState =
 	| "logged_out";
 
 let connectionState: WhatsAppConnectionState = "idle";
+let latestQr: string | null = null;
 
 const AUTH_DIR =
 	process.env.BAILEYS_AUTH_FOLDER ?? path.join(process.cwd(), ".baileys-auth");
@@ -77,8 +78,12 @@ export async function startConnection(
 				async ({ connection, lastDisconnect, qr }) => {
 					if (qr) {
 						connectionState = "pairing";
+						latestQr = qr;
 						log.info("[connection] scan the WhatsApp QR code shown below");
 						qrcode.generate(qr, { small: true });
+						log.info(
+							`[connection] or open http://localhost:${process.env.PORT ?? 3000}/setup`,
+						);
 					}
 					if (connection === "open") {
 						if (reconnectTimer) {
@@ -87,6 +92,7 @@ export async function startConnection(
 						}
 						socket = sock;
 						connectionState = "connected";
+						latestQr = null;
 						retryCount = 0;
 						if (onOpen) {
 							try {
@@ -160,6 +166,7 @@ export function getSocket(): WASocket {
 export function closeSocket(): void {
 	closing = true;
 	connectionState = "idle";
+	latestQr = null;
 	if (reconnectTimer) {
 		clearTimeout(reconnectTimer);
 		reconnectTimer = null;
@@ -174,4 +181,8 @@ export function isConnected(): boolean {
 
 export function getConnectionState(): WhatsAppConnectionState {
 	return connectionState;
+}
+
+export function getLatestQr(): string | null {
+	return latestQr;
 }

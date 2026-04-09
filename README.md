@@ -92,7 +92,7 @@ git clone <repo-url> && cd klaus
 cp .env.example .env
 ```
 
-Fill in your API keys in .env.
+Fill in your `ANTHROPIC_API_KEY` (and optionally `ELEVENLABS_API_KEY` for voice). Leave `ALLOWED_CHAT_ID` empty for now — Klaus will help you find it.
 
 3. Start:
 
@@ -106,13 +106,15 @@ docker run -d --restart unless-stopped \
   janbassen1/klaus:latest
 ```
 
-4. Scan the WhatsApp QR code (one-time — auth persists in the volume):
+4. Pair WhatsApp — open `http://localhost:3000/setup` in your browser and scan the QR code. The page auto-refreshes until the connection is established.
 
-```bash
-docker logs -f <container-id>
-```
+   Alternatively, check the terminal logs (`docker logs -f <container-id>`), though QR rendering can be unreliable in some log viewers.
 
-First-time QR pairing can take longer on NAS setups with delayed or messy log output. Klaus now keeps running while WhatsApp is waiting for the QR scan and only logs a warning after `STARTUP_CONNECTION_WARN_AFTER_MS` (default: `60000`). During that time, `/healthz` may report `status: "degraded"` until WhatsApp is fully connected.
+5. Discover your chat ID — send any message to the paired WhatsApp number. Klaus is in **setup mode** (no `ALLOWED_CHAT_ID` set), so it replies with your chat ID and instructions.
+
+6. Set `ALLOWED_CHAT_ID` in your `.env` file with the chat ID from step 5, then restart the container.
+
+After this one-time setup, auth persists in the volume and no further QR scans are needed.
 
 ---
 

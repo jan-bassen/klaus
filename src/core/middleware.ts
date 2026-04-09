@@ -3,6 +3,7 @@ import type { InboundMessage } from "@/types";
 
 export interface AuthResult {
 	allowed: boolean;
+	setupMode?: boolean;
 }
 
 // --- Allowlist ---
@@ -11,8 +12,10 @@ export interface AuthResult {
 export function checkAllowlist(msg: InboundMessage): AuthResult {
 	const allowed = process.env.ALLOWED_CHAT_ID ?? "";
 	if (allowed === "") {
-		log.warn("[middleware] ALLOWED_CHAT_ID not set — blocking all messages");
-		return { allowed: false };
+		log.warn("[middleware] ALLOWED_CHAT_ID not set — setup mode", {
+			chatId: msg.chatId,
+		});
+		return { allowed: false, setupMode: true };
 	}
 	if (msg.chatId !== allowed) {
 		log.warn("[middleware] auth rejected", { chatId: msg.chatId });

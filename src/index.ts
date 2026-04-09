@@ -20,6 +20,7 @@ import {
 } from "./core/settings-loader";
 import { startWatching, stopWatching } from "./core/watcher";
 import { startWorkers } from "./core/worker";
+import { renderSetupPage } from "./http/setup";
 import { log } from "./logger";
 import { settings } from "./settings";
 import { rebuildIndexes as rebuildConversationIndexes } from "./store/conversation";
@@ -36,6 +37,7 @@ import { loadSkills, skillRegistry } from "./tools/skill";
 import {
 	closeSocket,
 	getConnectionState,
+	getLatestQr,
 	isConnected,
 	startConnection,
 } from "./whatsapp/connection";
@@ -97,11 +99,16 @@ async function main(): Promise<void> {
 	}
 
 	// 1. Validate required env vars
-	const required = ["ANTHROPIC_API_KEY", "ALLOWED_CHAT_ID"] as const;
+	const required = ["ANTHROPIC_API_KEY"] as const;
 	const missing = required.filter((k) => !process.env[k]);
 	if (missing.length > 0) {
 		throw new Error(
 			`Missing required environment variables: ${missing.join(", ")}`,
+		);
+	}
+	if (!process.env.ALLOWED_CHAT_ID) {
+		log.warn(
+			"[startup] ALLOWED_CHAT_ID not set — running in setup mode (messages will not be processed)",
 		);
 	}
 
@@ -221,6 +228,14 @@ async function main(): Promise<void> {
 		port: PORT,
 		async fetch(req) {
 			const url = new URL(req.url);
+			if (url.pathname === "/setup") {
+				const state = getConnectionState();
+				const qr = getLatestQr();
+				const html = await renderSetupPage(state, qr);
+				return new Response(html, {
+					headers: { "Content-Type": "text/html; charset=utf-8" },
+				});
+			}
 			if (url.pathname === "/healthz") {
 				const whatsapp = getConnectionState();
 				const status = isConnected() ? "ok" : "degraded";
@@ -237,6 +252,7 @@ async function main(): Promise<void> {
 	});
 
 	log.info("[startup] ready", { port: PORT, whatsapp: getConnectionState() });
+	log.info(`[startup] setup page at http://localhost:${PORT}/setup`);
 
 	// 8. Connect to WhatsApp in the background.
 	log.info("[startup] connecting to WhatsApp");
