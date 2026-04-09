@@ -114,3 +114,109 @@ describe("snippetsQuery scope", () => {
 		expect(result.userVars).toBeUndefined();
 	});
 });
+
+describe("snippetsQuery HBS compilation", () => {
+	beforeEach(() => {
+		mkdirSync(snippetsDir, { recursive: true });
+		writeFileSync(path.join(klausDir, "user.md"), "User bio");
+	});
+
+	afterEach(() => {
+		rmSync(testDir, { recursive: true, force: true });
+	});
+
+	test("static snippet without HBS is unchanged", async () => {
+		writeFileSync(path.join(snippetsDir, "plain.md"), "No templates here");
+
+		const result = await snippetsQuery.run(dummyTurn);
+		expect(result.vars?.plain).toBe("No templates here");
+	});
+
+	test("HBS conditional resolves with voiceMode auto", async () => {
+		writeFileSync(
+			path.join(snippetsDir, "comm.md"),
+			"{{#if isVoiceOn}}voice{{else}}text{{/if}}",
+		);
+
+		const result = await snippetsQuery.run(dummyTurn);
+		expect(result.vars?.comm).toBe("text");
+	});
+
+	test("HBS conditional resolves with voiceMode on", async () => {
+		writeFileSync(
+			path.join(snippetsDir, "comm.md"),
+			"{{#if isVoiceOn}}voice{{else}}text{{/if}}",
+		);
+
+		const turn = {
+			...dummyTurn,
+			agent: { ...dummyTurn.agent, voiceMode: "on" as const },
+		};
+		const result = await snippetsQuery.run(turn);
+		expect(result.vars?.comm).toBe("voice");
+	});
+
+	test("forceVoice flag sets isVoiceOn", async () => {
+		writeFileSync(
+			path.join(snippetsDir, "comm.md"),
+			"{{#if isVoiceOn}}voice{{else}}text{{/if}}",
+		);
+
+		const turn = {
+			...dummyTurn,
+			overrides: { forceVoice: true },
+		};
+		const result = await snippetsQuery.run(turn);
+		expect(result.vars?.comm).toBe("voice");
+	});
+
+	test("suppressVoice flag sets isVoiceOff", async () => {
+		writeFileSync(
+			path.join(snippetsDir, "comm.md"),
+			"{{#if isVoiceOff}}suppressed{{else}}normal{{/if}}",
+		);
+
+		const turn = {
+			...dummyTurn,
+			overrides: { suppressVoice: true },
+		};
+		const result = await snippetsQuery.run(turn);
+		expect(result.vars?.comm).toBe("suppressed");
+	});
+
+	test("acceptMode and provider are available", async () => {
+		writeFileSync(
+			path.join(snippetsDir, "info.md"),
+			"accept={{acceptMode}} provider={{provider}}",
+		);
+
+		const turn = {
+			...dummyTurn,
+			agent: {
+				...dummyTurn.agent,
+				acceptMode: "on" as const,
+				provider: "gemini",
+			},
+		};
+		const result = await snippetsQuery.run(turn);
+		expect(result.vars?.info).toBe("accept=on provider=gemini");
+	});
+
+	test("malformed HBS falls back to raw content", async () => {
+		writeFileSync(path.join(snippetsDir, "broken.md"), "{{#if unclosed}}oops");
+
+		const result = await snippetsQuery.run(dummyTurn);
+		expect(result.vars?.broken).toBe("{{#if unclosed}}oops");
+	});
+
+	test("HBS in user.md is compiled", async () => {
+		writeFileSync(path.join(klausDir, "user.md"), "User on {{provider}}");
+
+		const turn = {
+			...dummyTurn,
+			agent: { ...dummyTurn.agent, provider: "claude" },
+		};
+		const result = await snippetsQuery.run(turn);
+		expect(result.vars?.user).toBe("User on claude");
+	});
+});

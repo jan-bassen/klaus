@@ -76,6 +76,34 @@ Goal: create a simple unified data store for a) execution and b) debugging
 - [x] Add trailing logs (maybe last 3 days) to vault /Klaus/trail/ for easy debug (minimize load on sync)
 - [x] Add agent.md frontmatter option for control over tool use in context (default on)
 
+## Snippets improvements
+- [x] Consider handlebars support in snippets (careful: edge case on self-insert/loops - so unsure) — implemented via two-pass compilation (snippet → plain string → agent prompt), no recursion possible
+
+## Voice mode cleanup
+Voice mode should have for options: off (never tts), on (always tts), fixed (fixed character length), auto (agent decides - default)
+- [ ] Make sure voice mode (if not auto) gets enforced on the code level - should be already implemented
+- [ ] add isVoiceAuto var
+- [ ] update communication snippet
+  - [ ] For on: only instructions for continuous text, natural language, ...
+  - [ ] For off: same, but instructions for short text messages
+  - [ ] For auto: Instructions for when to use tts (when the message is longer than 2-3 sentences)
+  - [ ] For fixed: Short instructions to use natural language that works for both
+
+## Add reference overview for agents, me, and later users
+- [ ] Add REFERENCE.md to repo
+- [ ] Record all the important primitives as exhaustive list with info
+  - [ ] commands
+  - [ ] flags
+  - [ ] vars
+  - [ ] tools
+  - [ ] toolsets
+  - [ ] modes (?)
+- [ ] Add to CLAUDE.md to keep it updated
+- [ ] Add reference to readme 
+
+## Onboarding
+- [ ] Auto-generate default settings.yml (and full internal folder structure) in vault on first startup
+
 ## Agents
 - [ ] Fitness - An agent that tracks my fitness goals/progress, manage my trainingplan and helps me stay on track. I want to call him directly with @fitness during training sessions and he should be able to provide me with motivation and insights, mostly through random (for me unexpected) dispatches to motivate me. Espescially on training days.
 - [ ] Daily - An agent that runs every day in the morning to create a daily report in the daily note of the obsidian vault and a short voice message (in german). The daily report should include the weather, the most important few news (local, national, global), a quick check of one or two science news websites. 
@@ -83,9 +111,6 @@ Goal: create a simple unified data store for a) execution and b) debugging
 - [ ] Geo - Geography teacher/expert agent to learn and ask about geology (https://rapidapi.com/mmplabsadm/api/geography4)
 - [ ] ??? - Life Coach (?)
 - [ ] Ingest - As input handler from source to wiki/knowledge store à la [Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
-
-## Onboarding
-- [ ] Auto-generate default settings.yml (and full internal folder structure) in vault on first startup
 
 ## Documentation
 - [ ] Update readme and check code comments etc

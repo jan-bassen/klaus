@@ -1,7 +1,9 @@
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
+import { hbs } from "@/core/hbs";
+import { log } from "@/logger";
 import { settings } from "@/settings";
-import type { ContextVariable } from "@/types";
+import type { ContextVariable, TurnContext } from "@/types";
 
 const fmPattern = /^---\n([\s\S]*?)\n---\n?/;
 
@@ -46,18 +48,57 @@ async function readSnippet(filePath: string): Promise<SnippetMeta> {
 	}
 }
 
+/** Extract a flat set of template vars from turn context for snippet HBS compilation. */
+function buildSnippetVars(
+	turn: Omit<TurnContext, "assembled">,
+): Record<string, unknown> {
+	const agent = turn.agent;
+	const ov = turn.overrides;
+	return {
+		voiceMode: agent.voiceMode ?? "auto",
+		acceptMode: agent.acceptMode ?? "off",
+		provider: agent.provider ?? "default",
+		forceVoice: !!ov?.forceVoice,
+		suppressVoice: !!ov?.suppressVoice,
+		autoAccept: !!ov?.autoAccept,
+		ghost: !!ov?.ghost,
+		isVoiceOn: agent.voiceMode === "on" || !!ov?.forceVoice,
+		isVoiceOff: agent.voiceMode === "off" || !!ov?.suppressVoice,
+	};
+}
+
+/** Compile snippet content through Handlebars with turn vars. Static snippets skip compilation. */
+function compileSnippet(
+	content: string,
+	vars: Record<string, unknown>,
+): string {
+	if (!content.includes("{{")) return content;
+	try {
+		const template = hbs.compile(content, { noEscape: true });
+		return template(vars).trim();
+	} catch (err) {
+		log.warn("[snippets] HBS compilation failed, using raw content", {
+			error: err instanceof Error ? err.message : String(err),
+		});
+		return content;
+	}
+}
+
 /**
  * Loads snippets from {vault}/Klaus/snippets/*.md, plus user.md.
  * Splits into system vars and user vars based on frontmatter scope.
+ * Snippet content is compiled through Handlebars with turn context
+ * (modes, flags) before becoming vars — enables conditional blocks.
  * Always included, never trimmed.
  */
 export const snippetsQuery: ContextVariable = {
 	name: "snippets",
 	description: "Named vars from snippets/*.md and user.md",
 	priority: -1,
-	async run(_turn, _params) {
+	async run(turn, _params) {
 		const klausDir = settings.vault.internalPath;
 		const snippetsDir = settings.vault.snippetsDir;
+		const snippetVars = buildSnippetVars(turn);
 
 		const vars: Record<string, string> = {};
 		const userVars: Record<string, string> = {};
@@ -67,18 +108,19 @@ export const snippetsQuery: ContextVariable = {
 		for await (const file of glob.scan({ cwd: snippetsDir })) {
 			const stem = path.basename(file, ".md");
 			const snippet = await readSnippet(path.join(snippetsDir, file));
+			const resolved = compileSnippet(snippet.content, snippetVars);
 
 			if (snippet.scope === "system" || snippet.scope === "both") {
-				vars[stem] = snippet.content;
+				vars[stem] = resolved;
 			}
 			if (snippet.scope === "user" || snippet.scope === "both") {
-				userVars[stem] = snippet.content;
+				userVars[stem] = resolved;
 			}
 		}
 
 		// Read user.md from Klaus/ (always system scope)
 		const userSnippet = await readSnippet(path.join(klausDir, "user.md"));
-		vars.user = userSnippet.content;
+		vars.user = compileSnippet(userSnippet.content, snippetVars);
 
 		return {
 			tokenCount: 0,

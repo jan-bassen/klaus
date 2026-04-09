@@ -175,7 +175,7 @@ Two distinct systems — don't conflate them:
 - `/context` — one file per context variable
 - `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter
 - `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
-- `{vault}/Klaus/snippets/` — static prompt content with optional `scope:` frontmatter (`system`|`user`|`both`, default: `system`). System-scoped → `{{var}}` in prompts; user-scoped → `$var` in messages
+- `{vault}/Klaus/snippets/` — prompt content with optional YAML frontmatter (`scope:` `system`|`user`|`both`, default: `system`). System-scoped → `{{var}}` in prompts; user-scoped → `$var` in messages. Snippet content supports Handlebars templating with turn context vars: `voiceMode`, `acceptMode`, `provider`, `forceVoice`, `suppressVoice`, `autoAccept`, `ghost`, `isVoiceOn`, `isVoiceOff`. Compiled in a first pass before agent prompt assembly (two-pass, no recursion risk). Static snippets (no `{{`) skip compilation.
 - `{vault}/Klaus/trail/` — daily markdown turn logs for cross-device debugging (auto-managed, retention-limited)
 - `{vault}/Klaus/message.md` — Handlebars template for user message formatting (voice note prefix, quoted text, media info). Falls back to hardcoded format if missing.
 - `{vault}/Klaus/settings.yml` — user-facing settings (providers, context budgets, rate limits, etc.), hot-reloaded with Zod validation

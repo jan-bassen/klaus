@@ -282,10 +282,10 @@ Klaus has three types of knowledge content, forming a spectrum from always-loade
 
 | Type         | Location              | Loading       | Mutability | Purpose                              |
 | ------------ | --------------------- | ------------- | ---------- | ------------------------------------ |
-| **Snippets** | `Klaus/snippets/`     | Always loaded | Static     | Core prompt content (soul, architecture, user profile) — injected as `{{vars}}` |
+| **Snippets** | `Klaus/snippets/`     | Always loaded | Dynamic    | Core prompt content (soul, architecture, user profile) — injected as `{{vars}}`, supports Handlebars conditionals |
 | **Skills**   | `Klaus/skills/`       | On demand     | Static     | Reference material loaded via `skill_get` tool when needed |
 
-**Snippets** are `.md` files in `Klaus/snippets/` plus `Klaus/user.md`. They are loaded every turn as template variables (e.g., `{{personality}}`, `{{user}}`, `{{architecture}}`). Always in context — use for core identity and instructions. Snippets support optional YAML frontmatter with a `scope` field (`system` | `user` | `both`, default: `system`). System-scoped snippets are available as `{{var}}` in agent prompts. User-scoped snippets are available as `$var` in WhatsApp messages. `both` makes them available everywhere.
+**Snippets** are `.md` files in `Klaus/snippets/` plus `Klaus/user.md`. They are loaded every turn as template variables (e.g., `{{personality}}`, `{{user}}`, `{{architecture}}`). Always in context — use for core identity and instructions. Snippets support optional YAML frontmatter with a `scope` field (`system` | `user` | `both`, default: `system`). System-scoped snippets are available as `{{var}}` in agent prompts. User-scoped snippets are available as `$var` in WhatsApp messages. `both` makes them available everywhere. Snippet content supports Handlebars templating with turn context vars (`voiceMode`, `acceptMode`, `provider`, `forceVoice`, `suppressVoice`, `autoAccept`, `ghost`, `isVoiceOn`, `isVoiceOff`), enabling conditional blocks like `{{#if isVoiceOn}}...{{/if}}`. Compiled in a first pass before agent prompt assembly — no recursion risk.
 
 **Skills** are `.md` files in `Klaus/skills/` with optional `description:` frontmatter. Declare `skills: [name1, name2]` in an agent's frontmatter to grant access via a `skill_get` tool scoped to those names via `z.enum`. The `{{skills}}` Handlebars var lists available skills in the prompt. Zero token overhead for agents without skills.
 
@@ -356,7 +356,7 @@ src/
 │   ├── agents/        # Agent prompt files (.md with YAML frontmatter)
 │   ├── settings.yml   # User-facing settings (providers, budgets, permissions, etc.)
 │   ├── skills/        # Static .md reference documents (loaded on demand)
-│   └── snippets/      # Static prompt content (soul.md, architecture.md)
+│   └── snippets/      # Prompt content with optional HBS conditionals (personality.md, communication.md)
 ├── Leben/             # User content folders — permissions configured in Klaus/settings.yml
 ├── Projekte/
 └── *.md               # Root-level files
