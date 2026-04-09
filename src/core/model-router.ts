@@ -93,7 +93,7 @@ export async function callModel(
 		throw new Error(`LLM rate limit exceeded. Retry in ${rate.retryAfterMs}ms`);
 	}
 
-	const providerCfg = resolveProvider(opts.chatId, opts.provider);
+	const providerCfg = resolveProvider(opts.provider);
 	const modelId = providerCfg[opts.tier];
 	const model = createModel(providerCfg.sdk, modelId);
 

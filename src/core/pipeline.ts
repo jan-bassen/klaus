@@ -38,6 +38,7 @@ import {
 	mergeVarParams,
 	readPromptBody,
 } from "./interpolate";
+import { applyModeDefaults } from "./modes";
 import { rewriteVoiceTranscript } from "./voice-parse";
 
 function agentsDir(): string {
@@ -159,7 +160,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 
 		// Parse flags from cleanText BEFORE stripping
 		const flags = parseFlags({ ...processedMsg, text: cleanText });
-		const overrides = resolveOverrides(flags);
+		const flagOverrides = resolveOverrides(flags);
 		const strippedText = stripFlags(cleanText);
 
 		// Strip flags and routing prefix from msg text
@@ -176,6 +177,9 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			chatId: effectiveMsg.chatId,
 			agent: agentName,
 		});
+
+		// Apply agent mode defaults (flags take precedence)
+		const overrides = applyModeDefaults(flagOverrides, def);
 
 		// Resolve quoted message media if this is a reply
 		if (effectiveMsg.quotedMessage) {

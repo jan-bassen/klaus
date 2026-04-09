@@ -87,6 +87,8 @@ function makeAgent(
 		providerTools: [],
 		skills: [],
 		persistent: false,
+		voiceMode: "auto",
+		acceptMode: "off",
 		promptPath: `/fake/agents/${name}.md`,
 	};
 }

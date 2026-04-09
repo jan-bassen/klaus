@@ -1,12 +1,8 @@
 import type { Command } from "@/commands";
 import { agentRegistry } from "@/core/agent";
 import { getDefaultAgent } from "@/core/defaults";
-import {
-	getActiveProvider,
-	getProviderNames,
-	setActiveProvider,
-} from "@/core/provider-defaults";
-import { resolveProvider, settings } from "@/settings";
+import { setFrontmatterField } from "@/core/frontmatter";
+import { getProviderNames, resolveProvider } from "@/settings";
 import type { AgentDefinition, InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
@@ -34,8 +30,8 @@ export const modelCommand: Command = {
 
 		// No args — show current model
 		if (!args[0]) {
-			const providerName = getActiveProvider(msg.chatId);
-			const providerCfg = resolveProvider(msg.chatId);
+			const providerName = def.provider ?? getProviderNames()[0];
+			const providerCfg = resolveProvider(providerName);
 			const modelId = providerCfg[def.modelTier];
 			enqueueMessage({
 				chatId: msg.chatId,
@@ -50,14 +46,26 @@ export const modelCommand: Command = {
 		// Check if it's a provider name
 		const providerNames = getProviderNames();
 		if (providerNames.includes(input)) {
-			setActiveProvider(msg.chatId, input);
-			const providerCfg = resolveProvider(msg.chatId);
-			const modelId = providerCfg[def.modelTier];
-			enqueueMessage({
-				chatId: msg.chatId,
-				content: `Switched to *${input}* provider. @${agentName}: *${modelId}* (tier: ${def.modelTier})`,
-				dedupKey: `${msg.id}:model`,
-			});
+			try {
+				const raw = await Bun.file(def.promptPath).text();
+				const updated = setFrontmatterField(raw, "provider", input);
+				await Bun.write(def.promptPath, updated);
+				def.provider = input;
+
+				const providerCfg = resolveProvider(input);
+				const modelId = providerCfg[def.modelTier];
+				enqueueMessage({
+					chatId: msg.chatId,
+					content: `Switched to *${input}* provider. @${agentName}: *${modelId}* (tier: ${def.modelTier})`,
+					dedupKey: `${msg.id}:model`,
+				});
+			} catch (err) {
+				enqueueMessage({
+					chatId: msg.chatId,
+					content: `Failed to update provider: ${err instanceof Error ? err.message : String(err)}`,
+					dedupKey: `${msg.id}:model-error`,
+				});
+			}
 			return;
 		}
 
@@ -73,7 +81,7 @@ export const modelCommand: Command = {
 		const tier = input as LlmTier;
 
 		if (def.modelTier === tier) {
-			const providerCfg = resolveProvider(msg.chatId);
+			const providerCfg = resolveProvider(def.provider);
 			enqueueMessage({
 				chatId: msg.chatId,
 				content: `Already using tier "${tier}" (${providerCfg[tier]}).`,
@@ -85,17 +93,13 @@ export const modelCommand: Command = {
 		// Read and rewrite frontmatter
 		try {
 			const raw = await Bun.file(def.promptPath).text();
-			const updated = raw.replace(
-				/^(---\n[\s\S]*?)modelTier:\s*\S+([\s\S]*?\n---)/,
-				`$1modelTier: ${tier}$2`,
-			);
-
+			const updated = setFrontmatterField(raw, "modelTier", tier);
 			await Bun.write(def.promptPath, updated);
 
 			// Update registry immediately (watcher will also reload, but this is instant)
 			def.modelTier = tier;
 
-			const providerCfg = resolveProvider(msg.chatId);
+			const providerCfg = resolveProvider(def.provider);
 			const modelId = providerCfg[tier];
 			enqueueMessage({
 				chatId: msg.chatId,

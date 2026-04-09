@@ -48,6 +48,8 @@ const dummyAgent: AgentDefinition = {
 	providerTools: [],
 	skills: [],
 	persistent: false,
+	voiceMode: "auto",
+	acceptMode: "off",
 	promptPath: "/dev/null",
 };
 

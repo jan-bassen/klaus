@@ -59,6 +59,14 @@
 - [x] implement !s|m|l for model size
 - [x] implement /? for help
 
+## Modes System Check
+Goal: A unified, but simple, modes system (auto-voice/no-voice/voice-only, auto-accept, …)
+- [x] Add "voiceMode" and "acceptMode" field to agent frontmatter
+- [x] Voice mode (auto/on/off) and accept mode (on/off) implemented with proper flag precedence
+- [x] Add /voice <mode> and /accept <mode> to change it in frontmatter
+- [x] Add modes context variable to format system prompt accordingly
+- [x] Unified provider into agent frontmatter (replaces per-chat in-memory provider override)
+
 ## Conversations overhaul 
 Goal: create a simple unified data store for a) execution and b) debugging
 - [ ] Add message.md template with handlebars to vault for easy iteration on formatting ("transcript from voice message", flags, ...)
@@ -67,6 +75,7 @@ Goal: create a simple unified data store for a) execution and b) debugging
 - [ ] Rework the invocations as logs to have full overview of the pipeline (incl. raw message, params, full message, ...) and a clearer steps array (currently very nested and badly readible - see EXAMPLES folder)
 - [ ] Add trailing logs (maybe last 3 days) to vault /Klaus/trail/ for easy debug (minimize load on sync)
 - [ ] Add agent.md frontmatter option for control over tool use in context (default on)
+- [ ] Allow for handlebars in snippets (careful: edge case on self-insert)
 
 ## Agents
 - [ ] Fitness - An agent that tracks my fitness goals/progress, manage my trainingplan and helps me stay on track. I want to call him directly with @fitness during training sessions and he should be able to provide me with motivation and insights, mostly through random (for me unexpected) dispatches to motivate me. Espescially on training days.

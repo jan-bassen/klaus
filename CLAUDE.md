@@ -62,7 +62,8 @@ Every inbound WhatsApp message goes through a pipeline in `src/core/pipeline.ts`
 5. **Parse commands** — `/command` handlers bypass LLM, return early
 6. **Parse routing** — extract `@agentName` prefix, `!flags` from text, resolve flag overrides
 7. **Resolve agent** — look up `agentRegistry` or hot-load from `.md` file
-8. **Persist** — append message to conversation JSONL, resolve quote-reply
+8. **Apply modes** — merge agent frontmatter modes (voiceMode, acceptMode, provider) into overrides; per-message flags take precedence
+9. **Persist** — append message to conversation JSONL, resolve quote-reply
 9. **Assemble context** — extract `?params` from prompt template + user message, run all context variables in parallel (with params), trim to token budget
 10. **Execute agent** — `runAgent()` via Vercel AI SDK agentic loop
 
@@ -82,6 +83,9 @@ skills: [workout-plan]        # on-demand .md docs from {vault}/Klaus/skills/
 schedule: "0 3 * * *"         # optional cron
 persistent: true              # optional: forces structured nextRun output, auto-reschedules
 vaultScope: "Training"        # optional: restricts all vault tools to this subdirectory
+voiceMode: auto               # auto (agent decides) | on (always TTS) | off (never TTS)
+acceptMode: off               # off (ask for confirmation) | on (auto-accept)
+provider: claude              # optional: preferred provider (claude, chatgpt, gemini)
 ---
 Prompt body with {{contextVar}} Handlebars interpolation (supports params: {{contextVar?key=val}}).
 ```
@@ -96,7 +100,9 @@ Prompt body with {{contextVar}} Handlebars interpolation (supports params: {{con
 
 **Flags** are code-defined programmatic overrides that control pipeline/agent behavior for the current message. Users activate flags with `!flagName` or `!alias` in their message (e.g. `!voice`/`!v`, `!large`/`!l`, `!clean`/`!cl`). `src/core/flags.ts` defines the static `flagRegistry` (Map<name|alias, FlagDef>), the `FlagOverrides` interface, and `resolveOverrides()` which maps parsed flags to typed effects. Aliases resolve to canonical names at parse time — downstream code only sees canonical names. Overrides are applied at specific pipeline/agent execution points (model tier, provider, TTS, conversation history, temperature, topP, reasoning effort, speed, tool choice, confirmation gating, persistence) rather than injected as prompt text. Temperature and topP flags resolve to presets (`"cold"|"hot"`, `"creative"|"rigid"`) that are resolved per-provider in `agent.ts` using `providerCfg.coldTemperature`/`hotTemperature`/`creativeTopP`/`rigidTopP`. Reasoning effort and fast mode resolve to provider-specific `providerOptions` in `agent.ts` (Anthropic `effort`/`speed`, OpenAI `reasoningEffort`, Google `thinkingConfig.thinkingLevel`; unsupported combos log a warning and are ignored). Current flags (with aliases): `!voice` (`!v`), `!clean` (`!cl`), `!small|medium|large` (`!s|m|l`), `!claude|chatgpt|gemini` (no aliases), `!accept` (`!a`), `!cold|hot` (`!c|h`), `!creative|rigid` (`!cr|r`), `!low|high` (`!lo|hi`), `!fast` (`!f`), `!no-tools|use-tools` (`!nt|ut`), `!ghost` (`!g`).
 
-**Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and registered in `src/commands/register.ts`. Current commands (with aliases): `/status` (`/s`), `/tasks` (`/t`), `/default`, `/model` (`/m`), `/models`, `/help` (`/?`), `/new` (`/n`). Each command implements the `Command` interface (name, aliases, description, execute). Aliases are indexed alongside canonical names in the `CommandRegistry`.
+**Modes** are persistent, agent-level behavioral defaults stored in frontmatter. They act as default overrides that per-message flags can still override. `voiceMode` controls TTS output (`auto`/`on`/`off`), `acceptMode` controls confirmation gating (`on`/`off`), and `provider` sets the preferred LLM provider. Resolution order: per-message flag → agent frontmatter mode → global settings. `src/core/modes.ts` defines `applyModeDefaults()` which merges mode defaults into `FlagOverrides` after flag parsing. The `{{modes}}` context variable injects active modes into prompts so agents are aware of their configuration. Commands `/voice` and `/accept` modify frontmatter of the default agent (same pattern as `/model`).
+
+**Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and registered in `src/commands/register.ts`. Current commands (with aliases): `/status` (`/s`), `/tasks` (`/t`), `/default`, `/model` (`/m`), `/models`, `/voice` (`/v`), `/accept` (`/a`), `/help` (`/?`), `/new` (`/n`). Each command implements the `Command` interface (name, aliases, description, execute). Aliases are indexed alongside canonical names in the `CommandRegistry`.
 
 **Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new context variable = new file implementing `ContextVariable`. Extend by adding, not modifying.
 
@@ -132,7 +138,8 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/core/dispatch.ts` | Unified dispatch function (inline/async modes) |
 | `src/core/model-router.ts` | LLM call routing (provider-agnostic via provider-factory) |
 | `src/core/provider-factory.ts` | SDK factory — lazy-loads `@ai-sdk/{anthropic,openai,google}` by name |
-| `src/core/provider-defaults.ts` | Per-chat active provider override (like defaults.ts for agents) |
+| `src/core/modes.ts` | Mode resolution — merges agent frontmatter modes into FlagOverrides |
+| `src/core/frontmatter.ts` | YAML frontmatter field read/write helper |
 | `src/core/queue.ts` | In-memory job queue + active job tracking |
 | `src/core/voice-parse.ts` | Voice transcript fuzzy matching — rewrites spoken agent/flag patterns to canonical tokens |
 | `src/core/vault-access.ts` | Vault path resolution, folder-level permission checks, confirmation gating |
@@ -183,7 +190,7 @@ Published as `janbassen1/klaus` on Docker Hub. The Dockerfile includes OCI label
 - Errors are values — return don't throw (except at true system boundaries)
 - No `any` types; explicit return types on exported functions
 - Prefer `const` and pure functions; minimize mutable state
-- User-facing settings live in `Klaus/settings.yml` (vault), loaded and validated by `src/core/settings-loader.ts`. Infrastructure config (env-derived paths, log format) lives in `src/config.ts`. `src/settings.ts` is a thin getter layer composing both — all consumers import `{ settings }` from it unchanged. The `modelTiers` array (`"small" | "medium" | "large" | "vision"`) and `ModelTier` type are static literals in `settings.ts`. Providers are configured as named entries under `settings.providers` (each with `sdk`, `small`, `medium`, `large`, `vision` model fields, plus optional randomness controls: `temperature`, `coldTemperature`, `hotTemperature`, `topP`, `creativeTopP`, `rigidTopP`). `resolveProvider(chatId?, override?)` returns the active provider config. Never inline magic numbers — add them to the Zod schema defaults in `settings-loader.ts`.
+- User-facing settings live in `Klaus/settings.yml` (vault), loaded and validated by `src/core/settings-loader.ts`. Infrastructure config (env-derived paths, log format) lives in `src/config.ts`. `src/settings.ts` is a thin getter layer composing both — all consumers import `{ settings }` from it unchanged. The `modelTiers` array (`"small" | "medium" | "large" | "vision"`) and `ModelTier` type are static literals in `settings.ts`. Providers are configured as named entries under `settings.providers` (each with `sdk`, `small`, `medium`, `large`, `vision` model fields, plus optional randomness controls: `temperature`, `coldTemperature`, `hotTemperature`, `topP`, `creativeTopP`, `rigidTopP`). `resolveProvider(override?)` returns the provider config by name (falls back to global active provider). Provider preference is stored per-agent in frontmatter, resolved via `applyModeDefaults()`. Never inline magic numbers — add them to the Zod schema defaults in `settings-loader.ts`.
 - One concern per file
 - Path alias `@/` maps to `src/`
 - No unnecessary comments — code should be self-explanatory; comments explain *why*, never *what*

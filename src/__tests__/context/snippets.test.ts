@@ -30,6 +30,8 @@ const dummyTurn = {
 		providerTools: [],
 		skills: [],
 		persistent: false,
+		voiceMode: "auto" as const,
+		acceptMode: "off" as const,
 		promptPath: "/dev/null",
 	},
 	flags: {},

@@ -87,7 +87,9 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			? `${context.message.id}:reply:${crypto.randomUUID()}`
 			: `${context.chatId}:reply:${crypto.randomUUID()}`;
 		const quotedPart = quoted ? { quoted } : {};
-		const useVoice = voice || context.overrides?.forceVoice;
+		const useVoice =
+			!context.overrides?.suppressVoice &&
+			(voice || context.overrides?.forceVoice);
 		if (useVoice) {
 			const audio = await textToSpeech(content);
 			if (audio instanceof Error) {

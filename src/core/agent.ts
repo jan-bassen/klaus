@@ -41,6 +41,12 @@ import { hbs } from "./hbs";
 import { interpolateUserVars, stripHbsParams } from "./interpolate";
 import { callModel, type ModelCallStep } from "./model-router";
 
+export const voiceModes = ["auto", "on", "off"] as const;
+export type VoiceMode = (typeof voiceModes)[number];
+
+export const acceptModes = ["on", "off"] as const;
+export type AcceptMode = (typeof acceptModes)[number];
+
 export const AgentFrontmatterSchema = z.object({
 	name: z.string().min(1),
 	aliases: z.array(z.string()).default([]),
@@ -53,6 +59,9 @@ export const AgentFrontmatterSchema = z.object({
 	persistent: z.boolean().default(false),
 	vaultScope: z.string().optional(),
 	conversationLimit: z.number().optional(),
+	voiceMode: z.enum(voiceModes).default("auto"),
+	acceptMode: z.enum(acceptModes).default("off"),
+	provider: z.string().optional(),
 });
 
 const PersistentOutputSchema = z.object({
@@ -458,7 +467,7 @@ export async function runAgent(
 	// Provider tools — injected directly (no wrapping), always active.
 	// Resolve SDK from the effective provider for this turn.
 	const effectiveProvider = turn.overrides?.provider;
-	const providerCfg = resolveProvider(turn.chatId, effectiveProvider);
+	const providerCfg = resolveProvider(effectiveProvider);
 	for (const name of def.providerTools ?? []) {
 		const pt = buildProviderTool(name, providerCfg.sdk);
 		if (!pt) {
@@ -786,6 +795,9 @@ export async function loadAgentDefinition(
 		persistent,
 		vaultScope,
 		conversationLimit,
+		voiceMode,
+		acceptMode,
+		provider,
 	} = front;
 
 	log.info("[agent] loaded definition", { name, modelTier, tools });
@@ -802,6 +814,9 @@ export async function loadAgentDefinition(
 		persistent,
 		...(vaultScope ? { vaultScope } : {}),
 		...(conversationLimit !== undefined ? { conversationLimit } : {}),
+		voiceMode,
+		acceptMode,
+		...(provider ? { provider } : {}),
 		promptPath,
 	};
 }

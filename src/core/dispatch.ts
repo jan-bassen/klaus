@@ -5,6 +5,7 @@ import type { DispatchOptions, TurnContext } from "@/types";
 import { agentRegistry, loadAgentDefinition, runAgent } from "./agent";
 import { assembleContext } from "./assemble";
 import { extractVarParams, readPromptBody } from "./interpolate";
+import { applyModeDefaults } from "./modes";
 import { enqueueJob } from "./queue";
 
 function agentsDir(): string {
@@ -78,7 +79,7 @@ export async function dispatch(
 			chatId,
 			agent: def,
 			flags: {},
-			overrides: {},
+			overrides: applyModeDefaults({}, def),
 			dispatchContext,
 			_replyCollector: replyCollector,
 		};

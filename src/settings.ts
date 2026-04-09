@@ -1,5 +1,4 @@
 import { config } from "./config";
-import { getActiveProvider } from "./core/provider-defaults";
 import { getYamlSettings } from "./core/settings-loader";
 
 export type VaultPermission = "none" | "read" | "append" | "full";
@@ -23,12 +22,9 @@ export const modelTiers: [ModelTier, ...ModelTier[]] = [
 	"vision",
 ];
 
-/** Resolve the active provider config for a chat (respects per-chat override). */
-export function resolveProvider(
-	chatId?: string,
-	override?: string,
-): ProviderConfig {
-	const name = override ?? getActiveProvider(chatId);
+/** Resolve provider config by name. Falls back to global active provider. */
+export function resolveProvider(override?: string): ProviderConfig {
+	const name = override ?? getYamlSettings().providers.active;
 	const providers = getYamlSettings().providers;
 	const cfg = (providers as Record<string, unknown>)[name] as
 		| ProviderConfig
@@ -39,13 +35,18 @@ export function resolveProvider(
 	return cfg;
 }
 
-/** Resolve model ID for a tier + chat (uses active provider). */
+/** Resolve model ID for a tier (uses given provider or global active). */
 export function resolveModelId(
 	tier: ModelTier,
-	chatId?: string,
 	providerOverride?: string,
 ): string {
-	return resolveProvider(chatId, providerOverride)[tier];
+	return resolveProvider(providerOverride)[tier];
+}
+
+/** Returns all provider names configured in settings (excluding "active"). */
+export function getProviderNames(): string[] {
+	const { active, ...rest } = getYamlSettings().providers;
+	return Object.keys(rest);
 }
 
 export interface ProviderConfig {

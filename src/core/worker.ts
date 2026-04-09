@@ -4,6 +4,7 @@ import { settings } from "@/settings";
 import { agentRegistry, loadAgentDefinition, runAgent } from "./agent";
 import { assembleContext } from "./assemble";
 import { extractVarParams, readPromptBody } from "./interpolate";
+import { applyModeDefaults } from "./modes";
 import type { AgentRunPayload } from "./queue";
 import { setWorker } from "./queue";
 
@@ -28,7 +29,7 @@ export async function startWorkers(): Promise<void> {
 			chatId,
 			agent: def,
 			flags: {} as Record<string, boolean>,
-			overrides: {},
+			overrides: applyModeDefaults({}, def),
 			dispatchContext,
 		};
 

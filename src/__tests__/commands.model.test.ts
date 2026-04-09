@@ -12,7 +12,6 @@ mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 import { modelCommand } from "@/commands/model";
 import { agentRegistry } from "@/core/agent";
 import { _resetDefaultsForTest } from "@/core/defaults";
-import { _resetProviderDefaultsForTest } from "@/core/provider-defaults";
 import type { AgentDefinition, InboundMessage } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -53,6 +52,8 @@ function makeAgent(tier: AgentDefinition["modelTier"]): AgentDefinition {
 		providerTools: [],
 		skills: [],
 		persistent: false,
+		voiceMode: "auto",
+		acceptMode: "off",
 		promptPath: AGENT_FILE,
 	};
 }
@@ -63,7 +64,6 @@ beforeEach(async () => {
 	await Bun.write(AGENT_FILE, AGENT_CONTENT);
 	agentRegistry.set("klaus", makeAgent("medium"));
 	_resetDefaultsForTest();
-	_resetProviderDefaultsForTest();
 	mockEnqueueMessage.mockClear();
 });
 

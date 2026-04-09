@@ -47,6 +47,8 @@ export interface FlagOverrides {
 	topPPreset?: "creative" | "rigid";
 	/** Tool choice constraint: "none" disables tools, "required" forces tool use. */
 	toolChoice?: "none" | "required";
+	/** Suppress voice output even when agent requests it. */
+	suppressVoice?: boolean;
 	/** Ephemeral call — skip all persistence. */
 	ghost?: boolean;
 	/** Reasoning effort preset — resolved per-provider in agent.ts. */

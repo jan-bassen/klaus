@@ -41,6 +41,8 @@ const dummyAgent: AgentDefinition = {
 	providerTools: [],
 	skills: [],
 	persistent: false,
+	voiceMode: "auto",
+	acceptMode: "off",
 	promptPath: "/tmp/test.md",
 };
 

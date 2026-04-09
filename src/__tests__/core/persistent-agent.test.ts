@@ -74,6 +74,8 @@ function makeTurn(
 			providerTools: [],
 			skills: [],
 			persistent: false,
+			voiceMode: "auto",
+			acceptMode: "off",
 			promptPath: "/dev/null",
 			...agentOverrides,
 		},
@@ -150,7 +152,12 @@ describe("persistent agents", () => {
 
 	test("does not pass output to callModel when not persistent", async () => {
 		await writeAgentFile("name: test\nmodelTier: medium\ntools: []");
-		const turn = makeTurn({ persistent: false, promptPath: tmpPath });
+		const turn = makeTurn({
+			persistent: false,
+			voiceMode: "auto",
+			acceptMode: "off",
+			promptPath: tmpPath,
+		});
 		await runAgent(turn, turn.agent);
 
 		const modelCalls = mockCallModel.mock.calls as unknown[][];
