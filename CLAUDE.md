@@ -108,6 +108,8 @@ Prompt body with {{contextVar}} Handlebars interpolation (supports params: {{con
 
 **Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new context variable = new file implementing `ContextVariable`. Extend by adding, not modifying.
 
+**Reference:** `REFERENCE.md` contains an exhaustive list of all commands, flags, context variables, tools, toolsets, modes, and settings with their parameters and defaults. Keep it in sync when adding or changing primitives.
+
 ### Storage (src/store/)
 
 All operational data is stored as flat files — no database.

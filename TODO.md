@@ -90,17 +90,17 @@ Voice mode should have for options: off (never tts), on (always tts), fixed (fix
   - [x] For fixed: Short instructions to use natural language that works for both
 
 ## Add reference overview for agents, me, and later users
-- [ ] Add REFERENCE.md to repo
-- [ ] Record all the important primitives as exhaustive list with info
-  - [ ] commands
-  - [ ] flags
-  - [ ] vars
-  - [ ] tools
-  - [ ] toolsets
-  - [ ] modes (?)
-  - [ ] settings (?)
-- [ ] Add to CLAUDE.md to keep it updated
-- [ ] Add reference to readme 
+- [x] Add REFERENCE.md to repo
+- [x] Record all the important primitives as exhaustive list with info
+  - [x] commands
+  - [x] flags
+  - [x] vars
+  - [x] tools
+  - [x] toolsets
+  - [x] modes
+  - [x] settings
+- [x] Add to CLAUDE.md to keep it updated
+- [x] Add reference to readme 
 
 ## Onboarding
 - [ ] Auto-generate default settings.yml (and full internal folder structure) in vault on first startup

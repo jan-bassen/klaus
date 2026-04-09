@@ -61,6 +61,8 @@ Flags are stripped from the message text before it reaches the agent, so they do
 
 Flags are code-defined in `src/core/flags.ts`. Each flag maps to a typed override applied at the relevant pipeline/agent execution point.
 
+See [REFERENCE.md](REFERENCE.md) for a complete list of all commands, flags, variables, tools, toolsets, modes, and settings.
+
 ### Media
 
 Klaus handles more than text:
