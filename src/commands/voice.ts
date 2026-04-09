@@ -10,7 +10,8 @@ const VALID: Set<string> = new Set(voiceModes);
 export const voiceCommand: Command = {
 	name: "voice",
 	aliases: ["v"],
-	description: "Show or set the voice mode for the default agent (auto/on/off)",
+	description:
+		"Show or set the voice mode for the default agent (auto/on/off/fixed)",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const agentName = getDefaultAgent(msg.chatId);
 		const def = agentRegistry.get(agentName);

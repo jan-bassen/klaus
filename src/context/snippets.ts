@@ -64,6 +64,10 @@ function buildSnippetVars(
 		ghost: !!ov?.ghost,
 		isVoiceOn: agent.voiceMode === "on" || !!ov?.forceVoice,
 		isVoiceOff: agent.voiceMode === "off" || !!ov?.suppressVoice,
+		isVoiceAuto:
+			agent.voiceMode === "auto" && !ov?.forceVoice && !ov?.suppressVoice,
+		isVoiceFixed:
+			agent.voiceMode === "fixed" && !ov?.forceVoice && !ov?.suppressVoice,
 	};
 }
 

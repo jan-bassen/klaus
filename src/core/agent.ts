@@ -42,7 +42,7 @@ import { hbs } from "./hbs";
 import { interpolateUserVars, stripHbsParams } from "./interpolate";
 import { callModel, type ModelCallStep } from "./model-router";
 
-export const voiceModes = ["auto", "on", "off"] as const;
+export const voiceModes = ["auto", "on", "off", "fixed"] as const;
 export type VoiceMode = (typeof voiceModes)[number];
 
 export const acceptModes = ["on", "off"] as const;

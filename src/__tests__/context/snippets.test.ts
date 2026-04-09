@@ -202,6 +202,59 @@ describe("snippetsQuery HBS compilation", () => {
 		expect(result.vars?.info).toBe("accept=on provider=gemini");
 	});
 
+	test("isVoiceAuto true when voiceMode auto and no flag overrides", async () => {
+		writeFileSync(
+			path.join(snippetsDir, "comm.md"),
+			"{{#if isVoiceAuto}}auto{{else}}not-auto{{/if}}",
+		);
+
+		const result = await snippetsQuery.run(dummyTurn);
+		expect(result.vars?.comm).toBe("auto");
+	});
+
+	test("isVoiceAuto false when forceVoice overrides auto", async () => {
+		writeFileSync(
+			path.join(snippetsDir, "comm.md"),
+			"{{#if isVoiceAuto}}auto{{else}}not-auto{{/if}}",
+		);
+
+		const turn = {
+			...dummyTurn,
+			overrides: { forceVoice: true },
+		};
+		const result = await snippetsQuery.run(turn);
+		expect(result.vars?.comm).toBe("not-auto");
+	});
+
+	test("isVoiceFixed true when voiceMode fixed and no flag overrides", async () => {
+		writeFileSync(
+			path.join(snippetsDir, "comm.md"),
+			"{{#if isVoiceFixed}}fixed{{else}}not-fixed{{/if}}",
+		);
+
+		const turn = {
+			...dummyTurn,
+			agent: { ...dummyTurn.agent, voiceMode: "fixed" as const },
+		};
+		const result = await snippetsQuery.run(turn);
+		expect(result.vars?.comm).toBe("fixed");
+	});
+
+	test("isVoiceFixed false when forceVoice overrides fixed", async () => {
+		writeFileSync(
+			path.join(snippetsDir, "comm.md"),
+			"{{#if isVoiceFixed}}fixed{{else}}not-fixed{{/if}}",
+		);
+
+		const turn = {
+			...dummyTurn,
+			agent: { ...dummyTurn.agent, voiceMode: "fixed" as const },
+			overrides: { forceVoice: true },
+		};
+		const result = await snippetsQuery.run(turn);
+		expect(result.vars?.comm).toBe("not-fixed");
+	});
+
 	test("malformed HBS falls back to raw content", async () => {
 		writeFileSync(path.join(snippetsDir, "broken.md"), "{{#if unclosed}}oops");
 

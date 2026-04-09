@@ -105,6 +105,7 @@ const TtsSchema = z
 	.object({
 		model: z.string().default("eleven_multilingual_v2"),
 		voiceId: z.string().default("Qqi8SzIZjZsatCWjDOp7"),
+		fixedVoiceThreshold: z.number().default(200),
 	})
 	.strict()
 	.default({});

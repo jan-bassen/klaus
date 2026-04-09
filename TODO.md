@@ -81,13 +81,13 @@ Goal: create a simple unified data store for a) execution and b) debugging
 
 ## Voice mode cleanup
 Voice mode should have for options: off (never tts), on (always tts), fixed (fixed character length), auto (agent decides - default)
-- [ ] Make sure voice mode (if not auto) gets enforced on the code level - should be already implemented
-- [ ] add isVoiceAuto var
-- [ ] update communication snippet
-  - [ ] For on: only instructions for continuous text, natural language, ...
-  - [ ] For off: same, but instructions for short text messages
-  - [ ] For auto: Instructions for when to use tts (when the message is longer than 2-3 sentences)
-  - [ ] For fixed: Short instructions to use natural language that works for both
+- [x] Make sure voice mode (if not auto) gets enforced on the code level - should be already implemented
+- [x] add isVoiceAuto var
+- [x] update communication snippet
+  - [x] For on: only instructions for continuous text, natural language, ...
+  - [x] For off: same, but instructions for short text messages
+  - [x] For auto: Instructions for when to use tts (when the message is longer than 2-3 sentences)
+  - [x] For fixed: Short instructions to use natural language that works for both
 
 ## Add reference overview for agents, me, and later users
 - [ ] Add REFERENCE.md to repo
@@ -98,6 +98,7 @@ Voice mode should have for options: off (never tts), on (always tts), fixed (fix
   - [ ] tools
   - [ ] toolsets
   - [ ] modes (?)
+  - [ ] settings (?)
 - [ ] Add to CLAUDE.md to keep it updated
 - [ ] Add reference to readme 
 

@@ -24,6 +24,12 @@ mock.module("@/store/conversation", () => ({
 	_clearIndexesForTest: mock(() => {}),
 }));
 
+mock.module("@/settings", () => ({
+	settings: {
+		tts: { fixedVoiceThreshold: 50 },
+	},
+}));
+
 mock.module("@/logger", () => ({
 	log: {
 		info: mock(() => {}),
@@ -209,6 +215,39 @@ describe("replyTool", () => {
 		await replyTool.execute({ content: "second" }, ctx);
 		expect(collector).toEqual(["first", "second"]);
 		expect(mockEnqueueMessage).not.toHaveBeenCalled();
+	});
+
+	test("fixed voiceMode triggers TTS for long content", async () => {
+		const longContent = "a".repeat(51); // above threshold of 50
+		await replyTool.execute(
+			{ content: longContent },
+			makeContext({
+				agent: { ...dummyAgent, voiceMode: "fixed" },
+			}),
+		);
+		expect(mockTextToSpeech).toHaveBeenCalledTimes(1);
+	});
+
+	test("fixed voiceMode sends text for short content", async () => {
+		await replyTool.execute(
+			{ content: "short" },
+			makeContext({
+				agent: { ...dummyAgent, voiceMode: "fixed" },
+			}),
+		);
+		expect(mockTextToSpeech).not.toHaveBeenCalled();
+	});
+
+	test("fixed voiceMode respects suppressVoice override", async () => {
+		const longContent = "a".repeat(51);
+		await replyTool.execute(
+			{ content: longContent },
+			makeContext({
+				agent: { ...dummyAgent, voiceMode: "fixed" },
+				overrides: { suppressVoice: true },
+			}),
+		);
+		expect(mockTextToSpeech).not.toHaveBeenCalled();
 	});
 
 	test('messageRef "current" without inbound message returns error', async () => {

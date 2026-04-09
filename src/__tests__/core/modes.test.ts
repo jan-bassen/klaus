@@ -42,6 +42,19 @@ describe("applyModeDefaults", () => {
 		expect(result.forceVoice).toBeUndefined();
 	});
 
+	test("voiceMode fixed: leaves overrides untouched (like auto)", () => {
+		const result = applyModeDefaults({}, makeDef({ voiceMode: "fixed" }));
+		expect(result.forceVoice).toBeUndefined();
+		expect(result.suppressVoice).toBeUndefined();
+	});
+
+	test("!voice flag works with voiceMode fixed", () => {
+		const flags: FlagOverrides = { forceVoice: true };
+		const result = applyModeDefaults(flags, makeDef({ voiceMode: "fixed" }));
+		expect(result.forceVoice).toBe(true);
+		expect(result.suppressVoice).toBe(false);
+	});
+
 	test("!voice flag overrides voiceMode off", () => {
 		const flags: FlagOverrides = { forceVoice: true };
 		const result = applyModeDefaults(flags, makeDef({ voiceMode: "off" }));
