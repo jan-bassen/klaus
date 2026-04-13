@@ -105,7 +105,6 @@ const TtsSchema = z
 	.object({
 		model: z.string().default("eleven_multilingual_v2"),
 		voiceId: z.string().default("Qqi8SzIZjZsatCWjDOp7"),
-		fixedVoiceThreshold: z.number().default(200),
 	})
 	.strict()
 	.default({});
@@ -117,9 +116,6 @@ const SttSchema = z
 		agentTriggers: z
 			.array(z.string())
 			.default(["hey", "at", "an", "to", "dear"]),
-		flagTriggers: z
-			.array(z.string())
-			.default(["flagged with", "tagged with", "flags", "tags", "flag", "tag"]),
 	})
 	.strict()
 	.default({});

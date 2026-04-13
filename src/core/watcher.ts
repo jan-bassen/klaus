@@ -10,6 +10,7 @@ import {
 	skillRegistry,
 } from "@/tools/skill";
 import { agentRegistry, loadAgentDefinition } from "./agent";
+import { loadoverrides } from "./overrides";
 
 const watchers: FSWatcher[] = [];
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -185,6 +186,22 @@ export function startWatching(agentsDir: string, skillsDir: string): void {
 		});
 	});
 	watchers.push(skillWatcher);
+
+	// Watch Klaus/ internal dir for overrides.yaml changes
+	const internalDir = settings.vault.internalPath;
+	if (existsSync(internalDir)) {
+		const internalWatcher = watch(internalDir, (_event, filename) => {
+			if (filename !== "overrides.yaml") return;
+			debounce("overrides", () => {
+				loadoverrides().catch((err) =>
+					log.error("[watcher] failed to reload overrides.yaml", {
+						error: err instanceof Error ? err.message : String(err),
+					}),
+				);
+			});
+		});
+		watchers.push(internalWatcher);
+	}
 
 	log.info("[watcher] watching for changes", {
 		agentsDir,

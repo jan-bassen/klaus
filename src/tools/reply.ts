@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { log } from "@/logger";
-import { settings } from "@/settings";
 import { appendAck, appendMessage } from "@/store/conversation";
 import type { ToolDefinition } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
@@ -12,7 +11,7 @@ const replySchema = z.object({
 		.boolean()
 		.optional()
 		.describe(
-			"Send as a voice message using text-to-speech. Use when the user requested audio output (e.g. !voice flag).",
+			"Send as a voice message using text-to-speech. Use when the user requested audio output (e.g. !voice).",
 		),
 	messageRef: z
 		.string()
@@ -88,12 +87,9 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			? `${context.message.id}:reply:${crypto.randomUUID()}`
 			: `${context.chatId}:reply:${crypto.randomUUID()}`;
 		const quotedPart = quoted ? { quoted } : {};
-		const fixedTriggered =
-			context.agent.voiceMode === "fixed" &&
-			content.length > settings.tts.fixedVoiceThreshold;
 		const useVoice =
 			!context.overrides?.suppressVoice &&
-			(voice || context.overrides?.forceVoice || fixedTriggered);
+			(voice || context.overrides?.forceVoice);
 		if (useVoice) {
 			const audio = await textToSpeech(content);
 			if (audio instanceof Error) {

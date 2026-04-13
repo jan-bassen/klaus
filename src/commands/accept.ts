@@ -1,18 +1,18 @@
 import type { Command } from "@/commands";
-import { type AcceptMode, acceptModes, agentRegistry } from "@/core/agent";
+import { agentRegistry } from "@/core/agent";
 import { getDefaultAgent } from "@/core/defaults";
-import { setFrontmatterField } from "@/core/frontmatter";
+import {
+	removeFrontmatterField,
+	setFrontmatterField,
+} from "@/core/frontmatter";
 import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
-const VALID: Set<string> = new Set(acceptModes);
-
 export const acceptCommand: Command = {
 	name: "accept",
 	aliases: ["a"],
-	description:
-		"Show or set the auto-accept mode for the default agent (on/off)",
+	description: "Show or set auto-accept for the default agent (on/off)",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const agentName = getDefaultAgent(msg.chatId);
 		const def = agentRegistry.get(agentName);
@@ -27,11 +27,13 @@ export const acceptCommand: Command = {
 			return;
 		}
 
-		// No args — show current mode
+		const current = def.autoAccept ? "on" : "off";
+
+		// No args — show current state
 		if (!args[0]) {
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `@${agentName} accept mode: *${def.acceptMode}*`,
+				content: `@${agentName} auto-accept: *${current}*`,
 				dedupKey: `${msg.id}:accept`,
 				label: settings.whatsapp.systemLabel,
 			});
@@ -39,21 +41,20 @@ export const acceptCommand: Command = {
 		}
 
 		const input = args[0].toLowerCase();
-		if (!VALID.has(input)) {
+		if (input !== "on" && input !== "off") {
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `Unknown accept mode. Options: ${acceptModes.join(", ")}`,
+				content: `Unknown option. Use: on, off`,
 				dedupKey: `${msg.id}:accept-unknown`,
 				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
 
-		const mode = input as AcceptMode;
-		if (def.acceptMode === mode) {
+		if (input === current) {
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `Accept mode already set to "${mode}".`,
+				content: `Auto-accept already set to "${input}".`,
 				dedupKey: `${msg.id}:accept-noop`,
 				label: settings.whatsapp.systemLabel,
 			});
@@ -61,21 +62,28 @@ export const acceptCommand: Command = {
 		}
 
 		try {
-			const raw = await Bun.file(def.promptPath).text();
-			const updated = setFrontmatterField(raw, "acceptMode", mode);
-			await Bun.write(def.promptPath, updated);
-			def.acceptMode = mode;
+			let raw = await Bun.file(def.promptPath).text();
+
+			if (input === "on") {
+				raw = setFrontmatterField(raw, "autoAccept", "true");
+				def.autoAccept = true;
+			} else {
+				raw = removeFrontmatterField(raw, "autoAccept");
+				def.autoAccept = undefined;
+			}
+
+			await Bun.write(def.promptPath, raw);
 
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `@${agentName} accept mode set to *${mode}*.`,
+				content: `@${agentName} auto-accept set to *${input}*.`,
 				dedupKey: `${msg.id}:accept`,
 				label: settings.whatsapp.systemLabel,
 			});
 		} catch (err) {
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `Failed to update accept mode: ${err instanceof Error ? err.message : String(err)}`,
+				content: `Failed to update auto-accept: ${err instanceof Error ? err.message : String(err)}`,
 				dedupKey: `${msg.id}:accept-error`,
 				label: settings.whatsapp.systemLabel,
 			});

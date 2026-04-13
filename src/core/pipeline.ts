@@ -27,11 +27,12 @@ export function _clearAgentRunnerForTest(): void {
 import { registry as commandRegistry, parseCommand } from "@/commands";
 import { getDefaultAgent } from "@/core/defaults";
 import {
-	flagRegistry,
-	parseFlags,
-	resolveOverrides,
-	stripFlags,
-} from "@/flags";
+	buildTemplateVars,
+	overrideRegistry,
+	parseoverrides,
+	resolveoverrides,
+	stripoverrides,
+} from "@/core/overrides";
 import { log } from "@/logger";
 import { settings } from "@/settings";
 import { appendMessage, findByExternalId } from "@/store/conversation";
@@ -58,7 +59,7 @@ import {
 	mergeVarParams,
 	readPromptBody,
 } from "./interpolate";
-import { applyModeDefaults } from "./modes";
+import { resolveAgentDefaults } from "./overrides";
 import { updateAllowedChatId } from "./settings-loader";
 import { rewriteVoiceTranscript } from "./voice-parse";
 
@@ -73,7 +74,7 @@ function agentsDir(): string {
  *   1. Auth        → middleware.checkAllowlist
  *   2. Rate check  → rateLimiter.checkMessageRate
  *   3. Normalize   → transcribe voice / analyze image if applicable
- *   4. Parse       → resolve @agent and !flags inline
+ *   4. Parse       → resolve @agent and !overrides inline
  *   5. Route       → resolve target AgentDefinition
  *   6. Assemble    → context.assemble (all queries in parallel)
  *   7. Execute     → agent.runAgent
@@ -182,15 +183,13 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			}
 		}
 
-		// Step 3b: Voice fuzzy matching — rewrite spoken agent/flag patterns
+		// Step 3b: Voice fuzzy matching — rewrite spoken agent/override patterns
 		let rawText = processedMsg.text ?? "";
 		if (processedMsg.media?.transcription) {
 			rawText = rewriteVoiceTranscript(
 				rawText,
 				new Set(agentRegistry.keys()),
-				new Set(flagRegistry.keys()),
 				settings.stt.agentTriggers,
-				settings.stt.flagTriggers,
 			);
 			processedMsg = { ...processedMsg, text: rawText };
 		}
@@ -223,12 +222,15 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			? rawText.slice(routeMatch[0].length)
 			: rawText;
 
-		// Parse flags from cleanText BEFORE stripping
-		const flags = parseFlags({ ...processedMsg, text: cleanText });
-		const flagOverrides = resolveOverrides(flags);
-		const strippedText = stripFlags(cleanText);
+		// Parse overrides from cleanText BEFORE stripping
+		const activeoverrides = parseoverrides({
+			...processedMsg,
+			text: cleanText,
+		});
+		const presetoverrides = resolveoverrides(activeoverrides);
+		const strippedText = stripoverrides(cleanText);
 
-		// Strip flags and routing prefix from msg text
+		// Strip overrides and routing prefix from msg text
 		let effectiveMsg: InboundMessage = { ...processedMsg, text: strippedText };
 
 		// Step 6: Resolve agent definition
@@ -243,8 +245,8 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			agent: agentName,
 		});
 
-		// Apply agent mode defaults (flags take precedence)
-		const overrides = applyModeDefaults(flagOverrides, def);
+		// Resolve agent defaults, per-message overrides take precedence
+		const overrides = resolveAgentDefaults(presetoverrides, def);
 
 		// Resolve quoted message media if this is a reply
 		if (effectiveMsg.quotedMessage) {
@@ -277,7 +279,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		// Persist inbound message to conversation (skip for ghost mode)
 		let messageId: string | undefined;
 		if (!overrides.ghost) {
-			const flagNames = Object.keys(flags);
+			const overrideNames = Object.keys(activeoverrides);
 			messageId = await appendMessage({
 				role: "user",
 				content: effectiveMsg.text ?? null,
@@ -288,7 +290,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 							quotedRole: "user",
 						}
 					: {}),
-				...(flagNames.length > 0 ? { flags: flagNames } : {}),
+				...(overrideNames.length > 0 ? { overrides: overrideNames } : {}),
 			});
 
 			if (effectiveMsg.media?.fileId && messageId) {
@@ -309,8 +311,9 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			chatId: effectiveMsg.chatId,
 			message: effectiveMsg,
 			agent: def,
-			flags,
+			activeoverrides,
 			overrides,
+			templateVars: buildTemplateVars(overrides, def),
 			...(messageId ? { messageId } : {}),
 		};
 
@@ -340,13 +343,13 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 
 		// Record turn log + vault trail (fire-and-forget)
 		if (agentResult) {
-			const flagNames = Object.keys(flags);
+			const overrideNames = Object.keys(activeoverrides);
 			const turnLogPayload = {
 				...(messageId ? { messageId } : {}),
 				chatId: effectiveMsg.chatId,
 				agent: agentName,
 				...(effectiveMsg.text ? { rawText: effectiveMsg.text } : {}),
-				flags: flagNames,
+				overrides: overrideNames,
 				...(effectiveMsg.media
 					? { mediaType: effectiveMsg.media.mimeType }
 					: {}),

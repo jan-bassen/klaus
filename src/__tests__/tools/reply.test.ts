@@ -52,8 +52,6 @@ const dummyAgent: AgentDefinition = {
 	providerTools: [],
 	skills: [],
 	persistent: false,
-	voiceMode: "auto",
-	acceptMode: "off",
 	showToolsInContext: true,
 	promptPath: "/dev/null",
 };
@@ -68,20 +66,21 @@ const dummyMsg: InboundMessage = {
 	messageKey: {},
 };
 
-function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
+function makeContext(ctxOverrides: Partial<TurnContext> = {}): TurnContext {
 	return {
 		chatId: "user@s.whatsapp.net",
 		message: dummyMsg,
 		agent: dummyAgent,
-		flags: {},
+		activeoverrides: {},
 		overrides: {},
+		templateVars: {},
 		assembled: {
 			vars: {},
 			userVars: {},
 			messageRefs: {},
 			totalTokens: 0,
 		},
-		...overrides,
+		...ctxOverrides,
 	};
 }
 
@@ -215,39 +214,6 @@ describe("replyTool", () => {
 		await replyTool.execute({ content: "second" }, ctx);
 		expect(collector).toEqual(["first", "second"]);
 		expect(mockEnqueueMessage).not.toHaveBeenCalled();
-	});
-
-	test("fixed voiceMode triggers TTS for long content", async () => {
-		const longContent = "a".repeat(51); // above threshold of 50
-		await replyTool.execute(
-			{ content: longContent },
-			makeContext({
-				agent: { ...dummyAgent, voiceMode: "fixed" },
-			}),
-		);
-		expect(mockTextToSpeech).toHaveBeenCalledTimes(1);
-	});
-
-	test("fixed voiceMode sends text for short content", async () => {
-		await replyTool.execute(
-			{ content: "short" },
-			makeContext({
-				agent: { ...dummyAgent, voiceMode: "fixed" },
-			}),
-		);
-		expect(mockTextToSpeech).not.toHaveBeenCalled();
-	});
-
-	test("fixed voiceMode respects suppressVoice override", async () => {
-		const longContent = "a".repeat(51);
-		await replyTool.execute(
-			{ content: longContent },
-			makeContext({
-				agent: { ...dummyAgent, voiceMode: "fixed" },
-				overrides: { suppressVoice: true },
-			}),
-		);
-		expect(mockTextToSpeech).not.toHaveBeenCalled();
 	});
 
 	test('messageRef "current" without inbound message returns error', async () => {

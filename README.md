@@ -44,11 +44,11 @@ Commands start with `/` and bypass the LLM entirely:
 - `/model [claude|chatgpt|gemini]` — switch the active provider for this chat
 - `/models` — list all configured providers and their models
 - `/register` — register the current chat ID
-- `/help [commands|agents|flags|vars|vault]` — show commands, agents, flags, context variables, and vault overview; optional filter narrows to one section
+- `/help [commands|agents|overrides|vars|vault]` — show commands, agents, overrides, context variables, and vault overview; optional filter narrows to one section
 
-### Flags
+### overrides
 
-Flags start with `!` and can appear anywhere in your message. They are programmatic overrides that control pipeline and agent behavior for the current message:
+overrides start with `!` and can appear anywhere in your message. They control pipeline and agent behavior for the current message:
 
 - `!voice` — guaranteed voice reply (TTS)
 - `!clean` — call without conversation history
@@ -57,11 +57,11 @@ Flags start with `!` and can appear anywhere in your message. They are programma
 - `!cold` / `!hot` — temperature control (per-provider values)
 - `!creative` / `!rigid` — topP control (per-provider values)
 
-Flags are stripped from the message text before it reaches the agent, so they don't interfere with your actual message. Combine freely: `@think !voice !large Explain quantum computing`.
+overrides are stripped from the message text before it reaches the agent, so they don't interfere with your actual message. Combine freely: `@think !voice !large Explain quantum computing`.
 
-Flags are code-defined in `src/core/flags.ts`. Each flag maps to a typed override applied at the relevant pipeline/agent execution point.
+override presets are defined in `Klaus/overrides.yaml` (hot-reloaded). Agent frontmatter can set any override field directly as a default (e.g. `forceVoice: true`).
 
-See [REFERENCE.md](REFERENCE.md) for a complete list of all commands, flags, variables, tools, toolsets, modes, and settings.
+See [REFERENCE.md](REFERENCE.md) for a complete list of all commands, overrides, variables, tools, toolsets, and settings.
 
 ### Media
 
@@ -242,7 +242,7 @@ Every inbound WhatsApp message flows through the same pipeline:
 2. **Rate limit** — per-chat rate limiting; soft reject with retry message
 3. **Normalize** — transcribe voice notes (ElevenLabs STT), downscale large images
 4. **Parse** — extract /command (execute directly, bypass LLM) or @agent routing prefix
-5. **Strip flags** — pull out !flag tokens, resolve programmatic overrides
+5. **Strip overrides** — pull out !override tokens, resolve presets into typed overrides
 6. **Persist** — append message to conversation JSONL, resolve quote-reply
 7. **Assemble context** — run all context variables in parallel, trim to token budget
 8. **Execute agent** — Vercel AI SDK agentic loop with tools, send response via WhatsApp
@@ -303,7 +303,7 @@ Klaus has three types of knowledge content, forming a spectrum from always-loade
 | **Snippets** | `Klaus/snippets/`     | Always loaded | Dynamic    | Core prompt content (soul, architecture, user profile) — injected as `{{vars}}`, supports Handlebars conditionals |
 | **Skills**   | `Klaus/skills/`       | On demand     | Static     | Reference material loaded via `skill_get` tool when needed |
 
-**Snippets** are `.md` files in `Klaus/snippets/` plus `Klaus/user.md`. They are loaded every turn as template variables (e.g., `{{personality}}`, `{{user}}`, `{{architecture}}`). Always in context — use for core identity and instructions. Snippets support optional YAML frontmatter with a `scope` field (`system` | `user` | `both`, default: `system`). System-scoped snippets are available as `{{var}}` in agent prompts. User-scoped snippets are available as `$var` in WhatsApp messages. `both` makes them available everywhere. Snippet content supports Handlebars templating with turn context vars (`voiceMode`, `acceptMode`, `provider`, `forceVoice`, `suppressVoice`, `autoAccept`, `ghost`, `isVoiceOn`, `isVoiceOff`, `isVoiceAuto`, `isVoiceFixed`), enabling conditional blocks like `{{#if isVoiceOn}}...{{/if}}`. Compiled in a first pass before agent prompt assembly — no recursion risk.
+**Snippets** are `.md` files in `Klaus/snippets/` plus `Klaus/user.md`. They are loaded every turn as template variables (e.g., `{{personality}}`, `{{user}}`, `{{architecture}}`). Always in context — use for core identity and instructions. Snippets support optional YAML frontmatter with a `scope` field (`system` | `user` | `both`, default: `system`). System-scoped snippets are available as `{{var}}` in agent prompts. User-scoped snippets are available as `$var` in WhatsApp messages. `both` makes them available everywhere. Snippet content supports Handlebars templating with all resolved override fields as vars (e.g. `{{forceVoice}}`, `{{provider}}`, `{{modelTier}}`, plus `{{isVoiceOn}}`, `{{isVoiceOff}}`, `{{isVoiceAuto}}`), enabling conditional blocks like `{{#if isVoiceOn}}...{{/if}}`. Compiled in a first pass before agent prompt assembly — no recursion risk.
 
 **Skills** are `.md` files in `Klaus/skills/` with optional `description:` frontmatter. Declare `skills: [name1, name2]` in an agent's frontmatter to grant access via a `skill_get` tool scoped to those names via `z.enum`. The `{{skills}}` Handlebars var lists available skills in the prompt. Zero token overhead for agents without skills.
 

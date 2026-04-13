@@ -144,7 +144,7 @@ export async function rebuildFileIndex(): Promise<void> {
 				const record = FileMetaSchema.extend({
 					_update: z.boolean().optional(),
 				}).parse(JSON.parse(line));
-				// Later entries overwrite earlier ones (handles updates)
+				// Later entries override earlier ones (handles updates)
 				fileIndex.set(record.id, {
 					id: record.id,
 					path: record.path,

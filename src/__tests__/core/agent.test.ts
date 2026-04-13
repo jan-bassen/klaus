@@ -71,13 +71,12 @@ function makeTurn(
 			providerTools: [],
 			skills: [],
 			persistent: false,
-			voiceMode: "auto",
-			acceptMode: "off",
 			showToolsInContext: true,
 			promptPath: "/dev/null",
 		},
-		flags: {},
+		activeoverrides: {},
 		overrides: {},
+		templateVars: {},
 		assembled: { ...emptyAssembled, vars },
 	};
 }
@@ -426,7 +425,7 @@ describe("runAgent", () => {
 
 	test("flags do not inject prompt text into user message", async () => {
 		const turn = makeTurn({}, { text: "hello" });
-		turn.flags = { voice: true };
+		turn.activeoverrides = { voice: true };
 		turn.agent.promptPath = tmpPath;
 		await runAgent(turn, turn.agent);
 		cleanup();
@@ -663,8 +662,9 @@ describe("runAgent", () => {
 		const turn: TurnContext = {
 			chatId: base.chatId,
 			agent: { ...base.agent, promptPath: tmpPath },
-			flags: {},
+			activeoverrides: {},
 			overrides: {},
+			templateVars: {},
 			assembled: base.assembled,
 			dispatchContext: {
 				caller: "thinking",

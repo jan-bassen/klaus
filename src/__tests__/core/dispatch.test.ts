@@ -57,8 +57,6 @@ const mockLoadAgentDefinition = mock(
 		providerTools: [],
 		skills: [],
 		persistent: false,
-		voiceMode: "auto",
-		acceptMode: "off",
 		showToolsInContext: true,
 		promptPath: "/agents/helper.md",
 	}),
@@ -148,8 +146,6 @@ describe("dispatch", () => {
 			providerTools: [],
 			skills: [],
 			persistent: false,
-			voiceMode: "auto",
-			acceptMode: "off",
 			showToolsInContext: true,
 			promptPath: "/agents/helper.md",
 		};

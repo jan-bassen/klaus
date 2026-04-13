@@ -36,7 +36,8 @@ export function formatTrailEntry(entry: TurnLog, timezone: string): string {
 	}
 
 	const meta: string[] = [];
-	if (entry.flags.length > 0) meta.push(`**Flags**: ${entry.flags.join(", ")}`);
+	if (entry.overrides.length > 0)
+		meta.push(`**overrides**: ${entry.overrides.join(", ")}`);
 	meta.push(`**Tokens**: ${entry.promptTokens}→${entry.completionTokens}`);
 	meta.push(`**Duration**: ${(entry.durationMs / 1000).toFixed(1)}s`);
 	lines.push(meta.join(" · "));

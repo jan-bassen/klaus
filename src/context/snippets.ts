@@ -3,7 +3,7 @@ import { parse as parseYaml } from "yaml";
 import { hbs } from "@/core/hbs";
 import { log } from "@/logger";
 import { settings } from "@/settings";
-import type { ContextVariable, TurnContext } from "@/types";
+import type { ContextVariable } from "@/types";
 
 const fmPattern = /^---\n([\s\S]*?)\n---\n?/;
 
@@ -48,29 +48,6 @@ async function readSnippet(filePath: string): Promise<SnippetMeta> {
 	}
 }
 
-/** Extract a flat set of template vars from turn context for snippet HBS compilation. */
-function buildSnippetVars(
-	turn: Omit<TurnContext, "assembled">,
-): Record<string, unknown> {
-	const agent = turn.agent;
-	const ov = turn.overrides;
-	return {
-		voiceMode: agent.voiceMode ?? "auto",
-		acceptMode: agent.acceptMode ?? "off",
-		provider: agent.provider ?? "default",
-		forceVoice: !!ov?.forceVoice,
-		suppressVoice: !!ov?.suppressVoice,
-		autoAccept: !!ov?.autoAccept,
-		ghost: !!ov?.ghost,
-		isVoiceOn: agent.voiceMode === "on" || !!ov?.forceVoice,
-		isVoiceOff: agent.voiceMode === "off" || !!ov?.suppressVoice,
-		isVoiceAuto:
-			agent.voiceMode === "auto" && !ov?.forceVoice && !ov?.suppressVoice,
-		isVoiceFixed:
-			agent.voiceMode === "fixed" && !ov?.forceVoice && !ov?.suppressVoice,
-	};
-}
-
 /** Compile snippet content through Handlebars with turn vars. Static snippets skip compilation. */
 function compileSnippet(
 	content: string,
@@ -92,7 +69,7 @@ function compileSnippet(
  * Loads snippets from {vault}/Klaus/snippets/*.md, plus user.md.
  * Splits into system vars and user vars based on frontmatter scope.
  * Snippet content is compiled through Handlebars with turn context
- * (modes, flags) before becoming vars — enables conditional blocks.
+ * (overrides) before becoming vars — enables conditional blocks.
  * Always included, never trimmed.
  */
 export const snippetsQuery: ContextVariable = {
@@ -102,7 +79,7 @@ export const snippetsQuery: ContextVariable = {
 	async run(turn, _params) {
 		const klausDir = settings.vault.internalPath;
 		const snippetsDir = settings.vault.snippetsDir;
-		const snippetVars = buildSnippetVars(turn);
+		const snippetVars = turn.templateVars;
 
 		const vars: Record<string, string> = {};
 		const userVars: Record<string, string> = {};

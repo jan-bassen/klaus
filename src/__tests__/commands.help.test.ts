@@ -55,7 +55,7 @@ mock.module("@/core/assemble", () => ({
 import { registry } from "@/commands";
 import { helpCommand } from "@/commands/help";
 import { agentRegistry } from "@/core/agent";
-import { flagRegistry } from "@/flags";
+import { overrideRegistry } from "@/core/overrides";
 import type { AgentDefinition, InboundMessage } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -87,8 +87,6 @@ function makeAgent(
 		providerTools: [],
 		skills: [],
 		persistent: false,
-		voiceMode: "auto",
-		acceptMode: "off",
 		showToolsInContext: true,
 		promptPath: `/fake/agents/${name}.md`,
 	};
@@ -109,7 +107,7 @@ beforeAll(() => {
 		TEST_AGENT_NAME,
 		makeAgent(TEST_AGENT_NAME, ["reply"], ["vault"]),
 	);
-	flagRegistry.set("voice", {
+	overrideRegistry.set("voice", {
 		name: "voice",
 		description: "reply as a voice note",
 		overrides: { forceVoice: true },
@@ -134,7 +132,7 @@ describe("/help", () => {
 		expect(content).toContain(`/${TEST_CMD_NAME}`);
 		expect(content).toContain("*Agents*");
 		expect(content).toContain(`@${TEST_AGENT_NAME}`);
-		expect(content).toContain("*Flags*");
+		expect(content).toContain("*overrides*");
 		expect(content).toContain("!voice");
 		expect(content).toContain("*Variables*");
 		expect(content).toContain("*Vault*");
@@ -148,7 +146,7 @@ describe("/help", () => {
 		)[0];
 		expect(content).toContain("*Commands*");
 		expect(content).not.toContain("*Agents*");
-		expect(content).not.toContain("*Flags*");
+		expect(content).not.toContain("*overrides*");
 	});
 
 	test("agents arg: only agents section", async () => {
@@ -159,16 +157,16 @@ describe("/help", () => {
 		)[0];
 		expect(content).toContain("*Agents*");
 		expect(content).not.toContain("*Commands*");
-		expect(content).not.toContain("*Flags*");
+		expect(content).not.toContain("*overrides*");
 	});
 
-	test("flags arg: only flags section", async () => {
-		await helpCommand.execute(makeMsg(), ["flags"]);
+	test("overrides arg: only overrides section", async () => {
+		await helpCommand.execute(makeMsg(), ["overrides"]);
 
 		const { content } = (
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
 		)[0];
-		expect(content).toContain("*Flags*");
+		expect(content).toContain("*overrides*");
 		expect(content).not.toContain("*Commands*");
 		expect(content).not.toContain("*Agents*");
 	});

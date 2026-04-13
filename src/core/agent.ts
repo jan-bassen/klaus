@@ -42,12 +42,6 @@ import { hbs } from "./hbs";
 import { interpolateUserVars, stripHbsParams } from "./interpolate";
 import { callModel, type ModelCallStep } from "./model-router";
 
-export const voiceModes = ["auto", "on", "off", "fixed"] as const;
-export type VoiceMode = (typeof voiceModes)[number];
-
-export const acceptModes = ["on", "off"] as const;
-export type AcceptMode = (typeof acceptModes)[number];
-
 export const AgentFrontmatterSchema = z.object({
 	name: z.string().min(1),
 	aliases: z.array(z.string()).default([]),
@@ -61,9 +55,18 @@ export const AgentFrontmatterSchema = z.object({
 	vaultScope: z.string().optional(),
 	conversationLimit: z.number().optional(),
 	showToolsInContext: z.boolean().default(true),
-	voiceMode: z.enum(voiceModes).default("auto"),
-	acceptMode: z.enum(acceptModes).default("off"),
 	provider: z.string().optional(),
+	// Direct override fields — agent-level defaults
+	forceVoice: z.boolean().optional(),
+	suppressVoice: z.boolean().optional(),
+	skipHistory: z.boolean().optional(),
+	autoAccept: z.boolean().optional(),
+	ghost: z.boolean().optional(),
+	temperaturePreset: z.enum(["cold", "hot"]).optional(),
+	topPPreset: z.enum(["creative", "rigid"]).optional(),
+	toolChoice: z.enum(["none", "required"]).optional(),
+	reasoningEffort: z.enum(["low", "high"]).optional(),
+	fast: z.boolean().optional(),
 });
 
 const PersistentOutputSchema = z.object({
@@ -154,7 +157,7 @@ function buildUserMessageText(turn: TurnContext): string {
 			mimeType: media?.mimeType ?? "",
 			quotedText: msg.quotedMessage?.text ?? "",
 			messageText,
-			flags: Object.keys(turn.flags),
+			overrides: Object.keys(turn.activeoverrides),
 		})
 			.replace(/\n{3,}/g, "\n\n")
 			.trim();
@@ -641,7 +644,7 @@ export async function runAgent(
 	} else if (providerCfg.topP !== undefined) {
 		effectiveTopP = providerCfg.topP;
 	}
-	// Build providerOptions from flag overrides
+	// Build providerOptions from overrides
 	let providerOptions: Record<string, Record<string, unknown>> | undefined;
 	const sdkName = providerCfg.sdk;
 
@@ -701,7 +704,7 @@ export async function runAgent(
 	});
 
 	try {
-		// Build conversation history with traces (skip if !clean flag)
+		// Build conversation history with traces (skip if !clean override)
 		const { messages: historyMessages, messageRefs } = turn.overrides
 			?.skipHistory
 			? {
@@ -902,42 +905,7 @@ export async function loadAgentDefinition(
 	const rawFront = parseYaml(match[1] ?? "");
 	const front = AgentFrontmatterSchema.parse(rawFront);
 
-	const {
-		name,
-		aliases,
-		modelTier,
-		tools,
-		toolsets,
-		providerTools,
-		skills,
-		schedule,
-		persistent,
-		vaultScope,
-		conversationLimit,
-		showToolsInContext,
-		voiceMode,
-		acceptMode,
-		provider,
-	} = front;
-
-	return {
-		name,
-		aliases,
-		modelTier,
-		tools,
-		toolsets,
-		providerTools,
-		skills,
-		...(schedule ? { schedule } : {}),
-		persistent,
-		...(vaultScope ? { vaultScope } : {}),
-		...(conversationLimit !== undefined ? { conversationLimit } : {}),
-		showToolsInContext,
-		voiceMode,
-		acceptMode,
-		...(provider ? { provider } : {}),
-		promptPath,
-	};
+	return { ...front, promptPath };
 }
 
 /**

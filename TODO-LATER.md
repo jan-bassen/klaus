@@ -47,7 +47,7 @@
 - [ ] Check all tool descriptions for bad instructions ( e.g. 👍 to confirm, ✅ on task done, ❤️ for appreciation in react - this schould go into user prompts! also skills one is bad too!)
 - [ ] files.upload for what?
 - [ ] How to test right formatting etc for tools?
-- [ ] vault.write as default overwrite seems scary, maybe separate with clearer names and correct confirmation
+- [ ] vault.write as default override seems scary, maybe separate with clearer names and correct confirmation
 - [ ] I think we can remove the const casting  (const CONST_IN_FILE = settings.const)
 - [ ] 60s confirmation timeout seems unnecessary. Why not keep it open until I decided? Surely that's possible
 - [ ] We can probably clean up and reduce ./core and ./whatsapp

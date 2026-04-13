@@ -11,8 +11,6 @@ const dummyAgent: AgentDefinition = {
 	providerTools: [],
 	skills: [],
 	persistent: false,
-	voiceMode: "auto",
-	acceptMode: "off",
 	showToolsInContext: true,
 	promptPath: "/dev/null",
 };
@@ -24,8 +22,9 @@ function makeTurn(
 	const base: Omit<TurnContext, "assembled"> = {
 		chatId: "user@s.whatsapp.net",
 		agent: dummyAgent,
-		flags: {},
+		activeoverrides: {},
 		overrides: {},
+		templateVars: {},
 	};
 	if (dispatchContext) base.dispatchContext = dispatchContext;
 	if (hasMessage) {

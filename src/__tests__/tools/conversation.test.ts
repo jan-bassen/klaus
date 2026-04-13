@@ -41,8 +41,6 @@ const dummyAgent: AgentDefinition = {
 	providerTools: [],
 	skills: [],
 	persistent: false,
-	voiceMode: "auto",
-	acceptMode: "off",
 	showToolsInContext: true,
 	promptPath: "/tmp/test.md",
 };
@@ -60,8 +58,9 @@ function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
 			messageKey: {},
 		},
 		agent: dummyAgent,
-		flags: {},
+		activeoverrides: {},
 		overrides: {},
+		templateVars: {},
 		messageId: "mid-1",
 		assembled: {
 			vars: {},

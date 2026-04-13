@@ -1,6 +1,6 @@
 # Reference
 
-Complete reference of all Klaus primitives. Keep this file in sync when adding or changing commands, flags, variables, tools, toolsets, modes, or settings.
+Complete reference of all Klaus primitives. Keep this file in sync when adding or changing commands, overrides, variables, tools, toolsets, or settings.
 
 ---
 
@@ -15,44 +15,46 @@ Commands start with `/` and bypass the LLM entirely. Defined in `src/commands/`.
 | `/default` | — | Set the default agent for this chat |
 | `/model` | `/m` | Show or switch model tier (`small`/`medium`/`large`) or provider (`claude`/`chatgpt`/`gemini`) |
 | `/models` | — | List all configured providers and their models |
-| `/voice` | `/v` | Show or set voice mode for the default agent (`auto`/`on`/`off`/`fixed`) |
-| `/accept` | `/a` | Show or set auto-accept mode for the default agent (`on`/`off`) |
-| `/help` | `/?` | Show commands, agents, flags, vars, and vault overview; optional section filter |
+| `/voice` | `/v` | Show or set voice output for the default agent (`on`/`off`/`auto`) |
+| `/accept` | `/a` | Show or set auto-accept for the default agent (`on`/`off`) |
+| `/help` | `/?` | Show commands, agents, overrides, vars, and vault overview; optional section filter |
 | `/break` | `/b` | Insert a context break — fresh start from here |
 
 ---
 
-## Flags
+## overrides
 
-Flags start with `!` and override pipeline/agent behavior for the current message. Stripped before reaching the agent. Each flag is defined as a `FlagDef` in `src/flags/` (one file per group, auto-discovered at startup).
+overrides start with `!` and override pipeline/agent behavior for the current message. Stripped before reaching the agent. Defined in `Klaus/overrides.yaml` (vault, hot-reloaded). Resolved by `src/core/overrides.ts`.
+
+Agent frontmatter can set any override field directly as a default (e.g. `forceVoice: true`). Per-message `!` overrides always take precedence.
 
 ### Output
 
-| Flag | Aliases | Effect |
-|------|---------|--------|
+| override | Aliases | Effect |
+|-----------|---------|--------|
 | `!voice` | `!v` | Force voice reply (TTS) |
 | `!ghost` | `!g` | Ephemeral call — no persistence, no history |
 
 ### Model
 
-| Flag | Aliases | Effect |
-|------|---------|--------|
+| override | Aliases | Effect |
+|-----------|---------|--------|
 | `!small` | `!s` | Use small-tier model |
 | `!medium` | `!m` | Use medium-tier model |
 | `!large` | `!l` | Use large-tier model |
 
 ### Provider
 
-| Flag | Aliases | Effect |
-|------|---------|--------|
+| override | Aliases | Effect |
+|-----------|---------|--------|
 | `!claude` | — | Use Claude for this turn |
 | `!chatgpt` | — | Use ChatGPT for this turn |
 | `!gemini` | — | Use Gemini for this turn |
 
 ### Randomness
 
-| Flag | Aliases | Effect |
-|------|---------|--------|
+| override | Aliases | Effect |
+|-----------|---------|--------|
 | `!cold` | `!c` | Low temperature (deterministic) |
 | `!hot` | `!h` | High temperature (creative) |
 | `!creative` | `!cr` | High topP (diverse sampling) |
@@ -60,20 +62,50 @@ Flags start with `!` and override pipeline/agent behavior for the current messag
 
 ### Inference
 
-| Flag | Aliases | Effect |
-|------|---------|--------|
+| override | Aliases | Effect |
+|-----------|---------|--------|
 | `!low` | `!lo` | Low reasoning effort |
 | `!high` | `!hi` | High reasoning effort |
 | `!fast` | `!f` | Fast inference mode (provider-dependent) |
 
 ### Context
 
-| Flag | Aliases | Effect |
-|------|---------|--------|
+| override | Aliases | Effect |
+|-----------|---------|--------|
 | `!clean` | `!cl` | Call without conversation history |
 | `!accept` | `!a` | Auto-accept confirmation prompts |
 | `!no-tools` | `!nt` | Disable all tools except reply |
 | `!use-tools` | `!ut` | Force tool use (model must call a tool) |
+
+### override fields in agent frontmatter
+
+Any field from the `overrides` type can be set directly in agent YAML frontmatter as a default:
+
+```yaml
+---
+name: reader
+forceVoice: true
+autoAccept: true
+provider: gemini
+modelTier: large
+temperaturePreset: cold
+---
+```
+
+Resolution: agent frontmatter defaults → per-message `!override` → final.
+
+### Adding custom overrides
+
+Add entries to `Klaus/overrides.yaml`:
+
+```yaml
+mypreset:
+  aliases: [mp]
+  description: My custom preset
+  overrides: { modelTier: large, temperaturePreset: cold }
+```
+
+The file is hot-reloaded — no restart needed.
 
 ---
 
@@ -89,7 +121,7 @@ Dynamic content injected into prompts. System prompts use `{{var}}`, user messag
 | `weekday` | -1 | — | Day of the week |
 | `active_tasks` | 4 | `limit=N` | Running async jobs and pending timers |
 | `dispatch_context` | -1 | — | Dispatch caller and objective (injected when invoked via `dispatch.agent`) |
-| `modes` | -1 | — | Active agent modes (voice, accept, provider) |
+| *(template vars)* | — | — | All resolved settings from `turn.templateVars` are seeded into assembled vars (e.g. `{{forceVoice}}`, `{{provider}}`, `{{isVoiceOn}}`). Computed by `buildTemplateVars()` — not a context variable. |
 
 ---
 
@@ -132,7 +164,7 @@ Obsidian vault operations with folder-level permissions. Meta-tool: `use_vault`.
 | `vault.read` | Read a note by relative path | |
 | `vault.search` | Full-text search across all markdown notes | |
 | `vault.list` | Browse vault directory structure | |
-| `vault.write` | Create or overwrite a note | |
+| `vault.write` | Create or override a note | |
 | `vault.append` | Append content to a note (optional heading target) | |
 | `vault.backlinks` | Find all notes that link to a given note | |
 | `vault.move` | Move or rename a note (optional backlink rewrite) | |
@@ -167,40 +199,6 @@ File management (upload, download, list, delete). Meta-tool: `use_files`.
 
 ---
 
-## Modes
-
-Persistent agent-level defaults set in frontmatter. Per-message flags always take precedence. Defined in `src/core/modes.ts`.
-
-### voiceMode
-
-Controls TTS output on replies. Set via `/voice <mode>` or agent frontmatter.
-
-| Value | Behavior |
-|-------|----------|
-| `auto` (default) | Agent decides; no voice unless `!voice` flag or voice input |
-| `on` | Always voice reply |
-| `off` | Never voice reply (unless `!voice` flag) |
-| `fixed` | Voice reply when content exceeds `tts.fixedVoiceThreshold` characters (default: 200) |
-
-Prompt vars: `isVoiceAuto`, `isVoiceOn`, `isVoiceOff`, `isVoiceFixed`.
-
-### acceptMode
-
-Controls confirmation gating. Set via `/accept <mode>` or agent frontmatter.
-
-| Value | Behavior |
-|-------|----------|
-| `off` (default) | Tools requiring confirmation need user approval (reaction) |
-| `on` | All confirmations auto-approved |
-
-### provider
-
-Preferred LLM provider. Set in agent frontmatter or via `/model <provider>`.
-
-Falls back to `providers.active` in settings.yml if not set on the agent. Overridden by `!claude`/`!chatgpt`/`!gemini` flags.
-
----
-
 ## Settings
 
 User-facing configuration in `Klaus/settings.yml`. Hot-reloaded with Zod validation. All fields optional — schema defaults apply. Defined in `src/core/settings-loader.ts`.
@@ -226,11 +224,11 @@ Provider configuration. Each named entry (claude, chatgpt, gemini) uses the same
 | `large` | — | Model ID for large tier |
 | `vision` | — | Model ID for vision tier |
 | `temperature` | — | Default temperature |
-| `coldTemperature` | `0` | Temperature for `!cold` flag |
-| `hotTemperature` | `1` | Temperature for `!hot` flag |
+| `coldTemperature` | `0` | Temperature for `!cold` override |
+| `hotTemperature` | `1` | Temperature for `!hot` override |
 | `topP` | — | Default topP |
-| `creativeTopP` | `0.95` | topP for `!creative` flag |
-| `rigidTopP` | `0.1` | topP for `!rigid` flag |
+| `creativeTopP` | `0.95` | topP for `!creative` override |
+| `rigidTopP` | `0.1` | topP for `!rigid` override |
 
 ### context
 
@@ -263,7 +261,6 @@ Token budgets and conversation history limits.
 |-------|---------|-------------|
 | `model` | `"eleven_multilingual_v2"` | ElevenLabs TTS model |
 | `voiceId` | `"Qqi8SzIZjZsatCWjDOp7"` | ElevenLabs voice ID |
-| `fixedVoiceThreshold` | `200` | Character threshold for `fixed` voice mode |
 
 ### stt
 
@@ -272,7 +269,6 @@ Token budgets and conversation history limits.
 | `model` | `"scribe_v1"` | ElevenLabs STT model |
 | `timeoutMs` | `30000` | STT timeout |
 | `agentTriggers` | `["hey", "at", "an", "to", "dear"]` | Phrases triggering agent routing from voice |
-| `flagTriggers` | `["flagged with", "tagged with", "flags", ...]` | Phrases triggering flag parsing from voice |
 
 ### llm
 
@@ -367,9 +363,9 @@ Folder-level access control for vault operations.
 Resolution order for all overridable behavior:
 
 ```
-Per-message flags  (highest)
+Per-message !overrides  (highest)
     ↓
-Agent frontmatter modes
+Agent frontmatter defaults
     ↓
 Settings defaults (settings.yml)
     ↓

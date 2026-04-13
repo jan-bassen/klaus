@@ -30,13 +30,17 @@ const dummyTurn = {
 		providerTools: [],
 		skills: [],
 		persistent: false,
-		voiceMode: "auto" as const,
-		acceptMode: "off" as const,
 		showToolsInContext: true,
 		promptPath: "/dev/null",
 	},
-	flags: {},
+	activeoverrides: {},
 	overrides: {},
+	templateVars: {
+		provider: "default",
+		isVoiceOn: false,
+		isVoiceOff: false,
+		isVoiceAuto: true,
+	},
 };
 
 describe("snippetsQuery scope", () => {
@@ -142,21 +146,7 @@ describe("snippetsQuery HBS compilation", () => {
 		expect(result.vars?.comm).toBe("text");
 	});
 
-	test("HBS conditional resolves with voiceMode on", async () => {
-		writeFileSync(
-			path.join(snippetsDir, "comm.md"),
-			"{{#if isVoiceOn}}voice{{else}}text{{/if}}",
-		);
-
-		const turn = {
-			...dummyTurn,
-			agent: { ...dummyTurn.agent, voiceMode: "on" as const },
-		};
-		const result = await snippetsQuery.run(turn);
-		expect(result.vars?.comm).toBe("voice");
-	});
-
-	test("forceVoice flag sets isVoiceOn", async () => {
+	test("HBS conditional resolves with forceVoice override", async () => {
 		writeFileSync(
 			path.join(snippetsDir, "comm.md"),
 			"{{#if isVoiceOn}}voice{{else}}text{{/if}}",
@@ -165,12 +155,38 @@ describe("snippetsQuery HBS compilation", () => {
 		const turn = {
 			...dummyTurn,
 			overrides: { forceVoice: true },
+			templateVars: {
+				...dummyTurn.templateVars,
+				forceVoice: true,
+				isVoiceOn: true,
+				isVoiceAuto: false,
+			},
 		};
 		const result = await snippetsQuery.run(turn);
 		expect(result.vars?.comm).toBe("voice");
 	});
 
-	test("suppressVoice flag sets isVoiceOff", async () => {
+	test("forceVoice override sets isVoiceOn", async () => {
+		writeFileSync(
+			path.join(snippetsDir, "comm.md"),
+			"{{#if isVoiceOn}}voice{{else}}text{{/if}}",
+		);
+
+		const turn = {
+			...dummyTurn,
+			overrides: { forceVoice: true },
+			templateVars: {
+				...dummyTurn.templateVars,
+				forceVoice: true,
+				isVoiceOn: true,
+				isVoiceAuto: false,
+			},
+		};
+		const result = await snippetsQuery.run(turn);
+		expect(result.vars?.comm).toBe("voice");
+	});
+
+	test("suppressVoice override sets isVoiceOff", async () => {
 		writeFileSync(
 			path.join(snippetsDir, "comm.md"),
 			"{{#if isVoiceOff}}suppressed{{else}}normal{{/if}}",
@@ -179,27 +195,35 @@ describe("snippetsQuery HBS compilation", () => {
 		const turn = {
 			...dummyTurn,
 			overrides: { suppressVoice: true },
+			templateVars: {
+				...dummyTurn.templateVars,
+				suppressVoice: true,
+				isVoiceOff: true,
+				isVoiceAuto: false,
+			},
 		};
 		const result = await snippetsQuery.run(turn);
 		expect(result.vars?.comm).toBe("suppressed");
 	});
 
-	test("acceptMode and provider are available", async () => {
+	test("autoAccept and provider are available", async () => {
 		writeFileSync(
 			path.join(snippetsDir, "info.md"),
-			"accept={{acceptMode}} provider={{provider}}",
+			"accept={{autoAccept}} provider={{provider}}",
 		);
 
 		const turn = {
 			...dummyTurn,
-			agent: {
-				...dummyTurn.agent,
-				acceptMode: "on" as const,
+			agent: { ...dummyTurn.agent, provider: "gemini" },
+			overrides: { autoAccept: true },
+			templateVars: {
+				...dummyTurn.templateVars,
+				autoAccept: true,
 				provider: "gemini",
 			},
 		};
 		const result = await snippetsQuery.run(turn);
-		expect(result.vars?.info).toBe("accept=on provider=gemini");
+		expect(result.vars?.info).toBe("accept=true provider=gemini");
 	});
 
 	test("isVoiceAuto true when voiceMode auto and no flag overrides", async () => {
@@ -221,38 +245,15 @@ describe("snippetsQuery HBS compilation", () => {
 		const turn = {
 			...dummyTurn,
 			overrides: { forceVoice: true },
+			templateVars: {
+				...dummyTurn.templateVars,
+				forceVoice: true,
+				isVoiceOn: true,
+				isVoiceAuto: false,
+			},
 		};
 		const result = await snippetsQuery.run(turn);
 		expect(result.vars?.comm).toBe("not-auto");
-	});
-
-	test("isVoiceFixed true when voiceMode fixed and no flag overrides", async () => {
-		writeFileSync(
-			path.join(snippetsDir, "comm.md"),
-			"{{#if isVoiceFixed}}fixed{{else}}not-fixed{{/if}}",
-		);
-
-		const turn = {
-			...dummyTurn,
-			agent: { ...dummyTurn.agent, voiceMode: "fixed" as const },
-		};
-		const result = await snippetsQuery.run(turn);
-		expect(result.vars?.comm).toBe("fixed");
-	});
-
-	test("isVoiceFixed false when forceVoice overrides fixed", async () => {
-		writeFileSync(
-			path.join(snippetsDir, "comm.md"),
-			"{{#if isVoiceFixed}}fixed{{else}}not-fixed{{/if}}",
-		);
-
-		const turn = {
-			...dummyTurn,
-			agent: { ...dummyTurn.agent, voiceMode: "fixed" as const },
-			overrides: { forceVoice: true },
-		};
-		const result = await snippetsQuery.run(turn);
-		expect(result.vars?.comm).toBe("not-fixed");
 	});
 
 	test("malformed HBS falls back to raw content", async () => {
@@ -268,6 +269,7 @@ describe("snippetsQuery HBS compilation", () => {
 		const turn = {
 			...dummyTurn,
 			agent: { ...dummyTurn.agent, provider: "claude" },
+			templateVars: { ...dummyTurn.templateVars, provider: "claude" },
 		};
 		const result = await snippetsQuery.run(turn);
 		expect(result.vars?.user).toBe("User on claude");

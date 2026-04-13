@@ -75,14 +75,13 @@ function makeTurn(
 			providerTools: [],
 			skills: [],
 			persistent: false,
-			voiceMode: "auto",
-			acceptMode: "off",
 			showToolsInContext: true,
 			promptPath: "/dev/null",
 			...agentOverrides,
 		},
-		flags: {},
+		activeoverrides: {},
 		overrides: {},
+		templateVars: {},
 		assembled: { ...emptyAssembled },
 	};
 }
@@ -157,8 +156,6 @@ describe("persistent agents", () => {
 		await writeAgentFile("name: test\nmodelTier: medium\ntools: []");
 		const turn = makeTurn({
 			persistent: false,
-			voiceMode: "auto",
-			acceptMode: "off",
 			showToolsInContext: true,
 			promptPath: tmpPath,
 		});

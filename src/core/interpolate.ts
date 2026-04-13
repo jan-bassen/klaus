@@ -73,7 +73,7 @@ export function interpolateUserVars(
 }
 
 /**
- * Merge multiple param maps. Later entries overwrite earlier ones per key.
+ * Merge multiple param maps. Later entries override earlier ones per key.
  */
 export function mergeVarParams(
 	...maps: Record<string, Record<string, string>>[]

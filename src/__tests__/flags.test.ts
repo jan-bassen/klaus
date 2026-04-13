@@ -1,24 +1,26 @@
 import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import path from "node:path";
 import {
-	type FlagDef,
-	flagRegistry,
-	getKnownFlags,
-	loadFlags,
-	parseFlags,
-	resolveOverrides,
-	stripFlags,
-} from "@/flags";
+	getKnownoverrides,
+	loadoverrides,
+	type overrideDef,
+	overrideRegistry,
+	parseoverrides,
+	resolveoverrides,
+	stripoverrides,
+} from "@/core/overrides";
 
-// ── Setup: load all flag definitions before tests ────────────────────────────
+// ── Setup: load all override definitions before tests ──────────────────────
+
+const yamlPath = path.join(import.meta.dir, "fixtures", "overrides.yaml");
 
 beforeAll(async () => {
-	await loadFlags(path.join(import.meta.dir, "..", "flags"));
+	await loadoverrides(yamlPath);
 });
 
-// Add a test-only flag for parseFlags/stripFlags tests
+// Add a test-only override for parseoverrides/stripoverrides tests
 beforeAll(() => {
-	flagRegistry.set("test", {
+	overrideRegistry.set("test", {
 		name: "test",
 		description: "mark as a test message",
 		overrides: {},
@@ -26,8 +28,8 @@ beforeAll(() => {
 });
 
 afterEach(() => {
-	if (!flagRegistry.has("test")) {
-		flagRegistry.set("test", {
+	if (!overrideRegistry.has("test")) {
+		overrideRegistry.set("test", {
 			name: "test",
 			description: "mark as a test message",
 			overrides: {},
@@ -42,125 +44,127 @@ function makeMsg(text?: string): { text?: string } {
 
 // ── Loader ───────────────────────────────────────────────────────────────────
 
-describe("loadFlags", () => {
-	test("discovers all 19 flags", () => {
-		const canonical = new Set([...flagRegistry.values()].map((f) => f.name));
-		// Remove the test-only flag
+describe("loadoverrides", () => {
+	test("discovers all 19 presets", () => {
+		const canonical = new Set(
+			[...overrideRegistry.values()].map((f) => f.name),
+		);
+		// Remove the test-only entry
 		canonical.delete("test");
 		expect(canonical.size).toBe(19);
 	});
 
 	test("registers aliases alongside canonical names", () => {
-		expect(flagRegistry.get("s")?.name).toBe("small");
-		expect(flagRegistry.get("v")?.name).toBe("voice");
-		expect(flagRegistry.get("nt")?.name).toBe("no-tools");
+		expect(overrideRegistry.get("s")?.name).toBe("small");
+		expect(overrideRegistry.get("v")?.name).toBe("voice");
+		expect(overrideRegistry.get("nt")?.name).toBe("no-tools");
 	});
 });
 
 // ── Registry aliases ─────────────────────────────────────────────────────────
 
-describe("flagRegistry aliases", () => {
-	test("alias keys resolve to the correct FlagDef", () => {
-		expect(flagRegistry.get("s")?.name).toBe("small");
-		expect(flagRegistry.get("m")?.name).toBe("medium");
-		expect(flagRegistry.get("l")?.name).toBe("large");
-		expect(flagRegistry.get("v")?.name).toBe("voice");
-		expect(flagRegistry.get("nt")?.name).toBe("no-tools");
+describe("overrideRegistry aliases", () => {
+	test("alias keys resolve to the correct overrideDef", () => {
+		expect(overrideRegistry.get("s")?.name).toBe("small");
+		expect(overrideRegistry.get("m")?.name).toBe("medium");
+		expect(overrideRegistry.get("l")?.name).toBe("large");
+		expect(overrideRegistry.get("v")?.name).toBe("voice");
+		expect(overrideRegistry.get("nt")?.name).toBe("no-tools");
 	});
 
-	test("getKnownFlags includes aliases", () => {
-		const known = getKnownFlags();
+	test("getKnownoverrides includes aliases", () => {
+		const known = getKnownoverrides();
 		expect(known).toContain("small");
 		expect(known).toContain("s");
 		expect(known).toContain("nt");
 	});
 });
 
-// ── resolveOverrides ─────────────────────────────────────────────────────────
+// ── resolveoverrides ───────────────────────────────────────────────────────
 
-describe("resolveOverrides", () => {
+describe("resolveoverrides", () => {
 	test("returns empty object for no flags", () => {
-		expect(resolveOverrides({})).toEqual({});
+		expect(resolveoverrides({})).toEqual({});
 	});
 
 	test("voice flag sets forceVoice", () => {
-		expect(resolveOverrides({ voice: true })).toEqual({ forceVoice: true });
+		expect(resolveoverrides({ voice: true })).toEqual({ forceVoice: true });
 	});
 
 	test("clean flag sets skipHistory", () => {
-		expect(resolveOverrides({ clean: true })).toEqual({ skipHistory: true });
+		expect(resolveoverrides({ clean: true })).toEqual({ skipHistory: true });
 	});
 
 	test("small flag sets modelTier to small", () => {
-		expect(resolveOverrides({ small: true })).toEqual({ modelTier: "small" });
+		expect(resolveoverrides({ small: true })).toEqual({ modelTier: "small" });
 	});
 
 	test("medium flag sets modelTier to medium", () => {
-		expect(resolveOverrides({ medium: true })).toEqual({
+		expect(resolveoverrides({ medium: true })).toEqual({
 			modelTier: "medium",
 		});
 	});
 
 	test("large flag sets modelTier to large", () => {
-		expect(resolveOverrides({ large: true })).toEqual({ modelTier: "large" });
+		expect(resolveoverrides({ large: true })).toEqual({ modelTier: "large" });
 	});
 
 	test("accept flag sets autoAccept", () => {
-		expect(resolveOverrides({ accept: true })).toEqual({ autoAccept: true });
+		expect(resolveoverrides({ accept: true })).toEqual({ autoAccept: true });
 	});
 
 	test("cold flag sets temperaturePreset", () => {
-		expect(resolveOverrides({ cold: true })).toEqual({
+		expect(resolveoverrides({ cold: true })).toEqual({
 			temperaturePreset: "cold",
 		});
 	});
 
 	test("hot flag sets temperaturePreset", () => {
-		expect(resolveOverrides({ hot: true })).toEqual({
+		expect(resolveoverrides({ hot: true })).toEqual({
 			temperaturePreset: "hot",
 		});
 	});
 
 	test("creative flag sets topPPreset", () => {
-		expect(resolveOverrides({ creative: true })).toEqual({
+		expect(resolveoverrides({ creative: true })).toEqual({
 			topPPreset: "creative",
 		});
 	});
 
 	test("rigid flag sets topPPreset", () => {
-		expect(resolveOverrides({ rigid: true })).toEqual({
+		expect(resolveoverrides({ rigid: true })).toEqual({
 			topPPreset: "rigid",
 		});
 	});
 
 	test("no-tools flag sets toolChoice to none", () => {
-		expect(resolveOverrides({ "no-tools": true })).toEqual({
+		expect(resolveoverrides({ "no-tools": true })).toEqual({
 			toolChoice: "none",
 		});
 	});
 
 	test("use-tools flag sets toolChoice to required", () => {
-		expect(resolveOverrides({ "use-tools": true })).toEqual({
+		expect(resolveoverrides({ "use-tools": true })).toEqual({
 			toolChoice: "required",
 		});
 	});
 
 	test("ghost flag sets ghost and skipHistory", () => {
-		expect(resolveOverrides({ ghost: true })).toEqual({
+		expect(resolveoverrides({ ghost: true })).toEqual({
 			ghost: true,
 			skipHistory: true,
 		});
 	});
 
 	test("combines multiple flags", () => {
-		expect(resolveOverrides({ voice: true, large: true })).toEqual({
+		expect(resolveoverrides({ voice: true, large: true })).toEqual({
 			forceVoice: true,
 			modelTier: "large",
 		});
 	});
 
 	test("combines all original flags", () => {
-		expect(resolveOverrides({ voice: true, clean: true, small: true })).toEqual(
+		expect(resolveoverrides({ voice: true, clean: true, small: true })).toEqual(
 			{
 				forceVoice: true,
 				skipHistory: true,
@@ -170,30 +174,30 @@ describe("resolveOverrides", () => {
 	});
 
 	test("ignores false flags", () => {
-		expect(resolveOverrides({ voice: false, clean: false })).toEqual({});
+		expect(resolveoverrides({ voice: false, clean: false })).toEqual({});
 	});
 
 	test("ignores unknown flags", () => {
-		expect(resolveOverrides({ unknown: true })).toEqual({});
+		expect(resolveoverrides({ unknown: true })).toEqual({});
 	});
 
 	test("last model tier flag wins", () => {
-		const result = resolveOverrides({ small: true, large: true });
+		const result = resolveoverrides({ small: true, large: true });
 		expect(result.modelTier).toBe("large");
 	});
 
 	test("last temperature flag wins (hot after cold)", () => {
-		const result = resolveOverrides({ cold: true, hot: true });
+		const result = resolveoverrides({ cold: true, hot: true });
 		expect(result.temperaturePreset).toBe("hot");
 	});
 
 	test("last topP flag wins (rigid after creative)", () => {
-		const result = resolveOverrides({ creative: true, rigid: true });
+		const result = resolveoverrides({ creative: true, rigid: true });
 		expect(result.topPPreset).toBe("rigid");
 	});
 
 	test("last toolChoice flag wins (use-tools after no-tools)", () => {
-		const result = resolveOverrides({
+		const result = resolveoverrides({
 			"no-tools": true,
 			"use-tools": true,
 		});
@@ -201,28 +205,28 @@ describe("resolveOverrides", () => {
 	});
 
 	test("low flag sets reasoningEffort to low", () => {
-		expect(resolveOverrides({ low: true })).toEqual({
+		expect(resolveoverrides({ low: true })).toEqual({
 			reasoningEffort: "low",
 		});
 	});
 
 	test("high flag sets reasoningEffort to high", () => {
-		expect(resolveOverrides({ high: true })).toEqual({
+		expect(resolveoverrides({ high: true })).toEqual({
 			reasoningEffort: "high",
 		});
 	});
 
 	test("fast flag sets fast", () => {
-		expect(resolveOverrides({ fast: true })).toEqual({ fast: true });
+		expect(resolveoverrides({ fast: true })).toEqual({ fast: true });
 	});
 
 	test("last reasoning effort flag wins (high after low)", () => {
-		const result = resolveOverrides({ low: true, high: true });
+		const result = resolveoverrides({ low: true, high: true });
 		expect(result.reasoningEffort).toBe("high");
 	});
 
 	test("combines reasoning effort with other flags", () => {
-		expect(resolveOverrides({ low: true, fast: true, voice: true })).toEqual({
+		expect(resolveoverrides({ low: true, fast: true, voice: true })).toEqual({
 			reasoningEffort: "low",
 			fast: true,
 			forceVoice: true,
@@ -230,7 +234,7 @@ describe("resolveOverrides", () => {
 	});
 
 	test("ghost combined with other flags", () => {
-		const result = resolveOverrides({
+		const result = resolveoverrides({
 			ghost: true,
 			voice: true,
 			accept: true,
@@ -244,50 +248,52 @@ describe("resolveOverrides", () => {
 	});
 
 	test("provider flags set provider override", () => {
-		expect(resolveOverrides({ claude: true })).toEqual({
+		expect(resolveoverrides({ claude: true })).toEqual({
 			provider: "claude",
 		});
-		expect(resolveOverrides({ chatgpt: true })).toEqual({
+		expect(resolveoverrides({ chatgpt: true })).toEqual({
 			provider: "chatgpt",
 		});
-		expect(resolveOverrides({ gemini: true })).toEqual({
+		expect(resolveoverrides({ gemini: true })).toEqual({
 			provider: "gemini",
 		});
 	});
 });
 
-// ── parseFlags ───────────────────────────────────────────────────────────────
+// ── parseoverrides ─────────────────────────────────────────────────────────
 
 const flagA = "test";
 const flagB = "voice";
 
-describe("parseFlags", () => {
+describe("parseoverrides", () => {
 	test("returns {} when text is undefined", () => {
-		expect(parseFlags(makeMsg(undefined))).toEqual({});
+		expect(parseoverrides(makeMsg(undefined))).toEqual({});
 	});
 
 	test("returns {} when text is empty", () => {
-		expect(parseFlags(makeMsg(""))).toEqual({});
+		expect(parseoverrides(makeMsg(""))).toEqual({});
 	});
 
 	test("returns {} when no flags in text", () => {
-		expect(parseFlags(makeMsg("just a normal message"))).toEqual({});
+		expect(parseoverrides(makeMsg("just a normal message"))).toEqual({});
 	});
 
 	test("parses a single known flag at the start", () => {
-		expect(parseFlags(makeMsg(`!${flagA} tell me more`))).toEqual({
+		expect(parseoverrides(makeMsg(`!${flagA} tell me more`))).toEqual({
 			[flagA]: true,
 		});
 	});
 
 	test("parses a single known flag at the end", () => {
-		expect(parseFlags(makeMsg(`explain this !${flagA}`))).toEqual({
+		expect(parseoverrides(makeMsg(`explain this !${flagA}`))).toEqual({
 			[flagA]: true,
 		});
 	});
 
 	test("parses a flag mid-sentence", () => {
-		expect(parseFlags(makeMsg(`please !${flagA} give me the data`))).toEqual({
+		expect(
+			parseoverrides(makeMsg(`please !${flagA} give me the data`)),
+		).toEqual({
 			[flagA]: true,
 		});
 	});
@@ -295,49 +301,49 @@ describe("parseFlags", () => {
 	test("parses multiple known flags", () => {
 		const text = `!${flagA} !${flagB} explain`;
 		const expected = { [flagA]: true, [flagB]: true };
-		expect(parseFlags(makeMsg(text))).toEqual(expected);
+		expect(parseoverrides(makeMsg(text))).toEqual(expected);
 	});
 
 	test("ignores unknown flags", () => {
-		expect(parseFlags(makeMsg("!banana explain"))).toEqual({});
+		expect(parseoverrides(makeMsg("!banana explain"))).toEqual({});
 	});
 
 	test("returns only known flags when mixed with unknown", () => {
-		expect(parseFlags(makeMsg(`!${flagA} !banana`))).toEqual({
+		expect(parseoverrides(makeMsg(`!${flagA} !banana`))).toEqual({
 			[flagA]: true,
 		});
 	});
 
 	test("handles duplicate flags idempotently", () => {
-		expect(parseFlags(makeMsg(`!${flagA} !${flagA}`))).toEqual({
+		expect(parseoverrides(makeMsg(`!${flagA} !${flagA}`))).toEqual({
 			[flagA]: true,
 		});
 	});
 
 	test("is case-sensitive — uppercase flags are not recognized", () => {
 		const upper = flagA.charAt(0).toUpperCase() + flagA.slice(1);
-		expect(parseFlags(makeMsg(`!${upper}`))).toEqual({});
+		expect(parseoverrides(makeMsg(`!${upper}`))).toEqual({});
 	});
 
 	test("does not match a bare ! with no name", () => {
-		expect(parseFlags(makeMsg("hey ! what"))).toEqual({});
+		expect(parseoverrides(makeMsg("hey ! what"))).toEqual({});
 	});
 
 	test("parses all flags loaded in registry (canonical names)", () => {
 		const canonicalNames = [
-			...new Set([...flagRegistry.values()].map((f) => f.name)),
+			...new Set([...overrideRegistry.values()].map((f) => f.name)),
 		];
 		const text = canonicalNames.map((f) => `!${f}`).join(" ");
 		const expected = Object.fromEntries(canonicalNames.map((f) => [f, true]));
-		expect(parseFlags(makeMsg(text))).toEqual(expected);
+		expect(parseoverrides(makeMsg(text))).toEqual(expected);
 	});
 
 	test("alias resolves to canonical name", () => {
-		expect(parseFlags(makeMsg("!s hello"))).toEqual({ small: true });
+		expect(parseoverrides(makeMsg("!s hello"))).toEqual({ small: true });
 	});
 
 	test("multiple aliases resolve to canonical names", () => {
-		expect(parseFlags(makeMsg("!s !v !nt explain"))).toEqual({
+		expect(parseoverrides(makeMsg("!s !v !nt explain"))).toEqual({
 			small: true,
 			voice: true,
 			"no-tools": true,
@@ -345,49 +351,53 @@ describe("parseFlags", () => {
 	});
 
 	test("mixing canonical names and aliases", () => {
-		expect(parseFlags(makeMsg("!small !v text"))).toEqual({
+		expect(parseoverrides(makeMsg("!small !v text"))).toEqual({
 			small: true,
 			voice: true,
 		});
 	});
 });
 
-// ── stripFlags ───────────────────────────────────────────────────────────────
+// ── stripoverrides ─────────────────────────────────────────────────────────
 
-describe("stripFlags", () => {
+describe("stripoverrides", () => {
 	test("removes a recognized flag and trims", () => {
-		expect(stripFlags(`!${flagA} tell me more`)).toBe("tell me more");
+		expect(stripoverrides(`!${flagA} tell me more`)).toBe("tell me more");
 	});
 
 	test("removes multiple recognized flags", () => {
-		expect(stripFlags(`!${flagA} !${flagB} explain this`)).toBe("explain this");
+		expect(stripoverrides(`!${flagA} !${flagB} explain this`)).toBe(
+			"explain this",
+		);
 	});
 
 	test("leaves unknown !words intact", () => {
-		expect(stripFlags("!banana explain")).toBe("!banana explain");
+		expect(stripoverrides("!banana explain")).toBe("!banana explain");
 	});
 
 	test("removes only recognized flags among mixed tokens", () => {
-		expect(stripFlags(`!${flagA} !banana data`)).toBe("!banana data");
+		expect(stripoverrides(`!${flagA} !banana data`)).toBe("!banana data");
 	});
 
 	test("collapses extra whitespace", () => {
-		expect(stripFlags(`  !${flagA}   tell   me  `)).toBe("tell me");
+		expect(stripoverrides(`  !${flagA}   tell   me  `)).toBe("tell me");
 	});
 
 	test("returns empty string when only flags remain", () => {
-		expect(stripFlags(`!${flagA} !${flagB}`)).toBe("");
+		expect(stripoverrides(`!${flagA} !${flagB}`)).toBe("");
 	});
 
 	test("returns the text unchanged when no flags present", () => {
-		expect(stripFlags("just a normal message")).toBe("just a normal message");
+		expect(stripoverrides("just a normal message")).toBe(
+			"just a normal message",
+		);
 	});
 
 	test("leaves bare ! intact", () => {
-		expect(stripFlags("hey ! what")).toBe("hey ! what");
+		expect(stripoverrides("hey ! what")).toBe("hey ! what");
 	});
 
 	test("strips alias tokens", () => {
-		expect(stripFlags("!s !v tell me more")).toBe("tell me more");
+		expect(stripoverrides("!s !v tell me more")).toBe("tell me more");
 	});
 });

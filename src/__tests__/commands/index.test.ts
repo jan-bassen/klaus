@@ -141,7 +141,7 @@ describe("CommandRegistry", () => {
 		expect(reg.getAll()).toHaveLength(1);
 	});
 
-	test("later registration overwrites earlier one", () => {
+	test("later registration overrides earlier one", () => {
 		const reg = new CommandRegistry();
 		const first = {
 			name: "dup",

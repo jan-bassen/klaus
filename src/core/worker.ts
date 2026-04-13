@@ -4,7 +4,7 @@ import { settings } from "@/settings";
 import { agentRegistry, loadAgentDefinition, runAgent } from "./agent";
 import { assembleContext } from "./assemble";
 import { extractVarParams, readPromptBody } from "./interpolate";
-import { applyModeDefaults } from "./modes";
+import { buildTemplateVars, resolveAgentDefaults } from "./overrides";
 import type { AgentRunPayload } from "./queue";
 import { setWorker } from "./queue";
 
@@ -25,11 +25,13 @@ export async function startWorkers(): Promise<void> {
 			agentRegistry.set(def.name, def);
 		}
 
+		const resolvedOverrides = resolveAgentDefaults({}, def);
 		const partialTurn = {
 			chatId,
 			agent: def,
-			flags: {} as Record<string, boolean>,
-			overrides: applyModeDefaults({}, def),
+			activeoverrides: {} as Record<string, boolean>,
+			overrides: resolvedOverrides,
+			templateVars: buildTemplateVars(resolvedOverrides, def),
 			dispatchContext,
 		};
 

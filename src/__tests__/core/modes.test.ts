@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { applyModeDefaults } from "@/core/modes";
-import type { FlagOverrides } from "@/flags";
+import type { overrides } from "@/core/overrides";
+import { resolveAgentDefaults } from "@/core/overrides";
 import type { AgentDefinition } from "@/types";
 
 function makeDef(overrides: Partial<AgentDefinition> = {}): AgentDefinition {
@@ -13,104 +13,95 @@ function makeDef(overrides: Partial<AgentDefinition> = {}): AgentDefinition {
 		providerTools: [],
 		skills: [],
 		persistent: false,
-		voiceMode: "auto",
-		acceptMode: "off",
 		showToolsInContext: true,
 		promptPath: "/tmp/test.md",
 		...overrides,
 	};
 }
 
-describe("applyModeDefaults", () => {
-	// ── Voice mode ──────────────────────────────────────────────────────────
+describe("resolveAgentDefaults", () => {
+	// ── Voice defaults ──────────────────────────────────────────────────────
 
-	test("voiceMode auto: leaves overrides untouched", () => {
-		const result = applyModeDefaults({}, makeDef({ voiceMode: "auto" }));
+	test("no voice fields: leaves overrides untouched", () => {
+		const result = resolveAgentDefaults({}, makeDef());
 		expect(result.forceVoice).toBeUndefined();
 		expect(result.suppressVoice).toBeUndefined();
 	});
 
-	test("voiceMode on: sets forceVoice", () => {
-		const result = applyModeDefaults({}, makeDef({ voiceMode: "on" }));
+	test("agent with forceVoice: sets forceVoice in result", () => {
+		const result = resolveAgentDefaults({}, makeDef({ forceVoice: true }));
 		expect(result.forceVoice).toBe(true);
 		expect(result.suppressVoice).toBeUndefined();
 	});
 
-	test("voiceMode off: sets suppressVoice", () => {
-		const result = applyModeDefaults({}, makeDef({ voiceMode: "off" }));
+	test("agent with suppressVoice: sets suppressVoice in result", () => {
+		const result = resolveAgentDefaults({}, makeDef({ suppressVoice: true }));
 		expect(result.suppressVoice).toBe(true);
 		expect(result.forceVoice).toBeUndefined();
 	});
 
-	test("voiceMode fixed: leaves overrides untouched (like auto)", () => {
-		const result = applyModeDefaults({}, makeDef({ voiceMode: "fixed" }));
-		expect(result.forceVoice).toBeUndefined();
-		expect(result.suppressVoice).toBeUndefined();
-	});
-
-	test("!voice flag works with voiceMode fixed", () => {
-		const flags: FlagOverrides = { forceVoice: true };
-		const result = applyModeDefaults(flags, makeDef({ voiceMode: "fixed" }));
+	test("per-message override forceVoice wins over agent suppressVoice", () => {
+		const overrides: overrides = { forceVoice: true };
+		const result = resolveAgentDefaults(
+			overrides,
+			makeDef({ suppressVoice: true }),
+		);
 		expect(result.forceVoice).toBe(true);
 		expect(result.suppressVoice).toBe(false);
 	});
 
-	test("!voice flag overrides voiceMode off", () => {
-		const flags: FlagOverrides = { forceVoice: true };
-		const result = applyModeDefaults(flags, makeDef({ voiceMode: "off" }));
+	test("forceVoice in preset clears suppressVoice", () => {
+		const overrides: overrides = { forceVoice: true };
+		const result = resolveAgentDefaults(overrides, makeDef());
 		expect(result.forceVoice).toBe(true);
 		expect(result.suppressVoice).toBe(false);
 	});
 
-	test("!voice flag preserved when voiceMode is auto", () => {
-		const flags: FlagOverrides = { forceVoice: true };
-		const result = applyModeDefaults(flags, makeDef({ voiceMode: "auto" }));
-		expect(result.forceVoice).toBe(true);
-		expect(result.suppressVoice).toBe(false);
-	});
+	// ── Accept defaults ─────────────────────────────────────────────────────
 
-	// ── Accept mode ─────────────────────────────────────────────────────────
-
-	test("acceptMode off: leaves autoAccept undefined", () => {
-		const result = applyModeDefaults({}, makeDef({ acceptMode: "off" }));
+	test("no autoAccept: leaves autoAccept undefined", () => {
+		const result = resolveAgentDefaults({}, makeDef());
 		expect(result.autoAccept).toBeUndefined();
 	});
 
-	test("acceptMode on: sets autoAccept", () => {
-		const result = applyModeDefaults({}, makeDef({ acceptMode: "on" }));
+	test("agent with autoAccept: sets autoAccept in result", () => {
+		const result = resolveAgentDefaults({}, makeDef({ autoAccept: true }));
 		expect(result.autoAccept).toBe(true);
 	});
 
-	test("!accept flag preserved regardless of acceptMode", () => {
-		const flags: FlagOverrides = { autoAccept: true };
-		const result = applyModeDefaults(flags, makeDef({ acceptMode: "off" }));
+	test("per-message autoAccept preserved regardless of agent default", () => {
+		const overrides: overrides = { autoAccept: true };
+		const result = resolveAgentDefaults(overrides, makeDef());
 		expect(result.autoAccept).toBe(true);
 	});
 
 	// ── Provider ────────────────────────────────────────────────────────────
 
 	test("agent provider sets overrides.provider", () => {
-		const result = applyModeDefaults({}, makeDef({ provider: "gemini" }));
+		const result = resolveAgentDefaults({}, makeDef({ provider: "gemini" }));
 		expect(result.provider).toBe("gemini");
 	});
 
 	test("no agent provider: leaves overrides.provider undefined", () => {
-		const result = applyModeDefaults({}, makeDef());
+		const result = resolveAgentDefaults({}, makeDef());
 		expect(result.provider).toBeUndefined();
 	});
 
-	test("!provider flag overrides agent provider", () => {
-		const flags: FlagOverrides = { provider: "chatgpt" };
-		const result = applyModeDefaults(flags, makeDef({ provider: "claude" }));
+	test("per-message provider overrides agent provider", () => {
+		const overrides: overrides = { provider: "chatgpt" };
+		const result = resolveAgentDefaults(
+			overrides,
+			makeDef({ provider: "claude" }),
+		);
 		expect(result.provider).toBe("chatgpt");
 	});
 
 	// ── Combined ────────────────────────────────────────────────────────────
 
-	test("multiple modes applied together", () => {
-		const result = applyModeDefaults(
+	test("multiple agent defaults merge correctly", () => {
+		const result = resolveAgentDefaults(
 			{},
-			makeDef({ voiceMode: "on", acceptMode: "on", provider: "claude" }),
+			makeDef({ forceVoice: true, autoAccept: true, provider: "claude" }),
 		);
 		expect(result.forceVoice).toBe(true);
 		expect(result.autoAccept).toBe(true);
@@ -118,14 +109,14 @@ describe("applyModeDefaults", () => {
 	});
 
 	test("does not mutate input overrides", () => {
-		const flags: FlagOverrides = { modelTier: "large" };
-		const result = applyModeDefaults(
-			flags,
-			makeDef({ voiceMode: "on", acceptMode: "on" }),
+		const overrides: overrides = { modelTier: "large" };
+		const result = resolveAgentDefaults(
+			overrides,
+			makeDef({ forceVoice: true, autoAccept: true }),
 		);
 		expect(result.modelTier).toBe("large");
 		expect(result.forceVoice).toBe(true);
 		// Original not mutated
-		expect(flags.forceVoice).toBeUndefined();
+		expect(overrides.forceVoice).toBeUndefined();
 	});
 });

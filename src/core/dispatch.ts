@@ -5,7 +5,7 @@ import type { DispatchOptions, TurnContext } from "@/types";
 import { agentRegistry, loadAgentDefinition, runAgent } from "./agent";
 import { assembleContext } from "./assemble";
 import { extractVarParams, readPromptBody } from "./interpolate";
-import { applyModeDefaults } from "./modes";
+import { buildTemplateVars, resolveAgentDefaults } from "./overrides";
 import { enqueueJob } from "./queue";
 
 function agentsDir(): string {
@@ -75,11 +75,13 @@ export async function dispatch(
 		log.info("[dispatch] inline dispatch", { agentName, caller, depth });
 
 		const replyCollector: string[] = [];
+		const resolvedOverrides = resolveAgentDefaults({}, def);
 		const partialTurn: Omit<TurnContext, "assembled"> = {
 			chatId,
 			agent: def,
-			flags: {},
-			overrides: applyModeDefaults({}, def),
+			activeoverrides: {},
+			overrides: resolvedOverrides,
+			templateVars: buildTemplateVars(resolvedOverrides, def),
 			dispatchContext,
 			_replyCollector: replyCollector,
 		};

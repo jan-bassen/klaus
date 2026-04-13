@@ -16,7 +16,7 @@ const ConversationMessageEventSchema = z.object({
 	externalId: z.string().optional(),
 	quotedText: z.string().optional(),
 	quotedRole: z.string().optional(),
-	flags: z.array(z.string()).optional(),
+	overrides: z.array(z.string()).optional(),
 	command: z.string().nullable().optional(),
 });
 
@@ -99,7 +99,7 @@ export interface ConversationMessage {
 	externalId?: string;
 	quotedText?: string;
 	quotedRole?: string;
-	flags?: string[];
+	overrides?: string[];
 	command?: string | null;
 	reactions: Array<{ emoji: string; senderId: string; fromMe: boolean }>;
 }
@@ -159,7 +159,7 @@ function mergeEvents(lines: string[]): ConversationMessage[] {
 					...(event.externalId ? { externalId: event.externalId } : {}),
 					...(event.quotedText ? { quotedText: event.quotedText } : {}),
 					...(event.quotedRole ? { quotedRole: event.quotedRole } : {}),
-					...(event.flags ? { flags: event.flags } : {}),
+					...(event.overrides ? { overrides: event.overrides } : {}),
 					...(event.command != null ? { command: event.command } : {}),
 					reactions: [],
 				});
@@ -241,7 +241,7 @@ export async function appendMessage(msg: {
 	externalId?: string;
 	quotedText?: string;
 	quotedRole?: string;
-	flags?: string[];
+	overrides?: string[];
 	command?: string | null;
 }): Promise<string> {
 	const id = crypto.randomUUID();
@@ -254,7 +254,9 @@ export async function appendMessage(msg: {
 		...(msg.externalId ? { externalId: msg.externalId } : {}),
 		...(msg.quotedText ? { quotedText: msg.quotedText } : {}),
 		...(msg.quotedRole ? { quotedRole: msg.quotedRole } : {}),
-		...(msg.flags && msg.flags.length > 0 ? { flags: msg.flags } : {}),
+		...(msg.overrides && msg.overrides.length > 0
+			? { overrides: msg.overrides }
+			: {}),
 		...(msg.command ? { command: msg.command } : {}),
 	};
 	await appendEvent(event);

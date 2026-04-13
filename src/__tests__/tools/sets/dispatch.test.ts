@@ -48,8 +48,6 @@ const dummyAgent: AgentDefinition = {
 	providerTools: [],
 	skills: [],
 	persistent: false,
-	voiceMode: "auto",
-	acceptMode: "off",
 	showToolsInContext: true,
 	promptPath: "/dev/null",
 };
@@ -58,8 +56,9 @@ function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
 	return {
 		chatId: "user@s.whatsapp.net",
 		agent: dummyAgent,
-		flags: {},
+		activeoverrides: {},
 		overrides: {},
+		templateVars: {},
 		assembled: { vars: {}, userVars: {}, messageRefs: {}, totalTokens: 0 },
 		...overrides,
 	};

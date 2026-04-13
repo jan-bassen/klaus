@@ -79,17 +79,17 @@ describe("appendMessage", () => {
 		expect(conv[0]?.role).toBe("user");
 	});
 
-	test("preserves flags and command fields", async () => {
+	test("preserves overrides and command fields", async () => {
 		await appendMessage({
 			role: "user",
 			content: "/status",
 			command: "status",
-			flags: ["verbose"],
+			overrides: ["verbose"],
 		});
 
 		const conv = await getConversation();
 		expect(conv[0]?.command).toBe("status");
-		expect(conv[0]?.flags).toEqual(["verbose"]);
+		expect(conv[0]?.overrides).toEqual(["verbose"]);
 	});
 });
 

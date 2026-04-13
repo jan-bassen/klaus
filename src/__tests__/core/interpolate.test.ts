@@ -151,7 +151,7 @@ describe("mergeVarParams", () => {
 		});
 	});
 
-	test("later values overwrite earlier", () => {
+	test("later values override earlier", () => {
 		const a = { tasks: { limit: "3" } };
 		const b = { tasks: { limit: "5" } };
 		expect(mergeVarParams(a, b)).toEqual({ tasks: { limit: "5" } });

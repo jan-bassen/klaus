@@ -38,8 +38,6 @@ const dummyAgent: AgentDefinition = {
 	providerTools: [],
 	skills: [],
 	persistent: false,
-	voiceMode: "auto",
-	acceptMode: "off",
 	showToolsInContext: true,
 	promptPath: "/dev/null",
 };
@@ -59,8 +57,9 @@ function makeTurn(
 			messageKey: {},
 		},
 		agent: dummyAgent,
-		flags: {},
+		activeoverrides: {},
 		overrides: {},
+		templateVars: {},
 		...overrides,
 	};
 }

@@ -11,6 +11,7 @@ import path from "node:path";
 import { agentRegistry, loadAgents } from "./core/agent";
 import { loadContextVariables, setContextVariables } from "./core/assemble";
 import { dispatch } from "./core/dispatch";
+import { loadoverrides } from "./core/overrides";
 import { initQueue } from "./core/queue";
 import { loadAllTools } from "./core/registry";
 import {
@@ -20,7 +21,6 @@ import {
 } from "./core/settings-loader";
 import { startWatching, stopWatching } from "./core/watcher";
 import { startWorkers } from "./core/worker";
-import { loadFlags } from "./flags";
 import { log } from "./logger";
 import { settings } from "./settings";
 import { rebuildIndexes as rebuildConversationIndexes } from "./store/conversation";
@@ -131,12 +131,12 @@ async function main(): Promise<void> {
 		await mkdir(dir, { recursive: true });
 	}
 
-	// 2. Load tools, agents (from vault), context variables, skills, flags
+	// 2. Load tools, agents (from vault), context variables, skills, overrides
 	log.info(
-		"[startup] loading tools, agents, context variables, skills, and flags",
+		"[startup] loading tools, agents, context variables, skills, and overrides",
 	);
 	await loadAllTools(path.join(import.meta.dir, "tools"));
-	await loadFlags(path.join(import.meta.dir, "flags"));
+	await loadoverrides();
 
 	const agentsDir = settings.vault.agentsDir;
 	await mkdir(agentsDir, { recursive: true });
@@ -226,7 +226,7 @@ async function main(): Promise<void> {
 	});
 	await loadTimers();
 
-	// 6. Watch settings, agent, skill, and flag directories for hot-reload
+	// 6. Watch settings, agents, skills, and overrides for hot-reload
 	watchSettings();
 	startWatching(agentsDir, skillsDir);
 

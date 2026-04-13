@@ -32,7 +32,7 @@ function makeTurnLog(overrides?: Partial<TurnLog>): TurnLog {
 		chatId: "test-chat",
 		agent: "klaus",
 		createdAt: "2026-04-09T14:23:05.000Z",
-		flags: [],
+		overrides: [],
 		provider: "claude",
 		model: "claude-sonnet-4-20250514",
 		tier: "medium",
@@ -95,14 +95,14 @@ describe("formatTrailEntry", () => {
 		);
 	});
 
-	test("formats turn with flags", () => {
+	test("formats turn with overrides", () => {
 		const entry = makeTurnLog({
-			flags: ["voice", "large"],
+			overrides: ["voice", "large"],
 			replyContent: "Done",
 		});
 		const result = formatTrailEntry(entry, "UTC");
 
-		expect(result).toContain("**Flags**: voice, large");
+		expect(result).toContain("**overrides**: voice, large");
 	});
 
 	test("truncates long strings", () => {
@@ -161,7 +161,7 @@ describe("appendTrail", () => {
 		await appendTrail({
 			chatId: "test",
 			agent: "klaus",
-			flags: [],
+			overrides: [],
 			provider: "claude",
 			model: "claude-sonnet-4",
 			tier: "medium",
@@ -198,7 +198,7 @@ describe("appendTrail", () => {
 		await appendTrail({
 			chatId: "test",
 			agent: "klaus",
-			flags: [],
+			overrides: [],
 			provider: "claude",
 			model: "test",
 			tier: "small",

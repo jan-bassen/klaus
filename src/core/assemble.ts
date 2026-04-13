@@ -97,7 +97,7 @@ export async function assembleContext(
 		}
 	}
 
-	const vars: Record<string, unknown> = {};
+	const vars: Record<string, unknown> = { ...turn.templateVars };
 	const userVars: Record<string, unknown> = {};
 
 	for (const { query, result } of items) {

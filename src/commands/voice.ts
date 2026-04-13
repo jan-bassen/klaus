@@ -1,18 +1,20 @@
 import type { Command } from "@/commands";
-import { agentRegistry, type VoiceMode, voiceModes } from "@/core/agent";
+import { agentRegistry } from "@/core/agent";
 import { getDefaultAgent } from "@/core/defaults";
-import { setFrontmatterField } from "@/core/frontmatter";
+import {
+	removeFrontmatterField,
+	setFrontmatterField,
+} from "@/core/frontmatter";
 import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
-const VALID: Set<string> = new Set(voiceModes);
+const VALID = new Set(["on", "off", "auto"]);
 
 export const voiceCommand: Command = {
 	name: "voice",
 	aliases: ["v"],
-	description:
-		"Show or set the voice mode for the default agent (auto/on/off/fixed)",
+	description: "Show or set voice output for the default agent (on/off/auto)",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const agentName = getDefaultAgent(msg.chatId);
 		const def = agentRegistry.get(agentName);
@@ -27,11 +29,14 @@ export const voiceCommand: Command = {
 			return;
 		}
 
-		// No args — show current mode
+		// Derive current state from frontmatter overrides
+		const current = def.forceVoice ? "on" : def.suppressVoice ? "off" : "auto";
+
+		// No args — show current state
 		if (!args[0]) {
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `@${agentName} voice mode: *${def.voiceMode}*`,
+				content: `@${agentName} voice: *${current}*`,
 				dedupKey: `${msg.id}:voice`,
 				label: settings.whatsapp.systemLabel,
 			});
@@ -42,18 +47,17 @@ export const voiceCommand: Command = {
 		if (!VALID.has(input)) {
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `Unknown voice mode. Options: ${voiceModes.join(", ")}`,
+				content: `Unknown voice setting. Options: on, off, auto`,
 				dedupKey: `${msg.id}:voice-unknown`,
 				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
 
-		const mode = input as VoiceMode;
-		if (def.voiceMode === mode) {
+		if (input === current) {
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `Voice mode already set to "${mode}".`,
+				content: `Voice already set to "${input}".`,
 				dedupKey: `${msg.id}:voice-noop`,
 				label: settings.whatsapp.systemLabel,
 			});
@@ -61,21 +65,38 @@ export const voiceCommand: Command = {
 		}
 
 		try {
-			const raw = await Bun.file(def.promptPath).text();
-			const updated = setFrontmatterField(raw, "voiceMode", mode);
-			await Bun.write(def.promptPath, updated);
-			def.voiceMode = mode;
+			let raw = await Bun.file(def.promptPath).text();
+
+			if (input === "on") {
+				raw = setFrontmatterField(raw, "forceVoice", "true");
+				raw = removeFrontmatterField(raw, "suppressVoice");
+				def.forceVoice = true;
+				def.suppressVoice = undefined;
+			} else if (input === "off") {
+				raw = setFrontmatterField(raw, "suppressVoice", "true");
+				raw = removeFrontmatterField(raw, "forceVoice");
+				def.suppressVoice = true;
+				def.forceVoice = undefined;
+			} else {
+				// auto — remove both
+				raw = removeFrontmatterField(raw, "forceVoice");
+				raw = removeFrontmatterField(raw, "suppressVoice");
+				def.forceVoice = undefined;
+				def.suppressVoice = undefined;
+			}
+
+			await Bun.write(def.promptPath, raw);
 
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `@${agentName} voice mode set to *${mode}*.`,
+				content: `@${agentName} voice set to *${input}*.`,
 				dedupKey: `${msg.id}:voice`,
 				label: settings.whatsapp.systemLabel,
 			});
 		} catch (err) {
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: `Failed to update voice mode: ${err instanceof Error ? err.message : String(err)}`,
+				content: `Failed to update voice: ${err instanceof Error ? err.message : String(err)}`,
 				dedupKey: `${msg.id}:voice-error`,
 				label: settings.whatsapp.systemLabel,
 			});

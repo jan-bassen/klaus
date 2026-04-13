@@ -111,13 +111,13 @@ mock.module("@/store/files", () => ({
 import { registry } from "@/commands";
 import { agentRegistry } from "@/core/agent";
 import { setContextVariables } from "@/core/assemble";
+import { overrideRegistry } from "@/core/overrides";
 import {
 	_clearAgentRunnerForTest,
 	_setAgentRunnerForTest,
 	handleTurn,
 } from "@/core/pipeline";
 import { _resetForTest, checkMessageRate } from "@/core/rate-limiter";
-import { flagRegistry } from "@/flags";
 import { settings } from "@/settings";
 
 // ─── Test seam — captures agent turns without mock.module pollution ──────────
@@ -175,13 +175,13 @@ beforeAll(async () => {
 
 	savedAllowedChatId = process.env.ALLOWED_CHAT_ID;
 
-	// Add test-only flags to the registry
-	flagRegistry.set("verbose", {
+	// Add test-only overrides to the registry
+	overrideRegistry.set("verbose", {
 		name: "verbose",
 		description: "verbose response",
 		overrides: {},
 	});
-	flagRegistry.set("en", {
+	overrideRegistry.set("en", {
 		name: "en",
 		description: "respond in English",
 		overrides: {},
@@ -506,8 +506,6 @@ describe("handleTurn — agent routing", () => {
 			providerTools: [],
 			skills: [],
 			persistent: false,
-			voiceMode: "auto",
-			acceptMode: "off",
 			showToolsInContext: true,
 			promptPath: join(tmpDir, "vault", "Klaus", "agents", "thinking.md"),
 		};
@@ -613,20 +611,20 @@ describe("handleTurn — quoted messages", () => {
 	});
 });
 
-// ─── Flags and command persistence ────────────────────────────────────────────
+// ─── overrides and command persistence ──────────────────────────────────────
 
-describe("handleTurn — flags persistence", () => {
-	test("persists active flags as string array in the message", async () => {
+describe("handleTurn — overrides persistence", () => {
+	test("persists active overrides as string array in the message", async () => {
 		await handleTurn(makeMsg({ text: "@klaus !verbose !en hello" }));
 		const vals = capturedAppendMessages[0];
-		expect(vals?.flags).toEqual(expect.arrayContaining(["verbose", "en"]));
-		expect((vals?.flags as string[]).length).toBe(2);
+		expect(vals?.overrides).toEqual(expect.arrayContaining(["verbose", "en"]));
+		expect((vals?.overrides as string[]).length).toBe(2);
 	});
 
-	test("does not persist flags when no flags present", async () => {
+	test("does not persist overrides when no overrides present", async () => {
 		await handleTurn(makeMsg({ text: "hello" }));
 		const vals = capturedAppendMessages[0];
-		expect(vals?.flags).toBeUndefined();
+		expect(vals?.overrides).toBeUndefined();
 	});
 });
 

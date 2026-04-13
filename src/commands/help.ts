@@ -2,7 +2,7 @@ import type { Command } from "@/commands";
 import { registry } from "@/commands";
 import { agentRegistry } from "@/core/agent";
 import { getContextVariables } from "@/core/assemble";
-import { flagRegistry } from "@/flags";
+import { overrideRegistry } from "@/core/overrides";
 import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
@@ -36,18 +36,18 @@ function buildAgentsSection(): string {
 	return `*Agents*\n${lines.join("\n")}`;
 }
 
-function buildFlagsSection(): string {
+function buildoverridesSection(): string {
 	const seen = new Set<string>();
 	const lines: string[] = [];
-	for (const flag of flagRegistry.values()) {
-		if (seen.has(flag.name)) continue;
-		seen.add(flag.name);
-		const aliasStr = flag.aliases?.length
-			? ` (${flag.aliases.map((a) => `!${a}`).join(", ")})`
+	for (const ow of overrideRegistry.values()) {
+		if (seen.has(ow.name)) continue;
+		seen.add(ow.name);
+		const aliasStr = ow.aliases?.length
+			? ` (${ow.aliases.map((a) => `!${a}`).join(", ")})`
 			: "";
-		lines.push(`• !${flag.name}${aliasStr} — ${flag.description}`);
+		lines.push(`• !${ow.name}${aliasStr} — ${ow.description}`);
 	}
-	return `*Flags*\n${lines.join("\n")}`;
+	return `*overrides*\n${lines.join("\n")}`;
 }
 
 function buildVarsSection(): string {
@@ -95,7 +95,7 @@ function buildVaultSection(): string {
 export const helpCommand: Command = {
 	name: "help",
 	aliases: ["?"],
-	description: "Show commands, agents, flags, vars, and vault",
+	description: "Show commands, agents, overrides, vars, and vault",
 	execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const section = args[0]?.toLowerCase();
 
@@ -104,8 +104,8 @@ export const helpCommand: Command = {
 			content = buildCommandsSection();
 		} else if (section === "agents") {
 			content = buildAgentsSection();
-		} else if (section === "flags") {
-			content = buildFlagsSection();
+		} else if (section === "overrides") {
+			content = buildoverridesSection();
 		} else if (section === "vars") {
 			content = buildVarsSection();
 		} else if (section === "vault") {
@@ -114,7 +114,7 @@ export const helpCommand: Command = {
 			content = [
 				buildCommandsSection(),
 				buildAgentsSection(),
-				buildFlagsSection(),
+				buildoverridesSection(),
 				buildVarsSection(),
 				buildVaultSection(),
 			].join("\n\n");

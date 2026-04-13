@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import type { AgentFrontmatterSchema } from "./core/agent";
-import type { FlagOverrides } from "./flags";
+import type { overrides } from "./core/overrides";
 
 // -- WhatsApp / transport --
 
@@ -57,8 +57,10 @@ export interface TurnContext {
 	/** Present for WhatsApp turns; undefined for dispatched agent invocations */
 	message?: InboundMessage;
 	agent: AgentDefinition;
-	flags: Record<string, boolean>;
-	overrides: FlagOverrides;
+	activeoverrides: Record<string, boolean>;
+	overrides: overrides;
+	/** Flat vars available in all Handlebars templates (agent prompts, snippets). */
+	templateVars: Record<string, unknown>;
 	assembled: AssembledContext;
 	/** Internal message ID — set in pipeline after insert */
 	messageId?: string;

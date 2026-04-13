@@ -38,7 +38,7 @@ export const TurnLogSchema = z.object({
 
 	// Inbound context
 	rawText: z.string().optional(),
-	flags: z.array(z.string()).default([]),
+	overrides: z.array(z.string()).default([]),
 	mediaType: z.string().optional(),
 
 	// Routing
