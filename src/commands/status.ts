@@ -1,6 +1,7 @@
 import type { Command } from "@/commands";
 import { getDefaultAgent } from "@/core/defaults";
 import { getActiveJobs } from "@/core/queue";
+import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
@@ -17,12 +18,14 @@ export const statusCommand: Command = {
 				chatId: msg.chatId,
 				content: `*Klaus status*\nAgent: @${agent}\nJobs: ${jobs.length} active`,
 				dedupKey: `${msg.id}:status`,
+				label: settings.whatsapp.systemLabel,
 			});
 		} catch {
 			enqueueMessage({
 				chatId: msg.chatId,
 				content: "Status unavailable.",
 				dedupKey: `${msg.id}:status-error`,
+				label: settings.whatsapp.systemLabel,
 			});
 		}
 	},

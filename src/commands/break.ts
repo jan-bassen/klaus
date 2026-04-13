@@ -1,4 +1,5 @@
 import type { Command } from "@/commands";
+import { settings } from "@/settings";
 import { appendBreak } from "@/store/conversation";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
@@ -13,6 +14,7 @@ export const breakCommand: Command = {
 			chatId: msg.chatId,
 			content: "Context break. Fresh start from here.",
 			dedupKey: `${msg.id}:break`,
+			label: settings.whatsapp.systemLabel,
 		});
 	},
 };

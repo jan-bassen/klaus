@@ -124,6 +124,7 @@ export const helpCommand: Command = {
 			chatId: msg.chatId,
 			content,
 			dedupKey: `${msg.id}:help`,
+			label: settings.whatsapp.systemLabel,
 		});
 
 		return Promise.resolve();

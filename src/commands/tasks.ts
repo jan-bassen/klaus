@@ -27,6 +27,7 @@ export const tasksCommand: Command = {
 					chatId: msg.chatId,
 					content: "No active jobs, schedules, or timers.",
 					dedupKey: `${msg.id}:tasks`,
+					label: settings.whatsapp.systemLabel,
 				});
 				return;
 			}
@@ -64,12 +65,14 @@ export const tasksCommand: Command = {
 				chatId: msg.chatId,
 				content: lines.join("\n"),
 				dedupKey: `${msg.id}:tasks`,
+				label: settings.whatsapp.systemLabel,
 			});
 		} catch {
 			enqueueMessage({
 				chatId: msg.chatId,
 				content: "Could not load tasks.",
 				dedupKey: `${msg.id}:tasks-error`,
+				label: settings.whatsapp.systemLabel,
 			});
 		}
 	},

@@ -2,6 +2,7 @@ import path from "node:path";
 import type { Command } from "@/commands";
 import { agentRegistry, loadAgentDefinition } from "@/core/agent";
 import { setDefaultAgent } from "@/core/defaults";
+import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
@@ -18,6 +19,7 @@ export const defaultCommand: Command = {
 				chatId: msg.chatId,
 				content: "Provide a name! Usage: /default <agent_name>",
 				dedupKey: `${msg.id}:default-usage`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -29,6 +31,7 @@ export const defaultCommand: Command = {
 				chatId: msg.chatId,
 				content: `Default agent set to @${agentName}.`,
 				dedupKey: `${msg.id}:default`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -44,12 +47,14 @@ export const defaultCommand: Command = {
 				chatId: msg.chatId,
 				content: `Default agent set to @${agentName}.`,
 				dedupKey: `${msg.id}:default`,
+				label: settings.whatsapp.systemLabel,
 			});
 		} catch {
 			enqueueMessage({
 				chatId: msg.chatId,
 				content: `Unknown agent: "${agentName}". Check your agent files.`,
 				dedupKey: `${msg.id}:default-error`,
+				label: settings.whatsapp.systemLabel,
 			});
 		}
 	},

@@ -106,9 +106,15 @@ async function main(): Promise<void> {
 		);
 	}
 	if (!settings.allowedChatId) {
-		log.warn(
-			"[startup] allowedChatId not configured — running in setup mode (messages will not be processed)",
-		);
+		if (settings.whatsapp.selfMode) {
+			log.info(
+				"[startup] self-mode enabled — allowedChatId will auto-resolve on first message",
+			);
+		} else {
+			log.warn(
+				"[startup] allowedChatId not configured — running in setup mode (messages will not be processed)",
+			);
+		}
 	}
 
 	// 1. Ensure directory structure

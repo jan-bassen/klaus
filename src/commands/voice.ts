@@ -2,6 +2,7 @@ import type { Command } from "@/commands";
 import { agentRegistry, type VoiceMode, voiceModes } from "@/core/agent";
 import { getDefaultAgent } from "@/core/defaults";
 import { setFrontmatterField } from "@/core/frontmatter";
+import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
@@ -21,6 +22,7 @@ export const voiceCommand: Command = {
 				chatId: msg.chatId,
 				content: `Default agent "${agentName}" not found in registry.`,
 				dedupKey: `${msg.id}:voice-error`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -31,6 +33,7 @@ export const voiceCommand: Command = {
 				chatId: msg.chatId,
 				content: `@${agentName} voice mode: *${def.voiceMode}*`,
 				dedupKey: `${msg.id}:voice`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -41,6 +44,7 @@ export const voiceCommand: Command = {
 				chatId: msg.chatId,
 				content: `Unknown voice mode. Options: ${voiceModes.join(", ")}`,
 				dedupKey: `${msg.id}:voice-unknown`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -51,6 +55,7 @@ export const voiceCommand: Command = {
 				chatId: msg.chatId,
 				content: `Voice mode already set to "${mode}".`,
 				dedupKey: `${msg.id}:voice-noop`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -65,12 +70,14 @@ export const voiceCommand: Command = {
 				chatId: msg.chatId,
 				content: `@${agentName} voice mode set to *${mode}*.`,
 				dedupKey: `${msg.id}:voice`,
+				label: settings.whatsapp.systemLabel,
 			});
 		} catch (err) {
 			enqueueMessage({
 				chatId: msg.chatId,
 				content: `Failed to update voice mode: ${err instanceof Error ? err.message : String(err)}`,
 				dedupKey: `${msg.id}:voice-error`,
+				label: settings.whatsapp.systemLabel,
 			});
 		}
 	},

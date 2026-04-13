@@ -106,6 +106,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 						chatId: context.chatId,
 						content,
 						dedupKey: dedupBase,
+						label: context.agent.name,
 						...quotedPart,
 					},
 					onSent,
@@ -119,6 +120,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 						dedupKey: context.message
 							? `${context.message.id}:reply-voice:${crypto.randomUUID()}`
 							: `${context.chatId}:reply-voice:${crypto.randomUUID()}`,
+						label: context.agent.name,
 						...quotedPart,
 					},
 					onSent,
@@ -126,7 +128,13 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			}
 		} else {
 			enqueueMessage(
-				{ chatId: context.chatId, content, dedupKey: dedupBase, ...quotedPart },
+				{
+					chatId: context.chatId,
+					content,
+					dedupKey: dedupBase,
+					label: context.agent.name,
+					...quotedPart,
+				},
 				onSent,
 			);
 		}

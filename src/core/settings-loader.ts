@@ -187,6 +187,8 @@ const VisionSchema = z
 
 const WhatsAppSchema = z
 	.object({
+		selfMode: z.boolean().default(false),
+		systemLabel: z.string().default("System"),
 		maxDownloadBytes: z.number().default(67_108_864),
 		mediaDownloadTimeoutMs: z.number().default(30_000),
 		offlineWindowMs: z.number().default(300_000),
@@ -362,6 +364,7 @@ function warnViaWhatsApp(error: string): void {
 			chatId,
 			content: `*Settings warning*: settings.yml has validation errors. Keeping last valid config.\n\n${error}`,
 			dedupKey: `settings-invalid:${Date.now()}`,
+			label: _current.whatsapp.systemLabel,
 		});
 	});
 }

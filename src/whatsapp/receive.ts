@@ -13,7 +13,7 @@ import { appendReaction } from "@/store/conversation";
 import { saveFileMeta } from "@/store/files";
 import type { InboundMessage } from "@/types";
 import { onReaction } from "./confirm";
-import { enqueueMessage, setSocket } from "./send";
+import { enqueueMessage, setSocket, wasSentByUs } from "./send";
 
 const MAX_DOWNLOAD_BYTES = settings.whatsapp.maxDownloadBytes;
 const STARTUP_AT = Date.now();
@@ -64,6 +64,7 @@ export function attachReceiveHandler(socket: WASocket): void {
 				});
 				try {
 					await handleTurn(msg);
+					socket.readMessages([raw.key]).catch(() => {});
 				} catch (err) {
 					log.error("[receive] unhandled error from handleTurn", {
 						chatId: msg.chatId,
@@ -75,6 +76,7 @@ export function attachReceiveHandler(socket: WASocket): void {
 							chatId: msg.chatId,
 							content: formatUserError(err),
 							dedupKey: `${msg.id}:receive-error`,
+							label: settings.whatsapp.systemLabel,
 						});
 					} catch {
 						/* best-effort */
@@ -162,11 +164,21 @@ export async function normalizeMessage(
 		messageTimestamp?: number | bigint;
 	};
 
-	// Skip messages we sent and messages without a remote JID
+	// Skip messages without a remote JID
 	if (!m?.key?.remoteJid) return null;
+	// Skip messages we sent — in self-mode, only skip our own replies (not user self-messages)
 	if (m.key.fromMe) {
-		log.debug("[receive] skip fromMe", { remoteJid: m.key.remoteJid });
-		return null;
+		if (!settings.whatsapp.selfMode) {
+			log.debug("[receive] skip fromMe", { remoteJid: m.key.remoteJid });
+			return null;
+		}
+		if (m.key.id && wasSentByUs(m.key.id)) {
+			log.debug("[receive] skip own reply (self-mode)", { id: m.key.id });
+			return null;
+		}
+		log.debug("[receive] processing self-message (self-mode)", {
+			id: m.key.id,
+		});
 	}
 	if (!m.message) {
 		log.debug("[receive] skip no-message", { remoteJid: m.key.remoteJid });

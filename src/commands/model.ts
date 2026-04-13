@@ -2,7 +2,7 @@ import type { Command } from "@/commands";
 import { agentRegistry } from "@/core/agent";
 import { getDefaultAgent } from "@/core/defaults";
 import { setFrontmatterField } from "@/core/frontmatter";
-import { getProviderNames, resolveProvider } from "@/settings";
+import { getProviderNames, resolveProvider, settings } from "@/settings";
 import type { AgentDefinition, InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
@@ -24,6 +24,7 @@ export const modelCommand: Command = {
 				chatId: msg.chatId,
 				content: `Default agent "${agentName}" not found in registry.`,
 				dedupKey: `${msg.id}:model-error`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -37,6 +38,7 @@ export const modelCommand: Command = {
 				chatId: msg.chatId,
 				content: `@${agentName} model: *${modelId}* (tier: ${def.modelTier}, provider: ${providerName})`,
 				dedupKey: `${msg.id}:model`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -58,12 +60,14 @@ export const modelCommand: Command = {
 					chatId: msg.chatId,
 					content: `Switched to *${input}* provider. @${agentName}: *${modelId}* (tier: ${def.modelTier})`,
 					dedupKey: `${msg.id}:model`,
+					label: settings.whatsapp.systemLabel,
 				});
 			} catch (err) {
 				enqueueMessage({
 					chatId: msg.chatId,
 					content: `Failed to update provider: ${err instanceof Error ? err.message : String(err)}`,
 					dedupKey: `${msg.id}:model-error`,
+					label: settings.whatsapp.systemLabel,
 				});
 			}
 			return;
@@ -74,6 +78,7 @@ export const modelCommand: Command = {
 				chatId: msg.chatId,
 				content: `Unknown tier or provider. Tiers: small, medium, large. Providers: ${providerNames.join(", ")}`,
 				dedupKey: `${msg.id}:model-unknown`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -86,6 +91,7 @@ export const modelCommand: Command = {
 				chatId: msg.chatId,
 				content: `Already using tier "${tier}" (${providerCfg[tier]}).`,
 				dedupKey: `${msg.id}:model-noop`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -105,12 +111,14 @@ export const modelCommand: Command = {
 				chatId: msg.chatId,
 				content: `@${agentName} switched to *${modelId}* (tier: ${tier}).`,
 				dedupKey: `${msg.id}:model`,
+				label: settings.whatsapp.systemLabel,
 			});
 		} catch (err) {
 			enqueueMessage({
 				chatId: msg.chatId,
 				content: `Failed to update model: ${err instanceof Error ? err.message : String(err)}`,
 				dedupKey: `${msg.id}:model-error`,
+				label: settings.whatsapp.systemLabel,
 			});
 		}
 	},

@@ -2,6 +2,7 @@ import type { Command } from "@/commands";
 import { type AcceptMode, acceptModes, agentRegistry } from "@/core/agent";
 import { getDefaultAgent } from "@/core/defaults";
 import { setFrontmatterField } from "@/core/frontmatter";
+import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
@@ -21,6 +22,7 @@ export const acceptCommand: Command = {
 				chatId: msg.chatId,
 				content: `Default agent "${agentName}" not found in registry.`,
 				dedupKey: `${msg.id}:accept-error`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -31,6 +33,7 @@ export const acceptCommand: Command = {
 				chatId: msg.chatId,
 				content: `@${agentName} accept mode: *${def.acceptMode}*`,
 				dedupKey: `${msg.id}:accept`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -41,6 +44,7 @@ export const acceptCommand: Command = {
 				chatId: msg.chatId,
 				content: `Unknown accept mode. Options: ${acceptModes.join(", ")}`,
 				dedupKey: `${msg.id}:accept-unknown`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -51,6 +55,7 @@ export const acceptCommand: Command = {
 				chatId: msg.chatId,
 				content: `Accept mode already set to "${mode}".`,
 				dedupKey: `${msg.id}:accept-noop`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -65,12 +70,14 @@ export const acceptCommand: Command = {
 				chatId: msg.chatId,
 				content: `@${agentName} accept mode set to *${mode}*.`,
 				dedupKey: `${msg.id}:accept`,
+				label: settings.whatsapp.systemLabel,
 			});
 		} catch (err) {
 			enqueueMessage({
 				chatId: msg.chatId,
 				content: `Failed to update accept mode: ${err instanceof Error ? err.message : String(err)}`,
 				dedupKey: `${msg.id}:accept-error`,
+				label: settings.whatsapp.systemLabel,
 			});
 		}
 	},

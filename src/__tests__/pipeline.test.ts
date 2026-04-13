@@ -31,6 +31,19 @@ mock.module("@/whatsapp/login", () => ({
 	writeQrToVault: mock(async () => {}),
 }));
 
+// @/whatsapp/connection — mock for self-mode JID resolution
+const mockGetSocket = mock(() => ({
+	user: { id: "4915112345678:3@s.whatsapp.net" },
+}));
+mock.module("@/whatsapp/connection", () => ({
+	getSocket: mockGetSocket,
+	isConnected: mock(() => true),
+	startConnection: mock(async () => ({})),
+	closeSocket: mock(() => {}),
+	getConnectionState: mock(() => "connected"),
+	getLatestQr: mock(() => null),
+}));
+
 // @/core/settings-loader — mock only updateAllowedChatId, keep real getYamlSettings
 const mockUpdateAllowedChatId = mock(async (_chatId: string) => {});
 const realSettingsLoader = await import("@/core/settings-loader");
@@ -274,6 +287,32 @@ describe("handleTurn — guards", () => {
 			mockEnqueueMessage.mock.calls as unknown as [{ content: string }][]
 		)[0]?.[0];
 		expect(opts?.content).toMatch(/set up and ready/i);
+	});
+
+	test("self-mode: auto-setup resolves own JID and sends greeting", async () => {
+		delete process.env.ALLOWED_CHAT_ID;
+		const saved = settings.whatsapp.selfMode;
+		(settings.whatsapp as { selfMode: boolean }).selfMode = true;
+
+		try {
+			await handleTurn(makeMsg());
+
+			expect(mockAgentRunner).not.toHaveBeenCalled();
+			expect(mockUpdateAllowedChatId).toHaveBeenCalledWith(
+				"4915112345678@s.whatsapp.net",
+			);
+			expect(mockClearSetupCode).toHaveBeenCalledTimes(1);
+			expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
+			const opts = (
+				mockEnqueueMessage.mock.calls as unknown as [
+					{ content: string; label?: string },
+				][]
+			)[0]?.[0];
+			expect(opts?.content).toMatch(/set up and ready/i);
+			expect(opts?.label).toBe("System");
+		} finally {
+			(settings.whatsapp as { selfMode: boolean }).selfMode = saved;
+		}
 	});
 
 	test("rate limited: enqueues rate-limit message and skips runAgent", async () => {

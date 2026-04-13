@@ -169,4 +169,6 @@ export interface OutboundMessage {
 	dedupKey: string;
 	/** When set, the message is sent as a WhatsApp quote-reply to this message. */
 	quoted?: { externalId: string; fromMe: boolean };
+	/** Self-mode prefix: "[label]: ..." — set by callers (agent name, "System", etc.) */
+	label?: string;
 }

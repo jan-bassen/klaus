@@ -24,7 +24,22 @@ let _queue: Promise<void> = Promise.resolve();
 // In-memory dedup: skip re-sending a key within the current process lifetime.
 // Capped at MAX_SEEN_SIZE to prevent unbounded memory growth in long-running processes.
 const _seen = new Set<string>();
+const _sentIds = new Set<string>();
 const MAX_SEEN_SIZE = settings.whatsapp.maxSeenSize;
+
+/** Check if a Baileys message ID was sent by us (for self-mode loop prevention). */
+export function wasSentByUs(msgId: string): boolean {
+	return _sentIds.has(msgId);
+}
+
+function trackSentId(id: string | null | undefined): void {
+	if (!id) return;
+	if (_sentIds.size >= MAX_SEEN_SIZE) {
+		const oldest = _sentIds.values().next().value;
+		if (oldest !== undefined) _sentIds.delete(oldest);
+	}
+	_sentIds.add(id);
+}
 
 /**
  * Enqueue an outbound message for delivery: ensures FIFO ordering, deduplication
@@ -60,6 +75,7 @@ export function enqueueMessage(
 					.sendMessage(msg.chatId, {
 						text: "Failed to deliver my last message. Please try again.",
 					})
+					.then((result) => trackSentId(result?.key?.id))
 					.catch((sendErr: unknown) => {
 						log.warn("[send] could not notify user of delivery failure", {
 							chatId: msg.chatId,
@@ -86,10 +102,16 @@ async function sendWithRetry(
 	if (!_socket)
 		throw new Error("No WhatsApp socket — call setSocket() before sending");
 
+	let effectiveContent = msg.content;
+	if (settings.whatsapp.selfMode && typeof effectiveContent === "string") {
+		const prefix = msg.label ? `[${msg.label}]` : "[Klaus]";
+		effectiveContent = `${prefix}: ${effectiveContent}`;
+	}
+
 	const waContent =
-		typeof msg.content === "string"
-			? { text: msg.content }
-			: mediaContent(msg.content, msg.mimeType);
+		typeof effectiveContent === "string"
+			? { text: effectiveContent }
+			: mediaContent(effectiveContent, msg.mimeType);
 
 	try {
 		if (attempt > 1) {
@@ -107,6 +129,7 @@ async function sendWithRetry(
 				}
 			: undefined;
 		const result = await _socket.sendMessage(msg.chatId, waContent, sendOpts);
+		trackSentId(result?.key?.id);
 		log.info("[send] sent", { dedupKey: msg.dedupKey });
 		await new Promise<void>((r) =>
 			setTimeout(r, settings.send.interMessageDelayMs),

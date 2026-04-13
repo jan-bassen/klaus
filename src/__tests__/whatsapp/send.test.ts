@@ -16,9 +16,11 @@ mock.module("@/config", () => ({
 	},
 }));
 
-const { setSocket, enqueueMessage, drainQueue } = await import(
+const { setSocket, enqueueMessage, drainQueue, wasSentByUs } = await import(
 	"@/whatsapp/send"
 );
+
+import { settings } from "@/settings";
 
 const mockSendMessage = mock(
 	async (_jid: string, _content: unknown, _opts?: unknown) => ({
@@ -177,5 +179,95 @@ describe("enqueueMessage", () => {
 		};
 		expect(sendOpts?.quoted?.key?.id).toBe("ext-123");
 		expect(sendOpts?.quoted?.key?.fromMe).toBe(false);
+	});
+});
+
+describe("wasSentByUs", () => {
+	test("returns true for IDs of messages we sent", async () => {
+		const waId = "wa-tracked-id";
+		mockSendMessage.mockImplementation(async () => ({
+			key: { id: waId },
+		}));
+		enqueueMessage(makeMsg());
+		await drainQueue();
+
+		expect(wasSentByUs(waId)).toBe(true);
+	});
+
+	test("returns false for unknown IDs", () => {
+		expect(wasSentByUs("unknown-id")).toBe(false);
+	});
+});
+
+describe("self-mode prefix", () => {
+	let savedSelfMode: boolean;
+
+	function enableSelfMode(): void {
+		(settings.whatsapp as { selfMode: boolean }).selfMode = true;
+	}
+
+	function restoreSelfMode(): void {
+		(settings.whatsapp as { selfMode: boolean }).selfMode = savedSelfMode;
+	}
+
+	test("prefixes text with [Klaus] when selfMode on and no label", async () => {
+		savedSelfMode = settings.whatsapp.selfMode;
+		try {
+			enableSelfMode();
+			enqueueMessage(makeMsg({ content: "hello" }));
+			await drainQueue();
+
+			const sent = mockSendMessage.mock.calls[0]?.[1] as { text?: string };
+			expect(sent?.text).toBe("[Klaus]: hello");
+		} finally {
+			restoreSelfMode();
+		}
+	});
+
+	test("prefixes text with [AgentName] when selfMode on and label set", async () => {
+		savedSelfMode = settings.whatsapp.selfMode;
+		try {
+			enableSelfMode();
+			enqueueMessage(makeMsg({ content: "world", label: "thinking" }));
+			await drainQueue();
+
+			const sent = mockSendMessage.mock.calls[0]?.[1] as { text?: string };
+			expect(sent?.text).toBe("[thinking]: world");
+		} finally {
+			restoreSelfMode();
+		}
+	});
+
+	test("does not prefix Buffer content in selfMode", async () => {
+		savedSelfMode = settings.whatsapp.selfMode;
+		try {
+			enableSelfMode();
+			const buf = Buffer.from("fake-image");
+			enqueueMessage(makeMsg({ content: buf, mimeType: "image/png" }));
+			await drainQueue();
+
+			const sent = mockSendMessage.mock.calls[0]?.[1] as Record<
+				string,
+				unknown
+			>;
+			expect(sent?.image).toBeInstanceOf(Buffer);
+			expect(sent?.text).toBeUndefined();
+		} finally {
+			restoreSelfMode();
+		}
+	});
+
+	test("no prefix when selfMode is off", async () => {
+		savedSelfMode = settings.whatsapp.selfMode;
+		try {
+			(settings.whatsapp as { selfMode: boolean }).selfMode = false;
+			enqueueMessage(makeMsg({ content: "hello" }));
+			await drainQueue();
+
+			const sent = mockSendMessage.mock.calls[0]?.[1] as { text?: string };
+			expect(sent?.text).toBe("hello");
+		} finally {
+			restoreSelfMode();
+		}
 	});
 });

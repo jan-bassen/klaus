@@ -1,7 +1,14 @@
 # TODO Later
 
-## Internationalization (only when simple)
-- [ ] Add support for multiple languages for all user-facing (and probably even agent-facing) strings
+## Better error handling UX
+- [ ] Check retry flow for potential improvements and consider a potential "undo" operation
+- [ ] if feasible add /undo with a quoted message
+- [ ] if feasible add /retry with a quoted failed message
+- [ ] Consider message editing/ deleting capabilities
+
+## Improve media/research flows
+- [ ] Add Liteparse for better document flow
+- [ ] Use custom auto-webfetch when a link is in message? (obsidian web clipper)
 
 ## Evals
 - [ ] Add `*.eval.ts` files for non-deterministic behavior (pipeline end-to-end, agent tool selection, memory search relevance)
@@ -14,6 +21,7 @@
 - [ ] Geo - Geography teacher/expert agent to learn and ask about geology (https://rapidapi.com/mmplabsadm/api/geography4)
 - [ ] ??? - Life Coach (?)
 - [ ] Ingest - As input handler from source to wiki/knowledge store à la [Karpathy](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
+- [ ] Caveman - https://github.com/JuliusBrussee/caveman
 
 ## Maybe's
 - [ ] Voice language field in settings.ts against awkward accents

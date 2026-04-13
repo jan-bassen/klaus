@@ -1,4 +1,5 @@
 import path from "node:path";
+import { jidNormalizedUser } from "@whiskeysockets/baileys";
 import type { AgentDefinition, InboundMessage, TurnContext } from "@/types";
 import {
 	type AgentRunResult,
@@ -35,6 +36,7 @@ import {
 } from "@/store/files";
 import { appendTrail } from "@/store/trail";
 import { recordTurnLog, toLogSteps } from "@/store/turn-log";
+import { getSocket } from "@/whatsapp/connection";
 import { parseFlags, stripFlags } from "@/whatsapp/flags";
 import {
 	clearLoginFolder,
@@ -78,6 +80,26 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		const auth = checkAllowlist(msg);
 		if (!auth.allowed) {
 			if (auth.setupMode) {
+				if (settings.whatsapp.selfMode) {
+					const ownJid = jidNormalizedUser(getSocket().user?.id ?? "");
+					if (!ownJid) {
+						log.warn("[pipeline] self-mode: cannot resolve own JID yet");
+						return;
+					}
+					log.info("[pipeline] self-mode: auto-setup", {
+						chatId: ownJid,
+					});
+					await updateAllowedChatId(ownJid);
+					clearSetupCode();
+					clearLoginFolder().catch(() => {});
+					enqueueMessage({
+						chatId: msg.chatId,
+						content: "Hey! Klaus is set up and ready to go 🤙",
+						dedupKey: `${msg.id}:setup-complete`,
+						label: settings.whatsapp.systemLabel,
+					});
+					return;
+				}
 				const setupCode = getSetupCode();
 				if (setupCode && msg.text?.trim() === setupCode) {
 					log.info("[pipeline] setup code matched, configuring allowedChatId", {
@@ -90,6 +112,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 						chatId: msg.chatId,
 						content: "Hey! Klaus is set up and ready to go 🤙",
 						dedupKey: `${msg.id}:setup-complete`,
+						label: settings.whatsapp.systemLabel,
 					});
 				} else {
 					log.info("[pipeline] setup mode — awaiting setup code", {
@@ -99,6 +122,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 						chatId: msg.chatId,
 						content: `*Klaus setup*\n\nSend the setup code from the instructions in your vault to complete setup.\n\nYour chat ID: \`${msg.chatId}\``,
 						dedupKey: `${msg.id}:setup`,
+						label: settings.whatsapp.systemLabel,
 					});
 				}
 				return;
@@ -117,6 +141,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 				chatId: msg.chatId,
 				content: "Too many messages — please slow down.",
 				dedupKey: `${msg.id}:rate-limit`,
+				label: settings.whatsapp.systemLabel,
 			});
 			return;
 		}
@@ -359,6 +384,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 					chatId: msg.chatId,
 					content: formatUserError(err),
 					dedupKey: `${msg.id}:error`,
+					label: settings.whatsapp.systemLabel,
 				});
 			} catch {
 				/* best-effort */

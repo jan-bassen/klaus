@@ -23,6 +23,15 @@ export async function ensureLoginFolder(): Promise<void> {
 	const dir = settings.vault.loginDir;
 	await mkdir(dir, { recursive: true });
 
+	if (settings.whatsapp.selfMode) {
+		_setupCode = null;
+		const content =
+			"# Klaus Login\n\nScan the QR code to connect. Self-mode is enabled — setup completes automatically.\n";
+		await Bun.write(`${dir}/instructions.md`, content);
+		log.info("[login] self-mode: wrote instructions.md (no setup code)");
+		return;
+	}
+
 	_setupCode = Math.floor(100_000 + Math.random() * 900_000).toString();
 
 	const instructionsPath = `${dir}/instructions.md`;

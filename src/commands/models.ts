@@ -1,7 +1,12 @@
 import type { Command } from "@/commands";
 import { agentRegistry } from "@/core/agent";
 import { getDefaultAgent } from "@/core/defaults";
-import { getProviderNames, type ModelTier, resolveProvider } from "@/settings";
+import {
+	getProviderNames,
+	type ModelTier,
+	resolveProvider,
+	settings,
+} from "@/settings";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
@@ -34,6 +39,7 @@ export const modelsCommand: Command = {
 			chatId: msg.chatId,
 			content: lines.join("\n"),
 			dedupKey: `${msg.id}:models`,
+			label: settings.whatsapp.systemLabel,
 		});
 	},
 };

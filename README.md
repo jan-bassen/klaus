@@ -114,6 +114,22 @@ docker run -d --restart unless-stopped \
 
 After this one-time setup, auth persists in the volume and no further QR scans are needed.
 
+### Self-mode (single number)
+
+If you don't have a second phone number, Klaus can run on your own WhatsApp account. You message yourself ("Note to Self" chat) and Klaus replies in the same chat.
+
+1. Add `selfMode: true` under `whatsapp:` in `Klaus/settings.yml`:
+
+```yaml
+whatsapp:
+  selfMode: true
+```
+
+2. Pair WhatsApp via QR code as above.
+3. Send any message to yourself — Klaus auto-detects your JID, completes setup, and replies with a greeting.
+
+In self-mode, all outbound messages are prefixed with `[AgentName]:` (for LLM replies) or `[System]:` (for commands and system messages) so you can distinguish them from your own text.
+
 ---
 
 ## Deployment (Docker Hub)

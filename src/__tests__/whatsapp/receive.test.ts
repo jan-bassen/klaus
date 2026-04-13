@@ -15,6 +15,13 @@ mock.module("@/store/files", () => ({
 	saveFileMeta: mock(async () => ({ id: "file-id" })),
 }));
 
+const mockWasSentByUs = mock((_id: string) => false);
+mock.module("@/whatsapp/send", () => ({
+	enqueueMessage: mock(() => {}),
+	setSocket: mock(() => {}),
+	wasSentByUs: mockWasSentByUs,
+}));
+
 import { settings } from "@/settings";
 import { normalizeMessage } from "@/whatsapp/receive";
 
@@ -306,5 +313,76 @@ describe("normalizeMessage — quoted messages", () => {
 			externalId: "orig-id",
 			text: "Original",
 		});
+	});
+});
+
+describe("normalizeMessage — self-mode", () => {
+	let savedSelfMode: boolean;
+
+	function enableSelfMode(): void {
+		(settings.whatsapp as { selfMode: boolean }).selfMode = true;
+	}
+
+	function disableSelfMode(): void {
+		(settings.whatsapp as { selfMode: boolean }).selfMode = savedSelfMode;
+	}
+
+	test("selfMode off: fromMe messages are still skipped", async () => {
+		savedSelfMode = settings.whatsapp.selfMode;
+		try {
+			disableSelfMode();
+			const result = await normalizeMessage(
+				makeRaw({
+					key: { remoteJid: "user@s.whatsapp.net", fromMe: true, id: "X" },
+				}),
+			);
+			expect(result).toBeNull();
+		} finally {
+			disableSelfMode();
+		}
+	});
+
+	test("selfMode on + wasSentByUs=true: skips our own replies", async () => {
+		savedSelfMode = settings.whatsapp.selfMode;
+		try {
+			enableSelfMode();
+			mockWasSentByUs.mockImplementation(() => true);
+			const result = await normalizeMessage(
+				makeRaw({
+					key: {
+						remoteJid: "user@s.whatsapp.net",
+						fromMe: true,
+						id: "our-reply-id",
+					},
+				}),
+			);
+			expect(result).toBeNull();
+		} finally {
+			disableSelfMode();
+			mockWasSentByUs.mockImplementation(() => false);
+		}
+	});
+
+	test("selfMode on + wasSentByUs=false: processes user self-messages", async () => {
+		savedSelfMode = settings.whatsapp.selfMode;
+		try {
+			enableSelfMode();
+			mockWasSentByUs.mockImplementation(() => false);
+			const result = await normalizeMessage(
+				makeRaw({
+					key: {
+						remoteJid: "user@s.whatsapp.net",
+						fromMe: true,
+						id: "user-self-msg",
+					},
+				}),
+			);
+			expect(result).not.toBeNull();
+			expect(result?.text).toBe("Hello Klaus!");
+			expect(result?.id).toBe("user-self-msg");
+		} finally {
+			disableSelfMode();
+			mockWasSentByUs.mockImplementation(() => false);
+		}
 	});
 });

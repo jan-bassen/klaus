@@ -331,6 +331,8 @@ Token budgets and conversation history limits.
 
 | Field | Default | Description |
 |-------|---------|-------------|
+| `selfMode` | `false` | Self-mode: run Klaus on your own WhatsApp number (messages to self) |
+| `systemLabel` | `"System"` | Prefix label for non-LLM messages in self-mode (commands, errors, setup) |
 | `maxDownloadBytes` | `67108864` | Max media download size (64 MB) |
 | `mediaDownloadTimeoutMs` | `30000` | Media download timeout |
 | `offlineWindowMs` | `300000` | Time before marking offline (5 min) |
