@@ -20,6 +20,7 @@ import {
 } from "./core/settings-loader";
 import { startWatching, stopWatching } from "./core/watcher";
 import { startWorkers } from "./core/worker";
+import { loadFlags } from "./flags";
 import { log } from "./logger";
 import { settings } from "./settings";
 import { rebuildIndexes as rebuildConversationIndexes } from "./store/conversation";
@@ -130,11 +131,12 @@ async function main(): Promise<void> {
 		await mkdir(dir, { recursive: true });
 	}
 
-	// 2. Load tools, agents (from vault), context variables, skills, flags (from vault)
+	// 2. Load tools, agents (from vault), context variables, skills, flags
 	log.info(
 		"[startup] loading tools, agents, context variables, skills, and flags",
 	);
 	await loadAllTools(path.join(import.meta.dir, "tools"));
+	await loadFlags(path.join(import.meta.dir, "flags"));
 
 	const agentsDir = settings.vault.agentsDir;
 	await mkdir(agentsDir, { recursive: true });

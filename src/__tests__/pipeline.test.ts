@@ -111,13 +111,13 @@ mock.module("@/store/files", () => ({
 import { registry } from "@/commands";
 import { agentRegistry } from "@/core/agent";
 import { setContextVariables } from "@/core/assemble";
-import { flagRegistry } from "@/core/flags";
 import {
 	_clearAgentRunnerForTest,
 	_setAgentRunnerForTest,
 	handleTurn,
 } from "@/core/pipeline";
 import { _resetForTest, checkMessageRate } from "@/core/rate-limiter";
+import { flagRegistry } from "@/flags";
 import { settings } from "@/settings";
 
 // ─── Test seam — captures agent turns without mock.module pollution ──────────
@@ -175,14 +175,16 @@ beforeAll(async () => {
 
 	savedAllowedChatId = process.env.ALLOWED_CHAT_ID;
 
-	// Add test-only flags to the code-defined registry
+	// Add test-only flags to the registry
 	flagRegistry.set("verbose", {
-		name: "verbose" as never,
+		name: "verbose",
 		description: "verbose response",
+		overrides: {},
 	});
 	flagRegistry.set("en", {
-		name: "en" as never,
+		name: "en",
 		description: "respond in English",
+		overrides: {},
 	});
 
 	// Use no context variables so assembleContext always returns { vars: {}, totalTokens: 0 }

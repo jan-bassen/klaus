@@ -1,4 +1,4 @@
-import type { FlagOverrides } from "@/core/flags";
+import type { FlagOverrides } from "@/flags";
 import type { AgentDefinition } from "@/types";
 
 /**

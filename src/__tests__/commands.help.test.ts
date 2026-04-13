@@ -55,7 +55,7 @@ mock.module("@/core/assemble", () => ({
 import { registry } from "@/commands";
 import { helpCommand } from "@/commands/help";
 import { agentRegistry } from "@/core/agent";
-import { flagRegistry } from "@/core/flags";
+import { flagRegistry } from "@/flags";
 import type { AgentDefinition, InboundMessage } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -112,6 +112,7 @@ beforeAll(() => {
 	flagRegistry.set("voice", {
 		name: "voice",
 		description: "reply as a voice note",
+		overrides: { forceVoice: true },
 	});
 });
 

@@ -26,6 +26,12 @@ export function _clearAgentRunnerForTest(): void {
 
 import { registry as commandRegistry, parseCommand } from "@/commands";
 import { getDefaultAgent } from "@/core/defaults";
+import {
+	flagRegistry,
+	parseFlags,
+	resolveOverrides,
+	stripFlags,
+} from "@/flags";
 import { log } from "@/logger";
 import { settings } from "@/settings";
 import { appendMessage, findByExternalId } from "@/store/conversation";
@@ -37,7 +43,6 @@ import {
 import { appendTrail } from "@/store/trail";
 import { recordTurnLog, toLogSteps } from "@/store/turn-log";
 import { getSocket } from "@/whatsapp/connection";
-import { parseFlags, stripFlags } from "@/whatsapp/flags";
 import {
 	clearLoginFolder,
 	clearSetupCode,
@@ -48,7 +53,6 @@ import { enqueueMessage } from "@/whatsapp/send";
 import { transcribe } from "@/whatsapp/voice";
 import { assembleContext } from "./assemble";
 import { formatUserError } from "./errors";
-import { flagRegistry, resolveOverrides } from "./flags";
 import {
 	extractVarParams,
 	mergeVarParams,

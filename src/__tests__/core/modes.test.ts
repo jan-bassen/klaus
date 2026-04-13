@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { FlagOverrides } from "@/core/flags";
 import { applyModeDefaults } from "@/core/modes";
+import type { FlagOverrides } from "@/flags";
 import type { AgentDefinition } from "@/types";
 
 function makeDef(overrides: Partial<AgentDefinition> = {}): AgentDefinition {

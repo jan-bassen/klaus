@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import type { AgentFrontmatterSchema } from "./core/agent";
-import type { FlagOverrides } from "./core/flags";
+import type { FlagOverrides } from "./flags";
 
 // -- WhatsApp / transport --
 

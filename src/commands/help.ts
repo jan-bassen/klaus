@@ -2,7 +2,7 @@ import type { Command } from "@/commands";
 import { registry } from "@/commands";
 import { agentRegistry } from "@/core/agent";
 import { getContextVariables } from "@/core/assemble";
-import { flagRegistry } from "@/core/flags";
+import { flagRegistry } from "@/flags";
 import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";

@@ -24,7 +24,7 @@ Commands start with `/` and bypass the LLM entirely. Defined in `src/commands/`.
 
 ## Flags
 
-Flags start with `!` and override pipeline/agent behavior for the current message. Stripped before reaching the agent. Defined in `src/core/flags.ts`.
+Flags start with `!` and override pipeline/agent behavior for the current message. Stripped before reaching the agent. Each flag is defined as a `FlagDef` in `src/flags/` (one file per group, auto-discovered at startup).
 
 ### Output
 
