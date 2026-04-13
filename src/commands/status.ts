@@ -1,7 +1,7 @@
+import { getDefaultAgent } from "@/agent";
+import { getActiveJobs } from "@/agent/queue";
 import type { Command } from "@/commands";
-import { getDefaultAgent } from "@/core/defaults";
-import { getActiveJobs } from "@/core/queue";
-import { settings } from "@/settings";
+import { settings } from "@/config";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 

@@ -8,7 +8,7 @@ const testDir = path.join(tmpdir(), `klaus-snippets-test-${Date.now()}`);
 const snippetsDir = path.join(testDir, "snippets");
 const klausDir = testDir;
 
-mock.module("@/settings", () => ({
+mock.module("@/config", () => ({
 	settings: {
 		vault: {
 			internalPath: klausDir,

@@ -10,7 +10,7 @@ mock.module("@/logger", () => ({
 	},
 }));
 
-mock.module("@/config", () => ({
+mock.module("@/config/env", () => ({
 	config: {
 		send: { interMessageDelayMs: 0 },
 	},
@@ -20,7 +20,7 @@ const { setSocket, enqueueMessage, drainQueue, wasSentByUs } = await import(
 	"@/whatsapp/send"
 );
 
-import { settings } from "@/settings";
+import { settings } from "@/config";
 
 const mockSendMessage = mock(
 	async (_jid: string, _content: unknown, _opts?: unknown) => ({

@@ -1,8 +1,7 @@
 import path from "node:path";
+import { agentRegistry, loadAgentDefinition, setDefaultAgent } from "@/agent";
 import type { Command } from "@/commands";
-import { agentRegistry, loadAgentDefinition } from "@/core/agent";
-import { setDefaultAgent } from "@/core/defaults";
-import { settings } from "@/settings";
+import { settings } from "@/config";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 

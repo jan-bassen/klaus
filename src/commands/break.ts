@@ -1,5 +1,5 @@
 import type { Command } from "@/commands";
-import { settings } from "@/settings";
+import { settings } from "@/config";
 import { appendBreak } from "@/store/conversation";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";

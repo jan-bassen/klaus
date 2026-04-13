@@ -5,10 +5,10 @@ import {
 	downloadMediaMessage,
 	normalizeMessageContent,
 } from "@whiskeysockets/baileys";
-import { formatUserError } from "@/core/errors";
-import { handleTurn } from "@/core/pipeline";
+import { settings } from "@/config";
+import { formatUserError } from "@/errors";
 import { log } from "@/logger";
-import { settings } from "@/settings";
+import { handleTurn } from "@/pipeline";
 import { appendReaction } from "@/store/conversation";
 import { saveFileMeta } from "@/store/files";
 import type { InboundMessage } from "@/types";

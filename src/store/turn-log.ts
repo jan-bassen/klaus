@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { settings } from "@/settings";
-import { appendJsonl } from "./jsonl";
+import { settings } from "@/config";
+import { appendJsonl } from ".";
 
 const PipelineStepSchema = z.object({
 	reasoning: z.string().optional(),

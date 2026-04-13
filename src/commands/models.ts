@@ -1,12 +1,11 @@
+import { agentRegistry, getDefaultAgent } from "@/agent";
 import type { Command } from "@/commands";
-import { agentRegistry } from "@/core/agent";
-import { getDefaultAgent } from "@/core/defaults";
 import {
 	getProviderNames,
 	type ModelTier,
 	resolveProvider,
 	settings,
-} from "@/settings";
+} from "@/config";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 

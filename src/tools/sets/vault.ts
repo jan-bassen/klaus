@@ -2,6 +2,8 @@ import type { Dirent } from "node:fs";
 import { mkdir, readdir, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import { settings } from "@/config";
+import type { ToolDefinition, ToolsetDefinition, TurnContext } from "@/types";
 import {
 	accessError,
 	checkPermission,
@@ -9,9 +11,7 @@ import {
 	permissionError,
 	resolveVaultPath,
 	type VaultOp,
-} from "@/core/vault-access";
-import { settings } from "@/settings";
-import type { ToolDefinition, ToolsetDefinition, TurnContext } from "@/types";
+} from "@/vault";
 import { awaitConfirmation } from "@/whatsapp/confirm";
 
 const vaultRoot = () => settings.vault.root;

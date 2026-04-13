@@ -9,7 +9,7 @@ import {
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { _resetForTest, _setForTest } from "@/core/settings-loader";
+import { _resetForTest, _setForTest } from "@/config/schema";
 import { appendTrail, cleanupOldTrails, formatTrailEntry } from "@/store/trail";
 import type { TurnLog } from "@/store/turn-log";
 

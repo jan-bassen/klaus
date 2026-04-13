@@ -22,7 +22,7 @@ mock.module("@/whatsapp/send", () => ({
 	wasSentByUs: mockWasSentByUs,
 }));
 
-import { settings } from "@/settings";
+import { settings } from "@/config";
 import { normalizeMessage } from "@/whatsapp/receive";
 
 function makeRaw(overrides: Record<string, unknown> = {}): WAMessage {

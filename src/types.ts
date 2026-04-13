@@ -1,6 +1,13 @@
-import type { z } from "zod";
-import type { AgentFrontmatterSchema } from "./core/agent";
-import type { overrides } from "./core/overrides";
+import type { AgentDefinition } from "./agent";
+import type { DispatchMode } from "./agent/dispatch";
+import type { overrides } from "./pipeline/overrides";
+
+// Re-export domain types for convenience — consumers should prefer importing from the domain directly
+export type { AgentDefinition } from "./agent";
+export type { DispatchMode, DispatchOptions } from "./agent/dispatch";
+export type { ContextVariable, ContextVariableResult } from "./context";
+export type { ToolDefinition, ToolsetDefinition } from "./tools";
+export type { MessageOrdinal, OutboundMessage } from "./whatsapp/send";
 
 // -- WhatsApp / transport --
 
@@ -33,21 +40,6 @@ export interface InboundMessage {
 	timestamp: Date;
 	/** Raw Baileys message key, used for reactions */
 	messageKey: Record<string, unknown>;
-}
-
-// -- Dispatch --
-
-export type DispatchMode = { kind: "inline" } | { kind: "async" };
-
-export interface DispatchOptions {
-	agent: string;
-	objective: string;
-	hint?: string;
-	mode: DispatchMode;
-	chatId: string;
-	caller?: string;
-	/** Chain depth — incremented on each recursive dispatch. Enforces maxChainDepth. */
-	depth?: number;
 }
 
 // -- Turn pipeline --
@@ -88,89 +80,4 @@ export interface AssembledContext {
 export interface TurnResult {
 	success: boolean;
 	error?: string;
-}
-
-// -- Agent system --
-
-export type AgentDefinition = z.infer<typeof AgentFrontmatterSchema> & {
-	/** Absolute path to the .md file — used for hot-reload */
-	promptPath: string;
-};
-
-// -- Tool system --
-
-export interface ToolDefinition<TInput extends z.ZodTypeAny = z.ZodTypeAny> {
-	name: string;
-	description: string;
-	inputSchema: TInput;
-	execute(input: z.infer<TInput>, context: TurnContext): Promise<unknown>;
-	kind: "builtin" | "integration";
-	capability: "tool" | "resource";
-	requiresConfirmation?: boolean | undefined;
-}
-
-export interface ToolsetDefinition {
-	/** Namespace prefix, e.g. "files". Tools are named "{name}.*". */
-	name: string;
-	/** One-line description of when to activate this toolset. */
-	description: string;
-	/** All tools belonging to this toolset. */
-	tools: ToolDefinition<z.ZodTypeAny>[];
-}
-
-// -- Context variables --
-
-export interface ContextVariable {
-	name: string;
-	/** Short description for /help output */
-	description?: string;
-	/** Named parameters this variable accepts, e.g. { limit: "max items" } */
-	params?: Record<string, string>;
-	/** Lower number = trimmed first on overflow */
-	priority: number;
-	run(
-		turn: Omit<TurnContext, "assembled">,
-		params?: Record<string, string>,
-	): Promise<ContextVariableResult>;
-}
-
-export interface ContextVariableResult {
-	/** Primary content for vars[query.name]. Omit for queries that only produce vars. */
-	content?: string;
-	tokenCount: number;
-	truncate: "never" | "always" | "oldest";
-	/** Named vars to inject beyond vars[query.name]. Token-free. */
-	vars?: Record<string, unknown>;
-	/** Vars available only in user message $var interpolation. Token-free. */
-	userVars?: Record<string, unknown>;
-}
-
-// -- Evals --
-
-export interface Eval {
-	name: string;
-	input: string;
-	context?: Partial<TurnContext>;
-	assertions: EvalAssertion[];
-}
-
-export interface EvalAssertion {
-	type: "tool_called" | "tool_not_called" | "output_matches" | "llm_judge";
-	value: string;
-}
-
-// -- Send queue --
-
-export type MessageOrdinal = number;
-
-export interface OutboundMessage {
-	chatId: string;
-	content: string | Buffer;
-	mimeType?: string;
-	/** Dedup key: (message_id, ordinal) for deduplicating outbound messages */
-	dedupKey: string;
-	/** When set, the message is sent as a WhatsApp quote-reply to this message. */
-	quoted?: { externalId: string; fromMe: boolean };
-	/** Self-mode prefix: "[label]: ..." — set by callers (agent name, "System", etc.) */
-	label?: string;
 }

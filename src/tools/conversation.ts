@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { settings } from "@/settings";
+import { settings } from "@/config";
 import { searchConversation } from "@/store/conversation";
 import type { ToolDefinition } from "@/types";
 

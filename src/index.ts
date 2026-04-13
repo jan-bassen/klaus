@@ -8,21 +8,18 @@ process.emitWarning = (warning, ...args) => {
 
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { agentRegistry, loadAgents } from "./core/agent";
-import { loadContextVariables, setContextVariables } from "./core/assemble";
-import { dispatch } from "./core/dispatch";
-import { loadoverrides } from "./core/overrides";
-import { initQueue } from "./core/queue";
-import { loadAllTools } from "./core/registry";
+import { agentRegistry, loadAgents } from "./agent";
+import { dispatch, startWorkers } from "./agent/dispatch";
+import { initQueue } from "./agent/queue";
 import {
 	loadSettingsFromDisk,
+	settings,
 	stopSettingsWatcher,
 	watchSettings,
-} from "./core/settings-loader";
-import { startWatching, stopWatching } from "./core/watcher";
-import { startWorkers } from "./core/worker";
+} from "./config";
+import { loadContextVariables, setContextVariables } from "./context";
 import { log } from "./logger";
-import { settings } from "./settings";
+import { loadoverrides } from "./pipeline/overrides";
 import { rebuildIndexes as rebuildConversationIndexes } from "./store/conversation";
 import { rebuildFileIndex } from "./store/files";
 import {
@@ -33,7 +30,9 @@ import {
 	stopAllSchedules,
 } from "./store/schedules";
 import { loadTimers, setOnTimerFire, stopAllTimers } from "./store/timers";
+import { loadAllTools } from "./tools";
 import { loadSkills, skillRegistry } from "./tools/skill";
+import { startWatching, stopWatching } from "./vault/watcher";
 import {
 	closeSocket,
 	getConnectionState,
@@ -68,7 +67,7 @@ async function shutdown(signal: string): Promise<void> {
 	closeSocket();
 
 	// 3. Stop the in-memory queue.
-	const { stopQueue } = await import("./core/queue");
+	const { stopQueue } = await import("./agent/queue");
 	await stopQueue();
 
 	// 4. Stop file watchers.
@@ -154,7 +153,8 @@ async function main(): Promise<void> {
 	await mkdir(skillsDir, { recursive: true });
 	await loadSkills(skillsDir);
 
-	await import("./commands/register");
+	// Commands self-register on import
+	await import("./commands");
 
 	// Validate skill references
 	for (const def of agentRegistry.values()) {

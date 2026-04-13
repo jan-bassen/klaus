@@ -8,15 +8,12 @@ const mockAgentRegistry = new Map<string, unknown>();
 const mockLoadAgentDefinition = mock((_path: string): Promise<unknown> => {
 	return Promise.reject(new Error("not found"));
 });
-mock.module("@/core/agent", () => ({
-	agentRegistry: mockAgentRegistry,
-	loadAgentDefinition: mockLoadAgentDefinition,
-}));
-
 const mockSetDefaultAgent = mock(
 	(_chatId: string, _agent: string | null) => undefined,
 );
-mock.module("@/core/defaults", () => ({
+mock.module("@/agent", () => ({
+	agentRegistry: mockAgentRegistry,
+	loadAgentDefinition: mockLoadAgentDefinition,
 	setDefaultAgent: mockSetDefaultAgent,
 }));
 

@@ -24,7 +24,7 @@ Commands start with `/` and bypass the LLM entirely. Defined in `src/commands/`.
 
 ## overrides
 
-overrides start with `!` and override pipeline/agent behavior for the current message. Stripped before reaching the agent. Defined in `Klaus/overrides.yaml` (vault, hot-reloaded). Resolved by `src/core/overrides.ts`.
+overrides start with `!` and override pipeline/agent behavior for the current message. Stripped before reaching the agent. Defined in `Klaus/overrides.yaml` (vault, hot-reloaded). Resolved by `src/pipeline/overrides.ts`.
 
 Agent frontmatter can set any override field directly as a default (e.g. `forceVoice: true`). Per-message `!` overrides always take precedence.
 
@@ -201,7 +201,7 @@ File management (upload, download, list, delete). Meta-tool: `use_files`.
 
 ## Settings
 
-User-facing configuration in `Klaus/settings.yml`. Hot-reloaded with Zod validation. All fields optional — schema defaults apply. Defined in `src/core/settings-loader.ts`.
+User-facing configuration in `Klaus/settings.yml`. Hot-reloaded with Zod validation. All fields optional — schema defaults apply. Defined in `src/config/schema.ts`.
 
 ### Top-level
 

@@ -1,4 +1,4 @@
-import { getActiveJobs } from "@/core/queue";
+import { getActiveJobs } from "@/agent/queue";
 import { listTimers } from "@/store/timers";
 import type { ContextVariable, ContextVariableResult } from "@/types";
 

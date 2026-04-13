@@ -5,7 +5,7 @@ const mockEnqueueMessage = mock((_opts: unknown) => undefined);
 mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 
 const mockGetActiveJobs = mock(() => [] as unknown[]);
-mock.module("@/core/queue", () => ({
+mock.module("@/agent/queue", () => ({
 	getActiveJobs: mockGetActiveJobs,
 }));
 

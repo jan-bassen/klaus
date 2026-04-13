@@ -4,7 +4,7 @@ import type { AgentDefinition, TurnContext } from "@/types";
 // ─── mocks ───────────────────────────────────────────────────────────────────
 
 const mockDispatch = mock(async (): Promise<string | undefined> => undefined);
-mock.module("@/core/dispatch", () => ({ dispatch: mockDispatch }));
+mock.module("@/agent/dispatch", () => ({ dispatch: mockDispatch }));
 
 const mockAddSchedule = mock(async () => {});
 const mockGetSchedules = mock(() => [] as unknown[]);

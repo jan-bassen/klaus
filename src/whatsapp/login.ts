@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import QRCode from "qrcode";
+import { settings } from "@/config";
 import { log } from "@/logger";
-import { settings } from "@/settings";
 
 const FALLBACK_INSTRUCTIONS = `# Klaus Login
 

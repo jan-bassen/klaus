@@ -1,4 +1,4 @@
-import { settings } from "@/settings";
+import { settings } from "@/config";
 import type { ContextVariable } from "@/types";
 
 const CHARS_PER_TOKEN = settings.context.charsPerToken;

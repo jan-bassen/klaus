@@ -4,7 +4,7 @@ import { log } from "@/logger";
 import { appendReaction } from "@/store/conversation";
 import type { ToolDefinition } from "@/types";
 import { getSocket } from "@/whatsapp/connection";
-import { sendReaction } from "@/whatsapp/reactions";
+import { sendReaction } from "@/whatsapp/send";
 
 const reactSchema = z.object({
 	emoji: z

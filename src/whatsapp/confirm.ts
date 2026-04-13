@@ -1,5 +1,5 @@
+import { settings } from "@/config";
 import { log } from "@/logger";
-import { settings } from "@/settings";
 import type { InboundMessage } from "@/types";
 import { getSocket } from "./connection";
 

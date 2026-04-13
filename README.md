@@ -361,13 +361,16 @@ Max chain depth is enforced to prevent infinite recursive dispatch.
 
 ```
 src/
-├── commands/      # /command handlers
-├── context/       # Context variable modules (one file per variable)
-├── core/          # Pipeline, agent runner, dispatch, queue, model router
+├── agent/         # Agent definitions, runner, dispatch, model routing, job queue
+├── commands/      # /command handlers (self-registering)
+├── config/        # Settings (env + YAML), provider factory
+├── context/       # Context assembly + variable modules (one file per variable)
+├── pipeline/      # Message orchestrator, overrides, rate limiting
 ├── store/         # Flat-file storage (conversations, schedules, timers, files, etc.)
-├── tools/         # Tool definitions and toolsets
+├── tools/         # Tool/toolset registries, definitions, and loaders
 │   └── sets/      # Toolset definitions (vault, dispatch, files)
-└── whatsapp/      # Transport layer (connection, receive, send, TTS, STT)
+├── vault/         # Vault path access, permissions, file watcher
+└── whatsapp/      # Transport layer (connection, send, receive, voice STT/TTS)
 
 {VAULT_DIR}/           # Vault root — folders with per-folder permissions
 ├── Klaus/             # Internal folder (default: read, request: full)

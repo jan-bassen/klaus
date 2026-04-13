@@ -1,9 +1,9 @@
+import { agentRegistry } from "@/agent";
 import type { Command } from "@/commands";
 import { registry } from "@/commands";
-import { agentRegistry } from "@/core/agent";
-import { getContextVariables } from "@/core/assemble";
-import { overrideRegistry } from "@/core/overrides";
-import { settings } from "@/settings";
+import { settings } from "@/config";
+import { getContextVariables } from "@/context";
+import { overrideRegistry } from "@/pipeline/overrides";
 import type { InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 

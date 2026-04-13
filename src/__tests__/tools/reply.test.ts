@@ -10,7 +10,7 @@ const mockTextToSpeech = mock(
 	async (_text: string, _chatId: string): Promise<Buffer | Error> =>
 		Buffer.from("fake-audio"),
 );
-mock.module("@/whatsapp/tts", () => ({ textToSpeech: mockTextToSpeech }));
+mock.module("@/whatsapp/voice", () => ({ textToSpeech: mockTextToSpeech }));
 
 const mockAppendMessage = mock(async () => "row-uuid-1");
 const mockAppendAck = mock(async () => {});
@@ -24,7 +24,7 @@ mock.module("@/store/conversation", () => ({
 	_clearIndexesForTest: mock(() => {}),
 }));
 
-mock.module("@/settings", () => ({
+mock.module("@/config", () => ({
 	settings: {
 		tts: { fixedVoiceThreshold: 50 },
 	},

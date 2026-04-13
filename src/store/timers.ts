@@ -1,8 +1,8 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import { settings } from "@/config";
 import { log } from "@/logger";
-import { settings } from "@/settings";
 
 export const TimerEntrySchema = z.object({
 	id: z.string(),

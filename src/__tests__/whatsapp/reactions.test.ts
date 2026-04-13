@@ -15,7 +15,7 @@ mock.module("@/logger", () => ({
 	},
 }));
 
-const { sendReaction } = await import("@/whatsapp/reactions");
+const { sendReaction } = await import("@/whatsapp/send");
 
 const msgKey = { id: "msg-1", remoteJid: "chat@s.whatsapp.net", fromMe: false };
 

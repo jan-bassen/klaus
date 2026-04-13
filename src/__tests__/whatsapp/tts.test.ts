@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { settings } from "@/settings";
-import { textToSpeech } from "@/whatsapp/tts";
+import { settings } from "@/config";
+import { textToSpeech } from "@/whatsapp/voice";
 
 describe("textToSpeech", () => {
 	let originalKey: string | undefined;

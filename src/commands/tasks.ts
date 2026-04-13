@@ -1,6 +1,6 @@
+import { getActiveJobs } from "@/agent/queue";
 import type { Command } from "@/commands";
-import { getActiveJobs } from "@/core/queue";
-import { settings } from "@/settings";
+import { settings } from "@/config";
 import { getSchedules } from "@/store/schedules";
 import { listTimers } from "@/store/timers";
 import type { InboundMessage } from "@/types";

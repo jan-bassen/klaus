@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { assembleContext } from "@/core/assemble";
-import { settings } from "@/settings";
+import { settings } from "@/config";
+import { assembleContext } from "@/context";
 import type { AgentDefinition, ContextVariable, TurnContext } from "@/types";
 
 // Derive from config so tests don't break when budget changes

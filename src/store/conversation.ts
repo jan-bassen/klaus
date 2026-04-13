@@ -1,9 +1,9 @@
 import { appendFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import { settings } from "@/config";
 import { log } from "@/logger";
-import { settings } from "@/settings";
-import { localDateString } from "./date-utils";
+import { localDateString } from ".";
 
 // -- Event schemas & types --
 

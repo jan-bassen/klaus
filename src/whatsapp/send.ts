@@ -1,7 +1,28 @@
-import type { AnyMessageContent, WASocket } from "@whiskeysockets/baileys";
+import type {
+	AnyMessageContent,
+	WAMessageKey,
+	WASocket,
+} from "@whiskeysockets/baileys";
+import { settings } from "@/config";
 import { log } from "@/logger";
-import { settings } from "@/settings";
-import type { OutboundMessage } from "@/types";
+
+// -- Send queue types (owned by this domain) --
+
+export type MessageOrdinal = number;
+
+export interface OutboundMessage {
+	chatId: string;
+	content: string | Buffer;
+	mimeType?: string;
+	/** Dedup key: (message_id, ordinal) for deduplicating outbound messages */
+	dedupKey: string;
+	/** When set, the message is sent as a WhatsApp quote-reply to this message. */
+	quoted?: { externalId: string; fromMe: boolean };
+	/** Self-mode prefix: "[label]: ..." — set by callers (agent name, "System", etc.) */
+	label?: string;
+}
+
+import { getSocket } from "./connection";
 
 // Module-level socket reference set by attachReceiveHandler at startup.
 let _socket: WASocket | null = null;
@@ -143,5 +164,33 @@ async function sendWithRetry(
 			return sendWithRetry(msg, attempt + 1);
 		}
 		throw err;
+	}
+}
+
+// -- Reactions --
+
+/**
+ * Send a reaction emoji to a specific message.
+ * Pass an empty string as emoji to remove an existing reaction.
+ * Errors are returned as values — reactions are best-effort UX.
+ */
+export async function sendReaction(
+	chatId: string,
+	msgKey: WAMessageKey,
+	emoji: string,
+): Promise<undefined | Error> {
+	try {
+		await getSocket().sendMessage(chatId, {
+			react: { key: msgKey, text: emoji },
+		});
+		log.debug("[reactions] sent", { chatId, emoji });
+	} catch (err) {
+		const error = err instanceof Error ? err : new Error(String(err));
+		log.warn("[reactions] failed to send reaction", {
+			chatId,
+			emoji,
+			error: error.message,
+		});
+		return error;
 	}
 }

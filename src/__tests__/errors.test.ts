@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { formatUserError } from "@/core/errors";
-import { LlmTimeoutError } from "@/core/model-router";
+import { LlmTimeoutError } from "@/agent/model";
+import { formatUserError } from "@/errors";
 
 describe("formatUserError", () => {
 	test("LlmTimeoutError → timeout message", () => {

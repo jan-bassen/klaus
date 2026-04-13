@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { agentRegistry } from "@/core/agent";
-import { dispatch as dispatchAgent } from "@/core/dispatch";
+import { agentRegistry } from "@/agent";
+import { dispatch as dispatchAgent } from "@/agent/dispatch";
 import { addSchedule, getSchedules, removeSchedule } from "@/store/schedules";
 import { addTimer, listTimers, removeTimer } from "@/store/timers";
 import type { ToolDefinition, ToolsetDefinition } from "@/types";

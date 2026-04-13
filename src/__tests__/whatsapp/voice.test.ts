@@ -12,7 +12,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { settings } from "@/settings";
+import { settings } from "@/config";
 import { transcribe } from "@/whatsapp/voice";
 
 let tmpDir: string;

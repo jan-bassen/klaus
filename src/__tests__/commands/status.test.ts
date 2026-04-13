@@ -17,13 +17,13 @@ const mockEnqueueMessage = mock((_opts: unknown) => undefined);
 mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 
 const mockGetActiveJobs = mock(() => [] as unknown[]);
-mock.module("@/core/queue", () => ({
+mock.module("@/agent/queue", () => ({
 	getActiveJobs: mockGetActiveJobs,
 }));
 
+import { _resetDefaultsForTest, setDefaultAgent } from "@/agent";
 import { statusCommand } from "@/commands/status";
-import { _resetDefaultsForTest, setDefaultAgent } from "@/core/defaults";
-import { settings } from "@/settings";
+import { settings } from "@/config";
 
 let tmpVault: string;
 let savedVaultDir: string | undefined;

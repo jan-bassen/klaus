@@ -1,8 +1,8 @@
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
-import { hbs } from "@/core/hbs";
+import { settings } from "@/config";
 import { log } from "@/logger";
-import { settings } from "@/settings";
+import { hbs } from "@/markdown";
 import type { ContextVariable } from "@/types";
 
 const fmPattern = /^---\n([\s\S]*?)\n---\n?/;

@@ -1,4 +1,13 @@
 import type { InboundMessage } from "@/types";
+import { acceptCommand } from "./accept";
+import { breakCommand } from "./break";
+import { defaultCommand } from "./default";
+import { helpCommand } from "./help";
+import { modelCommand } from "./model";
+import { modelsCommand } from "./models";
+import { statusCommand } from "./status";
+import { tasksCommand } from "./tasks";
+import { voiceCommand } from "./voice";
 
 export interface Command {
 	name: string;
@@ -33,6 +42,16 @@ export class CommandRegistry {
 }
 
 export const registry = new CommandRegistry();
+
+registry.register(statusCommand);
+registry.register(tasksCommand);
+registry.register(defaultCommand);
+registry.register(modelCommand);
+registry.register(modelsCommand);
+registry.register(voiceCommand);
+registry.register(acceptCommand);
+registry.register(helpCommand);
+registry.register(breakCommand);
 
 /**
  * Parse a /command from a message.

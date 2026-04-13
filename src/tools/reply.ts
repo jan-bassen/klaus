@@ -3,7 +3,7 @@ import { log } from "@/logger";
 import { appendAck, appendMessage } from "@/store/conversation";
 import type { ToolDefinition } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
-import { textToSpeech } from "@/whatsapp/tts";
+import { textToSpeech } from "@/whatsapp/voice";
 
 const replySchema = z.object({
 	content: z.string().describe("The message content to send"),

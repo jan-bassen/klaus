@@ -1,8 +1,7 @@
+import { agentRegistry, getDefaultAgent } from "@/agent";
 import type { Command } from "@/commands";
-import { agentRegistry } from "@/core/agent";
-import { getDefaultAgent } from "@/core/defaults";
-import { setFrontmatterField } from "@/core/frontmatter";
-import { getProviderNames, resolveProvider, settings } from "@/settings";
+import { getProviderNames, resolveProvider, settings } from "@/config";
+import { setFrontmatterField } from "@/markdown";
 import type { AgentDefinition, InboundMessage } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 
