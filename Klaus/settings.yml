@@ -1,0 +1,116 @@
+providers:
+  active: claude
+  claude:
+    sdk: anthropic
+    small: claude-haiku-3-20250307
+    medium: claude-sonnet-4-20250514
+    large: claude-opus-4-20250514
+    vision: claude-sonnet-4-20250514
+    coldTemperature: 0
+    hotTemperature: 1
+    creativeTopP: 0.95
+    rigidTopP: 0.1
+  chatgpt:
+    sdk: openai
+    small: gpt-4o-mini
+    medium: gpt-4o
+    large: o3
+    vision: gpt-4o
+    coldTemperature: 0
+    hotTemperature: 1.5
+    creativeTopP: 0.95
+    rigidTopP: 0.1
+  gemini:
+    sdk: google
+    small: gemini-2.0-flash-lite
+    medium: gemini-2.5-pro
+    large: gemini-2.5-pro
+    vision: gemini-2.5-pro
+    coldTemperature: 0
+    hotTemperature: 1.5
+    creativeTopP: 0.95
+    rigidTopP: 0.1
+
+context:
+  totalTokens: 100000
+  conversationTokens: 20000
+  activeTasksTokens: 5000
+  defaultConversationLimit: 20
+  charsPerToken: 4
+  maxReasoningChars: 2000
+  maxToolResultChars: 2000
+  traceDepth: 3
+  conversationLookbackDays: 7
+
+rateLimits:
+  messages:
+    max: 30
+    windowMs: 60000
+  modelCalls:
+    max: 60
+    windowMs: 60000
+
+tts:
+  model: eleven_multilingual_v2
+  voiceId: Qqi8SzIZjZsatCWjDOp7
+
+stt:
+  model: scribe_v1
+  timeoutMs: 30000
+  agentTriggers:
+    - hey
+    - at
+    - an
+    - to
+    - dear
+
+retries:
+  max: 3
+  backoffMs: 1000
+
+send:
+  interMessageDelayMs: 1500
+
+llm:
+  timeoutMs: 120000
+  maxSteps: 10
+
+defaultAgent: default
+locale: en-GB
+timezone: Europe/London
+
+dispatch:
+  maxChainDepth: 10
+
+persistent:
+  minNextRunMs: 60000
+  maxNextRunMs: 604800000
+  defaultNextRun: 1h
+
+trail:
+  enabled: true
+  retentionDays: 3
+
+watcher:
+  debounceMs: 1000
+
+vision:
+  maxImageDimension: 2048
+
+whatsapp:
+  selfMode: false
+  systemLabel: System
+  maxDownloadBytes: 67108864
+  mediaDownloadTimeoutMs: 30000
+  offlineWindowMs: 300000
+  maxSeenSize: 10000
+  confirmTimeoutMs: 60000
+
+vault:
+  folders:
+    - path: ""
+      default: full
+  internalPermission:
+    default: read
+    request: full
+  maxListEntries: 200

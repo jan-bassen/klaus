@@ -11,6 +11,8 @@ export interface ContextVariable {
 	description?: string;
 	/** Named parameters this variable accepts, e.g. { limit: "max items" } */
 	params?: Record<string, string>;
+	/** If true, this variable is excluded from /help output */
+	hidden?: boolean;
 	/** Lower number = trimmed first on overflow */
 	priority: number;
 	run(

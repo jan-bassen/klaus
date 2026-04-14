@@ -5,6 +5,9 @@ import type { ToolDefinition } from "@/types";
 import { enqueueMessage } from "@/whatsapp/send";
 import { textToSpeech } from "@/whatsapp/voice";
 
+/** The canonical name of the output tool. Referenced by runner/messages to filter reply calls from traces. */
+export const REPLY_TOOL_NAME = "reply";
+
 const replySchema = z.object({
 	content: z.string().describe("The message content to send"),
 	voice: z
@@ -22,7 +25,7 @@ const replySchema = z.object({
 });
 
 export const replyTool: ToolDefinition<typeof replySchema> = {
-	name: "reply",
+	name: REPLY_TOOL_NAME,
 	description:
 		"Send a WhatsApp message — works both as a reply to an inbound message and as a proactive/scheduled send.",
 	inputSchema: replySchema,

@@ -20,6 +20,7 @@ export interface overrides {
 	ghost?: boolean;
 	reasoningEffort?: "low" | "high";
 	fast?: boolean;
+	[key: string]: unknown;
 }
 
 export const overridesSchema = z
@@ -37,7 +38,7 @@ export const overridesSchema = z
 		reasoningEffort: z.enum(["low", "high"]).optional(),
 		fast: z.boolean().optional(),
 	})
-	.strict();
+	.passthrough();
 
 // ── override definition ────────────────────────────────────────────────
 

@@ -196,13 +196,9 @@ const WhatsAppSchema = z
 
 const VaultYamlSchema = z
 	.object({
-		folders: z.array(VaultFolderSchema).default([
-			{ path: "Leben", default: "full" },
-			{ path: "Projekte", default: "full" },
-			{ path: "Sammlung", default: "read", request: "full" },
-			{ path: "Wissen", default: "read" },
-			{ path: "", default: "full" },
-		]),
+		folders: z
+			.array(VaultFolderSchema)
+			.default([{ path: "", default: "full" }]),
 		internalPermission: z
 			.object({
 				default: VaultPermissionSchema.default("read"),
@@ -226,9 +222,9 @@ export const SettingsSchema = z
 		send: SendSchema,
 		llm: LlmSchema,
 		allowedChatId: z.string().optional(),
-		defaultAgent: z.string().default("klaus"),
-		locale: z.string().default("de-DE"),
-		timezone: z.string().default("Europe/Berlin"),
+		defaultAgent: z.string().default("default"),
+		locale: z.string().default("en-GB"),
+		timezone: z.string().default("Europe/London"),
 		dispatch: DispatchSchema,
 		persistent: PersistentSchema,
 		trail: TrailSchema,
@@ -264,7 +260,7 @@ export async function loadSettingsFromDisk(): Promise<
 	const filePath = config.vault.settingsPath;
 
 	if (!existsSync(filePath)) {
-		await generateDefaultSettings(filePath);
+		log.info("[settings] no settings.yml found, using schema defaults");
 		return { ok: true };
 	}
 
@@ -289,13 +285,6 @@ export async function loadSettingsFromDisk(): Promise<
 			error: err instanceof Error ? err.message : String(err),
 		};
 	}
-}
-
-async function generateDefaultSettings(filePath: string): Promise<void> {
-	const defaults = SettingsSchema.parse({});
-	const yaml = stringifyYaml(defaults, { lineWidth: 120 });
-	await Bun.write(filePath, yaml);
-	log.info("[settings] generated default settings.yml", { path: filePath });
 }
 
 let _watcher: FSWatcher | null = null;

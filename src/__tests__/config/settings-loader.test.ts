@@ -44,9 +44,9 @@ describe("SettingsSchema", () => {
 		expect(result.data.providers.claude.medium).toBe(
 			"claude-sonnet-4-20250514",
 		);
-		expect(result.data.locale).toBe("de-DE");
+		expect(result.data.locale).toBe("en-GB");
 		expect(result.data.context.totalTokens).toBe(100_000);
-		expect(result.data.defaultAgent).toBe("klaus");
+		expect(result.data.defaultAgent).toBe("default");
 	});
 
 	test("accepts partial overrides", () => {
@@ -100,10 +100,10 @@ describe("SettingsSchema", () => {
 });
 
 describe("loadSettingsFromDisk", () => {
-	test("generates default file when missing", async () => {
+	test("uses schema defaults when file missing", async () => {
 		const result = await loadSettingsFromDisk();
 		expect(result.ok).toBe(true);
-		expect(Bun.file(SETTINGS_PATH).size).toBeGreaterThan(0);
+		expect(getYamlSettings().locale).toBe("en-GB"); // schema default
 	});
 
 	test("loads valid YAML", async () => {

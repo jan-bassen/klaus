@@ -6,6 +6,7 @@ import {
 	getTraces,
 	type TraceStep,
 } from "@/store/conversation";
+import { REPLY_TOOL_NAME } from "@/tools/reply";
 import type { TurnContext } from "@/types";
 
 const CHARS_PER_TOKEN = settings.context.charsPerToken;
@@ -22,7 +23,7 @@ function summarizeTrace(steps: TraceStep[]): string {
 	const calls: string[] = [];
 	for (const step of steps) {
 		for (const tc of step.toolCalls) {
-			if (tc.toolName === "reply") continue;
+			if (tc.toolName === REPLY_TOOL_NAME) continue;
 			let argSnippet = "";
 			try {
 				const parsed = JSON.parse(tc.args);

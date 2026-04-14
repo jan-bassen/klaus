@@ -17,6 +17,7 @@ import { appendTrace, type TraceStep } from "@/store/conversation";
 import { addTimer, listTimers, removeTimer } from "@/store/timers";
 import { generateMetaTool, toolRegistry, toolsetRegistry } from "@/tools";
 import { buildProviderTool } from "@/tools/provider";
+import { REPLY_TOOL_NAME } from "@/tools/reply";
 import { parseRunAt } from "@/tools/sets/dispatch";
 import { buildSkillTool } from "@/tools/skill";
 import type { AgentDefinition, ToolDefinition, TurnContext } from "@/types";
@@ -134,8 +135,12 @@ function toTraceSteps(steps: ModelCallStep[]): TraceStep[] {
 	const result: TraceStep[] = [];
 
 	for (const step of steps) {
-		const allCalls = step.toolCalls.filter((tc) => tc.toolName !== "reply");
-		const allResults = step.toolResults.filter((tr) => tr.toolName !== "reply");
+		const allCalls = step.toolCalls.filter(
+			(tc) => tc.toolName !== REPLY_TOOL_NAME,
+		);
+		const allResults = step.toolResults.filter(
+			(tr) => tr.toolName !== REPLY_TOOL_NAME,
+		);
 
 		// Only keep calls that have a matching result — orphaned calls corrupt replay
 		const resultIds = new Set(allResults.map((tr) => tr.toolCallId));
@@ -517,7 +522,9 @@ export async function runAgent(
 				? {
 						tools: allTools,
 						activeTools:
-							effectiveToolChoice === "none" ? ["reply"] : initialActive,
+							effectiveToolChoice === "none"
+								? [REPLY_TOOL_NAME]
+								: initialActive,
 						...(effectiveToolChoice !== "none"
 							? { prepareStep: buildActiveTools }
 							: {}),
@@ -568,7 +575,7 @@ export async function runAgent(
 		// Extract reply content from reply tool calls for logging
 		const replyContent = result.steps
 			.flatMap((s) => s.toolCalls)
-			.filter((tc) => tc.toolName === "reply")
+			.filter((tc) => tc.toolName === REPLY_TOOL_NAME)
 			.map((tc) => {
 				const content = tc.args?.content;
 				return typeof content === "string" ? content : "";

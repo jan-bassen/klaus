@@ -1,13 +1,6 @@
+import { z } from "zod";
+import { log } from "@/logger";
 import type { InboundMessage } from "@/types";
-import { acceptCommand } from "./accept";
-import { breakCommand } from "./break";
-import { defaultCommand } from "./default";
-import { helpCommand } from "./help";
-import { modelCommand } from "./model";
-import { modelsCommand } from "./models";
-import { statusCommand } from "./status";
-import { tasksCommand } from "./tasks";
-import { voiceCommand } from "./voice";
 
 export interface Command {
 	name: string;
@@ -43,16 +36,6 @@ export class CommandRegistry {
 
 export const registry = new CommandRegistry();
 
-registry.register(statusCommand);
-registry.register(tasksCommand);
-registry.register(defaultCommand);
-registry.register(modelCommand);
-registry.register(modelsCommand);
-registry.register(voiceCommand);
-registry.register(acceptCommand);
-registry.register(helpCommand);
-registry.register(breakCommand);
-
 /**
  * Parse a /command from a message.
  * Returns null if the message is not a command.
@@ -70,4 +53,47 @@ export function parseCommand(
 		name: raw.toLowerCase(),
 		args: tokens.slice(1),
 	};
+}
+
+const CommandShape = z
+	.object({
+		name: z.string(),
+		description: z.string(),
+		execute: z.function(),
+	})
+	.passthrough();
+
+function isCommand(x: unknown): x is Command {
+	return CommandShape.safeParse(x).success;
+}
+
+/**
+ * Scan a directory for .ts files and register every exported Command.
+ * Follows the same auto-discovery pattern as loadAllTools() and loadContextVariables().
+ */
+export async function loadCommands(commandsDir: string): Promise<void> {
+	const glob = new Bun.Glob("*.ts");
+	for await (const file of glob.scan({ cwd: commandsDir })) {
+		if (file === "index.ts") continue;
+		try {
+			const mod = (await import(`${commandsDir}/${file}`)) as Record<
+				string,
+				unknown
+			>;
+			for (const exported of Object.values(mod)) {
+				if (isCommand(exported)) {
+					registry.register(exported);
+					log.debug("[commands] loaded command", {
+						name: exported.name,
+						file,
+					});
+				}
+			}
+		} catch (err) {
+			log.error("[commands] failed to load command file", {
+				file,
+				error: err instanceof Error ? err.message : String(err),
+			});
+		}
+	}
 }

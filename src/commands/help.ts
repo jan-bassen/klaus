@@ -51,9 +51,7 @@ function buildoverridesSection(): string {
 }
 
 function buildVarsSection(): string {
-	const vars = getContextVariables().filter(
-		(v) => v.name !== "dispatch_context",
-	);
+	const vars = getContextVariables().filter((v) => !v.hidden);
 
 	const lines: string[] = [];
 	for (const v of vars) {

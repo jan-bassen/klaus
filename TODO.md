@@ -6,22 +6,20 @@ Goal: We've reached hundreds of tests for a pretty small codebase. Also some tes
 ## Skill tools
 - [ ] Allow for extra tools to be added to context when skill called
 
-## Unified setup through vault defaults (?)
+## Unified setup through vault defaults
 Goal: Move all interaction/customization surface into vault or extra "extensions" volume
-- [ ] Add folder to repo "default" containing my default vault setup - on init just copy, not generate
-- [ ] Create new directory: templates where we can collect all text snippets and handle them unified with handlebars - templates/dictionaries for all the internal text parts (+ add to reference) - include currently top-level "message.md". Exclusions: Error messages, tools
-- [ ] Add new volume folder "extensions/plugins" for user created commands, context vars, tools, and overrides that get loaded (auto or maybe on /refresh or so)
-- [ ] Remove prev. vault autogen (currently still adds overrides/ and notes/ for example)
+- [x] Add folder to repo "default" containing my default vault setup - on init just copy, not generate
+- [x] Remove settings.yml auto-generation (replaced by defaults copy)
+- [x] Remove prev. vault autogen (currently still adds overrides/ and notes/ for example)
 
 ## Logging overhaul
-- [ ] Make "pretty" logging (and its setting) clearer. It should just be an optional switch to output full json logs or just the message (just the msg is default)
-- [ ] How to handle other keys in the json in text or should I simplify the whole thing?
+- [ ] Make "pretty" logging (and its setting) clearer. It should just be an optional switch to output full json logs or just the message string (just the msg str is default)
+- [ ] Check the loggings' other key-value pairs (from the json) if they should be added to the message text or should I just simplify the whole thing (always only log text)?
 - [ ] Also many keys get called multiple times (eg. skipFromMe)
-- [ ] Make sure all steps are understandable. (What does skipFromMe even mean?)
+- [ ] Make sure all steps are understandable/ clear what they mean for anyone. (eg. what does skipFromMe even mean?)
 
 ## Code quality
-- [ ] Make schemas dynamic (or extendible depending on context). Stuff like providers should allow for all kinds of providers, if I want them hardcoded I don't need a schema... This will be also the case with other schemas! (providers, overrides, ...)
-- [ ] Every llm agent adds like a couple tests and we have a ton by now - check and prune all the useless ones
+- [x] Make schemas dynamic (or extendible depending on context). Providers resolved dynamically, overrides schema uses `.passthrough()`
 - [ ] Simplify any complex or deeply nested stuff: objects, joints, definitions, ...
 - [ ] Make names clear and understandable and confirm uniformity of naming across codebase
 

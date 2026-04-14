@@ -31,19 +31,19 @@ function makeMsg(overrides: Partial<InboundMessage> = {}): InboundMessage {
 const AGENT_FILE = join(tmpdir(), `test-agent-${Date.now()}.md`);
 
 const AGENT_CONTENT = `---
-name: klaus
+name: default
 modelTier: medium
 tools: [reply]
 toolsets: []
 providerTools: []
 skills: []
 ---
-You are Klaus.
+You are a helpful assistant.
 `;
 
 function makeAgent(tier: AgentDefinition["modelTier"]): AgentDefinition {
 	return {
-		name: "klaus",
+		name: "default",
 		aliases: [],
 		modelTier: tier,
 		tools: ["reply"],
@@ -60,13 +60,13 @@ function makeAgent(tier: AgentDefinition["modelTier"]): AgentDefinition {
 
 beforeEach(async () => {
 	await Bun.write(AGENT_FILE, AGENT_CONTENT);
-	agentRegistry.set("klaus", makeAgent("medium"));
+	agentRegistry.set("default", makeAgent("medium"));
 	_resetDefaultsForTest();
 	mockEnqueueMessage.mockClear();
 });
 
 afterEach(() => {
-	agentRegistry.delete("klaus");
+	agentRegistry.delete("default");
 });
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ describe("/model", () => {
 		const { content } = (
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
 		)[0];
-		expect(content).toContain("@klaus");
+		expect(content).toContain("@default");
 		expect(content).toContain("tier: medium");
 		expect(content).toContain("provider: claude");
 	});
@@ -94,7 +94,7 @@ describe("/model", () => {
 		expect(content).toContain("tier: large");
 
 		// Registry updated
-		expect(agentRegistry.get("klaus")?.modelTier).toBe("large");
+		expect(agentRegistry.get("default")?.modelTier).toBe("large");
 
 		// File updated
 		const raw = await Bun.file(AGENT_FILE).text();
@@ -120,7 +120,7 @@ describe("/model", () => {
 	});
 
 	test("unknown agent returns error", async () => {
-		agentRegistry.delete("klaus");
+		agentRegistry.delete("default");
 		await modelCommand.execute(makeMsg(), ["large"]);
 
 		const { content } = (

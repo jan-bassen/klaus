@@ -6,7 +6,8 @@ process.emitWarning = (warning, ...args) => {
 	_emitWarning(warning, ...(args as any[]));
 };
 
-import { mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { copyFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { agentRegistry, loadAgents } from "./agent";
 import { dispatch, startWorkers } from "./agent/dispatch";
@@ -88,8 +89,35 @@ process.on("SIGINT", () => {
 	shutdown("SIGINT").catch(() => process.exit(1));
 });
 
+/**
+ * Copy default vault files from defaults/Klaus/ to the vault's internal path.
+ * Only copies files that don't already exist — never overwrites user customizations.
+ */
+async function ensureDefaults(targetDir: string): Promise<void> {
+	const defaultsDir = path.join(import.meta.dir, "..", "Klaus");
+	if (!existsSync(defaultsDir)) return;
+
+	async function copyDir(src: string, dest: string): Promise<void> {
+		await mkdir(dest, { recursive: true });
+		const entries = await readdir(src, { withFileTypes: true });
+		for (const entry of entries) {
+			const srcPath = path.join(src, entry.name);
+			const destPath = path.join(dest, entry.name);
+			if (entry.isDirectory()) {
+				await copyDir(srcPath, destPath);
+			} else if (!existsSync(destPath)) {
+				await copyFile(srcPath, destPath);
+				log.info("[startup] copied default file", { file: destPath });
+			}
+		}
+	}
+
+	await copyDir(defaultsDir, targetDir);
+}
+
 async function main(): Promise<void> {
-	// 0. Load settings from vault YAML (before anything else)
+	// 0. Ensure default vault files exist, then load settings
+	await ensureDefaults(settings.vault.internalPath);
 	const settingsResult = await loadSettingsFromDisk();
 	if (!settingsResult.ok) {
 		log.warn("[startup] settings.yml invalid or missing, using defaults", {
@@ -138,7 +166,6 @@ async function main(): Promise<void> {
 	await loadoverrides();
 
 	const agentsDir = settings.vault.agentsDir;
-	await mkdir(agentsDir, { recursive: true });
 	await loadAgents(agentsDir);
 
 	const contextVariables = await loadContextVariables(
@@ -146,15 +173,10 @@ async function main(): Promise<void> {
 	);
 	setContextVariables(contextVariables);
 
-	const snippetsDir = settings.vault.snippetsDir;
-	await mkdir(snippetsDir, { recursive: true });
+	await loadSkills(settings.vault.skillsDir);
 
-	const skillsDir = settings.vault.skillsDir;
-	await mkdir(skillsDir, { recursive: true });
-	await loadSkills(skillsDir);
-
-	// Commands self-register on import
-	await import("./commands");
+	const { loadCommands } = await import("./commands");
+	await loadCommands(path.join(import.meta.dir, "commands"));
 
 	// Validate skill references
 	for (const def of agentRegistry.values()) {
@@ -228,7 +250,7 @@ async function main(): Promise<void> {
 
 	// 6. Watch settings, agents, skills, and overrides for hot-reload
 	watchSettings();
-	startWatching(agentsDir, skillsDir);
+	startWatching(agentsDir, settings.vault.skillsDir);
 
 	// 7. Start HTTP server before WhatsApp so the process stays up during first-time pairing.
 	Bun.serve({

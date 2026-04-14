@@ -18,7 +18,7 @@ export {
 export type VaultPermission = "none" | "read" | "append" | "full";
 
 export interface VaultFolder {
-	/** Relative to vault root, e.g. "Leben". Empty string "" for root-level files. */
+	/** Relative to vault root, e.g. "Notes". Empty string "" for root-level files. */
 	path: string;
 	/** Always-on permission level. */
 	default: VaultPermission;

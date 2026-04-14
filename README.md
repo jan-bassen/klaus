@@ -487,7 +487,7 @@ export const myCommand: Command = {
 };
 ```
 
-Invoke it in chat with /mycommand.
+The file is auto-discovered at startup — export a `Command` and it's registered automatically. Invoke it in chat with /mycommand.
 
 ### Add a new toolset
 

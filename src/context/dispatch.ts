@@ -38,6 +38,7 @@ function formatDispatchBlock(
 export const dispatchContextQuery: ContextVariable = {
 	name: "dispatch_context",
 	description: "Dispatch caller and objective",
+	hidden: true,
 	priority: -1, // never trimmed
 	async run(
 		turn: Omit<TurnContext, "assembled">,

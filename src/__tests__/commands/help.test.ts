@@ -30,6 +30,7 @@ const mockGetContextVariables = mock(() => [
 	{
 		name: "dispatch_context",
 		description: "Dispatch caller and objective",
+		hidden: true,
 		priority: -1,
 		run: async () => ({
 			content: "",
