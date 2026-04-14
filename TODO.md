@@ -1,17 +1,62 @@
-# TODO v0.2.0 (ignore migration paths, we're able to fully reset still)
+# Features v0.2.0 (ignore migration paths, we're able to fully reset still)
 
-## Logging overhaul
-- [x] Make "pretty" logging (and its setting) clearer. It should just be an optional switch to output full json logs or just the message string (just the msg str is default)
-- [x] Check the loggings' other key-value pairs (from the json) if they should be added to the message text or should I just simplify the whole thing (always only log text)?
-- [x] Also many keys get called multiple times (eg. skipFromMe)
-- [x] Make sure all steps are understandable/ clear what they mean for anyone. (eg. what does skipFromMe even mean?)
+## Better error handling UX
+- [ ] check retry flow for potential improvements and consider a potential "undo" operation
+- [ ] if feasible add /undo with a quoted message
+- [ ] if feasible add /retry with a quoted failed message
+- [ ] consider message editing/ deleting capabilities
+
+## Improve media/research flows
+Plan: Have a good look at the current document/web flow to give the agent efficient tools for common use-cases
+Options:
+- liteparse for better document flow
+- custom auto-webfetch when a link is in message? (defuddle) or a custom web-fetch tool?
+- built-in git+bash tooling for simple coding tasks (maybe separate plan)
+
+## Very simple evals
+Goal: Add a simple system for a few key evals + live testing system to catch 80% of issues while iterating
 
 ## Code quality
 - [x] Make schemas dynamic (or extendible depending on context). Providers resolved dynamically, overrides schema uses `.passthrough()`
-- [ ] Simplify any complex or deeply nested stuff: objects, joints, definitions, ...
-- [ ] Make names clear and understandable and confirm uniformity of naming across codebase
+- [ ] Make sure we are consistent in file extensions (eg overrides.yaml and settings.yml, but maybe more cases across codebase): always use shortest name
 - [ ] Contain baileys imports to just whatsapp/ + check the codebase for other similar leaks
 
-## Documentation
-- [ ] Update readme and check code comments, everything should be up-to-date and fitting with the implemented code
-- [ ] Add guides etc
+## Actually real defaults
+Current implementation of models and tools are not up-to-date (agent tend to do that bc of knowledge cutoff)
+- [ ] models
+- [ ] tools
+
+## Remove remainder of token tracking
+we still have stuff like "charsPerToken" in settings, although that doesn't even make sense. Let's clean that up. Track chars if we need to track something, but why would we?
+
+## Maybe's
+- [ ] Voice language field in settings.ts against awkward accents
+
+--- 
+
+# Repo understandability v0.2.0
+I decided I want to open source this as "the agent for tinkerers". Let's make this codebase perfect.
+
+## Remaining cleanup 
+- [ ] remove any unnecessary config/top-level files used for my dev environment
+- [ ] rename src/context/ -> variables
+- [ ] move setting defaults out of the schema, everything else already lives in the Klaus folder
+
+## Add docs
+- [ ] Update readme to be perfect and poignant (short intro (incl what it is and isn't) + quick setup guide + architecture overview inlc how to tinker infos and pointers to /docs)
+- [ ] Add docs/ with:
+  - [ ] setup-guide (more in-depth guide for common setups and issues)
+  - [ ] codebase-walkthrough (not 1:1 explainer of code, but more so the used patterns, chosen structure, key files, etc - like getting a 10min "how to works with klaus' codebase 101" class)
+  - [ ] vault-walkthrough (same but with the vault side incl key settings and folders)
+  - [ ] iterate-in-obsidian (quick explainer of the most useful patterns with examples)
+  - [ ] iterate-in-code (same with code for adding a command, variable, tool, ...)
+
+## Cleanup agent tooling 
+The codebase should be ready for agents, but fully unopinionated. 
+- [ ] CLAUDE.md -> AGENT.md + shorten drastically while optimizing for future forkers
+
+## Comments cleanup
+- [ ] Remove any redundant comments (use good naming and clear code over explanations - comments are for anything that the code doesn't show or where misunderstandings are possible)
+- [ ] Shorten comments where possible
+- [ ] Make sure comments cover the ide inline 
+- [ ] Check everything as final check - it should be up-to-date and fitting with the implemented code
