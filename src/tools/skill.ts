@@ -1,15 +1,20 @@
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { log } from "@/logger";
+import { toolsetRegistry } from "@/tools";
 import type { ToolDefinition } from "@/types";
 
 export const SkillFrontmatterSchema = z.object({
 	description: z.string().min(1).optional(),
+	tools: z.array(z.string()).default([]),
+	toolsets: z.array(z.string()).default([]),
 });
 
 export interface SkillMeta {
 	name: string;
 	description: string;
+	tools: string[];
+	toolsets: string[];
 }
 
 /** Registry of loaded skill metadata, keyed by skill name. Populated at startup. */
@@ -27,14 +32,18 @@ export async function loadSkills(skillsDir: string): Promise<void> {
 		const name = file.replace(/\.md$/, "");
 
 		let description = name;
+		let tools: string[] = [];
+		let toolsets: string[] = [];
 		if (match) {
 			const front = SkillFrontmatterSchema.safeParse(parseYaml(match[1] ?? ""));
-			if (front.success && front.data.description) {
-				description = front.data.description;
+			if (front.success) {
+				if (front.data.description) description = front.data.description;
+				tools = front.data.tools;
+				toolsets = front.data.toolsets;
 			}
 		}
 
-		skillRegistry.set(name, { name, description });
+		skillRegistry.set(name, { name, description, tools, toolsets });
 		log.debug("[skill] loaded metadata", { name, description });
 	}
 }
@@ -49,9 +58,11 @@ export function buildSkillTool(
 ): ToolDefinition {
 	const entries = skillNames.map((name) => {
 		const meta = skillRegistry.get(name);
-		return meta ? `${name} (${meta.description})` : name;
+		if (!meta) return name;
+		const hasTools = meta.tools.length > 0 || meta.toolsets.length > 0;
+		return `${name} (${meta.description}${hasTools ? " [+tools]" : ""})`;
 	});
-	const description = `Load a reference document by name. Available: ${entries.join(", ")}. Use only when you need specific reference material for the current task.`;
+	const description = `Load a reference document by name. Available: ${entries.join(", ")}. Use only when you need specific reference material for the current task. Skills marked [+tools] unlock additional tools when loaded.`;
 
 	const inputSchema = z.object({
 		name: z.enum(skillNames as [string, ...string[]]),
@@ -66,7 +77,24 @@ export function buildSkillTool(
 			try {
 				const raw = await Bun.file(filePath).text();
 				// Strip frontmatter — return only the content body
-				return raw.replace(/^---\n[\s\S]*?\n---\n?/, "");
+				const content = raw.replace(/^---\n[\s\S]*?\n---\n?/, "");
+
+				// Collect tools activated by this skill
+				const meta = skillRegistry.get(name);
+				const activated: string[] = [];
+				if (meta) {
+					activated.push(...meta.tools);
+					for (const tsName of meta.toolsets) {
+						const ts = toolsetRegistry.get(tsName);
+						if (ts) {
+							for (const t of ts.tools) activated.push(t.name);
+						}
+					}
+				}
+				if (activated.length > 0) {
+					return `${content}\n\n---\nTools now available: ${activated.join(", ")}`;
+				}
+				return content;
 			} catch (err) {
 				log.warn("[skill.get] failed to read skill file", {
 					skill: name,

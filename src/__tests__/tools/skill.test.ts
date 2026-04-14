@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { z } from "zod";
 
 mock.module("@/logger", () => ({
 	log: {
@@ -11,8 +12,14 @@ mock.module("@/logger", () => ({
 	},
 }));
 
+import {
+	registerTool,
+	registerToolset,
+	toolRegistry,
+	toolsetRegistry,
+} from "@/tools";
 import { buildSkillTool, loadSkills, skillRegistry } from "@/tools/skill";
-import type { TurnContext } from "@/types";
+import type { ToolDefinition, ToolsetDefinition, TurnContext } from "@/types";
 
 const fixtureDir = path.join(import.meta.dir, "__skill-fixtures");
 const dummyContext = {} as TurnContext;
@@ -40,6 +47,8 @@ describe("loadSkills", () => {
 		expect(skillRegistry.get("workout")).toEqual({
 			name: "workout",
 			description: "Weekly training split",
+			tools: [],
+			toolsets: [],
 		});
 	});
 
@@ -137,5 +146,101 @@ describe("buildSkillTool", () => {
 		expect(result).toEqual(
 			expect.objectContaining({ error: expect.stringContaining("missing") }),
 		);
+	});
+});
+
+describe("skill tools", () => {
+	const dummyTool: ToolDefinition = {
+		name: "vault.read",
+		description: "Read a vault file",
+		inputSchema: z.object({ path: z.string() }),
+		execute: async () => "content",
+		kind: "builtin",
+		capability: "tool",
+	};
+
+	const dummyToolset: ToolsetDefinition = {
+		name: "dispatch",
+		description: "Dispatch agents",
+		tools: [
+			{
+				name: "dispatch.agent",
+				description: "Dispatch an agent",
+				inputSchema: z.object({ agent: z.string() }),
+				execute: async () => "dispatched",
+				kind: "builtin",
+				capability: "tool",
+			},
+		],
+	};
+
+	beforeEach(() => {
+		skillRegistry.clear();
+		toolRegistry.clear();
+		toolsetRegistry.clear();
+		mkdirSync(fixtureDir, { recursive: true });
+	});
+
+	afterEach(() => {
+		rmSync(fixtureDir, { recursive: true, force: true });
+	});
+
+	test("loadSkills parses tools and toolsets from frontmatter", async () => {
+		writeSkill(
+			"advanced",
+			"---\ndescription: Advanced skill\ntools:\n  - vault.read\ntoolsets:\n  - dispatch\n---\n# Content",
+		);
+		await loadSkills(fixtureDir);
+		const meta = skillRegistry.get("advanced");
+		expect(meta?.tools).toEqual(["vault.read"]);
+		expect(meta?.toolsets).toEqual(["dispatch"]);
+	});
+
+	test("description marks skills with tools as [+tools]", async () => {
+		writeSkill(
+			"with-tools",
+			"---\ndescription: Has tools\ntools:\n  - vault.read\n---\n# Content",
+		);
+		writeSkill("no-tools", "---\ndescription: No tools\n---\n# Content");
+		await loadSkills(fixtureDir);
+		const tool = buildSkillTool(["with-tools", "no-tools"], fixtureDir);
+		expect(tool.description).toContain("with-tools (Has tools [+tools])");
+		expect(tool.description).toContain("no-tools (No tools)");
+		expect(tool.description).not.toContain("no-tools (No tools [+tools])");
+	});
+
+	test("execute appends activated tool names for skill with tools", async () => {
+		registerTool(dummyTool);
+		writeSkill(
+			"tooled",
+			"---\ndescription: Skill with tools\ntools:\n  - vault.read\n---\n# Skill Body",
+		);
+		await loadSkills(fixtureDir);
+		const tool = buildSkillTool(["tooled"], fixtureDir);
+		const result = await tool.execute({ name: "tooled" }, dummyContext);
+		expect(result).toContain("# Skill Body");
+		expect(result).toContain("Tools now available: vault.read");
+	});
+
+	test("execute appends toolset tool names for skill with toolsets", async () => {
+		registerToolset(dummyToolset);
+		writeSkill(
+			"dispatchy",
+			"---\ndescription: Dispatch skill\ntoolsets:\n  - dispatch\n---\n# Dispatch Body",
+		);
+		await loadSkills(fixtureDir);
+		const tool = buildSkillTool(["dispatchy"], fixtureDir);
+		const result = await tool.execute({ name: "dispatchy" }, dummyContext);
+		expect(result).toContain("# Dispatch Body");
+		expect(result).toContain("Tools now available: dispatch.agent");
+	});
+
+	test("execute does not append tools note for skill without tools", async () => {
+		writeSkill("plain", "---\ndescription: Plain skill\n---\n# Plain Body");
+		await loadSkills(fixtureDir);
+		const tool = buildSkillTool(["plain"], fixtureDir);
+		const result = await tool.execute({ name: "plain" }, dummyContext);
+		expect(result).toBe("# Plain Body");
+		expect(result).not.toContain("Tools now available");
 	});
 });

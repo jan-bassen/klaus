@@ -19,7 +19,7 @@ import { generateMetaTool, toolRegistry, toolsetRegistry } from "@/tools";
 import { buildProviderTool } from "@/tools/provider";
 import { REPLY_TOOL_NAME } from "@/tools/reply";
 import { parseRunAt } from "@/tools/sets/dispatch";
-import { buildSkillTool } from "@/tools/skill";
+import { buildSkillTool, skillRegistry } from "@/tools/skill";
 import type { AgentDefinition, ToolDefinition, TurnContext } from "@/types";
 import { awaitConfirmation } from "@/whatsapp/confirm";
 import { buildConversationMessages } from "./messages";
@@ -335,23 +335,69 @@ export async function runAgent(
 	if (def.skills?.length) {
 		const skillsDir = settings.vault.skillsDir;
 		const skillTool = buildSkillTool(def.skills, skillsDir);
-		const sdkName = skillTool.name.replace(/\./g, "_");
-		allTools[sdkName] = wrap(skillTool);
-		initialActive.push(sdkName);
+		const sdkToolName = skillTool.name.replace(/\./g, "_");
+		allTools[sdkToolName] = wrap(skillTool);
+		initialActive.push(sdkToolName);
+
+		// Pre-register tools that skills may activate (inactive until skill is loaded)
+		for (const sName of def.skills) {
+			const meta = skillRegistry.get(sName);
+			if (!meta) continue;
+			for (const toolName of meta.tools) {
+				const t = toolRegistry.get(toolName);
+				if (!t) {
+					log.warn("[agent] unknown tool in skill", {
+						skill: sName,
+						tool: toolName,
+					});
+					continue;
+				}
+				const n = t.name.replace(/\./g, "_");
+				if (!allTools[n]) allTools[n] = wrap(t);
+			}
+			for (const tsName of meta.toolsets) {
+				const ts = toolsetRegistry.get(tsName);
+				if (!ts) {
+					log.warn("[agent] unknown toolset in skill", {
+						skill: sName,
+						toolset: tsName,
+					});
+					continue;
+				}
+				for (const t of ts.tools) {
+					const n = t.name.replace(/\./g, "_");
+					if (!allTools[n]) allTools[n] = wrap(t);
+				}
+			}
+		}
 	}
 
-	// prepareStep: expand activeTools when meta-tools are called in previous steps
+	// prepareStep: expand activeTools when meta-tools or skill_get are called in previous steps
 	const buildActiveTools = (steps: StepResult<ToolSet>[]): string[] => {
 		const active = new Set(initialActive);
 		for (const step of steps) {
 			for (const call of step.toolCalls) {
 				const name = call.toolName as string;
-				if (!name.startsWith("use_")) continue;
-				const tsName = name.slice(4); // 'use_files' → 'files'
-				const ts = toolsetRegistry.get(tsName);
-				if (!ts) continue;
-				active.delete(`use_${tsName}`); // replace meta-tool with actual tools
-				for (const t of ts.tools) active.add(t.name.replace(/\./g, "_"));
+				if (name.startsWith("use_")) {
+					const tsName = name.slice(4); // 'use_files' → 'files'
+					const ts = toolsetRegistry.get(tsName);
+					if (!ts) continue;
+					active.delete(`use_${tsName}`); // replace meta-tool with actual tools
+					for (const t of ts.tools) active.add(t.name.replace(/\./g, "_"));
+				} else if (name === "skill_get") {
+					const sName = (call as unknown as { input?: { name?: string } }).input
+						?.name;
+					const meta = sName ? skillRegistry.get(sName) : undefined;
+					if (!meta) continue;
+					for (const toolName of meta.tools) {
+						active.add(toolName.replace(/\./g, "_"));
+					}
+					for (const tsName of meta.toolsets) {
+						const ts = toolsetRegistry.get(tsName);
+						if (!ts) continue;
+						for (const t of ts.tools) active.add(t.name.replace(/\./g, "_"));
+					}
+				}
 			}
 		}
 		return [...active];

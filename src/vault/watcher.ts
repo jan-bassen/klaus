@@ -146,13 +146,22 @@ async function handleSkillChange(
 		const raw = await Bun.file(filePath).text();
 		const match = raw.match(/^---\n([\s\S]*?)\n---/);
 		let description = name;
+		let tools: string[] = [];
+		let toolsets: string[] = [];
 		if (match) {
 			const front = SkillFrontmatterSchema.safeParse(parseYaml(match[1] ?? ""));
-			if (front.success && front.data.description) {
-				description = front.data.description;
+			if (front.success) {
+				if (front.data.description) description = front.data.description;
+				tools = front.data.tools;
+				toolsets = front.data.toolsets;
 			}
 		}
-		skillRegistry.set(name, { name, description } satisfies SkillMeta);
+		skillRegistry.set(name, {
+			name,
+			description,
+			tools,
+			toolsets,
+		} satisfies SkillMeta);
 		log.info("[watcher] skill reloaded", { name });
 	} catch (err) {
 		log.warn("[watcher] failed to reload skill", {
