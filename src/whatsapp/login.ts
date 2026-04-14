@@ -44,9 +44,7 @@ export async function ensureLoginFolder(): Promise<void> {
 		content = FALLBACK_INSTRUCTIONS.replace(/\{\{code\}\}/g, _setupCode);
 	}
 	await Bun.write(instructionsPath, content);
-	log.info("[login] wrote instructions.md with setup code", {
-		path: instructionsPath,
-	});
+	log.info("[login] wrote instructions.md with setup code");
 }
 
 export async function writeQrToVault(qrData: string): Promise<void> {
@@ -57,9 +55,7 @@ export async function writeQrToVault(qrData: string): Promise<void> {
 		errorCorrectionLevel: "M",
 	});
 	await Bun.write(settings.vault.loginQrPath, svg);
-	log.info("[login] QR code written to vault", {
-		path: settings.vault.loginQrPath,
-	});
+	log.info("[login] QR code written to vault");
 }
 
 export async function clearLoginFolder(): Promise<void> {

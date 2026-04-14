@@ -71,18 +71,15 @@ export async function loadAgents(agentsDir: string): Promise<void> {
 			for (const alias of def.aliases) {
 				const existing = agentRegistry.get(alias);
 				if (existing && existing.name !== def.name) {
-					log.warn("[agent] alias collision, skipping", {
-						alias,
-						agent: def.name,
-						existing: existing.name,
-					});
+					log.warn(
+						`[agent] alias "${alias}" collides between @${def.name} and @${existing.name}, skipping`,
+					);
 					continue;
 				}
 				agentRegistry.set(alias, def);
 			}
 		} catch (err) {
-			log.error("[agent] failed to load agent definition", {
-				file,
+			log.error(`[agent] failed to load agent: ${file}`, {
 				error: err instanceof Error ? err.message : String(err),
 			});
 		}

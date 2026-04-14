@@ -42,7 +42,7 @@ export async function transcribe(
 
 		if (!res.ok) {
 			const body = await res.text();
-			log.warn("[voice] Scribe API error", { status: res.status, body });
+			log.warn(`[voice] Scribe API error (${res.status})`, { body });
 			return new Error(`Scribe API error ${res.status}: ${body}`);
 		}
 
@@ -83,7 +83,7 @@ export async function textToSpeech(text: string): Promise<Buffer | Error> {
 
 		if (!res.ok) {
 			const body = await res.text();
-			log.warn("[tts] ElevenLabs API error", { status: res.status, body });
+			log.warn(`[tts] ElevenLabs API error (${res.status})`, { body });
 			return new Error(`TTS API error ${res.status}: ${body}`);
 		}
 

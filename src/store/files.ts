@@ -167,7 +167,7 @@ export async function rebuildFileIndex(): Promise<void> {
 		// No index file yet
 	}
 
-	log.info("[files] index rebuilt", { files: fileIndex.size });
+	log.info(`[files] index rebuilt (${fileIndex.size} files)`);
 }
 
 /** Clear indexes. Test-only. */

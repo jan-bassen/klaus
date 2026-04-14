@@ -156,15 +156,11 @@ export async function loadContextVariables(
 			for (const exported of Object.values(mod)) {
 				if (isContextVariable(exported)) {
 					queries.push(exported);
-					log.debug("[assemble] loaded context variable", {
-						name: exported.name,
-						file,
-					});
+					log.debug(`[assemble] loaded context variable: ${exported.name}`);
 				}
 			}
 		} catch (err) {
-			log.error("[assemble] failed to load context variable file", {
-				file,
+			log.error(`[assemble] failed to load context variable: ${file}`, {
 				error: err instanceof Error ? err.message : String(err),
 			});
 		}

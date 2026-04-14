@@ -123,8 +123,7 @@ export const filesDeleteTool: ToolDefinition<typeof filesDeleteSchema> = {
 		try {
 			await unlink(meta.path);
 		} catch (err) {
-			log.warn("[files.delete] unlink failed", {
-				path: meta.path,
+			log.warn(`[files] delete failed: ${meta.path}`, {
 				error: String(err),
 			});
 		}

@@ -63,13 +63,11 @@ export interface AuthResult {
 export function checkAllowlist(msg: InboundMessage): AuthResult {
 	const allowed = settings.allowedChatId ?? "";
 	if (allowed === "") {
-		log.warn("[middleware] allowedChatId not configured — setup mode", {
-			chatId: msg.chatId,
-		});
+		log.warn("[auth] no allowed chat configured, entering setup mode");
 		return { allowed: false, setupMode: true };
 	}
 	if (msg.chatId !== allowed) {
-		log.warn("[middleware] auth rejected", { chatId: msg.chatId });
+		log.warn("[auth] rejected unauthorized chat");
 		return { allowed: false };
 	}
 	return { allowed: true };
@@ -102,12 +100,10 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 				if (settings.whatsapp.selfMode) {
 					const ownJid = jidNormalizedUser(getSocket().user?.id ?? "");
 					if (!ownJid) {
-						log.warn("[pipeline] self-mode: cannot resolve own JID yet");
+						log.warn("[pipeline] self-mode: waiting for own JID");
 						return;
 					}
-					log.info("[pipeline] self-mode: auto-setup", {
-						chatId: ownJid,
-					});
+					log.info("[pipeline] self-mode: auto-setup");
 					await updateAllowedChatId(ownJid);
 					clearSetupCode();
 					clearLoginFolder().catch(() => {});
@@ -121,9 +117,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 				}
 				const setupCode = getSetupCode();
 				if (setupCode && msg.text?.trim() === setupCode) {
-					log.info("[pipeline] setup code matched, configuring allowedChatId", {
-						chatId: msg.chatId,
-					});
+					log.info("[pipeline] setup code matched, configuring allowed chat");
 					await updateAllowedChatId(msg.chatId);
 					clearSetupCode();
 					clearLoginFolder().catch(() => {});
@@ -134,9 +128,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 						label: settings.whatsapp.systemLabel,
 					});
 				} else {
-					log.info("[pipeline] setup mode — awaiting setup code", {
-						chatId: msg.chatId,
-					});
+					log.info("[pipeline] setup mode, awaiting setup code");
 					enqueueMessage({
 						chatId: msg.chatId,
 						content: `*Klaus setup*\n\nSend the setup code from the instructions in your vault to complete setup.\n\nYour chat ID: \`${msg.chatId}\``,
@@ -146,16 +138,13 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 				}
 				return;
 			}
-			log.info("[pipeline] auth rejected", { chatId: msg.chatId });
+			log.info("[auth] rejected unauthorized chat");
 			return;
 		}
 		// Step 2: Rate check
 		const rate = checkMessageRate(msg);
 		if (!rate.allowed) {
-			log.warn("[pipeline] rate limited", {
-				chatId: msg.chatId,
-				retryAfterMs: rate.retryAfterMs,
-			});
+			log.warn(`[pipeline] rate limited, retry in ${rate.retryAfterMs}ms`);
 			enqueueMessage({
 				chatId: msg.chatId,
 				content: "Too many messages — please slow down.",
@@ -170,10 +159,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		if (msg.media) {
 			const { path: filePath, mimeType, fileId } = msg.media;
 			if (mimeType.startsWith("audio/")) {
-				log.info("[pipeline] transcribing voice message", {
-					chatId: msg.chatId,
-					mimeType,
-				});
+				log.info("[pipeline] transcribing voice message");
 				const transcript = await transcribe(filePath, mimeType);
 				if (!(transcript instanceof Error)) {
 					processedMsg = {
@@ -190,7 +176,6 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 					};
 				} else {
 					log.warn("[pipeline] transcription failed", {
-						chatId: msg.chatId,
 						error: transcript.message,
 					});
 				}
@@ -211,10 +196,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		// Step 4a: /commands bypass the LLM entirely
 		const cmd = parseCommand(processedMsg);
 		if (cmd) {
-			log.info("[pipeline] command dispatched", {
-				chatId: processedMsg.chatId,
-				command: cmd.name,
-			});
+			log.info(`[pipeline] dispatching /${cmd.name} command`);
 
 			// Persist command message to conversation
 			await appendMessage({
@@ -254,10 +236,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			def = await loadAgentDefinition(promptPath);
 			agentRegistry.set(def.name, def);
 		}
-		log.info("[pipeline] routing to agent", {
-			chatId: effectiveMsg.chatId,
-			agent: agentName,
-		});
+		log.info(`[pipeline] routing to @${agentName}`);
 
 		// Resolve agent defaults, per-message overrides take precedence
 		const overrides = resolveAgentDefaults(presetoverrides, def);
@@ -395,7 +374,6 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		}
 	} catch (err) {
 		log.error("[pipeline] unhandled error", {
-			chatId: msg.chatId,
 			error: err instanceof Error ? err.message : String(err),
 			stack: err instanceof Error ? err.stack : undefined,
 		});

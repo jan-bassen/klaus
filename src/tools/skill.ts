@@ -44,7 +44,7 @@ export async function loadSkills(skillsDir: string): Promise<void> {
 		}
 
 		skillRegistry.set(name, { name, description, tools, toolsets });
-		log.debug("[skill] loaded metadata", { name, description });
+		log.debug(`[skill] loaded: ${name}`);
 	}
 }
 
@@ -96,9 +96,7 @@ export function buildSkillTool(
 				}
 				return content;
 			} catch (err) {
-				log.warn("[skill.get] failed to read skill file", {
-					skill: name,
-					path: filePath,
+				log.warn(`[skill] failed to read skill file: ${name}`, {
 					error: err instanceof Error ? err.message : String(err),
 				});
 				return {

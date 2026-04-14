@@ -55,10 +55,7 @@ function scheduleTimeout(entry: TimerEntry): void {
 				error: err instanceof Error ? err.message : String(err),
 			}),
 		);
-		log.info("[timers] timer fired", {
-			id: entry.id,
-			agentName: entry.agentName,
-		});
+		log.info(`[timers] fired for @${entry.agentName}`);
 		_onTimerFire?.(entry).catch((err) =>
 			log.error("[timers] fire handler error", {
 				id: entry.id,
@@ -79,7 +76,7 @@ export async function loadTimers(): Promise<void> {
 			timers.set(entry.id, entry);
 			scheduleTimeout(entry);
 		}
-		log.info("[timers] loaded", { count: timers.size });
+		log.info(`[timers] loaded (${timers.size} timers)`);
 	} catch {
 		// No timers file yet
 	}

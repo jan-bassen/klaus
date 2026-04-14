@@ -56,8 +56,7 @@ async function drain(): Promise<void> {
 		try {
 			await _worker(job);
 		} catch (err) {
-			log.error("[queue] job failed", {
-				agentName: job.agentName,
+			log.error(`[queue] job failed for @${job.agentName}`, {
 				error: err instanceof Error ? err.message : String(err),
 			});
 		} finally {

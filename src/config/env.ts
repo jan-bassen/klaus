@@ -39,8 +39,8 @@ export const config = {
 		);
 	},
 	log: {
-		format: (process.env.LOG_FORMAT === "json" ? "json" : "pretty") as
-			| "pretty"
+		format: (process.env.LOG_FORMAT === "json" ? "json" : "text") as
+			| "text"
 			| "json",
 	},
 	startup: {

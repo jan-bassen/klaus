@@ -94,8 +94,7 @@ async function loadToolModule(filePath: string): Promise<void> {
 		}
 	} catch (err) {
 		// Log errors but don't crash startup — a broken tool file shouldn't kill the process
-		log.error("[tools] failed to load module", {
-			filePath,
+		log.error(`[tools] failed to load module: ${filePath}`, {
 			error: err instanceof Error ? err.message : String(err),
 		});
 	}

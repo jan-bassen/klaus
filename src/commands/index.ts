@@ -83,15 +83,11 @@ export async function loadCommands(commandsDir: string): Promise<void> {
 			for (const exported of Object.values(mod)) {
 				if (isCommand(exported)) {
 					registry.register(exported);
-					log.debug("[commands] loaded command", {
-						name: exported.name,
-						file,
-					});
+					log.debug(`[commands] loaded: /${exported.name}`);
 				}
 			}
 		} catch (err) {
-			log.error("[commands] failed to load command file", {
-				file,
+			log.error(`[commands] failed to load: ${file}`, {
 				error: err instanceof Error ? err.message : String(err),
 			});
 		}

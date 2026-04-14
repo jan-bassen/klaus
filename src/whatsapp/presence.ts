@@ -8,11 +8,8 @@ import { getSocket } from "./connection";
 export async function startTyping(chatId: string): Promise<void> {
 	try {
 		await getSocket().sendPresenceUpdate("composing", chatId);
-	} catch (err) {
-		log.debug("[presence] startTyping failed", {
-			chatId,
-			error: err instanceof Error ? err.message : String(err),
-		});
+	} catch {
+		log.debug("[presence] startTyping failed");
 	}
 }
 
@@ -23,10 +20,7 @@ export async function startTyping(chatId: string): Promise<void> {
 export async function stopTyping(chatId: string): Promise<void> {
 	try {
 		await getSocket().sendPresenceUpdate("paused", chatId);
-	} catch (err) {
-		log.debug("[presence] stopTyping failed", {
-			chatId,
-			error: err instanceof Error ? err.message : String(err),
-		});
+	} catch {
+		log.debug("[presence] stopTyping failed");
 	}
 }

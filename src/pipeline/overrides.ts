@@ -78,7 +78,7 @@ function registeroverride(def: overrideDef): void {
 	if (def.aliases) {
 		for (const alias of def.aliases) overrideRegistry.set(alias, def);
 	}
-	log.debug("[overrides] registered", { name: def.name });
+	log.debug(`[overrides] registered: ${def.name}`);
 }
 
 /** Returns all known override preset names and aliases. */
@@ -97,9 +97,7 @@ export async function loadoverrides(yamlPath?: string): Promise<void> {
 	try {
 		raw = await Bun.file(filePath).text();
 	} catch {
-		log.warn("[overrides] overrides.yaml not found, no presets loaded", {
-			path: filePath,
-		});
+		log.warn("[overrides] overrides.yaml not found, no presets loaded");
 		return;
 	}
 
@@ -130,9 +128,8 @@ export async function loadoverrides(yamlPath?: string): Promise<void> {
 		});
 	}
 
-	log.info("[overrides] loaded presets", {
-		count: new Set([...overrideRegistry.values()]).size,
-	});
+	const count = new Set([...overrideRegistry.values()]).size;
+	log.info(`[overrides] loaded ${count} presets`);
 }
 
 // ── Parsing ─────────────────────────────────────────────────────────────

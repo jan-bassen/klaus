@@ -104,7 +104,6 @@ export async function startConnection(
 							} catch (err) {
 								log.error("[connection] onOpen callback failed", {
 									error: err instanceof Error ? err.message : String(err),
-									stack: err instanceof Error ? err.stack : undefined,
 								});
 							}
 						}
@@ -125,8 +124,7 @@ export async function startConnection(
 						if (code === DisconnectReason.loggedOut) {
 							connectionState = "logged_out";
 							log.error(
-								"[connection] logged out — delete auth folder and restart",
-								{ authDir: AUTH_DIR },
+								"[connection] logged out, delete auth folder and restart",
 							);
 							if (!settled) {
 								settled = true;
@@ -140,11 +138,9 @@ export async function startConnection(
 								Math.min(30_000, 1_500 * 2 ** retryCount) +
 								Math.floor(Math.random() * 500);
 							retryCount++;
-							log.warn("[connection] disconnected, reconnecting", {
-								code: code ?? "unknown",
-								attempt: retryCount,
-								delayMs,
-							});
+							log.warn(
+								`[connection] disconnected (code ${code ?? "unknown"}), reconnecting (attempt ${retryCount})`,
+							);
 							reconnectTimer = setTimeout(() => {
 								reconnectTimer = null;
 								connect();

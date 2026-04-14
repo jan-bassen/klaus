@@ -107,7 +107,7 @@ async function ensureDefaults(targetDir: string): Promise<void> {
 				await copyDir(srcPath, destPath);
 			} else if (!existsSync(destPath)) {
 				await copyFile(srcPath, destPath);
-				log.info("[startup] copied default file", { file: destPath });
+				log.info(`[startup] copied default file: ${destPath}`);
 			}
 		}
 	}
@@ -120,9 +120,7 @@ async function main(): Promise<void> {
 	await ensureDefaults(settings.vault.internalPath);
 	const settingsResult = await loadSettingsFromDisk();
 	if (!settingsResult.ok) {
-		log.warn("[startup] settings.yml invalid or missing, using defaults", {
-			error: settingsResult.error,
-		});
+		log.warn("[startup] settings.yml invalid or missing, using defaults");
 	}
 
 	// 1. Validate required env vars
@@ -146,9 +144,7 @@ async function main(): Promise<void> {
 	}
 
 	// 1. Ensure directory structure
-	log.info("[startup] ensuring data directories", {
-		dataDir: settings.dataDir,
-	});
+	log.info("[startup] ensuring data directories");
 	const dirs = [
 		settings.dataDir,
 		path.join(settings.dataDir, "conversations"),
@@ -182,10 +178,9 @@ async function main(): Promise<void> {
 	for (const def of agentRegistry.values()) {
 		for (const skill of def.skills ?? []) {
 			if (!skillRegistry.has(skill)) {
-				log.warn("[startup] agent references unknown skill", {
-					agent: def.name,
-					skill,
-				});
+				log.warn(
+					`[startup] agent @${def.name} references unknown skill: ${skill}`,
+				);
 			}
 		}
 	}
@@ -205,10 +200,9 @@ async function main(): Promise<void> {
 	// Register frontmatter schedules for agents that declare a schedule field
 	for (const def of agentRegistry.values()) {
 		if (def.schedule) {
-			log.info("[startup] registering frontmatter schedule", {
-				agent: def.name,
-				schedule: def.schedule,
-			});
+			log.info(
+				`[startup] registering schedule for @${def.name}: ${def.schedule}`,
+			);
 			await addSchedule({
 				id: `frontmatter:${def.name}`,
 				agentName: def.name,
@@ -272,7 +266,7 @@ async function main(): Promise<void> {
 		},
 	});
 
-	log.info("[startup] ready", { port: PORT, whatsapp: getConnectionState() });
+	log.info(`[startup] ready on port ${PORT}`);
 
 	// 8. Ensure login folder exists in vault (for QR code pairing).
 	await ensureLoginFolder();
@@ -284,10 +278,6 @@ async function main(): Promise<void> {
 		if (!isConnected()) {
 			log.warn(
 				"[startup] WhatsApp pairing/connection is taking longer than expected",
-				{
-					warnAfterMs,
-					whatsapp: getConnectionState(),
-				},
 			);
 		}
 	}, warnAfterMs);
@@ -300,7 +290,6 @@ async function main(): Promise<void> {
 		clearTimeout(connectionWarnTimer);
 		log.error("[startup] WhatsApp connection failed", {
 			error: err instanceof Error ? err.message : String(err),
-			stack: err instanceof Error ? err.stack : undefined,
 		});
 	});
 }
@@ -308,7 +297,6 @@ async function main(): Promise<void> {
 main().catch((err: unknown) => {
 	log.error("[startup] fatal", {
 		error: err instanceof Error ? err.message : String(err),
-		stack: err instanceof Error ? err.stack : undefined,
 	});
 	process.exit(1);
 });

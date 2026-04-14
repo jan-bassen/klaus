@@ -277,7 +277,7 @@ export async function loadSettingsFromDisk(): Promise<
 		}
 
 		_current = result.data;
-		log.info("[settings] loaded from disk", { path: filePath });
+		log.info("[settings] loaded from disk");
 		return { ok: true };
 	} catch (err) {
 		return {
@@ -300,15 +300,13 @@ export function watchSettings(): void {
 			_debounceTimer = null;
 			const result = await loadSettingsFromDisk();
 			if (!result.ok) {
-				log.warn("[settings] reload failed, keeping last valid config", {
-					error: result.error,
-				});
+				log.warn("[settings] reload failed, keeping last valid config");
 				warnViaWhatsApp(result.error);
 			}
 		}, 1_000);
 	});
 
-	log.info("[settings] watching for changes", { path: filePath });
+	log.info("[settings] watching for changes");
 }
 
 export async function updateAllowedChatId(chatId: string): Promise<void> {
@@ -325,7 +323,7 @@ export async function updateAllowedChatId(chatId: string): Promise<void> {
 	await Bun.write(filePath, yaml);
 
 	await loadSettingsFromDisk();
-	log.info("[settings] updated allowedChatId", { chatId });
+	log.info("[settings] updated allowedChatId");
 }
 
 export function stopSettingsWatcher(): void {

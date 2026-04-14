@@ -52,7 +52,7 @@ async function handleAgentChange(
 			}
 			const schedule = findSchedule(old.name);
 			if (schedule) await removeSchedule(schedule.id);
-			log.info("[watcher] agent removed", { name: old.name, file: filename });
+			log.info(`[watcher] agent removed: @${old.name}`);
 		}
 		return;
 	}
@@ -73,10 +73,7 @@ async function handleAgentChange(
 		// If name changed, remove old entry
 		if (old && old.name !== newDef.name) {
 			agentRegistry.delete(old.name);
-			log.info("[watcher] agent renamed", {
-				from: old.name,
-				to: newDef.name,
-			});
+			log.info(`[watcher] agent renamed: @${old.name} -> @${newDef.name}`);
 		}
 
 		agentRegistry.set(newDef.name, newDef);
@@ -93,9 +90,7 @@ async function handleAgentChange(
 			const existingSchedule = findSchedule(old?.name ?? newDef.name);
 			if (existingSchedule) {
 				await removeSchedule(existingSchedule.id);
-				log.info("[watcher] schedule removed", {
-					agent: old?.name ?? newDef.name,
-				});
+				log.info(`[watcher] schedule removed for @${old?.name ?? newDef.name}`);
 			}
 
 			if (newSchedule) {
@@ -109,20 +104,15 @@ async function handleAgentChange(
 					createdBy: "scheduler",
 					createdAt: new Date().toISOString(),
 				});
-				log.info("[watcher] schedule registered", {
-					agent: newDef.name,
-					schedule: newSchedule,
-				});
+				log.info(
+					`[watcher] schedule registered for @${newDef.name}: ${newSchedule}`,
+				);
 			}
 		}
 
-		log.info("[watcher] agent reloaded", {
-			name: newDef.name,
-			file: filename,
-		});
+		log.info(`[watcher] agent reloaded: @${newDef.name}`);
 	} catch (err) {
-		log.warn("[watcher] failed to reload agent", {
-			file: filename,
+		log.warn(`[watcher] failed to reload agent: ${filename}`, {
 			error: err instanceof Error ? err.message : String(err),
 		});
 	}
@@ -138,7 +128,7 @@ async function handleSkillChange(
 
 	if (!exists) {
 		skillRegistry.delete(name);
-		log.info("[watcher] skill removed", { name });
+		log.info(`[watcher] skill removed: ${name}`);
 		return;
 	}
 
@@ -162,10 +152,9 @@ async function handleSkillChange(
 			tools,
 			toolsets,
 		} satisfies SkillMeta);
-		log.info("[watcher] skill reloaded", { name });
+		log.info(`[watcher] skill reloaded: ${name}`);
 	} catch (err) {
-		log.warn("[watcher] failed to reload skill", {
-			file: filename,
+		log.warn(`[watcher] failed to reload skill: ${filename}`, {
 			error: err instanceof Error ? err.message : String(err),
 		});
 	}
@@ -212,10 +201,7 @@ export function startWatching(agentsDir: string, skillsDir: string): void {
 		watchers.push(internalWatcher);
 	}
 
-	log.info("[watcher] watching for changes", {
-		agentsDir,
-		skillsDir,
-	});
+	log.info("[watcher] watching for changes");
 }
 
 export function stopWatching(): void {

@@ -84,9 +84,7 @@ export function enqueueMessage(
 			if (onSent && waId) onSent(waId);
 		})
 		.catch((err: unknown) => {
-			log.error("[send] failed after retries", {
-				chatId: msg.chatId,
-				dedupKey: msg.dedupKey,
+			log.error("[send] delivery failed after all retries", {
 				error: err instanceof Error ? err.message : String(err),
 			});
 			// Best-effort delivery-failure notification so the user knows the message was lost.
@@ -99,7 +97,6 @@ export function enqueueMessage(
 					.then((result) => trackSentId(result?.key?.id))
 					.catch((sendErr: unknown) => {
 						log.warn("[send] could not notify user of delivery failure", {
-							chatId: msg.chatId,
 							error:
 								sendErr instanceof Error ? sendErr.message : String(sendErr),
 						});
@@ -136,7 +133,7 @@ async function sendWithRetry(
 
 	try {
 		if (attempt > 1) {
-			log.info("[send] retry attempt", { dedupKey: msg.dedupKey, attempt });
+			log.info(`[send] retrying delivery (attempt ${attempt})`);
 		}
 		const sendOpts = msg.quoted
 			? {
@@ -151,7 +148,7 @@ async function sendWithRetry(
 			: undefined;
 		const result = await _socket.sendMessage(msg.chatId, waContent, sendOpts);
 		trackSentId(result?.key?.id);
-		log.info("[send] sent", { dedupKey: msg.dedupKey });
+		log.info("[send] message delivered");
 		await new Promise<void>((r) =>
 			setTimeout(r, settings.send.interMessageDelayMs),
 		);
@@ -183,12 +180,10 @@ export async function sendReaction(
 		await getSocket().sendMessage(chatId, {
 			react: { key: msgKey, text: emoji },
 		});
-		log.debug("[reactions] sent", { chatId, emoji });
+		log.debug("[send] reaction sent");
 	} catch (err) {
 		const error = err instanceof Error ? err : new Error(String(err));
-		log.warn("[reactions] failed to send reaction", {
-			chatId,
-			emoji,
+		log.warn("[send] reaction failed", {
 			error: error.message,
 		});
 		return error;

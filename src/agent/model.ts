@@ -93,9 +93,7 @@ export async function callModel(
 ): Promise<ModelCallResult> {
 	const rate = checkModelRate();
 	if (!rate.allowed) {
-		log.warn("[model-router] LLM rate limited", {
-			retryAfterMs: rate.retryAfterMs,
-		});
+		log.warn(`[model] rate limited, retry in ${rate.retryAfterMs}ms`);
 		throw new Error(`LLM rate limit exceeded. Retry in ${rate.retryAfterMs}ms`);
 	}
 
@@ -166,8 +164,7 @@ export async function callModel(
 			clearTimeout(timeoutId);
 			lastErr = err;
 			if (!isRetryable(err)) {
-				log.error("[model-router] generateText failed (non-retryable)", {
-					model: modelId,
+				log.error(`[model] ${modelId} call failed (non-retryable)`, {
 					error: err instanceof Error ? err.message : String(err),
 					stack: err instanceof Error ? err.stack : undefined,
 				});
@@ -175,19 +172,16 @@ export async function callModel(
 			}
 			if (attempt < MAX_ATTEMPTS) {
 				const delayMs = settings.retries.backoffMs * 2 ** (attempt - 1);
-				log.warn("[model-router] generateText failed, retrying", {
-					model: modelId,
-					attempt,
-					delayMs,
-					error: err instanceof Error ? err.message : String(err),
-				});
+				log.warn(
+					`[model] ${modelId} call failed, retrying (attempt ${attempt}/${MAX_ATTEMPTS})`,
+					{ error: err instanceof Error ? err.message : String(err) },
+				);
 				await new Promise<void>((r) => setTimeout(r, delayMs));
 			}
 		}
 	}
 	if (!result) {
-		log.error("[model-router] generateText failed after all retries", {
-			model: modelId,
+		log.error(`[model] ${modelId} call failed after all retries`, {
 			error: lastErr instanceof Error ? lastErr.message : String(lastErr),
 			stack: lastErr instanceof Error ? lastErr.stack : undefined,
 		});

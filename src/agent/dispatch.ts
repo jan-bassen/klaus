@@ -66,10 +66,9 @@ export async function dispatch(
 	} = opts;
 
 	if (depth >= settings.dispatch.maxChainDepth) {
-		log.warn("[dispatch] max chain depth reached, stopping", {
-			agentName,
-			depth,
-		});
+		log.warn(
+			`[dispatch] max chain depth (${depth}) reached for @${agentName}, stopping`,
+		);
 		return undefined;
 	}
 
@@ -89,7 +88,7 @@ export async function dispatch(
 	}
 
 	if (mode.kind === "inline") {
-		log.info("[dispatch] inline dispatch", { agentName, caller, depth });
+		log.info(`[dispatch] inline to @${agentName} from ${caller}`);
 
 		const replyCollector: string[] = [];
 		const resolvedOverrides = resolveAgentDefaults({}, def);
@@ -117,7 +116,7 @@ export async function dispatch(
 	}
 
 	// async mode: enqueue directly
-	log.info("[dispatch] async dispatch", { agentName, caller, depth });
+	log.info(`[dispatch] async to @${agentName} from ${caller}`);
 
 	enqueueJob({
 		agentName,
@@ -139,7 +138,7 @@ const AGENTS_DIR = settings.vault.agentsDir;
  */
 export async function startWorkers(): Promise<void> {
 	setWorker(async (job: AgentRunPayload) => {
-		const { agentName, chatId, dispatchContext, depth } = job;
+		const { agentName, chatId, dispatchContext } = job;
 
 		let def = agentRegistry.get(agentName);
 		if (!def) {
@@ -168,12 +167,11 @@ export async function startWorkers(): Promise<void> {
 			);
 			const turn = { ...partialTurn, assembled };
 
-			log.info("[worker] starting agent", { agentName, depth });
+			log.info(`[dispatch] worker starting @${agentName}`);
 			await runAgent(turn, def);
-			log.info("[worker] agent completed", { agentName });
+			log.info(`[dispatch] worker completed @${agentName}`);
 		} catch (err) {
-			log.error("[worker] agent failed", {
-				agentName,
+			log.error(`[dispatch] worker failed for @${agentName}`, {
 				error: err instanceof Error ? err.message : String(err),
 			});
 		}

@@ -52,11 +52,7 @@ function startCron(entry: ScheduleEntry): void {
 	if (existing) existing.stop();
 
 	const job = new Cron(entry.pattern, { timezone: settings.timezone }, () => {
-		log.info("[schedules] cron fired", {
-			id: entry.id,
-			agentName: entry.agentName,
-			pattern: entry.pattern,
-		});
+		log.info(`[schedules] cron fired for @${entry.agentName}`);
 		_onCronFire?.(entry).catch((err) =>
 			log.error("[schedules] cron handler error", {
 				id: entry.id,
@@ -76,7 +72,7 @@ export async function loadSchedules(): Promise<void> {
 		for (const entry of entries) {
 			schedules.set(entry.id, entry);
 		}
-		log.info("[schedules] loaded", { count: schedules.size });
+		log.info(`[schedules] loaded (${schedules.size} schedules)`);
 	} catch {
 		// No schedules file yet
 	}

@@ -506,9 +506,7 @@ export async function rebuildIndexes(): Promise<void> {
 		}
 	}
 
-	log.info("[conversation] indexes rebuilt", {
-		messages: idToExternal.size,
-	});
+	log.info(`[conversation] indexes rebuilt (${idToExternal.size} messages)`);
 }
 
 /** Clear in-memory indexes. Used by tests. */

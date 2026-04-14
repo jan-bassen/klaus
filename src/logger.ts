@@ -2,9 +2,10 @@ import { settings } from "@/config";
 
 type Level = "debug" | "info" | "warn" | "error";
 
-// Pretty by default; tests always get JSON (test assertions parse JSON output).
-const PRETTY =
-	process.env.NODE_ENV !== "test" && settings.log.format === "pretty";
+// JSON mode for machine-readable logs (Docker, NAS viewers). Text mode is default.
+// Tests always use JSON so assertions can parse output.
+const JSON_MODE =
+	process.env.NODE_ENV === "test" || settings.log.format === "json";
 
 const RESET = "\x1b[0m";
 const DIM = "\x1b[2m";
@@ -26,47 +27,19 @@ const LEVEL_LABEL: Record<Level, string> = {
 	error: "ERR",
 };
 
-function serializeValue(v: unknown): string {
-	if (v instanceof Error)
-		return `"${v.name}: ${v.message.replace(/\n/g, "\\n")}"`;
-	if (v === null || v === undefined) return String(v);
-	if (typeof v === "string") {
-		const s = v.replace(/\n/g, "\\n");
-		return s.includes(" ") ? `"${s}"` : s;
-	}
-	if (typeof v === "number" || typeof v === "boolean") return String(v);
-	const s = JSON.stringify(v);
-	return s.length > 50 ? `"${s.slice(0, 47)}\u2026"` : s;
-}
-
-function formatKV(data: Record<string, unknown>): string {
-	const pairs = Object.entries(data)
-		.map(([k, v]) => `${k}=${serializeValue(v)}`)
-		.join(" ");
-	return pairs ? ` ${DIM}${pairs}${RESET}` : "";
-}
-
 const MODULE_RE = /^\[([^\]]+)\]\s*/;
 
-function formatPretty(
-	level: Level,
-	msg: string,
-	data?: Record<string, unknown>,
-): string {
+function formatText(level: Level, msg: string): string {
 	const time = new Date().toISOString().slice(11, 23);
 	const badge = `${LEVEL_COLOR[level]}${LEVEL_LABEL[level]}${RESET}`;
 
 	const match = MODULE_RE.exec(msg);
-	let formattedMsg: string;
 	if (match) {
 		const module = match[1];
 		const rest = msg.slice(match[0].length);
-		formattedMsg = `${CYAN}${BOLD}[${module}]${RESET} ${rest}`;
-	} else {
-		formattedMsg = msg;
+		return `${DIM}${time}${RESET} ${badge} ${CYAN}${BOLD}[${module}]${RESET} ${rest}`;
 	}
-
-	return `${DIM}${time}${RESET} ${badge} ${formattedMsg}${data ? formatKV(data) : ""}`;
+	return `${DIM}${time}${RESET} ${badge} ${msg}`;
 }
 
 // Silent during test runs by default. Use _enableForTest() / _disableForTest() in logger tests.
@@ -74,9 +47,9 @@ let _silent = process.env.NODE_ENV === "test";
 
 function emit(level: Level, msg: string, data?: Record<string, unknown>): void {
 	if (_silent) return;
-	const line = PRETTY
-		? formatPretty(level, msg, data)
-		: JSON.stringify({ ts: new Date().toISOString(), level, msg, ...data });
+	const line = JSON_MODE
+		? JSON.stringify({ ts: new Date().toISOString(), level, msg, ...data })
+		: formatText(level, msg);
 	(level === "error" || level === "warn" ? console.error : console.log)(line);
 }
 

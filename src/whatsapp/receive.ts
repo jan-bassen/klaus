@@ -57,17 +57,12 @@ export function attachReceiveHandler(socket: WASocket): void {
 			}
 			const msg = await normalizeMessage(raw);
 			if (msg) {
-				log.info("[receive] message", {
-					chatId: msg.chatId,
-					text: msg.text?.slice(0, 40),
-					kind: msg.kind,
-				});
+				log.info("[receive] incoming message");
 				try {
 					await handleTurn(msg);
 					socket.readMessages([raw.key]).catch(() => {});
 				} catch (err) {
-					log.error("[receive] unhandled error from handleTurn", {
-						chatId: msg.chatId,
+					log.error("[receive] unhandled error in handleTurn", {
 						error: err instanceof Error ? err.message : String(err),
 						stack: err instanceof Error ? err.stack : undefined,
 					});
@@ -105,8 +100,7 @@ export function attachReceiveHandler(socket: WASocket): void {
 					senderId,
 					fromMe,
 				}).catch((err) => {
-					log.warn("[receive] appendReaction failed", {
-						messageExternalId: reactedId,
+					log.warn("[receive] failed to append reaction", {
 						error: err instanceof Error ? err.message : String(err),
 					});
 				});
@@ -169,19 +163,17 @@ export async function normalizeMessage(
 	// Skip messages we sent — in self-mode, only skip our own replies (not user self-messages)
 	if (m.key.fromMe) {
 		if (!settings.whatsapp.selfMode) {
-			log.debug("[receive] skip fromMe", { remoteJid: m.key.remoteJid });
+			log.debug("[receive] ignoring outbound message");
 			return null;
 		}
 		if (m.key.id && wasSentByUs(m.key.id)) {
-			log.debug("[receive] skip own reply (self-mode)", { id: m.key.id });
+			log.debug("[receive] ignoring own reply in self-mode");
 			return null;
 		}
-		log.debug("[receive] processing self-message (self-mode)", {
-			id: m.key.id,
-		});
+		log.debug("[receive] processing self-message");
 	}
 	if (!m.message) {
-		log.debug("[receive] skip no-message", { remoteJid: m.key.remoteJid });
+		log.debug("[receive] ignoring empty message");
 		return null;
 	}
 
@@ -211,9 +203,7 @@ export async function normalizeMessage(
 	const mediaMsg = imgMsg ?? audioMsg ?? docMsg ?? null;
 
 	if (!text && !mediaMsg && !quotedMessage) {
-		log.debug("[receive] skip no-text no-media", {
-			remoteJid: m.key.remoteJid,
-		});
+		log.debug("[receive] ignoring message with no text or media");
 		return null;
 	}
 
@@ -237,11 +227,9 @@ export async function normalizeMessage(
 			imgMsg?.fileLength ?? audioMsg?.fileLength ?? docMsg?.fileLength ?? 0,
 		);
 		if (fileLength > MAX_DOWNLOAD_BYTES) {
-			log.warn("[receive] media too large — skipping download", {
-				remoteJid: m.key.remoteJid,
-				fileLength,
-				maxBytes: MAX_DOWNLOAD_BYTES,
-			});
+			log.warn(
+				`[receive] media too large (${fileLength} bytes), skipping download`,
+			);
 		} else
 			try {
 				const buffer = await Promise.race([
@@ -263,10 +251,7 @@ export async function normalizeMessage(
 				await mkdir(dir, { recursive: true });
 				if (!Buffer.isBuffer(buffer)) {
 					log.warn(
-						"[receive] downloadMediaMessage returned non-Buffer — skipping",
-						{
-							remoteJid: m.key.remoteJid,
-						},
+						"[receive] media download returned unexpected type, skipping",
 					);
 				} else {
 					await Bun.write(filePath, buffer);
@@ -281,8 +266,7 @@ export async function normalizeMessage(
 
 					const fileName = docMsg?.fileName;
 					if (saved instanceof Error) {
-						log.warn("[receive] saveFileMeta failed — media not tracked", {
-							remoteJid: m.key.remoteJid,
+						log.warn("[receive] failed to save file metadata", {
 							error: saved.message,
 						});
 						media = {
@@ -301,8 +285,7 @@ export async function normalizeMessage(
 					}
 				}
 			} catch (err) {
-				log.warn("[receive] media download failed — continuing as text-only", {
-					remoteJid: m.key.remoteJid,
+				log.warn("[receive] media download failed, continuing as text-only", {
 					error: err instanceof Error ? err.message : String(err),
 				});
 			}
@@ -316,7 +299,7 @@ export async function normalizeMessage(
 			: undefined;
 
 	if (!effectiveText && !fallbackText && !media && !quotedMessage) {
-		log.debug("[receive] skip no content", { remoteJid: m.key.remoteJid });
+		log.debug("[receive] ignoring message with no usable content");
 		return null;
 	}
 

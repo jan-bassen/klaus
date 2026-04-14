@@ -17,10 +17,7 @@ export function buildProviderTool(name: string, sdk: string): Tool | undefined {
 		case "google":
 			return buildGoogleTool(name);
 		default: {
-			log.warn("[provider-tool] unknown SDK, skipping tool", {
-				sdk,
-				tool: name,
-			});
+			log.warn(`[tools] unknown SDK "${sdk}" for provider tool "${name}"`);
 			return undefined;
 		}
 	}

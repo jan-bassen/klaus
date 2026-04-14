@@ -44,8 +44,7 @@ export const reactTool: ToolDefinition<typeof reactSchema> = {
 
 		const result = await sendReaction(chatId, key, emoji);
 		if (result instanceof Error) {
-			log.warn("[react] sendReaction failed", {
-				chatId,
+			log.warn("[send] reaction failed", {
 				error: result.message,
 			});
 			return { error: result.message };

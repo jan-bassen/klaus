@@ -31,7 +31,6 @@ export async function awaitConfirmation(
 		sent = await socket.sendMessage(msg.chatId, { text: prompt });
 	} catch (err) {
 		log.error("[confirm] failed to send prompt", {
-			chatId: msg.chatId,
 			error: err instanceof Error ? err.message : String(err),
 		});
 		return "timeout";
@@ -39,23 +38,21 @@ export async function awaitConfirmation(
 
 	const sentId = sent?.key?.id ?? undefined;
 	if (!sentId) {
-		log.warn("[confirm] no message ID returned — cannot track reaction", {
-			chatId: msg.chatId,
-		});
+		log.warn("[confirm] no message ID returned, cannot track reaction");
 		return "timeout";
 	}
 
 	return new Promise<ConfirmResult>((resolve) => {
 		const timer = setTimeout(() => {
 			pending.delete(sentId);
-			log.debug("[confirm] timed out", { sentId, chatId: msg.chatId });
+			log.debug("[confirm] timed out");
 			resolve("timeout");
 		}, timeoutMs);
 
 		pending.set(sentId, (result) => {
 			clearTimeout(timer);
 			pending.delete(sentId);
-			log.debug("[confirm] resolved", { sentId, result, chatId: msg.chatId });
+			log.debug(`[confirm] resolved: ${result}`);
 			resolve(result);
 		});
 	});

@@ -232,11 +232,7 @@ async function schedulePersistentTimer(
 		createdBy: `persistent:${agentName}`,
 		createdAt: new Date().toISOString(),
 	});
-	log.info("[agent] persistent timer scheduled", {
-		agent: agentName,
-		runAt: clampedRunAt,
-		objective,
-	});
+	log.info(`[agent] scheduled next run for @${agentName} at ${clampedRunAt}`);
 }
 
 export interface AgentRunResult {
@@ -290,7 +286,7 @@ export async function runAgent(
 	for (const name of def.tools) {
 		const t = toolRegistry.get(name);
 		if (!t) {
-			log.warn("[agent] unknown tool", { tool: name });
+			log.warn(`[agent] unknown tool: ${name}`);
 			continue;
 		}
 		const sdkName = t.name.replace(/\./g, "_");
@@ -305,10 +301,9 @@ export async function runAgent(
 	for (const name of def.providerTools ?? []) {
 		const pt = buildProviderTool(name, providerCfg.sdk);
 		if (!pt) {
-			log.warn("[agent] provider tool not available", {
-				tool: name,
-				sdk: providerCfg.sdk,
-			});
+			log.warn(
+				`[agent] provider tool "${name}" not available for ${providerCfg.sdk}`,
+			);
 			continue;
 		}
 		allTools[name] = pt;
@@ -319,7 +314,7 @@ export async function runAgent(
 	for (const tsName of def.toolsets ?? []) {
 		const ts = toolsetRegistry.get(tsName);
 		if (!ts) {
-			log.warn("[agent] unknown toolset", { toolset: tsName });
+			log.warn(`[agent] unknown toolset: ${tsName}`);
 			continue;
 		}
 		const meta = generateMetaTool(ts);
@@ -346,10 +341,7 @@ export async function runAgent(
 			for (const toolName of meta.tools) {
 				const t = toolRegistry.get(toolName);
 				if (!t) {
-					log.warn("[agent] unknown tool in skill", {
-						skill: sName,
-						tool: toolName,
-					});
+					log.warn(`[agent] unknown tool "${toolName}" in skill ${sName}`);
 					continue;
 				}
 				const n = t.name.replace(/\./g, "_");
@@ -358,10 +350,7 @@ export async function runAgent(
 			for (const tsName of meta.toolsets) {
 				const ts = toolsetRegistry.get(tsName);
 				if (!ts) {
-					log.warn("[agent] unknown toolset in skill", {
-						skill: sName,
-						toolset: tsName,
-					});
+					log.warn(`[agent] unknown toolset "${tsName}" in skill ${sName}`);
 					continue;
 				}
 				for (const t of ts.tools) {
@@ -454,9 +443,7 @@ export async function runAgent(
 				};
 				break;
 			default:
-				log.warn("[agent] reasoning effort not supported for provider", {
-					sdk: sdkName,
-				});
+				log.warn(`[agent] reasoning effort not supported for ${sdkName}`);
 		}
 	}
 
@@ -470,19 +457,14 @@ export async function runAgent(
 				};
 				break;
 			default:
-				log.warn("[agent] fast mode not supported for provider", {
-					sdk: sdkName,
-				});
+				log.warn(`[agent] fast mode not supported for ${sdkName}`);
 		}
 	}
 
 	const modelId = providerCfg[effectiveTier];
-	log.info("[agent] calling model", {
-		agent: def.name,
-		model: modelId,
-		sdk: providerCfg.sdk,
-		activeTools: initialActive,
-	});
+	log.info(
+		`[agent] calling ${modelId} via ${providerCfg.sdk} for @${def.name}`,
+	);
 
 	try {
 		// Build conversation history with traces (skip if !clean override)
@@ -604,9 +586,9 @@ export async function runAgent(
 					parsed.data.objective,
 				);
 			} else {
-				log.warn("[agent] persistent output parse failed, using fallback", {
-					agent: def.name,
-				});
+				log.warn(
+					`[agent] persistent output parse failed for @${def.name}, using fallback`,
+				);
 				const fallbackObjective =
 					turn.dispatchContext?.objective ?? "Continue persistent check-in";
 				await schedulePersistentTimer(
@@ -657,15 +639,16 @@ export async function runAgent(
 				settings.persistent.defaultNextRun,
 				fallbackObjective,
 			).catch((timerErr) =>
-				log.error("[agent] failed to schedule recovery timer", {
-					agent: def.name,
-					error:
-						timerErr instanceof Error ? timerErr.message : String(timerErr),
-				}),
+				log.error(
+					`[agent] failed to schedule recovery timer for @${def.name}`,
+					{
+						error:
+							timerErr instanceof Error ? timerErr.message : String(timerErr),
+					},
+				),
 			);
 		}
-		log.error("[agent] callModel failed", {
-			agent: def.name,
+		log.error(`[agent] model call failed for @${def.name}`, {
 			error: err instanceof Error ? err.message : String(err),
 			stack: err instanceof Error ? err.stack : undefined,
 		});

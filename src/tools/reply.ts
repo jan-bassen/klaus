@@ -36,10 +36,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			return "sent";
 		}
 
-		log.info("[reply] enqueuing", {
-			chatId: context.chatId,
-			preview: content.slice(0, 60),
-		});
+		log.info("[reply] enqueuing message");
 
 		// Resolve the quoted message reference if provided.
 		let quoted: { externalId: string; fromMe: boolean } | undefined;
@@ -69,7 +66,6 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 				});
 			} catch (err) {
 				log.warn("[reply] failed to persist assistant message", {
-					chatId: context.chatId,
 					error: err instanceof Error ? err.message : String(err),
 				});
 			}
@@ -79,7 +75,6 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			? (waId: string) => {
 					appendAck(rowId, waId).catch((err: unknown) => {
 						log.warn("[reply] failed to backfill externalId", {
-							chatId: context.chatId,
 							error: err instanceof Error ? err.message : String(err),
 						});
 					});
@@ -96,8 +91,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 		if (useVoice) {
 			const audio = await textToSpeech(content);
 			if (audio instanceof Error) {
-				log.warn("[reply] TTS failed — falling back to text", {
-					chatId: context.chatId,
+				log.warn("[reply] TTS failed, falling back to text", {
 					error: audio.message,
 				});
 				enqueueMessage(
