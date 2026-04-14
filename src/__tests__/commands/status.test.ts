@@ -23,7 +23,6 @@ mock.module("@/agent/queue", () => ({
 
 import { _resetDefaultsForTest, setDefaultAgent } from "@/agent";
 import { statusCommand } from "@/commands/status";
-import { settings } from "@/config";
 
 let tmpVault: string;
 let savedVaultDir: string | undefined;
@@ -65,21 +64,6 @@ afterEach(() => {
 });
 
 describe("/status", () => {
-	test("sends formatted status with correct structure", async () => {
-		mockGetActiveJobs.mockImplementation(() => [{ id: "1" }, { id: "2" }]);
-
-		const msg = makeMsg();
-		await statusCommand.execute(msg, []);
-
-		expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
-		const { content } = (
-			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
-		)[0];
-		expect(content).toContain(`@${settings.defaultAgent}`);
-		expect(content).toContain("2");
-		expect(content).toMatch(/active/i);
-	});
-
 	test("uses getDefaultAgent override when set", async () => {
 		const msg = makeMsg();
 		setDefaultAgent(msg.chatId, "thinking");

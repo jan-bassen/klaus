@@ -110,9 +110,7 @@ async function withFixture(
 }
 
 describe("loadAgentDefinition", () => {
-	// --- basic shape ---
-
-	test("parses name and modelTier from frontmatter", async () => {
+	test("parses name, modelTier, and promptPath from frontmatter", async () => {
 		await withFixture(
 			"basic",
 			"name: my-agent\nmodelTier: medium\ntools: []",
@@ -121,141 +119,80 @@ describe("loadAgentDefinition", () => {
 				const def = await loadAgentDefinition(p);
 				expect(def.name).toBe("my-agent");
 				expect(def.modelTier).toBe("medium");
-			},
-		);
-	});
-
-	test('parses "large" modelTier correctly', async () => {
-		await withFixture(
-			"high-tier",
-			"name: deep-agent\nmodelTier: large\ntools: []",
-			"## Hi\n",
-			async (p) => {
-				const def = await loadAgentDefinition(p);
-				expect(def.modelTier).toBe("large");
-			},
-		);
-	});
-
-	test("promptPath is the absolute path passed in", async () => {
-		await withFixture(
-			"path",
-			"name: path-agent\nmodelTier: medium\ntools: []",
-			"## Hi\n",
-			async (p) => {
-				const def = await loadAgentDefinition(p);
 				expect(def.promptPath).toBe(p);
 			},
 		);
 	});
 
-	// --- tools ---
-
-	test("tools are parsed as an array of strings", async () => {
-		await withFixture(
+	test.each([
+		[
+			"large modelTier",
+			"name: a\nmodelTier: large\ntools: []",
+			"modelTier",
+			"large",
+		],
+		[
+			"tools array",
+			"name: a\nmodelTier: medium\ntools: [alpha, beta]",
 			"tools",
-			"name: tool-agent\nmodelTier: medium\ntools: [alpha, beta]",
-			"## Hi\n",
-			async (p) => {
-				const def = await loadAgentDefinition(p);
-				expect(def.tools).toEqual(["alpha", "beta"]);
-			},
-		);
-	});
-
-	// --- schedule ---
-
-	test("schedule string is parsed from frontmatter", async () => {
-		const fm =
-			'name: scheduled-agent\nmodelTier: medium\ntools: []\nschedule: "0 3 * * *"';
-		await withFixture("schedule", fm, "## Hi\n", async (p) => {
+			["alpha", "beta"],
+		],
+		[
+			"schedule string",
+			'name: a\nmodelTier: medium\ntools: []\nschedule: "0 3 * * *"',
+			"schedule",
+			"0 3 * * *",
+		],
+		[
+			"missing schedule",
+			"name: a\nmodelTier: medium\ntools: []",
+			"schedule",
+			undefined,
+		],
+		[
+			"conversationLimit",
+			"name: a\nmodelTier: medium\ntools: []\nconversationLimit: 10",
+			"conversationLimit",
+			10,
+		],
+		[
+			"missing conversationLimit",
+			"name: a\nmodelTier: medium\ntools: []",
+			"conversationLimit",
+			undefined,
+		],
+		[
+			"toolsets array",
+			"name: a\nmodelTier: medium\ntools: []\ntoolsets: [vault, files]",
+			"toolsets",
+			["vault", "files"],
+		],
+		[
+			"missing toolsets",
+			"name: a\nmodelTier: medium\ntools: []",
+			"toolsets",
+			[],
+		],
+		[
+			"skills array",
+			"name: a\nmodelTier: medium\ntools: []\nskills: [workout, meal]",
+			"skills",
+			["workout", "meal"],
+		],
+		["missing skills", "name: a\nmodelTier: medium\ntools: []", "skills", []],
+	] as [
+		string,
+		string,
+		string,
+		unknown,
+	][])("parses %s", async (_label, fm, field, expected) => {
+		await withFixture("param", fm, "## Hi\n", async (p) => {
 			const def = await loadAgentDefinition(p);
-			expect(def.schedule).toBe("0 3 * * *");
+			const val = (def as Record<string, unknown>)[field];
+			if (expected === undefined) expect(val).toBeUndefined();
+			else expect(val).toEqual(expected);
 		});
 	});
-
-	test("no schedule field when schedule key is absent", async () => {
-		await withFixture(
-			"no-schedule",
-			"name: quiet-agent\nmodelTier: medium\ntools: []",
-			"## Hi\n",
-			async (p) => {
-				const def = await loadAgentDefinition(p);
-				expect(def.schedule).toBeUndefined();
-			},
-		);
-	});
-
-	// --- conversationLimit ---
-
-	test("conversationLimit is parsed from frontmatter", async () => {
-		const fm =
-			"name: limit-agent\nmodelTier: medium\ntools: []\nconversationLimit: 10";
-		await withFixture("conv-limit", fm, "## Hi\n", async (p) => {
-			const def = await loadAgentDefinition(p);
-			expect(def.conversationLimit).toBe(10);
-		});
-	});
-
-	test("missing conversationLimit produces no property", async () => {
-		await withFixture(
-			"no-conv-limit",
-			"name: plain-agent\nmodelTier: medium\ntools: []",
-			"## Hi\n",
-			async (p) => {
-				const def = await loadAgentDefinition(p);
-				expect(def.conversationLimit).toBeUndefined();
-			},
-		);
-	});
-
-	// --- toolsets ---
-
-	test("toolsets: YAML key is parsed into toolsets array", async () => {
-		const fm =
-			"name: ts-agent\nmodelTier: medium\ntools: []\ntoolsets: [vault, files]";
-		await withFixture("toolsets", fm, "## Hi\n", async (p) => {
-			const def = await loadAgentDefinition(p);
-			expect(def.toolsets).toEqual(["vault", "files"]);
-		});
-	});
-
-	test("missing toolsets defaults to empty array", async () => {
-		await withFixture(
-			"no-toolsets",
-			"name: plain-agent\nmodelTier: medium\ntools: []",
-			"## Hi\n",
-			async (p) => {
-				const def = await loadAgentDefinition(p);
-				expect(def.toolsets).toEqual([]);
-			},
-		);
-	});
-
-	// --- skills ---
-
-	test("skills: YAML key is parsed into skills array", async () => {
-		const fm =
-			"name: skill-agent\nmodelTier: medium\ntools: []\nskills: [workout, meal]";
-		await withFixture("skills", fm, "## Hi\n", async (p) => {
-			const def = await loadAgentDefinition(p);
-			expect(def.skills).toEqual(["workout", "meal"]);
-		});
-	});
-
-	test("missing skills defaults to empty array", async () => {
-		await withFixture(
-			"no-skills",
-			"name: plain-agent\nmodelTier: medium\ntools: []",
-			"## Hi\n",
-			async (p) => {
-				const def = await loadAgentDefinition(p);
-				expect(def.skills).toEqual([]);
-			},
-		);
-	});
-
-	// --- unknown fields are ignored ---
 
 	test("unknown frontmatter fields are silently ignored", async () => {
 		const fm =
@@ -604,45 +541,20 @@ describe("runAgent", () => {
 		expect((opts as { tools?: Record<string, unknown> }).tools).toBeUndefined();
 	});
 
-	test("cold preset resolves to provider coldTemperature", async () => {
+	test.each([
+		["cold", { temperaturePreset: "cold" }, "temperature", 0],
+		["hot", { temperaturePreset: "hot" }, "temperature", 1],
+		["creative", { topPPreset: "creative" }, "topP", 0.95],
+		["rigid", { topPPreset: "rigid" }, "topP", 0.1],
+	] as const)("%s preset resolves correctly", async (_label, overrides, key, expected) => {
 		const turn = makeTurn();
 		turn.agent.promptPath = tmpPath;
-		turn.overrides = { temperaturePreset: "cold" };
+		turn.overrides = overrides;
 		await runAgent(turn, turn.agent);
 		cleanup();
-		const opts = lastArg(mockCallModel) as { temperature?: number };
-		expect(opts.temperature).toBe(0);
-	});
-
-	test("hot preset resolves to provider hotTemperature", async () => {
-		const turn = makeTurn();
-		turn.agent.promptPath = tmpPath;
-		turn.overrides = { temperaturePreset: "hot" };
-		await runAgent(turn, turn.agent);
-		cleanup();
-		const opts = lastArg(mockCallModel) as { temperature?: number };
-		// Default claude provider has hotTemperature: 1
-		expect(opts.temperature).toBe(1);
-	});
-
-	test("creative preset resolves to provider creativeTopP", async () => {
-		const turn = makeTurn();
-		turn.agent.promptPath = tmpPath;
-		turn.overrides = { topPPreset: "creative" };
-		await runAgent(turn, turn.agent);
-		cleanup();
-		const opts = lastArg(mockCallModel) as { topP?: number };
-		expect(opts.topP).toBe(0.95);
-	});
-
-	test("rigid preset resolves to provider rigidTopP", async () => {
-		const turn = makeTurn();
-		turn.agent.promptPath = tmpPath;
-		turn.overrides = { topPPreset: "rigid" };
-		await runAgent(turn, turn.agent);
-		cleanup();
-		const opts = lastArg(mockCallModel) as { topP?: number };
-		expect(opts.topP).toBe(0.1);
+		expect((lastArg(mockCallModel) as Record<string, unknown>)[key]).toBe(
+			expected,
+		);
 	});
 
 	test("no preset leaves temperature and topP undefined", async () => {
@@ -679,96 +591,5 @@ describe("runAgent", () => {
 			messages: Array<{ role: string; content: string }>;
 		};
 		expect(opts.messages[0]?.content).toBe("Research LLM patterns");
-	});
-
-	// -- Handlebars rendering --
-
-	test("nested {{#if}} blocks render correctly", async () => {
-		const p = path.join(import.meta.dir, "__hbs-nested.md");
-		await Bun.write(
-			p,
-			"---\nname: test-agent\nmodelTier: medium\ntools: []\n---\n{{#if outer}}A{{#if inner}}B{{/if}}C{{/if}}",
-		);
-		const turn = makeTurn({ outer: true, inner: true });
-		turn.agent.promptPath = p;
-		await runAgent(turn, turn.agent);
-		try {
-			unlinkSync(p);
-		} catch {
-			/* gone */
-		}
-		expect((lastArg(mockCallModel) as { system: string }).system).toBe("ABC");
-	});
-
-	test('{{#if (eq x "val")}} renders when value matches', async () => {
-		const p = path.join(import.meta.dir, "__hbs-eq.md");
-		await Bun.write(
-			p,
-			'---\nname: test-agent\nmodelTier: medium\ntools: []\n---\n{{#if (eq message_type "voice")}}voice!{{/if}}',
-		);
-		const turn = makeTurn({ message_type: "voice" });
-		turn.agent.promptPath = p;
-		await runAgent(turn, turn.agent);
-		try {
-			unlinkSync(p);
-		} catch {
-			/* gone */
-		}
-		expect((lastArg(mockCallModel) as { system: string }).system).toBe(
-			"voice!",
-		);
-	});
-
-	test('{{#if (eq x "val")}} is empty when value does not match', async () => {
-		const p = path.join(import.meta.dir, "__hbs-eq-miss.md");
-		await Bun.write(
-			p,
-			'---\nname: test-agent\nmodelTier: medium\ntools: []\n---\n{{#if (eq message_type "voice")}}voice!{{/if}}',
-		);
-		const turn = makeTurn({ message_type: "text" });
-		turn.agent.promptPath = p;
-		await runAgent(turn, turn.agent);
-		try {
-			unlinkSync(p);
-		} catch {
-			/* gone */
-		}
-		expect((lastArg(mockCallModel) as { system: string }).system).toBe("");
-	});
-
-	test("{{#each items}} renders array values", async () => {
-		const p = path.join(import.meta.dir, "__hbs-each.md");
-		await Bun.write(
-			p,
-			"---\nname: test-agent\nmodelTier: medium\ntools: []\n---\n{{#each items}}-{{this}}{{/each}}",
-		);
-		const turn = makeTurn({ items: ["a", "b", "c"] });
-		turn.agent.promptPath = p;
-		await runAgent(turn, turn.agent);
-		try {
-			unlinkSync(p);
-		} catch {
-			/* gone */
-		}
-		expect((lastArg(mockCallModel) as { system: string }).system).toBe(
-			"-a-b-c",
-		);
-	});
-
-	test("& in var value is not HTML-escaped", async () => {
-		const p = path.join(import.meta.dir, "__hbs-escape.md");
-		await Bun.write(
-			p,
-			"---\nname: test-agent\nmodelTier: medium\ntools: []\n---\n{{val}}",
-		);
-		const turn = makeTurn({ val: "a & b" });
-		turn.agent.promptPath = p;
-		await runAgent(turn, turn.agent);
-		try {
-			unlinkSync(p);
-		} catch {
-			/* gone */
-		}
-		expect((lastArg(mockCallModel) as { system: string }).system).toBe("a & b");
 	});
 });

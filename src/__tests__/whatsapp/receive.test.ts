@@ -218,29 +218,16 @@ describe("normalizeMessage — quoted messages", () => {
 		});
 	});
 
-	test("extracts quotedMessage when replying to an image", async () => {
-		const result = await normalizeMessage(
-			makeReply({ imageMessage: { caption: "Nice photo" } }),
-		);
-		expect(result?.quotedMessage).toEqual({ externalId: "original-msg-id" });
-	});
-
-	test("extracts quotedMessage when replying to an audio message", async () => {
-		const result = await normalizeMessage(makeReply({ audioMessage: {} }));
-		expect(result?.quotedMessage).toEqual({ externalId: "original-msg-id" });
-	});
-
-	test("extracts quotedMessage when replying to a document", async () => {
-		const result = await normalizeMessage(
-			makeReply({
-				documentMessage: { fileName: "report.pdf", caption: "Q3 report" },
-			}),
-		);
-		expect(result?.quotedMessage).toEqual({ externalId: "original-msg-id" });
-	});
-
-	test("extracts quotedMessage when quoted content has no recognizable text", async () => {
-		const result = await normalizeMessage(makeReply({}));
+	test.each([
+		["image", { imageMessage: { caption: "Nice photo" } }],
+		["audio", { audioMessage: {} }],
+		[
+			"document",
+			{ documentMessage: { fileName: "report.pdf", caption: "Q3 report" } },
+		],
+		["empty/unknown", {}],
+	] as const)("extracts quotedMessage when replying to %s", async (_type, quotedMessage) => {
+		const result = await normalizeMessage(makeReply(quotedMessage));
 		expect(result?.quotedMessage).toEqual({ externalId: "original-msg-id" });
 	});
 

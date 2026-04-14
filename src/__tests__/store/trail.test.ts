@@ -10,8 +10,7 @@ import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { _resetForTest, _setForTest } from "@/config/schema";
-import { appendTrail, cleanupOldTrails, formatTrailEntry } from "@/store/trail";
-import type { TurnLog } from "@/store/turn-log";
+import { appendTrail, cleanupOldTrails } from "@/store/trail";
 
 let tmpDir: string;
 
@@ -25,119 +24,6 @@ afterAll(async () => {
 
 afterEach(() => {
 	_resetForTest();
-});
-
-function makeTurnLog(overrides?: Partial<TurnLog>): TurnLog {
-	return {
-		chatId: "test-chat",
-		agent: "klaus",
-		createdAt: "2026-04-09T14:23:05.000Z",
-		overrides: [],
-		provider: "claude",
-		model: "claude-sonnet-4-20250514",
-		tier: "medium",
-		contextTokens: 5000,
-		conversationMessages: 10,
-		steps: [],
-		promptTokens: 847,
-		completionTokens: 234,
-		durationMs: 1200,
-		...overrides,
-	};
-}
-
-describe("formatTrailEntry", () => {
-	test("formats a basic turn with reply", () => {
-		const entry = makeTurnLog({
-			rawText: "What's the weather?",
-			replyContent: "It's sunny in Berlin!",
-		});
-		const result = formatTrailEntry(entry, "Europe/Berlin");
-
-		expect(result).toContain("### 16:23:05");
-		expect(result).toContain("klaus");
-		expect(result).toContain("claude-sonnet-4-20250514 (medium)");
-		expect(result).toContain("**In**: What's the weather?");
-		expect(result).toContain("**Tokens**: 847→234");
-		expect(result).toContain("**Duration**: 1.2s");
-		expect(result).toContain("**Out**: It's sunny in Berlin!");
-		expect(result).toStartWith("---");
-	});
-
-	test("formats error turn", () => {
-		const entry = makeTurnLog({
-			rawText: "Do something",
-			error: "Rate limit exceeded",
-		});
-		const result = formatTrailEntry(entry, "UTC");
-
-		expect(result).toContain("**Error**: Rate limit exceeded");
-		expect(result).not.toContain("**Out**");
-	});
-
-	test("formats turn with tool calls", () => {
-		const entry = makeTurnLog({
-			rawText: "Search for Berlin",
-			replyContent: "Found it!",
-			steps: [
-				{
-					toolCalls: [
-						{ toolName: "web_search", args: '{"q":"Berlin weather"}' },
-					],
-					toolResults: [{ toolName: "web_search", result: '{"temp":18}' }],
-				},
-			],
-		});
-		const result = formatTrailEntry(entry, "UTC");
-
-		expect(result).toContain(
-			'`web_search` → {"q":"Berlin weather"} → {"temp":18}',
-		);
-	});
-
-	test("formats turn with overrides", () => {
-		const entry = makeTurnLog({
-			overrides: ["voice", "large"],
-			replyContent: "Done",
-		});
-		const result = formatTrailEntry(entry, "UTC");
-
-		expect(result).toContain("**overrides**: voice, large");
-	});
-
-	test("truncates long strings", () => {
-		const longText = "a".repeat(500);
-		const entry = makeTurnLog({ rawText: longText, replyContent: "ok" });
-		const result = formatTrailEntry(entry, "UTC");
-
-		const inLine = result.split("\n").find((l) => l.startsWith("**In**"));
-		expect(inLine).toBeDefined();
-		expect(inLine?.length).toBeLessThan(210);
-	});
-
-	test("formats turn with reasoning", () => {
-		const entry = makeTurnLog({
-			replyContent: "Done",
-			steps: [
-				{
-					reasoning: "I need to think about this carefully",
-					toolCalls: [],
-					toolResults: [],
-				},
-			],
-		});
-		const result = formatTrailEntry(entry, "UTC");
-
-		expect(result).toContain("> I need to think about this carefully");
-	});
-
-	test("handles turn with no input text", () => {
-		const entry = makeTurnLog({ replyContent: "Scheduled run complete" });
-		const result = formatTrailEntry(entry, "UTC");
-
-		expect(result).not.toContain("**In**");
-		expect(result).toContain("**Out**: Scheduled run complete");
-	});
 });
 
 describe("appendTrail", () => {

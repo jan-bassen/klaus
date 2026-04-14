@@ -139,101 +139,20 @@ describe("/help", () => {
 		expect(content).toContain("*Vault*");
 	});
 
-	test("commands arg: only commands section", async () => {
-		await helpCommand.execute(makeMsg(), ["commands"]);
+	test.each([
+		["commands", "*Commands*", ["*Agents*", "*overrides*"]],
+		["agents", "*Agents*", ["*Commands*", "*overrides*"]],
+		["overrides", "*overrides*", ["*Commands*", "*Agents*"]],
+		["vars", "*Variables*", ["*Commands*", "*Agents*"]],
+		["vault", "*Vault*", ["*Commands*", "*Agents*"]],
+	] as const)("/help %s shows only that section", async (arg, expected, absent) => {
+		await helpCommand.execute(makeMsg(), [arg]);
 
 		const { content } = (
 			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
 		)[0];
-		expect(content).toContain("*Commands*");
-		expect(content).not.toContain("*Agents*");
-		expect(content).not.toContain("*overrides*");
-	});
-
-	test("agents arg: only agents section", async () => {
-		await helpCommand.execute(makeMsg(), ["agents"]);
-
-		const { content } = (
-			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
-		)[0];
-		expect(content).toContain("*Agents*");
-		expect(content).not.toContain("*Commands*");
-		expect(content).not.toContain("*overrides*");
-	});
-
-	test("overrides arg: only overrides section", async () => {
-		await helpCommand.execute(makeMsg(), ["overrides"]);
-
-		const { content } = (
-			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
-		)[0];
-		expect(content).toContain("*overrides*");
-		expect(content).not.toContain("*Commands*");
-		expect(content).not.toContain("*Agents*");
-	});
-
-	test("agents section includes tools and toolsets", async () => {
-		await helpCommand.execute(makeMsg(), ["agents"]);
-
-		const { content } = (
-			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
-		)[0];
-		expect(content).toContain("tools: reply");
-		expect(content).toContain("toolsets: vault");
-	});
-
-	test("vars arg: only vars section", async () => {
-		await helpCommand.execute(makeMsg(), ["vars"]);
-
-		const { content } = (
-			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
-		)[0];
-		expect(content).toContain("*Variables*");
-		expect(content).toContain("$date");
-		expect(content).toContain("$active_tasks");
-		expect(content).not.toContain("*Commands*");
-		expect(content).not.toContain("*Agents*");
-	});
-
-	test("vars section shows descriptions and params", async () => {
-		await helpCommand.execute(makeMsg(), ["vars"]);
-
-		const { content } = (
-			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
-		)[0];
-		expect(content).toContain("Current date");
-		expect(content).toContain("params: limit: max items");
-	});
-
-	test("vars section excludes dispatch_context", async () => {
-		await helpCommand.execute(makeMsg(), ["vars"]);
-
-		const { content } = (
-			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
-		)[0];
-		expect(content).not.toContain("dispatch_context");
-	});
-
-	test("vault arg: only vault section", async () => {
-		await helpCommand.execute(makeMsg(), ["vault"]);
-
-		const { content } = (
-			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
-		)[0];
-		expect(content).toContain("*Vault*");
-		expect(content).not.toContain("*Commands*");
-		expect(content).not.toContain("*Agents*");
-	});
-
-	test("vault section shows folders with permissions", async () => {
-		await helpCommand.execute(makeMsg(), ["vault"]);
-
-		const { content } = (
-			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
-		)[0];
-		// Checks against default schema values
-		expect(content).toContain("(root)");
-		expect(content).toContain("Klaus/");
+		expect(content).toContain(expected);
+		for (const a of absent) expect(content).not.toContain(a);
 	});
 
 	test("uses dedupKey based on message id", async () => {

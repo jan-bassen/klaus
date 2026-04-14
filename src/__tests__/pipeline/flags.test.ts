@@ -87,73 +87,28 @@ describe("resolveoverrides", () => {
 		expect(resolveoverrides({})).toEqual({});
 	});
 
-	test("voice flag sets forceVoice", () => {
-		expect(resolveoverrides({ voice: true })).toEqual({ forceVoice: true });
-	});
-
-	test("clean flag sets skipHistory", () => {
-		expect(resolveoverrides({ clean: true })).toEqual({ skipHistory: true });
-	});
-
-	test("small flag sets modelTier to small", () => {
-		expect(resolveoverrides({ small: true })).toEqual({ modelTier: "small" });
-	});
-
-	test("medium flag sets modelTier to medium", () => {
-		expect(resolveoverrides({ medium: true })).toEqual({
-			modelTier: "medium",
-		});
-	});
-
-	test("large flag sets modelTier to large", () => {
-		expect(resolveoverrides({ large: true })).toEqual({ modelTier: "large" });
-	});
-
-	test("accept flag sets autoAccept", () => {
-		expect(resolveoverrides({ accept: true })).toEqual({ autoAccept: true });
-	});
-
-	test("cold flag sets temperaturePreset", () => {
-		expect(resolveoverrides({ cold: true })).toEqual({
-			temperaturePreset: "cold",
-		});
-	});
-
-	test("hot flag sets temperaturePreset", () => {
-		expect(resolveoverrides({ hot: true })).toEqual({
-			temperaturePreset: "hot",
-		});
-	});
-
-	test("creative flag sets topPPreset", () => {
-		expect(resolveoverrides({ creative: true })).toEqual({
-			topPPreset: "creative",
-		});
-	});
-
-	test("rigid flag sets topPPreset", () => {
-		expect(resolveoverrides({ rigid: true })).toEqual({
-			topPPreset: "rigid",
-		});
-	});
-
-	test("no-tools flag sets toolChoice to none", () => {
-		expect(resolveoverrides({ "no-tools": true })).toEqual({
-			toolChoice: "none",
-		});
-	});
-
-	test("use-tools flag sets toolChoice to required", () => {
-		expect(resolveoverrides({ "use-tools": true })).toEqual({
-			toolChoice: "required",
-		});
-	});
-
-	test("ghost flag sets ghost and skipHistory", () => {
-		expect(resolveoverrides({ ghost: true })).toEqual({
-			ghost: true,
-			skipHistory: true,
-		});
+	test.each([
+		["voice", { voice: true }, { forceVoice: true }],
+		["clean", { clean: true }, { skipHistory: true }],
+		["small", { small: true }, { modelTier: "small" }],
+		["medium", { medium: true }, { modelTier: "medium" }],
+		["large", { large: true }, { modelTier: "large" }],
+		["accept", { accept: true }, { autoAccept: true }],
+		["cold", { cold: true }, { temperaturePreset: "cold" }],
+		["hot", { hot: true }, { temperaturePreset: "hot" }],
+		["creative", { creative: true }, { topPPreset: "creative" }],
+		["rigid", { rigid: true }, { topPPreset: "rigid" }],
+		["no-tools", { "no-tools": true }, { toolChoice: "none" }],
+		["use-tools", { "use-tools": true }, { toolChoice: "required" }],
+		["ghost", { ghost: true }, { ghost: true, skipHistory: true }],
+		["low", { low: true }, { reasoningEffort: "low" }],
+		["high", { high: true }, { reasoningEffort: "high" }],
+		["fast", { fast: true }, { fast: true }],
+		["claude", { claude: true }, { provider: "claude" }],
+		["chatgpt", { chatgpt: true }, { provider: "chatgpt" }],
+		["gemini", { gemini: true }, { provider: "gemini" }],
+	] as const)("%s flag maps correctly", (_label, input, expected) => {
+		expect(resolveoverrides(input)).toEqual(expected);
 	});
 
 	test("combines multiple flags", () => {
@@ -161,16 +116,6 @@ describe("resolveoverrides", () => {
 			forceVoice: true,
 			modelTier: "large",
 		});
-	});
-
-	test("combines all original flags", () => {
-		expect(resolveoverrides({ voice: true, clean: true, small: true })).toEqual(
-			{
-				forceVoice: true,
-				skipHistory: true,
-				modelTier: "small",
-			},
-		);
 	});
 
 	test("ignores false flags", () => {
@@ -181,82 +126,20 @@ describe("resolveoverrides", () => {
 		expect(resolveoverrides({ unknown: true })).toEqual({});
 	});
 
-	test("last model tier flag wins", () => {
-		const result = resolveoverrides({ small: true, large: true });
-		expect(result.modelTier).toBe("large");
-	});
-
-	test("last temperature flag wins (hot after cold)", () => {
-		const result = resolveoverrides({ cold: true, hot: true });
-		expect(result.temperaturePreset).toBe("hot");
-	});
-
-	test("last topP flag wins (rigid after creative)", () => {
-		const result = resolveoverrides({ creative: true, rigid: true });
-		expect(result.topPPreset).toBe("rigid");
-	});
-
-	test("last toolChoice flag wins (use-tools after no-tools)", () => {
-		const result = resolveoverrides({
-			"no-tools": true,
-			"use-tools": true,
-		});
-		expect(result.toolChoice).toBe("required");
-	});
-
-	test("low flag sets reasoningEffort to low", () => {
-		expect(resolveoverrides({ low: true })).toEqual({
-			reasoningEffort: "low",
-		});
-	});
-
-	test("high flag sets reasoningEffort to high", () => {
-		expect(resolveoverrides({ high: true })).toEqual({
-			reasoningEffort: "high",
-		});
-	});
-
-	test("fast flag sets fast", () => {
-		expect(resolveoverrides({ fast: true })).toEqual({ fast: true });
-	});
-
-	test("last reasoning effort flag wins (high after low)", () => {
-		const result = resolveoverrides({ low: true, high: true });
-		expect(result.reasoningEffort).toBe("high");
-	});
-
-	test("combines reasoning effort with other flags", () => {
-		expect(resolveoverrides({ low: true, fast: true, voice: true })).toEqual({
-			reasoningEffort: "low",
-			fast: true,
-			forceVoice: true,
-		});
-	});
-
-	test("ghost combined with other flags", () => {
-		const result = resolveoverrides({
-			ghost: true,
-			voice: true,
-			accept: true,
-		});
-		expect(result).toEqual({
-			ghost: true,
-			skipHistory: true,
-			forceVoice: true,
-			autoAccept: true,
-		});
-	});
-
-	test("provider flags set provider override", () => {
-		expect(resolveoverrides({ claude: true })).toEqual({
-			provider: "claude",
-		});
-		expect(resolveoverrides({ chatgpt: true })).toEqual({
-			provider: "chatgpt",
-		});
-		expect(resolveoverrides({ gemini: true })).toEqual({
-			provider: "gemini",
-		});
+	test.each([
+		["model tier", { small: true, large: true }, "modelTier", "large"],
+		["temperature", { cold: true, hot: true }, "temperaturePreset", "hot"],
+		["topP", { creative: true, rigid: true }, "topPPreset", "rigid"],
+		[
+			"toolChoice",
+			{ "no-tools": true, "use-tools": true },
+			"toolChoice",
+			"required",
+		],
+		["reasoning effort", { low: true, high: true }, "reasoningEffort", "high"],
+	] as const)("last %s flag wins", (_label, input, key, expected) => {
+		const result = resolveoverrides(input);
+		expect(result[key as keyof typeof result]).toBe(expected);
 	});
 });
 

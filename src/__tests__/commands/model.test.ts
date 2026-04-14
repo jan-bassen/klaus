@@ -72,18 +72,6 @@ afterEach(() => {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("/model", () => {
-	test("no args: shows current model and provider", async () => {
-		await modelCommand.execute(makeMsg(), []);
-
-		expect(mockEnqueueMessage).toHaveBeenCalledTimes(1);
-		const { content } = (
-			mockEnqueueMessage.mock.calls[0] as [{ content: string }]
-		)[0];
-		expect(content).toContain("@default");
-		expect(content).toContain("tier: medium");
-		expect(content).toContain("provider: claude");
-	});
-
 	test("switch to large tier", async () => {
 		await modelCommand.execute(makeMsg(), ["large"]);
 

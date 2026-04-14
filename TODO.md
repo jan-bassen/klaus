@@ -1,8 +1,5 @@
 # TODO v0.2.0 (ignore migration paths, we're able to fully reset still)
 
-## Testing suite check
-Goal: We've reached hundreds of tests for a pretty small codebase. Also some tests take a ton of time, making the agentic workflow much slower. Let's make the suite leaner and better. Remove useless tests and merge overlaps, be pretty ruthless here. I doubt we actually need 150+ tests. Reduce time of timeout tests when we really really need them - otherwise cut them the most aggressively
-
 ## Skill tools
 - [ ] Allow for extra tools to be added to context when skill called
 
