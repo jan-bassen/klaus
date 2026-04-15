@@ -57,7 +57,6 @@ describe("SettingsSchema", () => {
 					small: "custom-small",
 					medium: "custom-medium",
 					large: "custom-large",
-					vision: "custom-vision",
 				},
 			},
 			locale: "en-US",
@@ -82,7 +81,6 @@ describe("SettingsSchema", () => {
 					small: "a",
 					medium: "b",
 					large: "c",
-					vision: "d",
 				},
 			},
 		});

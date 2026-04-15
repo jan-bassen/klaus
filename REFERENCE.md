@@ -222,7 +222,6 @@ Provider configuration. Each named entry (claude, chatgpt, gemini) uses the same
 | `small` | — | Model ID for small tier |
 | `medium` | — | Model ID for medium tier |
 | `large` | — | Model ID for large tier |
-| `vision` | — | Model ID for vision tier |
 | `temperature` | — | Default temperature |
 | `coldTemperature` | `0` | Temperature for `!cold` override |
 | `hotTemperature` | `1` | Temperature for `!hot` override |

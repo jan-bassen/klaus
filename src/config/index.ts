@@ -26,14 +26,13 @@ export interface VaultFolder {
 	request?: VaultPermission | undefined;
 }
 
-export type ModelTier = "small" | "medium" | "large" | "vision";
+export type ModelTier = "small" | "medium" | "large";
 
 /** Model tier names suitable for z.enum(). */
 export const modelTiers: [ModelTier, ...ModelTier[]] = [
 	"small",
 	"medium",
 	"large",
-	"vision",
 ];
 
 /** Resolve provider config by name. Falls back to global active provider. */
@@ -68,7 +67,6 @@ export interface ProviderConfig {
 	small: string;
 	medium: string;
 	large: string;
-	vision: string;
 	temperature?: number;
 	coldTemperature?: number;
 	hotTemperature?: number;

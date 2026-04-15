@@ -24,36 +24,39 @@ export function buildProviderTool(name: string, sdk: string): Tool | undefined {
 }
 
 function buildAnthropicTool(name: string): Tool | undefined {
-	const { anthropic } = require("@ai-sdk/anthropic");
+	const { anthropic } =
+		require("@ai-sdk/anthropic") as typeof import("@ai-sdk/anthropic");
 	switch (name) {
 		case "web_search":
-			return anthropic.tools.webSearch_20250305() as unknown as Tool;
+			return anthropic.tools.webSearch_20260209();
 		case "code_execution":
-			return anthropic.tools.codeExecution_20260120() as unknown as Tool;
+			return anthropic.tools.codeExecution_20260120();
 		default:
 			return undefined;
 	}
 }
 
 function buildOpenAITool(name: string): Tool | undefined {
-	const { openai } = require("@ai-sdk/openai");
+	const { openai } =
+		require("@ai-sdk/openai") as typeof import("@ai-sdk/openai");
 	switch (name) {
 		case "web_search":
-			return openai.tools.webSearchPreview() as unknown as Tool;
+			return openai.tools.webSearch();
 		case "code_execution":
-			return openai.tools.codeInterpreter() as unknown as Tool;
+			return openai.tools.codeInterpreter();
 		default:
 			return undefined;
 	}
 }
 
 function buildGoogleTool(name: string): Tool | undefined {
-	const { google } = require("@ai-sdk/google");
+	const { google } =
+		require("@ai-sdk/google") as typeof import("@ai-sdk/google");
 	switch (name) {
 		case "web_search":
-			return google.tools.googleSearch() as unknown as Tool;
+			return google.tools.googleSearch({});
 		case "code_execution":
-			return google.tools.codeExecution() as unknown as Tool;
+			return google.tools.codeExecution({});
 		default:
 			return undefined;
 	}

@@ -2,30 +2,27 @@ providers:
   active: claude
   claude:
     sdk: anthropic
-    small: claude-haiku-3-20250307
-    medium: claude-sonnet-4-20250514
-    large: claude-opus-4-20250514
-    vision: claude-sonnet-4-20250514
+    small: claude-haiku-4-5
+    medium: claude-sonnet-4-6
+    large: claude-opus-4-6
     coldTemperature: 0
     hotTemperature: 1
     creativeTopP: 0.95
     rigidTopP: 0.1
   chatgpt:
     sdk: openai
-    small: gpt-4o-mini
-    medium: gpt-4o
-    large: o3
-    vision: gpt-4o
+    small: gpt-5.4-nano
+    medium: gpt-5.4-mini
+    large: gpt-5.4
     coldTemperature: 0
     hotTemperature: 1.5
     creativeTopP: 0.95
     rigidTopP: 0.1
   gemini:
     sdk: google
-    small: gemini-2.0-flash-lite
-    medium: gemini-2.5-pro
-    large: gemini-2.5-pro
-    vision: gemini-2.5-pro
+    small: gemini-3.1-flash-lite-preview
+    medium: gemini-3-flash-preview
+    large: gemini-3.1-pro-preview-customtools
     coldTemperature: 0
     hotTemperature: 1.5
     creativeTopP: 0.95
@@ -51,18 +48,17 @@ rateLimits:
     windowMs: 60000
 
 tts:
-  model: eleven_multilingual_v2
+  model: eleven_ttv_v3
   voiceId: Qqi8SzIZjZsatCWjDOp7
 
 stt:
-  model: scribe_v1
+  model: scribe_v2
   timeoutMs: 30000
   agentTriggers:
     - hey
     - at
     - an
     - to
-    - dear
 
 retries:
   max: 3

@@ -1,5 +1,10 @@
 # Features v0.2.0 (ignore migration paths, we're able to fully reset still)
 
+## Actually real defaults
+Current implementation of models and tools are not up-to-date (agent tend to do that bc of knowledge cutoff)
+- [x] models
+- [x] tools
+
 ## Better error handling UX
 - [ ] check retry flow for potential improvements and consider a potential "undo" operation
 - [ ] if feasible add /undo with a quoted message
@@ -20,11 +25,6 @@ Goal: Add a simple system for a few key evals + live testing system to catch 80%
 - [x] Make schemas dynamic (or extendible depending on context). Providers resolved dynamically, overrides schema uses `.passthrough()`
 - [ ] Make sure we are consistent in file extensions (eg overrides.yaml and settings.yml, but maybe more cases across codebase): always use shortest name
 - [ ] Contain baileys imports to just whatsapp/ + check the codebase for other similar leaks
-
-## Actually real defaults
-Current implementation of models and tools are not up-to-date (agent tend to do that bc of knowledge cutoff)
-- [ ] models
-- [ ] tools
 
 ## Remove remainder of token tracking
 we still have stuff like "charsPerToken" in settings, although that doesn't even make sense. Let's clean that up. Track chars if we need to track something, but why would we?
@@ -51,12 +51,14 @@ I decided I want to open source this as "the agent for tinkerers". Let's make th
   - [ ] iterate-in-obsidian (quick explainer of the most useful patterns with examples)
   - [ ] iterate-in-code (same with code for adding a command, variable, tool, ...)
 
-## Cleanup agent tooling 
-The codebase should be ready for agents, but fully unopinionated. 
-- [ ] CLAUDE.md -> AGENT.md + shorten drastically while optimizing for future forkers
-
 ## Comments cleanup
 - [ ] Remove any redundant comments (use good naming and clear code over explanations - comments are for anything that the code doesn't show or where misunderstandings are possible)
 - [ ] Shorten comments where possible
 - [ ] Make sure comments cover the ide inline 
 - [ ] Check everything as final check - it should be up-to-date and fitting with the implemented code
+
+## Cleanup agent tooling 
+The codebase should be ready for agents, but fully unopinionated. 
+- [ ] CLAUDE.md -> AGENT.md + shorten drastically while optimizing for future forkers
+- [ ] remove REFERENCE & TODO
+- [ ] remove .claude

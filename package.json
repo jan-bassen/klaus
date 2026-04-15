@@ -10,11 +10,11 @@
 		"publish": "docker buildx build --platform linux/amd64 --build-arg VERSION=$(jq -r .version package.json) -t janbassen1/klaus:$(jq -r .version package.json) -t janbassen1/klaus:latest --push ."
 	},
 	"dependencies": {
-		"@ai-sdk/anthropic": "^3.0.48",
-		"@ai-sdk/google": "^3.0.60",
-		"@ai-sdk/openai": "^3.0.52",
+		"@ai-sdk/anthropic": "^3.0.69",
+		"@ai-sdk/google": "^3.0.63",
+		"@ai-sdk/openai": "^3.0.53",
 		"@whiskeysockets/baileys": "^6.7.0",
-		"ai": "^6.0.103",
+		"ai": "^6.0.161",
 		"croner": "^10.0.1",
 		"handlebars": "^4.7.8",
 		"qrcode": "^1.5.4",
