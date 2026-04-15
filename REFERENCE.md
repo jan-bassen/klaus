@@ -19,6 +19,7 @@ Commands start with `/` and bypass the LLM entirely. Defined in `src/commands/`.
 | `/accept` | `/a` | Show or set auto-accept for the default agent (`on`/`off`) |
 | `/help` | `/?` | Show commands, agents, overrides, vars, and vault overview; optional section filter |
 | `/break` | `/b` | Insert a context break — fresh start from here |
+| `/retry` | `/r` | Re-run the last turn, or a quoted turn (user msg or bot reply). Uses the default agent with the stored text — media, overrides, and `@agent` routing from the original turn are not reconstructed. |
 
 ---
 

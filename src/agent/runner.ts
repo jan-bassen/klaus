@@ -16,7 +16,7 @@ import { hbs, interpolateUserVars, stripHbsParams } from "@/markdown";
 import { appendTrace, type TraceStep } from "@/store/conversation";
 import { addTimer, listTimers, removeTimer } from "@/store/timers";
 import { generateMetaTool, toolRegistry, toolsetRegistry } from "@/tools";
-import { buildProviderTool, getProviderTool } from "@/tools/provider";
+import { getProviderTool } from "@/tools/provider";
 import { REPLY_TOOL_NAME } from "@/tools/reply";
 import { parseRunAt } from "@/tools/sets/dispatch";
 import { buildSkillTool, skillRegistry } from "@/tools/skill";

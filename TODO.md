@@ -1,10 +1,10 @@
 # Features v0.2.0 (ignore migration paths, we're able to fully reset still)
 
 ## Better error handling UX
-- [ ] check retry flow for potential improvements and consider a potential "undo" operation
-- [ ] if feasible add /undo with a quoted message
-- [ ] if feasible add /retry with a quoted failed message
-- [ ] consider message editing/ deleting capabilities
+- [x] check retry flow for potential improvements and consider a potential "undo" operation
+- [x] ~~if feasible add /undo with a quoted message~~ (dropped — wanted for side-effect reversal, out of scope)
+- [x] /retry (`/r`) with optional quoted message; ❌ reaction on turn failure; supersede event in conversation store
+- [ ] consider message editing/ deleting capabilities (separate plan — needs Baileys protocol-message handling)
 
 ## Improve media/research flows
 Plan: Have a good look at the current document/web flow to give the agent efficient tools for common use-cases

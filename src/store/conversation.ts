@@ -69,12 +69,20 @@ const ConversationBreakEventSchema = z.object({
 	createdAt: z.string(),
 });
 
+const ConversationSupersedeEventSchema = z.object({
+	kind: z.literal("supersede"),
+	messageId: z.string(),
+	supersededAt: z.string(),
+	reason: z.string().optional(),
+});
+
 export const ConversationEventSchema = z.discriminatedUnion("kind", [
 	ConversationMessageEventSchema,
 	ConversationAckEventSchema,
 	ConversationReactionEventSchema,
 	ConversationTraceEventSchema,
 	ConversationBreakEventSchema,
+	ConversationSupersedeEventSchema,
 ]);
 
 export type ConversationMessageEvent = z.infer<
@@ -86,6 +94,9 @@ export type ConversationReactionEvent = z.infer<
 >;
 export type ConversationBreakEvent = z.infer<
 	typeof ConversationBreakEventSchema
+>;
+export type ConversationSupersedeEvent = z.infer<
+	typeof ConversationSupersedeEventSchema
 >;
 type ConversationEvent = z.infer<typeof ConversationEventSchema>;
 
@@ -143,6 +154,7 @@ function mergeEvents(lines: string[]): ConversationMessage[] {
 	const messages = new Map<string, ConversationMessage>();
 	const acks = new Map<string, string>(); // messageId → externalId
 	const reactions: ConversationReactionEvent[] = [];
+	const superseded = new Set<string>();
 	const order: string[] = [];
 
 	for (const line of lines) {
@@ -168,6 +180,8 @@ function mergeEvents(lines: string[]): ConversationMessage[] {
 				acks.set(event.messageId, event.externalId);
 			} else if (event.kind === "reaction") {
 				reactions.push(event);
+			} else if (event.kind === "supersede") {
+				superseded.add(event.messageId);
 			}
 			// break and trace events are silently skipped
 		} catch {
@@ -217,6 +231,7 @@ function mergeEvents(lines: string[]): ConversationMessage[] {
 	}
 
 	return order
+		.filter((id) => !superseded.has(id))
 		.map((id) => messages.get(id))
 		.filter((x): x is ConversationMessage => Boolean(x));
 }
@@ -304,6 +319,19 @@ export async function appendTrace(
 /** Append a break marker. Messages before the last break are excluded from context. */
 export async function appendBreak(): Promise<void> {
 	await appendEvent({ kind: "break", createdAt: new Date().toISOString() });
+}
+
+/** Mark a single message as superseded — filtered out of context without deleting the record. */
+export async function appendSupersede(
+	messageId: string,
+	reason?: string,
+): Promise<void> {
+	await appendEvent({
+		kind: "supersede",
+		messageId,
+		supersededAt: new Date().toISOString(),
+		...(reason ? { reason } : {}),
+	});
 }
 
 // -- Public API: reads --
@@ -434,9 +462,10 @@ export function resolveMessageId(messageId: string): string | null {
 	return idToExternal.get(messageId) ?? null;
 }
 
-/** Read all trace events from recent files, keyed by messageId. */
+/** Read all trace events from recent files, keyed by messageId. Superseded messages are excluded. */
 export async function getTraces(): Promise<Map<string, TraceStep[]>> {
 	const traces = new Map<string, TraceStep[]>();
+	const superseded = new Set<string>();
 	const lookback = settings.context.conversationLookbackDays;
 	const allFiles = await listConversationFiles();
 	const cutoff = allFiles.length > lookback ? allFiles.length - lookback : 0;
@@ -454,15 +483,20 @@ export async function getTraces(): Promise<Map<string, TraceStep[]>> {
 			if (!line.trim()) continue;
 			try {
 				const raw = JSON.parse(line);
-				if (raw.kind !== "trace") continue;
-				const event = ConversationTraceEventSchema.parse(raw);
-				traces.set(event.messageId, event.steps);
+				if (raw.kind === "trace") {
+					const event = ConversationTraceEventSchema.parse(raw);
+					traces.set(event.messageId, event.steps);
+				} else if (raw.kind === "supersede") {
+					const event = ConversationSupersedeEventSchema.parse(raw);
+					superseded.add(event.messageId);
+				}
 			} catch {
 				// skip corrupt lines
 			}
 		}
 	}
 
+	for (const id of superseded) traces.delete(id);
 	return traces;
 }
 

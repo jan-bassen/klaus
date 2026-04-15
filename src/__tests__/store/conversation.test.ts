@@ -31,11 +31,13 @@ const {
 	appendAck,
 	appendReaction,
 	appendBreak,
+	appendSupersede,
 	getConversation,
 	findByExternalId,
 	resolveExternalId,
 	resolveMessageId,
 	rebuildIndexes,
+	readAllMessages,
 	searchConversation,
 	_clearIndexesForTest,
 } = await import("@/store/conversation");
@@ -217,6 +219,55 @@ describe("appendBreak", () => {
 		// Index should still have the message for quote/reaction resolution
 		const found = findByExternalId("wa-brk-1");
 		expect(found).not.toBeNull();
+	});
+});
+
+describe("appendSupersede", () => {
+	test("superseded message is excluded from getConversation", async () => {
+		const keep = await appendMessage({
+			role: "user",
+			content: "keep me",
+			externalId: "wa-sup-1",
+		});
+		const hide = await appendMessage({
+			role: "assistant",
+			content: "hide me",
+			externalId: "wa-sup-2",
+		});
+		await appendSupersede(hide, "retry");
+
+		const conv = await getConversation();
+		expect(conv).toHaveLength(1);
+		expect(conv[0]?.id).toBe(keep);
+	});
+
+	test("superseded message is also excluded from readAllMessages", async () => {
+		await appendMessage({
+			role: "user",
+			content: "visible",
+			externalId: "wa-sup-3",
+		});
+		const hideId = await appendMessage({
+			role: "assistant",
+			content: "hidden",
+			externalId: "wa-sup-4",
+		});
+		await appendSupersede(hideId);
+
+		const all = await readAllMessages();
+		expect(all.map((m) => m.content)).toEqual(["visible"]);
+	});
+
+	test("supersede without a matching message is a no-op", async () => {
+		await appendMessage({
+			role: "user",
+			content: "normal",
+			externalId: "wa-sup-5",
+		});
+		await appendSupersede("unknown-id", "retry");
+
+		const conv = await getConversation();
+		expect(conv).toHaveLength(1);
 	});
 });
 

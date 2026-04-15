@@ -26,7 +26,11 @@ import { assembleContext } from "@/context";
 import { formatUserError } from "@/errors";
 import { log } from "@/logger";
 import { extractVarParams, mergeVarParams, readPromptBody } from "@/markdown";
-import { appendMessage, findByExternalId } from "@/store/conversation";
+import {
+	appendMessage,
+	appendReaction,
+	findByExternalId,
+} from "@/store/conversation";
 import {
 	findFileByExternalId,
 	findFileByMessageId,
@@ -41,7 +45,7 @@ import {
 	getSetupCode,
 } from "@/whatsapp/login";
 import { startTyping, stopTyping } from "@/whatsapp/presence";
-import { enqueueMessage } from "@/whatsapp/send";
+import { enqueueMessage, sendReaction } from "@/whatsapp/send";
 import { rewriteVoiceTranscript, transcribe } from "@/whatsapp/voice";
 import {
 	buildTemplateVars,
@@ -387,6 +391,22 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 				});
 			} catch {
 				/* best-effort */
+			}
+			try {
+				const key = msg.messageKey as Parameters<typeof sendReaction>[1];
+				await sendReaction(msg.chatId, key, "❌");
+				const botId = getSocket().user?.id ?? "bot";
+				await appendReaction({
+					messageExternalId: msg.id,
+					emoji: "❌",
+					senderId: botId,
+					fromMe: true,
+				});
+			} catch (reactErr) {
+				log.warn("[pipeline] failed to apply error reaction", {
+					error:
+						reactErr instanceof Error ? reactErr.message : String(reactErr),
+				});
 			}
 		}
 	}
