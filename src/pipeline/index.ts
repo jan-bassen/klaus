@@ -22,10 +22,8 @@ export function _clearAgentRunnerForTest(): void {
 import { getDefaultAgent } from "@/agent";
 import { registry as commandRegistry, parseCommand } from "@/commands";
 import { settings, updateAllowedChatId } from "@/config";
-import { assembleContext } from "@/context";
 import { formatUserError } from "@/errors";
 import { log } from "@/logger";
-import { extractVarParams, mergeVarParams, readPromptBody } from "@/markdown";
 import {
 	appendMessage,
 	appendReaction,
@@ -38,6 +36,7 @@ import {
 } from "@/store/files";
 import { appendTrail } from "@/store/trail";
 import { recordTurnLog, toLogSteps } from "@/store/turn-log";
+import { assembleVariables } from "@/variables";
 import { getSocket } from "@/whatsapp/connection";
 import {
 	clearLoginFolder,
@@ -47,15 +46,13 @@ import {
 import { startTyping, stopTyping } from "@/whatsapp/presence";
 import { enqueueMessage, sendReaction } from "@/whatsapp/send";
 import { rewriteVoiceTranscript, transcribe } from "@/whatsapp/voice";
+import { isParseableDocument, parseDocument } from "./attachments";
 import {
-	buildTemplateVars,
-	overrideRegistry,
-	parseoverrides,
+	parseOverrides,
 	resolveAgentDefaults,
-	resolveoverrides,
-	stripoverrides,
+	resolveOverrides,
+	stripOverrides,
 } from "./overrides";
-import { isParseableDocument, parseDocument } from "./parse-document";
 
 // ─── Inlined from middleware.ts ──────────────────────────────────────────────
 
@@ -233,12 +230,12 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			: rawText;
 
 		// Parse overrides from cleanText BEFORE stripping
-		const activeoverrides = parseoverrides({
+		const overrides = parseOverrides({
 			...processedMsg,
 			text: cleanText,
 		});
-		const presetoverrides = resolveoverrides(activeoverrides);
-		const strippedText = stripoverrides(cleanText);
+		const presetConfig = resolveOverrides(overrides);
+		const strippedText = stripOverrides(cleanText);
 
 		// Strip overrides and routing prefix from msg text
 		let effectiveMsg: InboundMessage = { ...processedMsg, text: strippedText };
@@ -253,7 +250,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		log.info(`[pipeline] routing to @${agentName}`);
 
 		// Resolve agent defaults, per-message overrides take precedence
-		const overrides = resolveAgentDefaults(presetoverrides, def);
+		const config = resolveAgentDefaults(presetConfig, def);
 
 		// Resolve quoted message media if this is a reply
 		if (effectiveMsg.quotedMessage) {
@@ -285,8 +282,8 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 
 		// Persist inbound message to conversation (skip for ghost mode)
 		let messageId: string | undefined;
-		if (!overrides.ghost) {
-			const overrideNames = Object.keys(activeoverrides);
+		if (!config.ghost) {
+			const overrideNames = Object.keys(overrides);
 			messageId = await appendMessage({
 				role: "user",
 				content: effectiveMsg.text ?? null,
@@ -313,31 +310,20 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			}
 		}
 
-		// Build partial TurnContext for context assembly
-		const partialTurn: Omit<TurnContext, "assembled"> = {
+		// Build partial TurnContext for variable assembly
+		const partialTurn: Omit<TurnContext, "vars"> = {
 			chatId: effectiveMsg.chatId,
 			message: effectiveMsg,
 			agent: def,
-			activeoverrides,
 			overrides,
-			templateVars: buildTemplateVars(overrides, def),
+			config,
+			messageRefs: {},
 			...(messageId ? { messageId } : {}),
 		};
 
-		// Extract var params from agent prompt and user message
-		const promptBody = await readPromptBody(def.promptPath);
-		const varParams = mergeVarParams(
-			extractVarParams(promptBody, "hbs"),
-			extractVarParams(effectiveMsg.text ?? "", "dollar"),
-		);
-
-		// Step 7: Assemble context (all queries in parallel)
-		const assembled = await assembleContext(
-			partialTurn,
-			undefined,
-			Object.keys(varParams).length > 0 ? varParams : undefined,
-		);
-		const turn: TurnContext = { ...partialTurn, assembled };
+		// Step 7: Assemble unified variable namespace (all variables in parallel)
+		const vars = await assembleVariables(partialTurn);
+		const turn: TurnContext = { ...partialTurn, vars };
 
 		// Step 8: Execute agent
 		if (msg.kind === "whatsapp") await startTyping(effectiveMsg.chatId);
@@ -350,7 +336,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 
 		// Record turn log + vault trail (fire-and-forget)
 		if (agentResult) {
-			const overrideNames = Object.keys(activeoverrides);
+			const overrideNames = Object.keys(overrides);
 			const turnLogPayload = {
 				...(messageId ? { messageId } : {}),
 				chatId: effectiveMsg.chatId,
@@ -365,7 +351,6 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 				tier: agentResult.tier,
 				systemPrompt: agentResult.systemPrompt,
 				userMessage: agentResult.userMessage,
-				contextTokens: assembled.totalTokens,
 				conversationMessages: agentResult.conversationMessages,
 				steps: toLogSteps(agentResult.steps),
 				promptTokens: agentResult.usage.promptTokens,

@@ -43,8 +43,8 @@ const dummyAgent: AgentDefinition = {
 };
 
 function makeTurn(
-	overrides: Partial<Omit<TurnContext, "assembled">> = {},
-): Omit<TurnContext, "assembled"> {
+	overrides: Partial<Omit<TurnContext, "vars">> = {},
+): Omit<TurnContext, "vars"> {
 	return {
 		chatId: "user@s.whatsapp.net",
 		message: {
@@ -57,9 +57,9 @@ function makeTurn(
 			messageKey: {},
 		},
 		agent: dummyAgent,
-		activeoverrides: {},
 		overrides: {},
-		templateVars: {},
+		config: {},
+		messageRefs: {},
 		...overrides,
 	};
 }

@@ -71,15 +71,10 @@ function makeContext(ctxOverrides: Partial<TurnContext> = {}): TurnContext {
 		chatId: "user@s.whatsapp.net",
 		message: dummyMsg,
 		agent: dummyAgent,
-		activeoverrides: {},
 		overrides: {},
-		templateVars: {},
-		assembled: {
-			vars: {},
-			userVars: {},
-			messageRefs: {},
-			totalTokens: 0,
-		},
+		config: {},
+		messageRefs: {},
+		vars: {},
 		...ctxOverrides,
 	};
 }
@@ -150,15 +145,10 @@ describe("replyTool", () => {
 		expect(enqueued.quoted.fromMe).toBe(false); // user message
 	});
 
-	test("messageRef resolves from assembled messageRefs", async () => {
+	test("messageRef resolves from messageRefs", async () => {
 		const ctx = makeContext({
-			assembled: {
-				vars: {},
-				userVars: {},
-				messageRefs: {
-					"3": { externalId: "ext-3", role: "assistant" },
-				},
-				totalTokens: 0,
+			messageRefs: {
+				"3": { externalId: "ext-3", role: "assistant" },
 			},
 		});
 		await replyTool.execute({ content: "reply", messageRef: "3" }, ctx);

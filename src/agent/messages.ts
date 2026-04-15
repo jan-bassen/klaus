@@ -9,9 +9,8 @@ import {
 import { REPLY_TOOL_NAME } from "@/tools/reply";
 import type { TurnContext } from "@/types";
 
-const CHARS_PER_TOKEN = settings.context.charsPerToken;
-const MAX_REASONING_CHARS = settings.context.maxReasoningChars;
-const MAX_TOOL_RESULT_CHARS = settings.context.maxToolResultChars;
+const MAX_REASONING_CHARS = 2_000;
+const MAX_TOOL_RESULT_CHARS = 2_000;
 const TRACE_DEPTH = settings.context.traceDepth;
 const MAX_SUMMARY_ARG_CHARS = 40;
 
@@ -54,7 +53,7 @@ function summarizeTrace(steps: TraceStep[]): string {
  * for reply/react tools.
  */
 export async function buildConversationMessages(
-	turn: Omit<TurnContext, "assembled">,
+	turn: Omit<TurnContext, "vars">,
 ): Promise<{
 	messages: ModelMessage[];
 	messageRefs: Record<string, { externalId: string; role: string }>;
@@ -76,50 +75,40 @@ export async function buildConversationMessages(
 	const recent = filtered.slice(-limit);
 
 	// Budget-aware inclusion (work backwards)
-	// Only count full trace tokens for turns within TRACE_DEPTH;
+	// Only count full trace chars for turns within TRACE_DEPTH;
 	// older turns get compact summaries (negligible cost).
-	const budget = settings.context.conversationTokens;
+	const budget = settings.context.conversationChars;
 	const showTools = turn.agent.showToolsInContext;
-	let tokenCount = 0;
+	let charCount = 0;
 	const included: ConversationMessage[] = [];
 
-	// Pre-count user messages for trace depth threshold
-	let recentUserCount = 0;
-	for (let i = recent.length - 1; i >= 0; i--) {
-		if (recent[i]?.role === "user") recentUserCount++;
-	}
-	const budgetTraceThreshold = recentUserCount - TRACE_DEPTH;
 	let budgetUsersSeen = 0;
 
 	for (let i = recent.length - 1; i >= 0; i--) {
 		const row = recent[i];
 		if (!row || !row.content) continue;
 		if (row.role === "user") budgetUsersSeen++;
-		const msgTokens = Math.ceil(row.content.length / CHARS_PER_TOKEN);
-		// Only count full trace tokens for recent turns within TRACE_DEPTH
-		let traceTokens = 0;
+		const msgChars = row.content.length;
+		let traceChars = 0;
 		if (showTools && budgetUsersSeen <= TRACE_DEPTH) {
 			const trace = traces.get(row.id);
 			if (trace) {
-				traceTokens = Math.ceil(
-					trace.reduce(
-						(sum, s) =>
-							sum +
-							(s.reasoning?.length ?? 0) +
-							s.toolCalls.reduce((a, tc) => a + tc.args.length, 0) +
-							s.toolResults.reduce(
-								(a, tr) =>
-									a + Math.min(tr.result.length, MAX_TOOL_RESULT_CHARS),
-								0,
-							),
-						0,
-					) / CHARS_PER_TOKEN,
+				traceChars = trace.reduce(
+					(sum, s) =>
+						sum +
+						(s.reasoning?.length ?? 0) +
+						s.toolCalls.reduce((a, tc) => a + tc.args.length, 0) +
+						s.toolResults.reduce(
+							(a, tr) => a + Math.min(tr.result.length, MAX_TOOL_RESULT_CHARS),
+							0,
+						),
+					0,
 				);
 			}
 		}
-		if (tokenCount + msgTokens + traceTokens > budget) break;
+		if (charCount + msgChars + traceChars > budget) break;
 		included.unshift(row);
-		tokenCount += msgTokens + traceTokens;
+		charCount += msgChars + traceChars;
 	}
 
 	const messages: ModelMessage[] = [];

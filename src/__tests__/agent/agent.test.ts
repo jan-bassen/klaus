@@ -1,7 +1,37 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { unlinkSync } from "node:fs";
+import {
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	mock,
+	test,
+} from "bun:test";
+import { mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 import { z } from "zod";
+
+// Ensure the runtime message.md template exists for tests
+beforeAll(() => {
+	const vaultDir = process.env.VAULT_DIR ?? path.join(process.cwd(), "vault");
+	const klausDir = path.join(vaultDir, "Klaus");
+	mkdirSync(klausDir, { recursive: true });
+	writeFileSync(
+		path.join(klausDir, "message.md"),
+		[
+			'{{#if (eq media.kind "voice")}}Transcript of voice note.{{#if media.voice.caption}} Caption: "{{media.voice.caption}}"{{/if}}',
+			'{{else if (eq media.kind "image")}}Image',
+			'{{else if (eq media.kind "doc")}}Attached: {{media.doc.name}} ({{media.doc.mime}}){{#if media.doc.text}}',
+			"```",
+			"{{media.doc.text}}",
+			"```{{/if}}",
+			"{{/if}}",
+			"{{#if quotedText}}> Quoted: {{quotedText}}{{/if}}",
+			"",
+			"{{messageText}}",
+		].join("\n"),
+	);
+});
 
 // ---- Mocks for runAgent (must be set up before importing agent.ts) ----
 const mockCallModel = mock(async () => ({
@@ -36,33 +66,66 @@ import {
 	toolRegistry,
 	toolsetRegistry,
 } from "@/tools";
-import type { AssembledContext, TurnContext } from "@/types";
+import type { TurnContext } from "@/types";
 
 // ---- runAgent helpers ----
 
-const emptyAssembled: AssembledContext = {
-	vars: {},
-	userVars: {},
-	messageRefs: {},
-	totalTokens: 0,
-};
+function deriveMediaVar(
+	media: import("@/types").InboundMessage["media"],
+): unknown {
+	if (!media)
+		return { kind: null, doc: null, image: null, voice: null, quoted: null };
+	if (media.mimeType.startsWith("audio/")) {
+		return {
+			kind: "voice",
+			doc: null,
+			image: null,
+			voice: {
+				caption: media.voiceCaption ?? "",
+				transcript: media.transcription ?? "",
+			},
+			quoted: null,
+		};
+	}
+	if (media.mimeType.startsWith("image/")) {
+		return {
+			kind: "image",
+			doc: null,
+			image: { name: media.fileName ?? "", mime: media.mimeType },
+			voice: null,
+			quoted: null,
+		};
+	}
+	return {
+		kind: "doc",
+		doc: {
+			text: media.extractedText ?? "",
+			name: media.fileName ?? "",
+			mime: media.mimeType,
+		},
+		image: null,
+		voice: null,
+		quoted: null,
+	};
+}
 
 function makeTurn(
 	vars: Record<string, unknown> = {},
 	messageOverrides: Partial<import("@/types").InboundMessage> = {},
 ): TurnContext {
+	const message = {
+		kind: "whatsapp" as const,
+		id: "msg-1",
+		chatId: "user@s.whatsapp.net",
+		senderId: "user@s.whatsapp.net",
+		text: "hello",
+		timestamp: new Date(),
+		messageKey: {},
+		...messageOverrides,
+	};
 	return {
 		chatId: "user@s.whatsapp.net",
-		message: {
-			kind: "whatsapp",
-			id: "msg-1",
-			chatId: "user@s.whatsapp.net",
-			senderId: "user@s.whatsapp.net",
-			text: "hello",
-			timestamp: new Date(),
-			messageKey: {},
-			...messageOverrides,
-		},
+		message,
 		agent: {
 			name: "test",
 			aliases: [],
@@ -75,10 +138,10 @@ function makeTurn(
 			showToolsInContext: true,
 			promptPath: "/dev/null",
 		},
-		activeoverrides: {},
 		overrides: {},
-		templateVars: {},
-		assembled: { ...emptyAssembled, vars },
+		config: {},
+		messageRefs: {},
+		vars: { media: deriveMediaVar(message.media), ...vars },
 	};
 }
 
@@ -363,7 +426,7 @@ describe("runAgent", () => {
 
 	test("flags do not inject prompt text into user message", async () => {
 		const turn = makeTurn({}, { text: "hello" });
-		turn.activeoverrides = { voice: true };
+		turn.overrides = { voice: true };
 		turn.agent.promptPath = tmpPath;
 		await runAgent(turn, turn.agent);
 		cleanup();
@@ -549,7 +612,7 @@ describe("runAgent", () => {
 	] as const)("%s preset resolves correctly", async (_label, overrides, key, expected) => {
 		const turn = makeTurn();
 		turn.agent.promptPath = tmpPath;
-		turn.overrides = overrides;
+		turn.config = overrides;
 		await runAgent(turn, turn.agent);
 		cleanup();
 		expect((lastArg(mockCallModel) as Record<string, unknown>)[key]).toBe(
@@ -575,10 +638,10 @@ describe("runAgent", () => {
 		const turn: TurnContext = {
 			chatId: base.chatId,
 			agent: { ...base.agent, promptPath: tmpPath },
-			activeoverrides: {},
 			overrides: {},
-			templateVars: {},
-			assembled: base.assembled,
+			config: {},
+			messageRefs: {},
+			vars: base.vars,
 			dispatchContext: {
 				caller: "thinking",
 				objective: "Research LLM patterns",

@@ -58,16 +58,11 @@ function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
 			messageKey: {},
 		},
 		agent: dummyAgent,
-		activeoverrides: {},
 		overrides: {},
-		templateVars: {},
+		config: {},
+		messageRefs: {},
 		messageId: "mid-1",
-		assembled: {
-			vars: {},
-			userVars: {},
-			messageRefs: {},
-			totalTokens: 0,
-		},
+		vars: {},
 		...overrides,
 	};
 }

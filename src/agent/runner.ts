@@ -12,7 +12,7 @@ import sharp from "sharp";
 import { z } from "zod";
 import { resolveProvider, settings } from "@/config";
 import { log } from "@/logger";
-import { hbs, interpolateUserVars, stripHbsParams } from "@/markdown";
+import { hbs, interpolateUserVars } from "@/markdown";
 import { appendTrace, type TraceStep } from "@/store/conversation";
 import { addTimer, listTimers, removeTimer } from "@/store/timers";
 import { generateMetaTool, toolRegistry, toolsetRegistry } from "@/tools";
@@ -38,52 +38,10 @@ function buildSystemPrompt(
 	body: string,
 	vars: Record<string, unknown>,
 ): string {
-	const clean = stripHbsParams(body);
-	const template = hbs.compile(clean, { noEscape: true });
+	const template = hbs.compile(body, { noEscape: true });
 	return template(vars)
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
-}
-
-/** Hardcoded fallback when message.md template is missing or invalid. */
-function buildUserMessageFallback(turn: TurnContext): string {
-	const msg = turn.message;
-	if (!msg) return "";
-
-	const media = msg.media;
-	const isVoice = !!media && media.mimeType.startsWith("audio/");
-	const isImage = !!media && media.mimeType.startsWith("image/");
-	const isDocument = !!media && !isVoice && !isImage;
-
-	const parts: string[] = [];
-
-	if (isVoice) {
-		const voiceCaption = media?.voiceCaption;
-		const line = voiceCaption
-			? `Transcript of voice note. Caption: "${voiceCaption}"`
-			: "Transcript of voice note.";
-		parts.push(line);
-	} else if (isImage) {
-		parts.push("Image");
-	} else if (isDocument) {
-		const name = media?.fileName;
-		const mime = media?.mimeType;
-		if (name) parts.push(`Attached: ${name} (${mime ?? ""})`);
-		if (media?.extractedText) {
-			parts.push("```");
-			parts.push(media.extractedText);
-			parts.push("```");
-		}
-	}
-
-	if (msg.quotedMessage?.text) {
-		parts.push(`> Quoted: ${msg.quotedMessage.text}`);
-	}
-
-	const messageText = isVoice ? (media?.transcription ?? "") : (msg.text ?? "");
-	if (messageText) parts.push(messageText);
-
-	return parts.join("\n");
 }
 
 function messageTemplatePath(): string {
@@ -91,45 +49,37 @@ function messageTemplatePath(): string {
 }
 
 /**
- * Build the rich user message content from turn.message.
- * Uses {vault}/Klaus/message.md Handlebars template if present, otherwise falls back to hardcoded format.
+ * Build the rich user message content from turn.message using the
+ * `{vault}/Klaus/message.md` Handlebars template. Throws if the template is
+ * missing — setup mode guides the user to create it.
  */
 function buildUserMessageText(turn: TurnContext): string {
-	const msg = turn.message;
-	if (!msg) return "";
+	if (!turn.message) return "";
 
-	const media = msg.media;
-	const isVoice = !!media && media.mimeType.startsWith("audio/");
-	const isImage = !!media && media.mimeType.startsWith("image/");
-	const isDocument = !!media && !isVoice && !isImage;
-	const messageText = isVoice ? (media?.transcription ?? "") : (msg.text ?? "");
-
-	let raw: string;
-
+	let templateRaw: string;
 	try {
-		const templateRaw = readFileSync(messageTemplatePath(), "utf-8");
-		const template = hbs.compile(templateRaw, { noEscape: true });
-		raw = template({
-			isVoice,
-			isImage,
-			isDocument,
-			voiceCaption: media?.voiceCaption ?? "",
-			fileName: media?.fileName ?? "",
-			mimeType: media?.mimeType ?? "",
-			extractedText: media?.extractedText ?? "",
-			quotedText: msg.quotedMessage?.text ?? "",
-			messageText,
-			overrides: Object.keys(turn.activeoverrides),
-		})
-			.replace(/\n{3,}/g, "\n\n")
-			.trim();
+		templateRaw = readFileSync(messageTemplatePath(), "utf-8");
 	} catch {
-		raw = buildUserMessageFallback(turn);
+		throw new Error(
+			`Missing user message template at ${messageTemplatePath()}. Create it to format inbound messages.`,
+		);
 	}
 
-	// Interpolate $var references in user message text
-	const allVars = { ...turn.assembled.vars, ...turn.assembled.userVars };
-	return interpolateUserVars(raw, allVars);
+	const messageText = turn.message.media?.mimeType.startsWith("audio/")
+		? (turn.message.media?.transcription ?? "")
+		: (turn.message.text ?? "");
+
+	const template = hbs.compile(templateRaw, { noEscape: true });
+	const raw = template({
+		...turn.vars,
+		quotedText: turn.message.quotedMessage?.text ?? "",
+		messageText,
+		overrides: Object.keys(turn.overrides),
+	})
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+
+	return interpolateUserVars(raw, turn.vars);
 }
 
 /**
@@ -270,7 +220,7 @@ export async function runAgent(
 			description: t.description,
 			inputSchema: t.inputSchema,
 			execute: async (input) => {
-				if (t.requiresConfirmation && !turn.overrides?.autoAccept) {
+				if (t.requiresConfirmation && !turn.config?.autoAccept) {
 					if (!turn.message)
 						return "Cannot request confirmation — no inbound message context.";
 					const result = await awaitConfirmation(
@@ -302,7 +252,7 @@ export async function runAgent(
 
 	// Provider tools — injected directly (no wrapping), always active.
 	// Resolve SDK from the effective provider for this turn.
-	const effectiveProvider = turn.overrides?.provider;
+	const effectiveProvider = turn.config?.provider;
 	const providerCfg = resolveProvider(effectiveProvider);
 	for (const name of def.providerTools ?? []) {
 		const pt = getProviderTool(name, providerCfg.sdk);
@@ -398,11 +348,11 @@ export async function runAgent(
 		return [...active];
 	};
 
-	const effectiveTier = turn.overrides?.modelTier ?? def.modelTier;
-	const effectiveToolChoice = turn.overrides?.toolChoice;
+	const effectiveTier = turn.config?.modelTier ?? def.modelTier;
+	const effectiveToolChoice = turn.config?.toolChoice;
 
 	let effectiveTemperature: number | undefined;
-	const tempPreset = turn.overrides?.temperaturePreset;
+	const tempPreset = turn.config?.temperaturePreset;
 	if (tempPreset === "cold") {
 		effectiveTemperature = providerCfg.coldTemperature ?? 0;
 	} else if (tempPreset === "hot") {
@@ -412,7 +362,7 @@ export async function runAgent(
 	}
 
 	let effectiveTopP: number | undefined;
-	const topPPreset = turn.overrides?.topPPreset;
+	const topPPreset = turn.config?.topPPreset;
 	if (topPPreset === "creative") {
 		effectiveTopP = providerCfg.creativeTopP ?? 0.95;
 	} else if (topPPreset === "rigid") {
@@ -424,7 +374,7 @@ export async function runAgent(
 	let providerOptions: Record<string, Record<string, unknown>> | undefined;
 	const sdkName = providerCfg.sdk;
 
-	const reasoningEffort = turn.overrides?.reasoningEffort;
+	const reasoningEffort = turn.config?.reasoningEffort;
 	if (reasoningEffort) {
 		switch (sdkName) {
 			case "anthropic":
@@ -453,7 +403,7 @@ export async function runAgent(
 		}
 	}
 
-	if (turn.overrides?.fast) {
+	if (turn.config?.fast) {
 		switch (sdkName) {
 			case "anthropic":
 				providerOptions ??= {};
@@ -474,8 +424,7 @@ export async function runAgent(
 
 	try {
 		// Build conversation history with traces (skip if !clean override)
-		const { messages: historyMessages, messageRefs } = turn.overrides
-			?.skipHistory
+		const { messages: historyMessages, messageRefs } = turn.config?.skipHistory
 			? {
 					messages: [] as ModelMessage[],
 					messageRefs: {} as Record<
@@ -485,8 +434,8 @@ export async function runAgent(
 				}
 			: await buildConversationMessages(turn);
 
-		// Inject messageRefs into assembled context for reply/react tools
-		Object.assign(turn.assembled.messageRefs, messageRefs);
+		// Inject messageRefs for reply/react tools
+		Object.assign(turn.messageRefs, messageRefs);
 
 		// Build user content — include raw image bytes for vision if applicable.
 		// Prefer the current message's image; fall back to quoted message's image if this is a reply.
@@ -534,7 +483,7 @@ export async function runAgent(
 
 		const promptRaw = await Bun.file(def.promptPath).text();
 		const promptBody = promptRaw.replace(/^---\n[\s\S]*?\n---\n?/, "");
-		const system = buildSystemPrompt(promptBody, turn.assembled.vars);
+		const system = buildSystemPrompt(promptBody, turn.vars);
 
 		const result = await callModel({
 			tier: effectiveTier,

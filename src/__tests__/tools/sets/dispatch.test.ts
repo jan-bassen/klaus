@@ -56,10 +56,10 @@ function makeContext(overrides: Partial<TurnContext> = {}): TurnContext {
 	return {
 		chatId: "user@s.whatsapp.net",
 		agent: dummyAgent,
-		activeoverrides: {},
 		overrides: {},
-		templateVars: {},
-		assembled: { vars: {}, userVars: {}, messageRefs: {}, totalTokens: 0 },
+		config: {},
+		messageRefs: {},
+		vars: {},
 		...overrides,
 	};
 }

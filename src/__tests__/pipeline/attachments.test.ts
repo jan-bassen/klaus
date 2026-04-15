@@ -24,7 +24,7 @@ mock.module("@llamaindex/liteparse", () => ({
 }));
 
 const { parseDocument, isParseableDocument, _resetParserForTest } =
-	await import("@/pipeline/parse-document");
+	await import("@/pipeline/attachments");
 
 let tmpDir: string;
 

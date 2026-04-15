@@ -50,7 +50,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 				}
 				ref = { externalId: context.message.id, role: "user" };
 			} else {
-				ref = context.assembled?.messageRefs?.[messageRef];
+				ref = context.messageRefs?.[messageRef];
 			}
 			if (!ref) return { error: `Unknown message reference: #${messageRef}` };
 			quoted = { externalId: ref.externalId, fromMe: ref.role !== "user" };
@@ -58,7 +58,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 
 		// Persist assistant message to conversation (skip for ghost mode)
 		let rowId: string | undefined;
-		if (!context.overrides?.ghost) {
+		if (!context.config?.ghost) {
 			try {
 				rowId = await appendMessage({
 					role: "assistant",
@@ -86,8 +86,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			: `${context.chatId}:reply:${crypto.randomUUID()}`;
 		const quotedPart = quoted ? { quoted } : {};
 		const useVoice =
-			!context.overrides?.suppressVoice &&
-			(voice || context.overrides?.forceVoice);
+			!context.config?.suppressVoice && (voice || context.config?.forceVoice);
 		if (useVoice) {
 			const audio = await textToSpeech(content);
 			if (audio instanceof Error) {

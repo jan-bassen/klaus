@@ -80,7 +80,7 @@ Agent frontmatter can set any override field directly as a default (e.g. `forceV
 
 ### override fields in agent frontmatter
 
-Any field from the `overrides` type can be set directly in agent YAML frontmatter as a default:
+Any field from the `TurnConfig` type can be set directly in agent YAML frontmatter as a default:
 
 ```yaml
 ---
@@ -110,19 +110,34 @@ The file is hot-reloaded — no restart needed.
 
 ---
 
-## Context Variables
+## Variables
 
-Dynamic content injected into prompts. System prompts use `{{var}}`, user messages use `$var`. Both support params: `{{var?key=val}}` / `$var?key=val`. Defined in `src/context/`.
+Dynamic content injected into prompts and user message templates. All templates see the same unified nested namespace. Reference with `{{var.path}}` in Handlebars templates, `$var.path` in user-typed message text. Defined in `src/variables/`.
 
-| Variable | Priority | Params | Description |
-|----------|----------|--------|-------------|
-| `snippets` | -1 | — | Loads `Klaus/snippets/*.md` + `user.md` as template vars (scope-aware) |
-| `date` | -1 | — | Current date (locale-aware) |
-| `time` | -1 | — | Current time (locale-aware) |
-| `weekday` | -1 | — | Day of the week |
-| `active_tasks` | 4 | `limit=N` | Running async jobs and pending timers |
-| `dispatch_context` | -1 | — | Dispatch caller and objective (injected when invoked via `dispatch.agent`) |
-| *(template vars)* | — | — | All resolved settings from `turn.templateVars` are seeded into assembled vars (e.g. `{{forceVoice}}`, `{{provider}}`, `{{isVoiceOn}}`). Computed by `buildTemplateVars()` — not a context variable. |
+| Key | Shape | Description |
+|-----|-------|-------------|
+| `time` | `{ date, time, weekday }` | Current date, time, and weekday (locale/timezone-aware) |
+| `media` | `{ kind, doc, image, voice, quoted }` | Attached media for the current message. `kind` is `"doc" \| "image" \| "voice" \| null`; only one of `doc`/`image`/`voice` is populated accordingly. |
+| `tasks` | `{ active: [{ kind, objective, runAt? }] }` | Running async jobs and pending timers |
+| `dispatch` | `{ caller, objective, hint, mode, hasMessage } \| null` | Set when the agent was invoked via `dispatch.agent` (or scheduled/persistent tick); `null` for direct `@agent` calls |
+| `config` | `TurnConfig` + `{ isVoiceOn, isVoiceOff, isVoiceAuto }` | Effective turn configuration — agent frontmatter defaults merged with per-message overrides. Templates read this without caring about provenance (e.g. `config.forceVoice`, `config.modelTier`, `config.provider`, `config.isVoiceOn`). |
+| `snippets` | `{ [name]: compiledText }` | Each `Klaus/snippets/*.md` compiled through Handlebars with the full namespace. `user.md` is excluded — it lives under `user`. |
+| `user` | `{ profile }` | User profile loaded from `snippets/user.md` |
+
+### Handlebars helpers
+
+Use these to shape values in templates:
+
+- `{{trunc value max [suffix="…"]}}` — cap a string at `max` chars, appending `…` (or a custom suffix). The only truncation primitive — there is no global budget.
+- `{{limit array n}}` — slice an array to its first N elements (useful with `{{#each (limit …)}}`).
+- `{{eq a b}}`, `{{ne a b}}`, `{{lt a b}}`, `{{gt a b}}` — comparisons.
+- `{{and …}}`, `{{or …}}`, `{{not a}}` — logic.
+- `{{default value fallback}}` — fallback when `value` is falsy.
+- `{{join array sep}}` — join an array.
+
+### Variable ordering
+
+Variables run in parallel. A variable may opt into a second phase by setting `after: true` on its definition; it then receives the phase-1 namespace via `turn.vars`. `snippets` is the canonical example — it needs the full namespace to compile snippet Handlebars.
 
 ---
 
@@ -233,18 +248,13 @@ Provider configuration. Each named entry (claude, chatgpt, gemini) uses the same
 
 ### context
 
-Token budgets and conversation history limits.
+Conversation history limits. Per-variable truncation inside prompts is done with `{{trunc …}}` — there is no global token budget.
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `totalTokens` | `100000` | Total token budget |
-| `conversationTokens` | `20000` | Budget for conversation history |
-| `activeTasksTokens` | `5000` | Budget for task context |
-| `defaultConversationLimit` | `20` | Max messages in history |
-| `charsPerToken` | `4` | Token estimation ratio |
-| `maxReasoningChars` | `2000` | Cap extended reasoning in context |
-| `maxToolResultChars` | `2000` | Cap tool output in context |
-| `traceDepth` | `3` | Recent turns with full traces shown |
+| `conversationChars` | `80000` | Char budget for conversation history included in the model call |
+| `defaultConversationLimit` | `20` | Max messages pulled from storage before budget trimming |
+| `traceDepth` | `3` | Most recent user turns that keep full tool traces; older turns get compact summaries |
 | `conversationLookbackDays` | `7` | How far back to load history |
 
 ### rateLimits

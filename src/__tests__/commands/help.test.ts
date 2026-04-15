@@ -5,50 +5,29 @@ import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
 const mockEnqueueMessage = mock((_opts: unknown) => undefined);
 mock.module("@/whatsapp/send", () => ({ enqueueMessage: mockEnqueueMessage }));
 
-const mockGetContextVariables = mock(() => [
+const mockGetVariables = mock(() => [
 	{
-		name: "date",
-		description: "Current date",
-		priority: -1,
-		run: async () => ({
-			content: "",
-			tokenCount: 0,
-			truncate: "never" as const,
-		}),
+		key: "time",
+		description: "Date, time, and weekday",
+		run: async () => ({}),
 	},
 	{
-		name: "active_tasks",
+		key: "tasks",
 		description: "Running jobs and pending timers",
-		params: { limit: "max items" },
-		priority: 4,
-		run: async () => ({
-			content: "",
-			tokenCount: 0,
-			truncate: "always" as const,
-		}),
+		run: async () => ({}),
 	},
 	{
-		name: "dispatch_context",
-		description: "Dispatch caller and objective",
+		key: "dispatch",
+		description: "Dispatch caller, objective, and mode",
 		hidden: true,
-		priority: -1,
-		run: async () => ({
-			content: "",
-			tokenCount: 0,
-			truncate: "never" as const,
-		}),
+		run: async () => null,
 	},
 ]);
-mock.module("@/context", () => ({
-	getContextVariables: mockGetContextVariables,
-	setContextVariables: () => {},
-	loadContextVariables: async () => [],
-	assembleContext: async () => ({
-		vars: {},
-		userVars: {},
-		messageRefs: {},
-		totalTokens: 0,
-	}),
+mock.module("@/variables", () => ({
+	getVariables: mockGetVariables,
+	setVariables: () => {},
+	loadVariables: async () => [],
+	assembleVariables: async () => ({}),
 }));
 
 // ─── Import after mocks ───────────────────────────────────────────────────────

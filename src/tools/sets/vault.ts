@@ -32,7 +32,7 @@ async function gate(
 	if (perm === "denied")
 		return { error: permissionError(resolved.folder.path, op) };
 
-	if (perm === "needs_confirmation" && !context.overrides?.autoAccept) {
+	if (perm === "needs_confirmation" && !context.config?.autoAccept) {
 		if (!context.message)
 			return {
 				error: "Cannot request confirmation — no inbound message context.",

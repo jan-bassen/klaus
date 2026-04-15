@@ -3,7 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 import { settings } from "@/config";
 import { log } from "@/logger";
-import { isParseableDocument, parseDocument } from "@/pipeline/parse-document";
+import { isParseableDocument, parseDocument } from "@/pipeline/attachments";
 import { deleteFile, findFile, listFiles, saveFileMeta } from "@/store/files";
 import type { ToolDefinition, ToolsetDefinition } from "@/types";
 

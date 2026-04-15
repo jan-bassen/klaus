@@ -2,9 +2,9 @@ import { agentRegistry } from "@/agent";
 import type { Command } from "@/commands";
 import { registry } from "@/commands";
 import { settings } from "@/config";
-import { getContextVariables } from "@/context";
 import { overrideRegistry } from "@/pipeline/overrides";
 import type { InboundMessage } from "@/types";
+import { getVariables } from "@/variables";
 import { enqueueMessage } from "@/whatsapp/send";
 
 function buildCommandsSection(): string {
@@ -51,22 +51,18 @@ function buildoverridesSection(): string {
 }
 
 function buildVarsSection(): string {
-	const vars = getContextVariables().filter((v) => !v.hidden);
+	const vars = getVariables().filter((v) => !v.hidden);
 
 	const lines: string[] = [];
 	for (const v of vars) {
 		const desc = v.description ? ` — ${v.description}` : "";
-		let line = `• $${v.name}${desc}`;
-		if (v.params) {
-			const paramStr = Object.entries(v.params)
-				.map(([k, d]) => `${k}: ${d}`)
-				.join(", ");
-			line += `\n  params: ${paramStr}`;
-		}
-		lines.push(line);
+		lines.push(`• ${v.key}${desc}`);
 	}
 
-	lines.push("", "_$var in messages, {{var}} in prompts_");
+	lines.push(
+		"",
+		"_Use {{var.path}} in prompts and $var.path in messages. Truncate long values with {{trunc value 5000}}._",
+	);
 	return `*Variables*\n${lines.join("\n")}`;
 }
 

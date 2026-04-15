@@ -18,9 +18,8 @@ import {
 	stopSettingsWatcher,
 	watchSettings,
 } from "./config";
-import { loadContextVariables, setContextVariables } from "./context";
 import { log } from "./logger";
-import { loadoverrides } from "./pipeline/overrides";
+import { loadOverrides } from "./pipeline/overrides";
 import { rebuildIndexes as rebuildConversationIndexes } from "./store/conversation";
 import { rebuildFileIndex } from "./store/files";
 import {
@@ -33,6 +32,7 @@ import {
 import { loadTimers, setOnTimerFire, stopAllTimers } from "./store/timers";
 import { loadAllTools } from "./tools";
 import { loadSkills, skillRegistry } from "./tools/skill";
+import { loadVariables, setVariables } from "./variables";
 import { startWatching, stopWatching } from "./vault/watcher";
 import {
 	closeSocket,
@@ -154,20 +154,18 @@ async function main(): Promise<void> {
 		await mkdir(dir, { recursive: true });
 	}
 
-	// 2. Load tools, agents (from vault), context variables, skills, overrides
-	log.info(
-		"[startup] loading tools, agents, context variables, skills, and overrides",
-	);
+	// 2. Load tools, agents (from vault), variables, skills, overrides
+	log.info("[startup] loading tools, agents, variables, skills, and overrides");
 	await loadAllTools(path.join(import.meta.dir, "tools"));
-	await loadoverrides();
+	await loadOverrides();
 
 	const agentsDir = settings.vault.agentsDir;
 	await loadAgents(agentsDir);
 
-	const contextVariables = await loadContextVariables(
-		path.join(import.meta.dir, "context"),
+	const variables = await loadVariables(
+		path.join(import.meta.dir, "variables"),
 	);
-	setContextVariables(contextVariables);
+	setVariables(variables);
 
 	await loadSkills(settings.vault.skillsDir);
 

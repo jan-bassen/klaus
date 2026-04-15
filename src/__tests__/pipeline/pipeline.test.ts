@@ -111,7 +111,6 @@ mock.module("@/store/files", () => ({
 import { agentRegistry } from "@/agent";
 import { registry } from "@/commands";
 import { settings } from "@/config";
-import { setContextVariables } from "@/context";
 import {
 	_clearAgentRunnerForTest,
 	_setAgentRunnerForTest,
@@ -119,6 +118,7 @@ import {
 } from "@/pipeline";
 import { overrideRegistry } from "@/pipeline/overrides";
 import { _resetForTest, checkMessageRate } from "@/pipeline/rate-limit";
+import { setVariables } from "@/variables";
 
 // ─── Test seam — captures agent turns without mock.module pollution ──────────
 
@@ -188,7 +188,7 @@ beforeAll(async () => {
 	});
 
 	// Use no context variables so assembleContext always returns { vars: {}, totalTokens: 0 }
-	setContextVariables([]);
+	setVariables([]);
 
 	// Inject the agent runner test seam
 	_setAgentRunnerForTest(mockAgentRunner);

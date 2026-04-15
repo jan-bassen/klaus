@@ -51,7 +51,6 @@ export const TurnLogSchema = z.object({
 	userMessage: z.string().optional(),
 
 	// Context assembly
-	contextTokens: z.number(),
 	conversationMessages: z.number(),
 
 	// LLM execution

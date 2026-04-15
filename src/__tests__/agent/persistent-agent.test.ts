@@ -42,16 +42,9 @@ mock.module("@/store/timers", () => ({
 
 import { loadAgentDefinition } from "@/agent";
 import { clampNextRun, runAgent } from "@/agent/runner";
-import type { AssembledContext, TurnContext } from "@/types";
+import type { TurnContext } from "@/types";
 
 // ---- Helpers ----
-
-const emptyAssembled: AssembledContext = {
-	vars: {},
-	userVars: {},
-	messageRefs: {},
-	totalTokens: 0,
-};
 
 function makeTurn(
 	agentOverrides: Partial<TurnContext["agent"]> = {},
@@ -80,10 +73,10 @@ function makeTurn(
 			promptPath: "/dev/null",
 			...agentOverrides,
 		},
-		activeoverrides: {},
 		overrides: {},
-		templateVars: {},
-		assembled: { ...emptyAssembled },
+		config: {},
+		messageRefs: {},
+		vars: {},
 	};
 }
 

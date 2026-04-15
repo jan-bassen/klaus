@@ -69,7 +69,12 @@
 			"Bash(mv core/dispatch.test.ts agent/)",
 			"Bash(mv core/model-router.test.ts agent/)",
 			"Bash(bun:*)",
-			"Bash(git stash:*)"
+			"Bash(git stash:*)",
+			"Bash(git mv:*)",
+			"Bash(awk '{if\\($2==\"fail\"\\) fails+=$1; else passes+=$1} END {print \"Pass:\",passes,\"Fail:\",fails}')",
+			"Bash(perl -0777 -i -pe 's/activeoverrides: \\\\{\\\\},\\\\n\\(\\\\s*\\)overrides: \\\\{\\\\},/overrides: {},\\\\n${1}config: {},/g' src/__tests__/tools/files.test.ts src/__tests__/tools/reply.test.ts src/__tests__/tools/sets/dispatch.test.ts src/__tests__/tools/conversation.test.ts src/__tests__/agent/persistent-agent.test.ts src/__tests__/agent/conversation-replay.test.ts src/__tests__/variables/dispatch.test.ts src/__tests__/variables/snippets.test.ts src/__tests__/variables/assemble.test.ts)",
+			"Bash(perl -i -pe 's/\\\\bparseoverrides\\\\b/parseOverrides/g; s/\\\\bstripoverrides\\\\b/stripOverrides/g; s/\\\\bresolveoverrides\\\\b/resolveOverrides/g; s/\\\\bloadoverrides\\\\b/loadOverrides/g; s/\\\\bgetKnownoverrides\\\\b/getKnownOverrides/g; s/\\\\boverrideDef\\\\b/OverrideDef/g;' src/__tests__/pipeline/flags.test.ts)",
+			"Bash(perl -i -pe 's/import type \\\\{ overrides \\\\} from \"\\\\@\\\\/pipeline\\\\/overrides\";/import type { TurnConfig } from \"\\\\@\\\\/pipeline\\\\/overrides\";/g; s/: overrides = /: TurnConfig = /g;' src/__tests__/agent/modes.test.ts)"
 		]
 	}
 }

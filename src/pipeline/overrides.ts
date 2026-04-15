@@ -4,10 +4,14 @@ import { modelTiers, settings } from "@/config";
 import { log } from "@/logger";
 import type { AgentDefinition } from "@/types";
 
-// ── overrides interface ────────────────────────────────────────────────
+// ── TurnConfig ─────────────────────────────────────────────────────────
 
-/** Typed overrides consumed by pipeline and agent. */
-export interface overrides {
+/**
+ * Effective turn configuration — agent frontmatter defaults merged with
+ * per-message override presets. Consumed by the pipeline, runner, and the
+ * `config` variable; templates read this via `{{config.*}}`.
+ */
+export interface TurnConfig {
 	forceVoice?: boolean;
 	skipHistory?: boolean;
 	modelTier?: (typeof modelTiers)[number];
@@ -23,6 +27,7 @@ export interface overrides {
 	[key: string]: unknown;
 }
 
+/** Validation schema for the `overrides:` map inside a preset entry in overrides.yaml. */
 export const overridesSchema = z
 	.object({
 		forceVoice: z.boolean().optional(),
@@ -40,23 +45,15 @@ export const overridesSchema = z
 	})
 	.passthrough();
 
-// ── override definition ────────────────────────────────────────────────
+// ── Override preset definition ─────────────────────────────────────────
 
-/** A named preset that maps a !name to an overrides map. */
-export interface overrideDef {
+/** A named preset that maps a `!name` to a partial TurnConfig. */
+export interface OverrideDef {
 	name: string;
 	aliases?: string[];
 	description: string;
-	overrides: overrides;
+	overrides: TurnConfig;
 }
-
-const overrideDefShape = z
-	.object({
-		name: z.string(),
-		description: z.string(),
-		overrides: z.record(z.unknown()),
-	})
-	.passthrough();
 
 // ── YAML entry schema ──────────────────────────────────────────────────
 
@@ -71,9 +68,9 @@ const YamlFileSchema = z.record(z.string(), YamlEntrySchema);
 // ── Registry ────────────────────────────────────────────────────────────
 
 /** Map for O(1) lookup — indexes both canonical names and aliases. */
-export const overrideRegistry = new Map<string, overrideDef>();
+export const overrideRegistry = new Map<string, OverrideDef>();
 
-function registeroverride(def: overrideDef): void {
+function registerOverride(def: OverrideDef): void {
 	overrideRegistry.set(def.name, def);
 	if (def.aliases) {
 		for (const alias of def.aliases) overrideRegistry.set(alias, def);
@@ -82,14 +79,14 @@ function registeroverride(def: overrideDef): void {
 }
 
 /** Returns all known override preset names and aliases. */
-export function getKnownoverrides(): string[] {
+export function getKnownOverrides(): string[] {
 	return [...overrideRegistry.keys()];
 }
 
 // ── Loader ──────────────────────────────────────────────────────────────
 
 /** Load override presets from a YAML file. Called at startup and on hot-reload. */
-export async function loadoverrides(yamlPath?: string): Promise<void> {
+export async function loadOverrides(yamlPath?: string): Promise<void> {
 	overrideRegistry.clear();
 	const filePath = yamlPath ?? `${settings.vault.internalPath}/overrides.yaml`;
 
@@ -120,11 +117,11 @@ export async function loadoverrides(yamlPath?: string): Promise<void> {
 	}
 
 	for (const [name, entry] of Object.entries(result.data)) {
-		registeroverride({
+		registerOverride({
 			name,
 			...(entry.aliases ? { aliases: entry.aliases } : {}),
 			description: entry.description,
-			overrides: entry.overrides as overrides,
+			overrides: entry.overrides as TurnConfig,
 		});
 	}
 
@@ -141,8 +138,8 @@ function overrideName(token: string): string | null {
 	return def ? def.name : null;
 }
 
-/** Parse !overrides from a message and return the active presets. */
-export function parseoverrides(msg: {
+/** Parse `!preset` tokens from a message and return the active preset names. */
+export function parseOverrides(msg: {
 	text?: string;
 }): Record<string, boolean> {
 	if (!msg.text) return {};
@@ -155,8 +152,8 @@ export function parseoverrides(msg: {
 	return active;
 }
 
-/** Remove recognized !override tokens from text and collapse whitespace. */
-export function stripoverrides(text: string): string {
+/** Remove recognized `!preset` tokens from text and collapse whitespace. */
+export function stripOverrides(text: string): string {
 	return text
 		.split(/\s+/)
 		.filter((token) => overrideName(token) === null)
@@ -166,9 +163,9 @@ export function stripoverrides(text: string): string {
 
 // ── Resolution ──────────────────────────────────────────────────────────
 
-/** Resolve parsed presets into typed overrides by merging the overrides maps. */
-export function resolveoverrides(active: Record<string, boolean>): overrides {
-	const result: overrides = {};
+/** Resolve parsed presets into a single TurnConfig by merging their override maps. */
+export function resolveOverrides(active: Record<string, boolean>): TurnConfig {
+	const result: TurnConfig = {};
 	for (const [name, on] of Object.entries(active)) {
 		if (!on) continue;
 		const def = overrideRegistry.get(name);
@@ -180,8 +177,8 @@ export function resolveoverrides(active: Record<string, boolean>): overrides {
 
 // ── Agent defaults ──────────────────────────────────────────────────────
 
-/** override keys that can appear directly in agent frontmatter as defaults. */
-const override_KEYS: readonly (keyof overrides)[] = [
+/** Keys that can appear directly in agent frontmatter as defaults. */
+const AGENT_DEFAULT_KEYS: readonly (keyof TurnConfig)[] = [
 	"forceVoice",
 	"suppressVoice",
 	"skipHistory",
@@ -199,45 +196,29 @@ const override_KEYS: readonly (keyof overrides)[] = [
  * Per-message overrides always take precedence.
  */
 export function resolveAgentDefaults(
-	presetoverrides: overrides,
+	presetOverrides: TurnConfig,
 	def: AgentDefinition,
-): overrides {
-	const agentDefaults: overrides = {};
+): TurnConfig {
+	const agentDefaults: TurnConfig = {};
 
-	// Extract override fields from agent frontmatter
-	for (const key of override_KEYS) {
+	for (const key of AGENT_DEFAULT_KEYS) {
 		const value = (def as Record<string, unknown>)[key];
 		if (value !== undefined) {
 			(agentDefaults as Record<string, unknown>)[key] = value;
 		}
 	}
 
-	// provider and modelTier are already first-class frontmatter fields
+	// provider and modelTier are first-class frontmatter fields
 	if (def.provider !== undefined) agentDefaults.provider = def.provider;
+	if (def.modelTier !== undefined) agentDefaults.modelTier = def.modelTier;
 
 	// Merge: per-message overrides win over agent defaults
-	const result = { ...agentDefaults, ...presetoverrides };
+	const result = { ...agentDefaults, ...presetOverrides };
 
 	// Special case: !voice always clears suppressVoice
-	if (presetoverrides.forceVoice) {
+	if (presetOverrides.forceVoice) {
 		result.suppressVoice = false;
 	}
 
 	return result;
-}
-
-// ── Template vars ──────────────────────────────────────────────────────
-
-/** Compute the flat template vars available in all Handlebars templates (agent prompts, snippets). */
-export function buildTemplateVars(
-	ov: overrides,
-	agent: AgentDefinition,
-): Record<string, unknown> {
-	return {
-		...ov,
-		provider: agent.provider ?? "default",
-		isVoiceOn: !!ov.forceVoice,
-		isVoiceOff: !!ov.suppressVoice,
-		isVoiceAuto: !ov.forceVoice && !ov.suppressVoice,
-	};
 }

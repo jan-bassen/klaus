@@ -1,13 +1,13 @@
 import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import path from "node:path";
 import {
-	getKnownoverrides,
-	loadoverrides,
-	type overrideDef,
+	getKnownOverrides,
+	loadOverrides,
+	type OverrideDef,
 	overrideRegistry,
-	parseoverrides,
-	resolveoverrides,
-	stripoverrides,
+	parseOverrides,
+	resolveOverrides,
+	stripOverrides,
 } from "@/pipeline/overrides";
 
 // ── Setup: load all override definitions before tests ──────────────────────
@@ -15,10 +15,10 @@ import {
 const yamlPath = path.join(import.meta.dir, "..", "fixtures", "overrides.yaml");
 
 beforeAll(async () => {
-	await loadoverrides(yamlPath);
+	await loadOverrides(yamlPath);
 });
 
-// Add a test-only override for parseoverrides/stripoverrides tests
+// Add a test-only override for parseOverrides/stripOverrides tests
 beforeAll(() => {
 	overrideRegistry.set("test", {
 		name: "test",
@@ -44,7 +44,7 @@ function makeMsg(text?: string): { text?: string } {
 
 // ── Loader ───────────────────────────────────────────────────────────────────
 
-describe("loadoverrides", () => {
+describe("loadOverrides", () => {
 	test("discovers all 19 presets", () => {
 		const canonical = new Set(
 			[...overrideRegistry.values()].map((f) => f.name),
@@ -64,7 +64,7 @@ describe("loadoverrides", () => {
 // ── Registry aliases ─────────────────────────────────────────────────────────
 
 describe("overrideRegistry aliases", () => {
-	test("alias keys resolve to the correct overrideDef", () => {
+	test("alias keys resolve to the correct OverrideDef", () => {
 		expect(overrideRegistry.get("s")?.name).toBe("small");
 		expect(overrideRegistry.get("m")?.name).toBe("medium");
 		expect(overrideRegistry.get("l")?.name).toBe("large");
@@ -72,19 +72,19 @@ describe("overrideRegistry aliases", () => {
 		expect(overrideRegistry.get("nt")?.name).toBe("no-tools");
 	});
 
-	test("getKnownoverrides includes aliases", () => {
-		const known = getKnownoverrides();
+	test("getKnownOverrides includes aliases", () => {
+		const known = getKnownOverrides();
 		expect(known).toContain("small");
 		expect(known).toContain("s");
 		expect(known).toContain("nt");
 	});
 });
 
-// ── resolveoverrides ───────────────────────────────────────────────────────
+// ── resolveOverrides ───────────────────────────────────────────────────────
 
-describe("resolveoverrides", () => {
+describe("resolveOverrides", () => {
 	test("returns empty object for no flags", () => {
-		expect(resolveoverrides({})).toEqual({});
+		expect(resolveOverrides({})).toEqual({});
 	});
 
 	test.each([
@@ -108,22 +108,22 @@ describe("resolveoverrides", () => {
 		["chatgpt", { chatgpt: true }, { provider: "chatgpt" }],
 		["gemini", { gemini: true }, { provider: "gemini" }],
 	] as const)("%s flag maps correctly", (_label, input, expected) => {
-		expect(resolveoverrides(input)).toEqual(expected);
+		expect(resolveOverrides(input)).toEqual(expected);
 	});
 
 	test("combines multiple flags", () => {
-		expect(resolveoverrides({ voice: true, large: true })).toEqual({
+		expect(resolveOverrides({ voice: true, large: true })).toEqual({
 			forceVoice: true,
 			modelTier: "large",
 		});
 	});
 
 	test("ignores false flags", () => {
-		expect(resolveoverrides({ voice: false, clean: false })).toEqual({});
+		expect(resolveOverrides({ voice: false, clean: false })).toEqual({});
 	});
 
 	test("ignores unknown flags", () => {
-		expect(resolveoverrides({ unknown: true })).toEqual({});
+		expect(resolveOverrides({ unknown: true })).toEqual({});
 	});
 
 	test.each([
@@ -138,44 +138,44 @@ describe("resolveoverrides", () => {
 		],
 		["reasoning effort", { low: true, high: true }, "reasoningEffort", "high"],
 	] as const)("last %s flag wins", (_label, input, key, expected) => {
-		const result = resolveoverrides(input);
+		const result = resolveOverrides(input);
 		expect(result[key as keyof typeof result]).toBe(expected);
 	});
 });
 
-// ── parseoverrides ─────────────────────────────────────────────────────────
+// ── parseOverrides ─────────────────────────────────────────────────────────
 
 const flagA = "test";
 const flagB = "voice";
 
-describe("parseoverrides", () => {
+describe("parseOverrides", () => {
 	test("returns {} when text is undefined", () => {
-		expect(parseoverrides(makeMsg(undefined))).toEqual({});
+		expect(parseOverrides(makeMsg(undefined))).toEqual({});
 	});
 
 	test("returns {} when text is empty", () => {
-		expect(parseoverrides(makeMsg(""))).toEqual({});
+		expect(parseOverrides(makeMsg(""))).toEqual({});
 	});
 
 	test("returns {} when no flags in text", () => {
-		expect(parseoverrides(makeMsg("just a normal message"))).toEqual({});
+		expect(parseOverrides(makeMsg("just a normal message"))).toEqual({});
 	});
 
 	test("parses a single known flag at the start", () => {
-		expect(parseoverrides(makeMsg(`!${flagA} tell me more`))).toEqual({
+		expect(parseOverrides(makeMsg(`!${flagA} tell me more`))).toEqual({
 			[flagA]: true,
 		});
 	});
 
 	test("parses a single known flag at the end", () => {
-		expect(parseoverrides(makeMsg(`explain this !${flagA}`))).toEqual({
+		expect(parseOverrides(makeMsg(`explain this !${flagA}`))).toEqual({
 			[flagA]: true,
 		});
 	});
 
 	test("parses a flag mid-sentence", () => {
 		expect(
-			parseoverrides(makeMsg(`please !${flagA} give me the data`)),
+			parseOverrides(makeMsg(`please !${flagA} give me the data`)),
 		).toEqual({
 			[flagA]: true,
 		});
@@ -184,32 +184,32 @@ describe("parseoverrides", () => {
 	test("parses multiple known flags", () => {
 		const text = `!${flagA} !${flagB} explain`;
 		const expected = { [flagA]: true, [flagB]: true };
-		expect(parseoverrides(makeMsg(text))).toEqual(expected);
+		expect(parseOverrides(makeMsg(text))).toEqual(expected);
 	});
 
 	test("ignores unknown flags", () => {
-		expect(parseoverrides(makeMsg("!banana explain"))).toEqual({});
+		expect(parseOverrides(makeMsg("!banana explain"))).toEqual({});
 	});
 
 	test("returns only known flags when mixed with unknown", () => {
-		expect(parseoverrides(makeMsg(`!${flagA} !banana`))).toEqual({
+		expect(parseOverrides(makeMsg(`!${flagA} !banana`))).toEqual({
 			[flagA]: true,
 		});
 	});
 
 	test("handles duplicate flags idempotently", () => {
-		expect(parseoverrides(makeMsg(`!${flagA} !${flagA}`))).toEqual({
+		expect(parseOverrides(makeMsg(`!${flagA} !${flagA}`))).toEqual({
 			[flagA]: true,
 		});
 	});
 
 	test("is case-sensitive — uppercase flags are not recognized", () => {
 		const upper = flagA.charAt(0).toUpperCase() + flagA.slice(1);
-		expect(parseoverrides(makeMsg(`!${upper}`))).toEqual({});
+		expect(parseOverrides(makeMsg(`!${upper}`))).toEqual({});
 	});
 
 	test("does not match a bare ! with no name", () => {
-		expect(parseoverrides(makeMsg("hey ! what"))).toEqual({});
+		expect(parseOverrides(makeMsg("hey ! what"))).toEqual({});
 	});
 
 	test("parses all flags loaded in registry (canonical names)", () => {
@@ -218,15 +218,15 @@ describe("parseoverrides", () => {
 		];
 		const text = canonicalNames.map((f) => `!${f}`).join(" ");
 		const expected = Object.fromEntries(canonicalNames.map((f) => [f, true]));
-		expect(parseoverrides(makeMsg(text))).toEqual(expected);
+		expect(parseOverrides(makeMsg(text))).toEqual(expected);
 	});
 
 	test("alias resolves to canonical name", () => {
-		expect(parseoverrides(makeMsg("!s hello"))).toEqual({ small: true });
+		expect(parseOverrides(makeMsg("!s hello"))).toEqual({ small: true });
 	});
 
 	test("multiple aliases resolve to canonical names", () => {
-		expect(parseoverrides(makeMsg("!s !v !nt explain"))).toEqual({
+		expect(parseOverrides(makeMsg("!s !v !nt explain"))).toEqual({
 			small: true,
 			voice: true,
 			"no-tools": true,
@@ -234,53 +234,53 @@ describe("parseoverrides", () => {
 	});
 
 	test("mixing canonical names and aliases", () => {
-		expect(parseoverrides(makeMsg("!small !v text"))).toEqual({
+		expect(parseOverrides(makeMsg("!small !v text"))).toEqual({
 			small: true,
 			voice: true,
 		});
 	});
 });
 
-// ── stripoverrides ─────────────────────────────────────────────────────────
+// ── stripOverrides ─────────────────────────────────────────────────────────
 
-describe("stripoverrides", () => {
+describe("stripOverrides", () => {
 	test("removes a recognized flag and trims", () => {
-		expect(stripoverrides(`!${flagA} tell me more`)).toBe("tell me more");
+		expect(stripOverrides(`!${flagA} tell me more`)).toBe("tell me more");
 	});
 
 	test("removes multiple recognized flags", () => {
-		expect(stripoverrides(`!${flagA} !${flagB} explain this`)).toBe(
+		expect(stripOverrides(`!${flagA} !${flagB} explain this`)).toBe(
 			"explain this",
 		);
 	});
 
 	test("leaves unknown !words intact", () => {
-		expect(stripoverrides("!banana explain")).toBe("!banana explain");
+		expect(stripOverrides("!banana explain")).toBe("!banana explain");
 	});
 
 	test("removes only recognized flags among mixed tokens", () => {
-		expect(stripoverrides(`!${flagA} !banana data`)).toBe("!banana data");
+		expect(stripOverrides(`!${flagA} !banana data`)).toBe("!banana data");
 	});
 
 	test("collapses extra whitespace", () => {
-		expect(stripoverrides(`  !${flagA}   tell   me  `)).toBe("tell me");
+		expect(stripOverrides(`  !${flagA}   tell   me  `)).toBe("tell me");
 	});
 
 	test("returns empty string when only flags remain", () => {
-		expect(stripoverrides(`!${flagA} !${flagB}`)).toBe("");
+		expect(stripOverrides(`!${flagA} !${flagB}`)).toBe("");
 	});
 
 	test("returns the text unchanged when no flags present", () => {
-		expect(stripoverrides("just a normal message")).toBe(
+		expect(stripOverrides("just a normal message")).toBe(
 			"just a normal message",
 		);
 	});
 
 	test("leaves bare ! intact", () => {
-		expect(stripoverrides("hey ! what")).toBe("hey ! what");
+		expect(stripOverrides("hey ! what")).toBe("hey ! what");
 	});
 
 	test("strips alias tokens", () => {
-		expect(stripoverrides("!s !v tell me more")).toBe("tell me more");
+		expect(stripOverrides("!s !v tell me more")).toBe("tell me more");
 	});
 });

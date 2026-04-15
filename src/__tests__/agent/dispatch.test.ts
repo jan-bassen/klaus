@@ -4,14 +4,9 @@ import type { AgentDefinition, DispatchOptions } from "@/types";
 
 // ─── mocks (avoid mock.module('@/core/agent') — it poisons agent.test.ts) ───
 
-const mockAssembleContext = mock(async () => ({
-	vars: {},
-	userVars: {},
-	messageRefs: {},
-	totalTokens: 0,
-}));
-mock.module("@/context", () => ({
-	assembleContext: mockAssembleContext,
+const mockAssembleVariables = mock(async () => ({}));
+mock.module("@/variables", () => ({
+	assembleVariables: mockAssembleVariables,
 }));
 
 const mockEnqueueJob = mock(() => {});
@@ -85,7 +80,7 @@ function makeOpts(overrides: Partial<DispatchOptions> = {}): DispatchOptions {
 beforeEach(() => {
 	mockRunAgent.mockClear();
 	mockLoadAgentDefinition.mockClear();
-	mockAssembleContext.mockClear();
+	mockAssembleVariables.mockClear();
 	mockEnqueueJob.mockClear();
 	agentRegistry.clear();
 });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { overrides } from "@/pipeline/overrides";
+import type { TurnConfig } from "@/pipeline/overrides";
 import { resolveAgentDefaults } from "@/pipeline/overrides";
 import type { AgentDefinition } from "@/types";
 
@@ -41,7 +41,7 @@ describe("resolveAgentDefaults", () => {
 	});
 
 	test("per-message override forceVoice wins over agent suppressVoice", () => {
-		const overrides: overrides = { forceVoice: true };
+		const overrides: TurnConfig = { forceVoice: true };
 		const result = resolveAgentDefaults(
 			overrides,
 			makeDef({ suppressVoice: true }),
@@ -51,7 +51,7 @@ describe("resolveAgentDefaults", () => {
 	});
 
 	test("forceVoice in preset clears suppressVoice", () => {
-		const overrides: overrides = { forceVoice: true };
+		const overrides: TurnConfig = { forceVoice: true };
 		const result = resolveAgentDefaults(overrides, makeDef());
 		expect(result.forceVoice).toBe(true);
 		expect(result.suppressVoice).toBe(false);
@@ -70,7 +70,7 @@ describe("resolveAgentDefaults", () => {
 	});
 
 	test("per-message autoAccept preserved regardless of agent default", () => {
-		const overrides: overrides = { autoAccept: true };
+		const overrides: TurnConfig = { autoAccept: true };
 		const result = resolveAgentDefaults(overrides, makeDef());
 		expect(result.autoAccept).toBe(true);
 	});
@@ -88,7 +88,7 @@ describe("resolveAgentDefaults", () => {
 	});
 
 	test("per-message provider overrides agent provider", () => {
-		const overrides: overrides = { provider: "chatgpt" };
+		const overrides: TurnConfig = { provider: "chatgpt" };
 		const result = resolveAgentDefaults(
 			overrides,
 			makeDef({ provider: "claude" }),
@@ -109,7 +109,7 @@ describe("resolveAgentDefaults", () => {
 	});
 
 	test("does not mutate input overrides", () => {
-		const overrides: overrides = { modelTier: "large" };
+		const overrides: TurnConfig = { modelTier: "large" };
 		const result = resolveAgentDefaults(
 			overrides,
 			makeDef({ forceVoice: true, autoAccept: true }),

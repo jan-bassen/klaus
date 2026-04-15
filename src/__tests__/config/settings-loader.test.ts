@@ -45,7 +45,7 @@ describe("SettingsSchema", () => {
 			"claude-sonnet-4-20250514",
 		);
 		expect(result.data.locale).toBe("en-GB");
-		expect(result.data.context.totalTokens).toBe(100_000);
+		expect(result.data.context.conversationChars).toBe(80_000);
 		expect(result.data.defaultAgent).toBe("default");
 	});
 

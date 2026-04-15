@@ -57,7 +57,7 @@ Every inbound WhatsApp message goes through a pipeline in `src/pipeline/index.ts
 
 1. **Auth** — allowlist check (fail-closed). When `allowedChatId` is unset (in settings.yml or env), enters **setup mode**: replies with the sender's chat ID and setup instructions instead of silently dropping. **Self-mode** (`whatsapp.selfMode: true`): for users running Klaus on their own number — auto-resolves JID, processes `fromMe` messages (with loop prevention via sent-ID tracking), and prefixes all outbound text with `[AgentName]:` or `[System]:`
 2. **Rate limit** — per-chat message/min guard
-3. **Normalize** — transcribe voice notes (STT), parse attached documents to text (liteparse, cached as `.parsed.txt` sidecar next to the blob). Images pass through; documents surface as `media.extractedText` on the message
+3. **Normalize** — transcribe voice notes (STT), parse attached documents to text (liteparse, cached as `.parsed.txt` sidecar next to the blob). Images pass through; documents surface as `media.extractedText` on the inbound message, and as `{{media.doc.text}}` in templates via the `media` variable.
 4. **Voice rewrite** — for voice transcripts only: fuzzy-match spoken agent name into canonical `@agent` prefix (`src/whatsapp/voice.ts`). Trigger words configurable via `settings.stt.agentTriggers`
 5. **Parse commands** — `/command` handlers bypass LLM, return early
 6. **Parse routing** — extract `@agentName` prefix, `!overrides` from text, resolve override presets
@@ -101,13 +101,15 @@ Prompt body with {{contextVar}} Handlebars interpolation (supports params: {{con
 
 **Skills** are static `.md` reference documents in `{vault}/Klaus/skills/` with optional YAML frontmatter (`description:` field). Agents that declare `skills:` in frontmatter get a `skill_get` tool scoped to those names via `z.enum`. Skill descriptions are included in the tool description to help the model decide when to load. The `{{skills}}` Handlebars var is injected so agents can list available skills in the prompt. Zero token overhead for agents without skills.
 
-**overrides** are data-driven overrides that control pipeline/agent behavior for the current message. Users activate them with `!name` or `!alias` in their message (e.g. `!voice`/`!v`, `!large`/`!l`, `!clean`/`!cl`). Presets are defined in `{vault}/Klaus/overrides.yaml` — each entry maps a name to aliases, description, and an `overrides` map of `overrides` fields. At startup (and on hot-reload), `loadoverrides()` parses the YAML, validates each entry with Zod, and registers into `overrideRegistry` (Map<name|alias, overrideDef>). `resolveoverrides()` merges the `overrides` maps of active presets. Parsing (`parseoverrides`, `stripoverrides`) is in `src/pipeline/overrides.ts`. Aliases resolve to canonical names at parse time. overrides are applied at specific pipeline/agent execution points (model tier, provider, TTS, conversation history, temperature, topP, reasoning effort, speed, tool choice, confirmation gating, persistence). Temperature and topP resolve to presets (`"cold"|"hot"`, `"creative"|"rigid"`) per-provider in `agent/runner.ts`. Reasoning effort and fast mode resolve to provider-specific `providerOptions`. Current overrides (with aliases): `!voice` (`!v`), `!clean` (`!cl`), `!small|medium|large` (`!s|m|l`), `!claude|chatgpt|gemini` (no aliases), `!accept` (`!a`), `!cold|hot` (`!c|h`), `!creative|rigid` (`!cr|r`), `!low|high` (`!lo|hi`), `!fast` (`!f`), `!no-tools|use-tools` (`!nt|ut`), `!ghost` (`!g`). Agent frontmatter can set any `overrides` field directly as a default (e.g. `forceVoice: true`, `autoAccept: true`). Resolution: agent frontmatter defaults → per-message `!override` → final. `resolveAgentDefaults()` in `src/pipeline/overrides.ts` handles the merge. All resolved values are automatically available as `{{fieldName}}` template vars in agent prompts and snippets via `turn.templateVars` (computed once by `buildTemplateVars()` in `src/pipeline/overrides.ts`, seeded into assembled vars by `context/index.ts`). Derived convenience vars: `{{isVoiceOn}}`, `{{isVoiceOff}}`, `{{isVoiceAuto}}`, `{{provider}}`. Commands `/voice` and `/accept` modify agent frontmatter directly (`forceVoice`/`suppressVoice`/`autoAccept` fields).
+**Overrides** are data-driven presets that control pipeline/agent behavior for the current message. Users activate them with `!name` or `!alias` in their message (e.g. `!voice`/`!v`, `!large`/`!l`, `!clean`/`!cl`). Presets are defined in `{vault}/Klaus/overrides.yaml` — each entry maps a name to aliases, description, and an `overrides` map of `TurnConfig` fields. At startup (and on hot-reload), `loadOverrides()` parses the YAML, validates each entry with Zod, and registers into `overrideRegistry` (Map<name|alias, OverrideDef>). `resolveOverrides()` merges the `overrides` maps of active presets into a single partial `TurnConfig`. Parsing (`parseOverrides`, `stripOverrides`) is in `src/pipeline/overrides.ts`. Aliases resolve to canonical names at parse time. Overrides are applied at specific pipeline/agent execution points (model tier, provider, TTS, conversation history, temperature, topP, reasoning effort, speed, tool choice, confirmation gating, persistence). Temperature and topP resolve to presets (`"cold"|"hot"`, `"creative"|"rigid"`) per-provider in `agent/runner.ts`. Reasoning effort and fast mode resolve to provider-specific `providerOptions`. Current overrides (with aliases): `!voice` (`!v`), `!clean` (`!cl`), `!small|medium|large` (`!s|m|l`), `!claude|chatgpt|gemini` (no aliases), `!accept` (`!a`), `!cold|hot` (`!c|h`), `!creative|rigid` (`!cr|r`), `!low|high` (`!lo|hi`), `!fast` (`!f`), `!no-tools|use-tools` (`!nt|ut`), `!ghost` (`!g`). Agent frontmatter can set any `TurnConfig` field directly as a default (e.g. `forceVoice: true`, `autoAccept: true`). Resolution: agent frontmatter defaults → per-message `!override` → final. `resolveAgentDefaults()` in `src/pipeline/overrides.ts` handles the merge and produces the effective `TurnConfig` carried on `TurnContext.config`. On `TurnContext`, `config: TurnConfig` is the effective turn configuration that all downstream code reads; `overrides: Record<string, boolean>` is the raw list of active preset names, used only for logging and the `message.md` template. The `config` variable surfaces `TurnContext.config` in templates (e.g. `{{config.forceVoice}}`, `{{config.modelTier}}`, `{{config.provider}}`, plus derived `{{config.isVoiceOn}}`, `{{config.isVoiceOff}}`, `{{config.isVoiceAuto}}`) — templates consume the resolved state without caring about provenance. Commands `/voice` and `/accept` modify agent frontmatter directly (`forceVoice`/`suppressVoice`/`autoAccept` fields).
 
-**Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and auto-discovered via glob at startup (same pattern as tools and context variables). Current commands (with aliases): `/status` (`/s`), `/tasks` (`/t`), `/default`, `/model` (`/m`), `/models`, `/voice` (`/v`), `/accept` (`/a`), `/help` (`/?`), `/break` (`/b`), `/retry` (`/r`). Each command implements the `Command` interface (name, aliases, description, execute). Aliases are indexed alongside canonical names in the `CommandRegistry`.
+**Variables** are named producers of data injected into Handlebars templates. Each lives in `src/variables/<key>.ts` and exports a `Variable` whose `key` becomes the top-level namespace entry — the `run()` result lands at `vars[key]`. All templates (agent prompt, `message.md`, snippets) see the same unified nested namespace; reference with `{{time.date}}`, `{{media.doc.text}}`, `{{tasks.active}}`, `{{config.isVoiceOn}}`, etc. User-typed message text supports `$name` and `$name.sub.path` shortcuts against the same namespace. Variables run in parallel; set `after: true` on a `Variable` to defer into a second phase that receives the partial namespace via `turn.vars` (used by `snippets` to compile snippets against the full namespace). There is no token budget or priority — apply explicit char caps in templates with `{{trunc value 5000}}`. Current variables: `time` (date/time/weekday), `media` (attached doc/image/voice + quoted-media mime), `tasks` (active jobs + timers), `dispatch` (caller/objective for dispatched runs, `null` otherwise), `config` (effective turn config: voice flags, provider, model, all resolved overrides), `user` (user profile from `snippets/user.md`), `snippets` (all other `snippets/*.md` compiled with the full namespace).
 
-**Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new context variable = new file implementing `ContextVariable`; new command = new file implementing `Command`; new override = new entry in `Klaus/overrides.yaml`. All code-level primitives (tools, context variables, commands) are auto-discovered via glob — drop a file, export the right shape, restart. Extend by adding, not modifying.
+**Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and auto-discovered via glob at startup (same pattern as tools and variables). Current commands (with aliases): `/status` (`/s`), `/tasks` (`/t`), `/default`, `/model` (`/m`), `/models`, `/voice` (`/v`), `/accept` (`/a`), `/help` (`/?`), `/break` (`/b`), `/retry` (`/r`). Each command implements the `Command` interface (name, aliases, description, execute). Aliases are indexed alongside canonical names in the `CommandRegistry`.
 
-**Reference:** `REFERENCE.md` contains an exhaustive list of all commands, overrides, context variables, tools, toolsets, and settings with their parameters and defaults. Keep it in sync when adding or changing primitives.
+**Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new variable = new file implementing `Variable`; new command = new file implementing `Command`; new override = new entry in `Klaus/overrides.yaml`. All code-level primitives (tools, variables, commands) are auto-discovered via glob — drop a file, export the right shape, restart. Extend by adding, not modifying.
+
+**Reference:** `REFERENCE.md` contains an exhaustive list of all commands, overrides, variables, tools, toolsets, and settings with their parameters and defaults. Keep it in sync when adding or changing primitives.
 
 ### Storage (src/store/)
 
@@ -129,16 +131,16 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 
 | Path | Concern |
 |------|---------|
-| `src/types.ts` | Cross-cutting interfaces (InboundMessage, TurnContext, AssembledContext, TurnResult) + re-exports of domain types |
+| `src/types.ts` | Cross-cutting interfaces (InboundMessage, TurnContext, TurnResult) + re-exports of domain types |
 | `src/errors.ts` | `formatUserError` — maps LLM errors to user-friendly messages |
-| `src/markdown.ts` | Handlebars instance + helpers, YAML frontmatter read/write, `$var`/`{{var}}` interpolation, param extraction |
+| `src/markdown.ts` | Handlebars instance + helpers (`trunc`, `limit`, logic, comparisons), YAML frontmatter read/write, `$var` user-message interpolation with dot-path support |
 | `src/config/index.ts` | Public API: `settings`, `resolveProvider()`, `ModelTier`, `modelTiers`, `createModel()` |
 | `src/config/env.ts` | Env-derived infrastructure: vault paths, dataDir, log format, startup timing |
 | `src/config/schema.ts` | Loads + validates `Klaus/settings.yml` via Zod, hot-reloads on change |
 | `src/config/providers.ts` | SDK factory — lazy-loads `@ai-sdk/{anthropic,openai,google}` by name |
 | `src/pipeline/index.ts` | Message orchestrator (inlined allowlist check) |
 | `src/pipeline/overrides.ts` | Override definitions, YAML loader, registry, parser, resolver (overrideDef, overrides) |
-| `src/pipeline/parse-document.ts` | `parseDocument()` — liteparse wrapper with `.parsed.txt` sidecar cache, mime allow-list, char truncation |
+| `src/pipeline/attachments.ts` | `parseDocument()` — liteparse wrapper with `.parsed.txt` sidecar cache, mime allow-list, char truncation. Web-link fetching will live here too. |
 | `src/pipeline/rate-limit.ts` | Sliding window rate limiter |
 | `src/agent/index.ts` | AgentFrontmatterSchema, agentRegistry, loading, AgentDefinition |
 | `src/agent/runner.ts` | `runAgent()` execution loop (tool setup, provider options, AI SDK call, persistent scheduling) |
@@ -146,7 +148,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/agent/model.ts` | LLM call routing (provider-agnostic via provider factory) |
 | `src/agent/dispatch.ts` | Unified dispatch function (inline/async modes), DispatchMode/DispatchOptions |
 | `src/agent/queue.ts` | In-memory job queue + active job tracking |
-| `src/context/index.ts` | Context assembly — runs context variables in parallel (with params), enforces token budget. ContextVariable/ContextVariableResult types |
+| `src/variables/index.ts` | Variable assembly — runs all `Variable`s in parallel, plus an optional `after` phase. Produces the unified nested namespace consumed by every template. Defines the `Variable` interface. |
 | `src/tools/index.ts` | Tool + toolset registry, meta-tool generation, dynamic tool loading. ToolDefinition/ToolsetDefinition types |
 | `src/tools/skill.ts` | `buildSkillTool()` — per-agent skill.get tool builder |
 | `src/tools/sets/dispatch.ts` | `dispatch` toolset: `dispatch.agent`, `dispatch.schedule`, `dispatch.timer`, `dispatch.list`, `dispatch.cancel` |
@@ -154,7 +156,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/vault/index.ts` | Vault path resolution, folder-level permission checks, confirmation gating |
 | `src/vault/watcher.ts` | File watcher for hot-reloading agents, skills, overrides |
 | `src/store/` | Flat-file storage modules (conversations, schedules, timers, files, etc.) |
-| `src/context/` | Context variable modules (inject dynamic content into prompts) |
+| `src/variables/` | Variable modules (one file per top-level namespace key) |
 | `src/commands/index.ts` | CommandRegistry + self-registration of all /command handlers |
 | `src/whatsapp/` | Transport layer (Baileys connection, send, receive, presence) |
 | `src/whatsapp/voice.ts` | STT (Scribe), TTS (ElevenLabs), voice transcript rewriting |
@@ -170,13 +172,13 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - `/vault` — vault access, file watcher, hot-reload
 - `/store` — flat-file storage, JSONL read/write, schedules, timers, indexes
 - `/tools` — each tool/tool-set in its own file or folder, tool/toolset registries
-- `/context` — context variable assembly + one file per context variable
+- `/variables` — unified variable namespace: one file per top-level key, plus the assembler
 - `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter
 - `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
-- `{vault}/Klaus/snippets/` — prompt content with optional YAML frontmatter (`scope:` `system`|`user`|`both`, default: `system`). System-scoped → `{{var}}` in prompts; user-scoped → `$var` in messages. Snippet content supports Handlebars templating with all `turn.templateVars` (e.g. `{{forceVoice}}`, `{{provider}}`, `{{modelTier}}`, `{{isVoiceOn}}`, `{{isVoiceOff}}`, `{{isVoiceAuto}}`). Compiled in a first pass before agent prompt assembly (two-pass, no recursion risk). Static snippets (no `{{`) skip compilation.
+- `{vault}/Klaus/snippets/` — reusable prompt fragments. Each `*.md` is compiled through Handlebars against the full assembled namespace and exposed as `{{snippets.<filename>}}`. `user.md` is special-cased by the `user` variable → `{{user.profile}}`. Static snippets (no `{{`) skip compilation.
 - `{vault}/Klaus/overrides.yaml` — override preset definitions (name → aliases + overrides map), hot-reloaded via file watcher
 - `{vault}/Klaus/trail/` — daily markdown turn logs for cross-device debugging (auto-managed, retention-limited)
-- `{vault}/Klaus/message.md` — Handlebars template for user message formatting (voice note prefix, quoted text, media info). Falls back to hardcoded format if missing.
+- `{vault}/Klaus/message.md` — Handlebars template for user message formatting (voice note prefix, quoted text, attached media). Required — `runAgent()` throws a clear error if it's missing so setup is explicit. Has full access to the unified variable namespace (e.g. `{{media.doc.text}}`, `{{trunc media.doc.text 5000}}`).
 - `{vault}/Klaus/settings.yml` — user-facing settings (providers, context budgets, rate limits, etc.), hot-reloaded with Zod validation
 - `{vault}/Klaus/user.md` — user profile, updated by memorize agent
 

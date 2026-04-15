@@ -69,13 +69,10 @@ const ProvidersSchema = z
 
 const ContextSchema = z
 	.object({
-		totalTokens: z.number().default(100_000),
-		conversationTokens: z.number().default(20_000),
-		activeTasksTokens: z.number().default(5_000),
+		/** Char budget for conversation history messages (user + assistant turns incl. traces). */
+		conversationChars: z.number().default(80_000),
 		defaultConversationLimit: z.number().default(20),
-		charsPerToken: z.number().default(4),
-		maxReasoningChars: z.number().default(2_000),
-		maxToolResultChars: z.number().default(2_000),
+		/** How many of the most recent user turns keep full tool traces; older turns get compact summaries. */
 		traceDepth: z.number().default(3),
 		conversationLookbackDays: z.number().default(7),
 	})

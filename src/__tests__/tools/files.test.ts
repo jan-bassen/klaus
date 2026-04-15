@@ -69,7 +69,7 @@ const mockParseDocument = mock(
 	async (_filePath: string, _mimeType: string): Promise<string | Error> =>
 		"parsed text from document",
 );
-mock.module("@/pipeline/parse-document", () => ({
+mock.module("@/pipeline/attachments", () => ({
 	isParseableDocument: (m: string) => PARSEABLE_MIMES.has(m),
 	parseDocument: mockParseDocument,
 	_resetParserForTest: () => {},
@@ -84,7 +84,7 @@ import {
 	filesReadTool,
 	filesUploadTool,
 } from "@/tools/sets/files";
-import type { AssembledContext, TurnContext } from "@/types";
+import type { TurnContext } from "@/types";
 
 // ─── test fixtures ────────────────────────────────────────────────────────────
 
@@ -112,15 +112,10 @@ const dummyContext = {
 		showToolsInContext: true,
 		promptPath: "/dev/null",
 	},
-	activeoverrides: {},
 	overrides: {},
-	templateVars: {},
-	assembled: {
-		vars: {},
-		userVars: {},
-		messageRefs: {},
-		totalTokens: 0,
-	} as AssembledContext,
+	config: {},
+	messageRefs: {},
+	vars: {},
 } as TurnContext;
 
 const TEST_FILE_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";

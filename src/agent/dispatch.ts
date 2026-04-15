@@ -1,10 +1,9 @@
 import path from "node:path";
 import { settings } from "@/config";
-import { assembleContext } from "@/context";
 import { log } from "@/logger";
-import { extractVarParams, readPromptBody } from "@/markdown";
-import { buildTemplateVars, resolveAgentDefaults } from "@/pipeline/overrides";
+import { resolveAgentDefaults } from "@/pipeline/overrides";
 import type { TurnContext } from "@/types";
+import { assembleVariables } from "@/variables";
 
 // -- Dispatch types (owned by this domain) --
 
@@ -91,25 +90,19 @@ export async function dispatch(
 		log.info(`[dispatch] inline to @${agentName} from ${caller}`);
 
 		const replyCollector: string[] = [];
-		const resolvedOverrides = resolveAgentDefaults({}, def);
-		const partialTurn: Omit<TurnContext, "assembled"> = {
+		const resolvedConfig = resolveAgentDefaults({}, def);
+		const partialTurn: Omit<TurnContext, "vars"> = {
 			chatId,
 			agent: def,
-			activeoverrides: {},
-			overrides: resolvedOverrides,
-			templateVars: buildTemplateVars(resolvedOverrides, def),
+			overrides: {},
+			config: resolvedConfig,
+			messageRefs: {},
 			dispatchContext,
 			_replyCollector: replyCollector,
 		};
 
-		const promptBody = await readPromptBody(def.promptPath);
-		const varParams = extractVarParams(promptBody, "hbs");
-		const assembled = await assembleContext(
-			partialTurn,
-			undefined,
-			Object.keys(varParams).length > 0 ? varParams : undefined,
-		);
-		const turn: TurnContext = { ...partialTurn, assembled };
+		const vars = await assembleVariables(partialTurn);
+		const turn: TurnContext = { ...partialTurn, vars };
 
 		await _runAgent(turn, def);
 		return replyCollector.join("\n\n") || undefined;
@@ -147,25 +140,19 @@ export async function startWorkers(): Promise<void> {
 			agentRegistry.set(def.name, def);
 		}
 
-		const resolvedOverrides = resolveAgentDefaults({}, def);
-		const partialTurn = {
+		const resolvedConfig = resolveAgentDefaults({}, def);
+		const partialTurn: Omit<TurnContext, "vars"> = {
 			chatId,
 			agent: def,
-			activeoverrides: {} as Record<string, boolean>,
-			overrides: resolvedOverrides,
-			templateVars: buildTemplateVars(resolvedOverrides, def),
+			overrides: {},
+			config: resolvedConfig,
+			messageRefs: {},
 			dispatchContext,
 		};
 
 		try {
-			const promptBody = await readPromptBody(def.promptPath);
-			const varParams = extractVarParams(promptBody, "hbs");
-			const assembled = await assembleContext(
-				partialTurn,
-				undefined,
-				Object.keys(varParams).length > 0 ? varParams : undefined,
-			);
-			const turn = { ...partialTurn, assembled };
+			const vars = await assembleVariables(partialTurn);
+			const turn: TurnContext = { ...partialTurn, vars };
 
 			log.info(`[dispatch] worker starting @${agentName}`);
 			await runAgent(turn, def);

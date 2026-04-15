@@ -4,7 +4,7 @@ import { parse as parseYaml } from "yaml";
 import { agentRegistry, loadAgentDefinition } from "@/agent";
 import { settings } from "@/config";
 import { log } from "@/logger";
-import { loadoverrides } from "@/pipeline/overrides";
+import { loadOverrides } from "@/pipeline/overrides";
 import { addSchedule, findSchedule, removeSchedule } from "@/store/schedules";
 import {
 	SkillFrontmatterSchema,
@@ -191,7 +191,7 @@ export function startWatching(agentsDir: string, skillsDir: string): void {
 		const internalWatcher = watch(internalDir, (_event, filename) => {
 			if (filename !== "overrides.yaml") return;
 			debounce("overrides", () => {
-				loadoverrides().catch((err) =>
+				loadOverrides().catch((err) =>
 					log.error("[watcher] failed to reload overrides.yaml", {
 						error: err instanceof Error ? err.message : String(err),
 					}),

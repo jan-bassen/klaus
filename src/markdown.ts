@@ -29,14 +29,31 @@ hbs.registerHelper("join", (arr: unknown, sep: unknown) =>
 	Array.isArray(arr) ? arr.join(String(sep)) : arr,
 );
 
+/** Hard char cap. `{{trunc text 5000}}` — returns up to `max` chars, appending `…` when truncated. */
+hbs.registerHelper(
+	"trunc",
+	(value: unknown, max: unknown, options: unknown) => {
+		const str = value == null ? "" : String(value);
+		const n = Number(max);
+		if (!Number.isFinite(n) || n <= 0 || str.length <= n) return str;
+		// Options is Handlebars' final arg — allow an explicit suffix via hash: {{trunc x 5000 suffix="..."}}
+		const hash = (options as { hash?: { suffix?: string } } | undefined)?.hash;
+		const suffix = typeof hash?.suffix === "string" ? hash.suffix : "…";
+		return str.slice(0, n) + suffix;
+	},
+);
+
+/** `{{limit array 5}}` — slice array to first N elements. Returns empty array for non-arrays. */
+hbs.registerHelper("limit", (arr: unknown, n: unknown) => {
+	const count = Number(n);
+	if (!Array.isArray(arr) || !Number.isFinite(count)) return [];
+	return arr.slice(0, count);
+});
+
 export { hbs };
 
 // -- Frontmatter --
 
-/**
- * Set or insert a YAML frontmatter field in a raw .md file string.
- * If the field exists, replaces its value. If not, inserts before closing ---.
- */
 export function setFrontmatterField(
 	raw: string,
 	field: string,
@@ -48,13 +65,9 @@ export function setFrontmatterField(
 	if (fieldRegex.test(raw)) {
 		return raw.replace(fieldRegex, `$1${field}: ${value}$2`);
 	}
-	// Field not present — insert before closing ---
 	return raw.replace(/\n---/, `\n${field}: ${value}\n---`);
 }
 
-/**
- * Remove a YAML frontmatter field from a raw .md file string.
- */
 export function removeFrontmatterField(raw: string, field: string): string {
 	const fieldRegex = new RegExp(`\\n${field}:\\s*\\S+`, "");
 	return raw.replace(fieldRegex, "");
@@ -66,7 +79,7 @@ const fmPattern = /^---\n[\s\S]*?\n---\n?/;
 
 /**
  * Read a .md prompt file and return the body after stripping YAML frontmatter.
- * Returns empty string on failure (file not found, etc.).
+ * Returns empty string on failure.
  */
 export async function readPromptBody(promptPath: string): Promise<string> {
 	try {
@@ -77,76 +90,34 @@ export async function readPromptBody(promptPath: string): Promise<string> {
 	}
 }
 
-// -- Param extraction --
+// -- User message $var interpolation --
 
-const hbsParamPattern = /\{\{([a-zA-Z_]\w*)\?([^}]+)\}\}/g;
-const dollarParamPattern = /\$([a-zA-Z_]\w*)\?(\S+)/g;
+/** Matches `$name` or `$name.sub.path` — used only in raw user-typed message text. */
+const dollarVarPattern = /\$([a-zA-Z_][\w.]*)/g;
 
-/**
- * Extract variable references with ?params from text.
- * Returns a map of varName → parsed params.
- *
- * HBS syntax: {{varName?key=val&key2=val2}}
- * Dollar syntax: $varName?key=val&key2=val2
- */
-export function extractVarParams(
-	text: string,
-	syntax: "hbs" | "dollar",
-): Record<string, Record<string, string>> {
-	const result: Record<string, Record<string, string>> = {};
-	const pattern = syntax === "hbs" ? hbsParamPattern : dollarParamPattern;
-
-	for (const match of text.matchAll(pattern)) {
-		const name = match[1];
-		const queryString = match[2];
-		if (!name || !queryString) continue;
-		result[name] = Object.fromEntries(new URLSearchParams(queryString));
+/** Resolve a dot-path like `media.doc.text` against a nested object. */
+function resolvePath(vars: Record<string, unknown>, dotted: string): unknown {
+	const parts = dotted.split(".");
+	let cur: unknown = vars;
+	for (const part of parts) {
+		if (cur == null || typeof cur !== "object") return undefined;
+		cur = (cur as Record<string, unknown>)[part];
 	}
-
-	return result;
+	return cur;
 }
 
 /**
- * Strip ?params from Handlebars variable references.
- * {{tasks?limit=3}} → {{tasks}}
- */
-export function stripHbsParams(template: string): string {
-	return template.replace(hbsParamPattern, "{{$1}}");
-}
-
-// -- User message interpolation --
-
-const dollarVarPattern = /\$([a-zA-Z_]\w*)(\?[^\s]*)?/g;
-
-/**
- * Replace $var and $var?params in user message text with values from vars.
- * Unknown $names pass through unchanged.
- * Params are already applied at run time — this just strips the ?params syntax
- * and resolves the base variable name.
+ * Replace `$name` and `$name.sub` references in user-typed text with values
+ * from the unified namespace. Unknown names pass through unchanged.
  */
 export function interpolateUserVars(
 	text: string,
 	vars: Record<string, unknown>,
 ): string {
 	return text.replace(dollarVarPattern, (match, name: string) => {
-		if (!(name in vars)) return match;
-		const value = vars[name];
-		if (value === undefined || value === null || value === "") return "";
+		const value = resolvePath(vars, name);
+		if (value === undefined) return match;
+		if (value === null || value === "") return "";
 		return String(value);
 	});
-}
-
-/**
- * Merge multiple param maps. Later entries override earlier ones per key.
- */
-export function mergeVarParams(
-	...maps: Record<string, Record<string, string>>[]
-): Record<string, Record<string, string>> {
-	const result: Record<string, Record<string, string>> = {};
-	for (const map of maps) {
-		for (const [varName, params] of Object.entries(map)) {
-			result[varName] = { ...result[varName], ...params };
-		}
-	}
-	return result;
 }
