@@ -55,6 +55,7 @@ import {
 	resolveoverrides,
 	stripoverrides,
 } from "./overrides";
+import { isParseableDocument, parseDocument } from "./parse-document";
 
 // ─── Inlined from middleware.ts ──────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			return;
 		}
 
-		// Step 3: Normalize — transcribe voice; images and documents pass through unchanged
+		// Step 3: Normalize — transcribe voice, parse documents; images pass through unchanged
 		let processedMsg = msg;
 		if (msg.media) {
 			const { path: filePath, mimeType, fileId } = msg.media;
@@ -182,6 +183,15 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 					log.warn("[pipeline] transcription failed", {
 						error: transcript.message,
 					});
+				}
+			} else if (isParseableDocument(mimeType)) {
+				log.info("[pipeline] parsing document", { mimeType });
+				const extracted = await parseDocument(filePath, mimeType);
+				if (!(extracted instanceof Error)) {
+					processedMsg = {
+						...msg,
+						media: { ...msg.media, extractedText: extracted },
+					};
 				}
 			}
 		}

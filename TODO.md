@@ -1,17 +1,20 @@
 # Features v0.2.0 (ignore migration paths, we're able to fully reset still)
 
-## Better error handling UX
-- [x] check retry flow for potential improvements and consider a potential "undo" operation
-- [x] ~~if feasible add /undo with a quoted message~~ (dropped — wanted for side-effect reversal, out of scope)
-- [x] /retry (`/r`) with optional quoted message; ❌ reaction on turn failure; supersede event in conversation store
-- [ ] consider message editing/ deleting capabilities (separate plan — needs Baileys protocol-message handling)
+## Clear up and improve attachment/variable flows: 
+  - [ ] rename src/context/ -> variables
+  - [ ] remove UserMessageFallback and throw when now message template found
+  - [ ] unify variable flow accross all templates (every template gets every variable + all are defined in a centralized place - src/variables/)
+  - [ ] nest variables better (group related ones, so it's easier to reason about them - optimal case: 1 group = 1 file and not deeper than that)
+  - [ ] Rethink and rename variables to be very usable and easy to understand. Examples of what I dont want from what we currently have: `extractedText` as top-level var for parsed document content. It should be att.doc.text or smth
+  - [ ] Remove the currently messy setup for truncate options for vars into a unified system of limiting a var to a certain char length in handlebars directly
 
 ## Improve media/research flows
 Plan: Have a good look at the current document/web flow to give the agent efficient tools for common use-cases
 Options:
-- liteparse for better document flow
-- custom auto-webfetch when a link is in message? (defuddle) or a custom web-fetch tool?
-- built-in git+bash tooling for simple coding tasks (maybe separate plan)
+- [x] liteparse for better document flow — inline parse on current message, `files.read` tool for older/quoted attachments, `.parsed.txt` sidecar cache
+- [ ] rename parse-document in pipeline to attachments (it will also include the web-links in the next step)
+- [ ] Handle a message contains one or more weblinks similarly: custom auto-webfetch + parsing with defuddle
+- [ ] add custom web-fetch tool with defuddle
 
 ## Very simple evals
 Goal: Add a simple system for a few key evals + live testing system to catch 80% of issues while iterating
@@ -34,7 +37,6 @@ I decided I want to open source this as "the agent for tinkerers". Let's make th
 
 ## Remaining cleanup 
 - [ ] remove any unnecessary config/top-level files used for my dev environment
-- [ ] rename src/context/ -> variables
 - [ ] move setting defaults out of the schema, everything else already lives in the Klaus folder
 
 ## Add docs

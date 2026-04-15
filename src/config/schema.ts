@@ -177,6 +177,16 @@ const VisionSchema = z
 	.strict()
 	.default({});
 
+const DocumentSchema = z
+	.object({
+		/** Max chars of parsed text kept inline in the user message or returned by files.read */
+		maxChars: z.number().default(40_000),
+		/** OCR for scanned PDFs / image-only pages */
+		ocrEnabled: z.boolean().default(true),
+	})
+	.strict()
+	.default({});
+
 const WhatsAppSchema = z
 	.object({
 		selfMode: z.boolean().default(false),
@@ -226,6 +236,7 @@ export const SettingsSchema = z
 		trail: TrailSchema,
 		watcher: WatcherSchema,
 		vision: VisionSchema,
+		document: DocumentSchema,
 		whatsapp: WhatsAppSchema,
 		vault: VaultYamlSchema,
 	})

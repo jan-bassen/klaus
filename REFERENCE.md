@@ -189,12 +189,13 @@ Agent invocation, scheduling, and timers. Meta-tool: `use_dispatch`.
 
 ### files
 
-File management (upload, download, list, delete). Meta-tool: `use_files`.
+File management (upload, download, read, list, delete). Meta-tool: `use_files`.
 
 | Tool | Description | Confirmation |
 |------|-------------|:---:|
 | `files.upload` | Upload a file (base64-encoded content) | |
-| `files.download` | Download a file by UUID or partial filename | |
+| `files.download` | Download a file by UUID or partial filename (returns base64) | |
+| `files.read` | Read a file's text content. Parses PDFs/docx/xlsx/pptx via liteparse (cached); returns text/* files directly | |
 | `files.list` | List files with optional name filter | |
 | `files.delete` | Delete a file | Yes |
 
@@ -322,6 +323,13 @@ Token budgets and conversation history limits.
 | Field | Default | Description |
 |-------|---------|-------------|
 | `maxImageDimension` | `2048` | Downscale images to this max dimension |
+
+### document
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `maxChars` | `40000` | Max chars of parsed text kept inline in the user message or returned by `files.read` |
+| `ocrEnabled` | `true` | Run OCR (Tesseract.js) on scanned PDFs / image-only pages |
 
 ### whatsapp
 

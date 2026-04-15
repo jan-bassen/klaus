@@ -131,6 +131,9 @@ export const settings = {
 	get vision() {
 		return getYamlSettings().vision;
 	},
+	get document() {
+		return getYamlSettings().document;
+	},
 	get whatsapp() {
 		return getYamlSettings().whatsapp;
 	},

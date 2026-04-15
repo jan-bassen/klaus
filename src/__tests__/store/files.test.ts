@@ -146,14 +146,17 @@ describe("saveFileMeta with externalId", () => {
 		expect(found?.mimeType).toBe("image/jpeg");
 	});
 
-	test("findFileByExternalId returns null for non-image files", async () => {
-		await saveFileMeta({
+	test("findFileByExternalId returns non-image files (e.g. PDFs)", async () => {
+		const saved = (await saveFileMeta({
 			path: "/tmp/doc.pdf",
 			mimeType: "application/pdf",
 			sizeBytes: 100,
 			externalId: "wa-ext-pdf",
-		});
-		expect(findFileByExternalId("wa-ext-pdf")).toBeNull();
+		})) as { id: string };
+		const found = findFileByExternalId("wa-ext-pdf");
+		expect(found).not.toBeNull();
+		expect(found?.fileId).toBe(saved.id);
+		expect(found?.mimeType).toBe("application/pdf");
 	});
 
 	test("findFileByExternalId returns null for unknown externalId", () => {

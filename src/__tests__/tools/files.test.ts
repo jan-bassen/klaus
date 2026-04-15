@@ -53,9 +53,26 @@ mock.module("@/store/files", () => ({
 	listFiles: mockListFiles,
 	deleteFile: mockDeleteFile,
 	findFileByMessageId: mock(() => null),
+	findFileByExternalId: mock(() => null),
 	updateFileMessageId: mock(async () => undefined),
 	rebuildFileIndex: mock(async () => {}),
 	_clearFileIndexForTest: mock(() => {}),
+}));
+
+const PARSEABLE_MIMES = new Set([
+	"application/pdf",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+]);
+const mockParseDocument = mock(
+	async (_filePath: string, _mimeType: string): Promise<string | Error> =>
+		"parsed text from document",
+);
+mock.module("@/pipeline/parse-document", () => ({
+	isParseableDocument: (m: string) => PARSEABLE_MIMES.has(m),
+	parseDocument: mockParseDocument,
+	_resetParserForTest: () => {},
 }));
 
 // ─── import after mocks are registered ───────────────────────────────────────
@@ -64,6 +81,7 @@ import {
 	filesDeleteTool,
 	filesDownloadTool,
 	filesListTool,
+	filesReadTool,
 	filesUploadTool,
 } from "@/tools/sets/files";
 import type { AssembledContext, TurnContext } from "@/types";
@@ -266,5 +284,95 @@ describe("filesDeleteTool", () => {
 			dummyContext,
 		);
 		expect(result).toContain("Deleted");
+	});
+});
+
+// ─── filesReadTool ───────────────────────────────────────────────────────────
+
+describe("filesReadTool", () => {
+	beforeEach(() => {
+		mockParseDocument.mockClear();
+		mockParseDocument.mockImplementation(
+			async () => "parsed text from document",
+		);
+	});
+
+	test("parses PDF via parseDocument and returns text", async () => {
+		_mockFiles = [
+			makeFileEntry({
+				path: join(tmpDir, "doc.pdf"),
+				mimeType: "application/pdf",
+			}),
+		];
+		const result = await filesReadTool.execute(
+			{ name: TEST_FILE_ID },
+			dummyContext,
+		);
+		expect(mockParseDocument).toHaveBeenCalledTimes(1);
+		expect(result).toBe("parsed text from document");
+	});
+
+	test("returns raw text for text/* files", async () => {
+		const textPath = join(tmpDir, "notes.txt");
+		await writeFile(textPath, "plain notes here");
+		_mockFiles = [makeFileEntry({ path: textPath, mimeType: "text/plain" })];
+		const result = await filesReadTool.execute(
+			{ name: TEST_FILE_ID },
+			dummyContext,
+		);
+		expect(result).toBe("plain notes here");
+		expect(mockParseDocument).not.toHaveBeenCalled();
+	});
+
+	test("redirects to files.download for images", async () => {
+		_mockFiles = [
+			makeFileEntry({
+				path: join(tmpDir, "pic.jpg"),
+				mimeType: "image/jpeg",
+			}),
+		];
+		const result = await filesReadTool.execute(
+			{ name: TEST_FILE_ID },
+			dummyContext,
+		);
+		expect(result).toContain("files.download");
+	});
+
+	test("returns message for unsupported binary", async () => {
+		_mockFiles = [
+			makeFileEntry({
+				path: join(tmpDir, "archive.zip"),
+				mimeType: "application/zip",
+			}),
+		];
+		const result = await filesReadTool.execute(
+			{ name: TEST_FILE_ID },
+			dummyContext,
+		);
+		expect(result).toContain("unsupported mime type");
+	});
+
+	test("returns 'No file found' when lookup fails", async () => {
+		const result = await filesReadTool.execute(
+			{ name: "missing" },
+			dummyContext,
+		);
+		expect(result).toContain("No file found");
+	});
+
+	test("surfaces parser errors", async () => {
+		mockParseDocument.mockImplementation(async () => new Error("boom"));
+		_mockFiles = [
+			makeFileEntry({
+				path: join(tmpDir, "bad.pdf"),
+				mimeType: "application/pdf",
+			}),
+		];
+		const result = await filesReadTool.execute(
+			{ name: TEST_FILE_ID },
+			dummyContext,
+		);
+		expect(result).toContain("Parse failed");
+		expect(result).toContain("boom");
 	});
 });

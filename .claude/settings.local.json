@@ -68,7 +68,8 @@
 			"Bash(mv core/defaults.test.ts agent/)",
 			"Bash(mv core/dispatch.test.ts agent/)",
 			"Bash(mv core/model-router.test.ts agent/)",
-			"Bash(bun:*)"
+			"Bash(bun:*)",
+			"Bash(git stash:*)"
 		]
 	}
 }

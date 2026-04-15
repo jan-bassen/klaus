@@ -69,8 +69,8 @@ Klaus handles more than text:
 
 - **Voice notes** — automatically transcribed via ElevenLabs STT, then processed as text
 - **Images** — passed to the model as vision input
-- **Documents** — attached and made available to the agent
-- **Quote-replies** — the quoted message is included as context
+- **Documents** — PDFs, Word, Excel, PowerPoint are parsed to text (via `@llamaindex/liteparse`, OCR for scanned PDFs) and inlined in the message. Older or quoted attachments can be re-read on demand via the `files.read` tool
+- **Quote-replies** — the quoted message is included as context (including non-image attachments)
 
 ---
 
@@ -240,7 +240,7 @@ Every inbound WhatsApp message flows through the same pipeline:
 
 1. **Auth** — reject if chatId is not in the allowlist (fail-closed)
 2. **Rate limit** — per-chat rate limiting; soft reject with retry message
-3. **Normalize** — transcribe voice notes (ElevenLabs STT), downscale large images
+3. **Normalize** — transcribe voice notes (ElevenLabs STT), parse attached documents to text (liteparse, cached in `.parsed.txt` sidecar), downscale large images
 4. **Parse** — extract /command (execute directly, bypass LLM) or @agent routing prefix
 5. **Strip overrides** — pull out !override tokens, resolve presets into typed overrides
 6. **Persist** — append message to conversation JSONL, resolve quote-reply

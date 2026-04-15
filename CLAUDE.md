@@ -57,7 +57,7 @@ Every inbound WhatsApp message goes through a pipeline in `src/pipeline/index.ts
 
 1. **Auth** — allowlist check (fail-closed). When `allowedChatId` is unset (in settings.yml or env), enters **setup mode**: replies with the sender's chat ID and setup instructions instead of silently dropping. **Self-mode** (`whatsapp.selfMode: true`): for users running Klaus on their own number — auto-resolves JID, processes `fromMe` messages (with loop prevention via sent-ID tracking), and prefixes all outbound text with `[AgentName]:` or `[System]:`
 2. **Rate limit** — per-chat message/min guard
-3. **Normalize** — transcribe voice notes (STT), downscale large images
+3. **Normalize** — transcribe voice notes (STT), parse attached documents to text (liteparse, cached as `.parsed.txt` sidecar next to the blob). Images pass through; documents surface as `media.extractedText` on the message
 4. **Voice rewrite** — for voice transcripts only: fuzzy-match spoken agent name into canonical `@agent` prefix (`src/whatsapp/voice.ts`). Trigger words configurable via `settings.stt.agentTriggers`
 5. **Parse commands** — `/command` handlers bypass LLM, return early
 6. **Parse routing** — extract `@agentName` prefix, `!overrides` from text, resolve override presets
@@ -138,6 +138,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/config/providers.ts` | SDK factory — lazy-loads `@ai-sdk/{anthropic,openai,google}` by name |
 | `src/pipeline/index.ts` | Message orchestrator (inlined allowlist check) |
 | `src/pipeline/overrides.ts` | Override definitions, YAML loader, registry, parser, resolver (overrideDef, overrides) |
+| `src/pipeline/parse-document.ts` | `parseDocument()` — liteparse wrapper with `.parsed.txt` sidecar cache, mime allow-list, char truncation |
 | `src/pipeline/rate-limit.ts` | Sliding window rate limiter |
 | `src/agent/index.ts` | AgentFrontmatterSchema, agentRegistry, loading, AgentDefinition |
 | `src/agent/runner.ts` | `runAgent()` execution loop (tool setup, provider options, AI SDK call, persistent scheduling) |

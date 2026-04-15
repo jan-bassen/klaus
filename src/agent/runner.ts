@@ -69,6 +69,11 @@ function buildUserMessageFallback(turn: TurnContext): string {
 		const name = media?.fileName;
 		const mime = media?.mimeType;
 		if (name) parts.push(`Attached: ${name} (${mime ?? ""})`);
+		if (media?.extractedText) {
+			parts.push("```");
+			parts.push(media.extractedText);
+			parts.push("```");
+		}
 	}
 
 	if (msg.quotedMessage?.text) {
@@ -111,6 +116,7 @@ function buildUserMessageText(turn: TurnContext): string {
 			voiceCaption: media?.voiceCaption ?? "",
 			fileName: media?.fileName ?? "",
 			mimeType: media?.mimeType ?? "",
+			extractedText: media?.extractedText ?? "",
 			quotedText: msg.quotedMessage?.text ?? "",
 			messageText,
 			overrides: Object.keys(turn.activeoverrides),

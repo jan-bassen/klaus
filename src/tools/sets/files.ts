@@ -3,6 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 import { settings } from "@/config";
 import { log } from "@/logger";
+import { isParseableDocument, parseDocument } from "@/pipeline/parse-document";
 import { deleteFile, findFile, listFiles, saveFileMeta } from "@/store/files";
 import type { ToolDefinition, ToolsetDefinition } from "@/types";
 
@@ -76,6 +77,47 @@ export const filesDownloadTool: ToolDefinition<typeof filesDownloadSchema> = {
 	capability: "resource",
 };
 
+// ─── read ─────────────────────────────────────────────────────────────────────
+
+const filesReadSchema = z.object({
+	name: z.string().describe("File UUID or partial filename to match"),
+});
+
+export const filesReadTool: ToolDefinition<typeof filesReadSchema> = {
+	name: "files.read",
+	description:
+		"Read a file's text content. Parses PDFs, docx, xlsx, pptx to plain text; returns text files directly. For images, use files.download.",
+	inputSchema: filesReadSchema,
+	execute: async ({ name }, _context) => {
+		const isUuid = /^[0-9a-f-]{36}$/i.test(name);
+		const meta = isUuid ? findFile(name) : (listFiles(name)[0] ?? null);
+
+		if (!meta) return `No file found for: ${name}`;
+
+		if (isParseableDocument(meta.mimeType)) {
+			const text = await parseDocument(meta.path, meta.mimeType);
+			if (text instanceof Error) return `Parse failed: ${text.message}`;
+			return text;
+		}
+
+		if (meta.mimeType.startsWith("text/")) {
+			try {
+				return await Bun.file(meta.path).text();
+			} catch (err) {
+				return `Failed to read file: ${err instanceof Error ? err.message : String(err)}`;
+			}
+		}
+
+		if (meta.mimeType.startsWith("image/")) {
+			return `${path.basename(meta.path)} is an image (${meta.mimeType}). Use files.download to retrieve its bytes.`;
+		}
+
+		return `Cannot read ${path.basename(meta.path)} — unsupported mime type ${meta.mimeType}. Use files.download for binary content.`;
+	},
+	kind: "builtin",
+	capability: "resource",
+};
+
 // ─── list ─────────────────────────────────────────────────────────────────────
 
 const filesListSchema = z.object({
@@ -138,6 +180,13 @@ export const filesDeleteTool: ToolDefinition<typeof filesDeleteSchema> = {
 
 export const filesToolset: ToolsetDefinition = {
 	name: "files",
-	description: "Use when you need to upload, download, list, or delete files.",
-	tools: [filesUploadTool, filesDownloadTool, filesListTool, filesDeleteTool],
+	description:
+		"Use when you need to upload, download, read, list, or delete files.",
+	tools: [
+		filesUploadTool,
+		filesDownloadTool,
+		filesReadTool,
+		filesListTool,
+		filesDeleteTool,
+	],
 };

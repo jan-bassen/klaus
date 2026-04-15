@@ -86,7 +86,7 @@ export function findFile(fileId: string): FileMeta | null {
 	return fileIndex.get(fileId) ?? null;
 }
 
-/** Find the first image file linked to a given message. */
+/** Find the file linked to a given message (any mime type). */
 export function findFileByMessageId(
 	messageId: string,
 ): { fileId: string; path: string; mimeType: string } | null {
@@ -94,11 +94,10 @@ export function findFileByMessageId(
 	if (!fileId) return null;
 	const meta = fileIndex.get(fileId);
 	if (!meta) return null;
-	if (!meta.mimeType.startsWith("image/")) return null;
 	return { fileId: meta.id, path: meta.path, mimeType: meta.mimeType };
 }
 
-/** Find the first image file linked to a given WhatsApp externalId. */
+/** Find the file linked to a given WhatsApp externalId (any mime type). */
 export function findFileByExternalId(
 	externalId: string,
 ): { fileId: string; path: string; mimeType: string } | null {
@@ -106,7 +105,6 @@ export function findFileByExternalId(
 	if (!fileId) return null;
 	const meta = fileIndex.get(fileId);
 	if (!meta) return null;
-	if (!meta.mimeType.startsWith("image/")) return null;
 	return { fileId: meta.id, path: meta.path, mimeType: meta.mimeType };
 }
 

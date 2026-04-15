@@ -27,6 +27,8 @@ export interface InboundMessage {
 		voiceCaption?: string;
 		/** For documents: the original filename from Baileys */
 		fileName?: string;
+		/** For documents: text extracted by the parser (populated in pipeline normalize) */
+		extractedText?: string;
 	};
 	/** Set by receive.ts when this message is a reply to another message */
 	quotedMessage?: {
@@ -34,7 +36,7 @@ export interface InboundMessage {
 		externalId: string;
 		/** Text of the quoted message, extracted from Baileys contextInfo at receive time */
 		text?: string;
-		/** Resolved by pipeline.ts: image file linked to the quoted message, if any */
+		/** Resolved by pipeline.ts: file linked to the quoted message, if any */
 		media?: { fileId: string; path: string; mimeType: string };
 	};
 	timestamp: Date;
