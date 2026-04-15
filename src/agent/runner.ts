@@ -16,7 +16,7 @@ import { hbs, interpolateUserVars, stripHbsParams } from "@/markdown";
 import { appendTrace, type TraceStep } from "@/store/conversation";
 import { addTimer, listTimers, removeTimer } from "@/store/timers";
 import { generateMetaTool, toolRegistry, toolsetRegistry } from "@/tools";
-import { buildProviderTool } from "@/tools/provider";
+import { buildProviderTool, getProviderTool } from "@/tools/provider";
 import { REPLY_TOOL_NAME } from "@/tools/reply";
 import { parseRunAt } from "@/tools/sets/dispatch";
 import { buildSkillTool, skillRegistry } from "@/tools/skill";
@@ -299,7 +299,7 @@ export async function runAgent(
 	const effectiveProvider = turn.overrides?.provider;
 	const providerCfg = resolveProvider(effectiveProvider);
 	for (const name of def.providerTools ?? []) {
-		const pt = buildProviderTool(name, providerCfg.sdk);
+		const pt = getProviderTool(name, providerCfg.sdk);
 		if (!pt) {
 			log.warn(
 				`[agent] provider tool "${name}" not available for ${providerCfg.sdk}`,

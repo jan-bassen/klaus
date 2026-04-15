@@ -1,10 +1,5 @@
 # Features v0.2.0 (ignore migration paths, we're able to fully reset still)
 
-## Actually real defaults
-Current implementation of models and tools are not up-to-date (agent tend to do that bc of knowledge cutoff)
-- [x] models
-- [x] tools
-
 ## Better error handling UX
 - [ ] check retry flow for potential improvements and consider a potential "undo" operation
 - [ ] if feasible add /undo with a quoted message
