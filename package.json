@@ -6,6 +6,7 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
+		"eval": "bun run src/eval/index.ts",
 		"build": "docker build -t klaus .",
 		"publish": "docker buildx build --platform linux/amd64 --build-arg VERSION=$(jq -r .version package.json) -t janbassen1/klaus:$(jq -r .version package.json) -t janbassen1/klaus:latest --push ."
 	},

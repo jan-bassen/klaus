@@ -1,21 +1,5 @@
 # Features v0.2.0 (ignore migration paths, we're able to fully reset still)
 
-## Improve media/research flows
-Plan: Have a good look at the current document/web flow to give the agent efficient tools for common use-cases
-Options:
-- [x] liteparse for better document flow — inline parse on current message, `files.read` tool for older/quoted attachments, `.parsed.txt` sidecar cache
-- [x] rename parse-document in pipeline to attachments (it will also include the web-links in the next step)
-- [x] Handle a message contains one or more weblinks similarly: custom auto-webfetch + parsing with defuddle
-- [x] add custom web-fetch tool with defuddle
-
-## Very simple evals
-Goal: Add a simple system for a few key evals + live testing system to catch 80% of issues while iterating
-
-## Code quality
-- [x] Make schemas dynamic (or extendible depending on context). Providers resolved dynamically, overrides schema uses `.passthrough()`
-- [x] Make sure we are consistent in file extensions (eg overrides.yaml and settings.yml, but maybe more cases across codebase): always use shortest name — standardized on `.yml`
-- [ ] Contain baileys imports to just whatsapp/ + check the codebase for other similar leaks
-
 ## Remove remainder of token tracking
 we still have stuff like "charsPerToken" in settings, although that doesn't even make sense. Let's clean that up. Track chars if we need to track something, but why would we?
 
@@ -26,7 +10,6 @@ we still have stuff like "charsPerToken" in settings, although that doesn't even
   - [ ] Linearly escalating access levels: hidden, locked (know it’s there and locked, no open access), read, append-text or append-files for specific append types, append (for both), full (write)
   One folder for vaults(?)
   - [ ] Open question: how to handle agent specific settings?
-  
 
 ## Maybe's
 - [ ] Voice language field in settings.ts against awkward accents
@@ -44,7 +27,7 @@ I decided I want to open source this as "the agent for tinkerers". Let's make th
 - [ ] Update readme to be perfect and poignant (short intro (incl what it is and isn't) + quick setup guide + architecture overview inlc how to tinker infos and pointers to /docs)
 - [ ] Add docs/ with:
   - [ ] setup-guide (more in-depth guide for common setups and issues)
-  - [ ] codebase-walkthrough (not 1:1 explainer of code, but more so the used patterns, chosen structure, key files, etc - like getting a 10min "how to works with klaus' codebase 101" class)
+  - [ ] codebase-walkthrough (not 1:1 explainer of code, but more so the used patterns, chosen structure, key files/flows, etc - like getting a 10min "how to work with klaus' codebase 101" class)
   - [ ] vault-walkthrough (same but with the vault side incl key settings and folders)
   - [ ] iterate-in-obsidian (quick explainer of the most useful patterns with examples)
   - [ ] iterate-in-code (same with code for adding a command, variable, tool, ...)

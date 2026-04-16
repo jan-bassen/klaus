@@ -23,6 +23,11 @@ bun run test:watch
 # Linting/formatting (Biome)
 bunx biome check --write .
 
+# Eval (prompt-only LLM-as-judge)
+bun run eval                          # all agents
+bun run eval assistant                # one agent
+bun run eval assistant greeting       # one case
+
 # Publish to Docker Hub (builds linux/amd64, pushes :version + :latest)
 bun run publish
 ```
@@ -105,9 +110,9 @@ Prompt body with {{contextVar}} Handlebars interpolation (supports params: {{con
 
 **Variables** are named producers of data injected into Handlebars templates. Each lives in `src/variables/<key>.ts` and exports a `Variable` whose `key` becomes the top-level namespace entry — the `run()` result lands at `vars[key]`. All templates (agent prompt, `message.md`, snippets) see the same unified nested namespace; reference with `{{time.date}}`, `{{media.doc.text}}`, `{{tasks.active}}`, `{{config.isVoiceOn}}`, etc. User-typed message text supports `$name` and `$name.sub.path` shortcuts against the same namespace. Variables run in parallel; set `after: true` on a `Variable` to defer into a second phase that receives the partial namespace via `turn.vars` (used by `snippets` to compile snippets against the full namespace). There is no token budget or priority — apply explicit char caps in templates with `{{trunc value 5000}}`. Current variables: `time` (date/time/weekday), `media` (attached doc/image/voice + quoted-media mime), `links` (auto-fetched web links from message text: count + items with url/title/text), `tasks` (active jobs + timers), `dispatch` (caller/objective for dispatched runs, `null` otherwise), `config` (effective turn config: voice flags, provider, model, all resolved overrides), `user` (user profile from `snippets/user.md`), `snippets` (all other `snippets/*.md` compiled with the full namespace).
 
-**Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and auto-discovered via glob at startup (same pattern as tools and variables). Current commands (with aliases): `/status` (`/s`), `/tasks` (`/t`), `/default`, `/model` (`/m`), `/models`, `/voice` (`/v`), `/accept` (`/a`), `/help` (`/?`), `/break` (`/b`), `/retry` (`/r`). Each command implements the `Command` interface (name, aliases, description, execute). Aliases are indexed alongside canonical names in the `CommandRegistry`.
+**Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and auto-discovered via glob at startup (same pattern as tools and variables). Current commands (with aliases): `/status` (`/s`), `/tasks` (`/t`), `/default`, `/model` (`/m`), `/models`, `/voice` (`/v`), `/accept` (`/a`), `/help` (`/?`), `/break` (`/b`), `/retry` (`/r`), `/eval`. Each command implements the `Command` interface (name, aliases, description, execute). Aliases are indexed alongside canonical names in the `CommandRegistry`.
 
-**Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new variable = new file implementing `Variable`; new command = new file implementing `Command`; new override = new entry in `Klaus/overrides.yml`. All code-level primitives (tools, variables, commands) are auto-discovered via glob — drop a file, export the right shape, restart. Extend by adding, not modifying.
+**Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new variable = new file implementing `Variable`; new command = new file implementing `Command`; new override = new entry in `Klaus/overrides.yml`; new eval = new `.yml` file in `Klaus/evals/`. All code-level primitives (tools, variables, commands) are auto-discovered via glob — drop a file, export the right shape, restart. Extend by adding, not modifying.
 
 **Reference:** `REFERENCE.md` contains an exhaustive list of all commands, overrides, variables, tools, toolsets, and settings with their parameters and defaults. Keep it in sync when adding or changing primitives.
 
@@ -164,6 +169,9 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/whatsapp/voice.ts` | STT (Scribe), TTS (ElevenLabs), voice transcript rewriting |
 | `src/whatsapp/send.ts` | Send queue (FIFO, dedup, retry), reactions, OutboundMessage type |
 | `src/whatsapp/login.ts` | Vault-based login flow (QR code SVG to vault, login folder setup) |
+| `src/eval/index.ts` | Eval CLI entry point — minimal bootstrap, discovers `Klaus/evals/*.yml`, runs cases, prints results |
+| `src/eval/runner.ts` | Per-file eval runner — assembles variables, compiles prompt, calls agent model + LLM judge |
+| `src/eval/judge.ts` | LLM-as-judge — calls `small` tier model to evaluate agent responses against criteria |
 
 ### Project boundaries
 
@@ -178,6 +186,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 - `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter
 - `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
 - `{vault}/Klaus/snippets/` — reusable prompt fragments. Each `*.md` is compiled through Handlebars against the full assembled namespace and exposed as `{{snippets.<filename>}}`. `user.md` is special-cased by the `user` variable → `{{user.profile}}`. Static snippets (no `{{`) skip compilation.
+- `{vault}/Klaus/evals/` — YAML eval files (one per agent, `<agent-name>.yml`). Each defines test cases with input + criteria for LLM-as-judge evaluation via `bun run eval`
 - `{vault}/Klaus/overrides.yml` — override preset definitions (name → aliases + overrides map), hot-reloaded via file watcher
 - `{vault}/Klaus/trail/` — daily markdown turn logs for cross-device debugging (auto-managed, retention-limited)
 - `{vault}/Klaus/message.md` — Handlebars template for user message formatting (voice note prefix, quoted text, attached media). Required — `runAgent()` throws a clear error if it's missing so setup is explicit. Has full access to the unified variable namespace (e.g. `{{media.doc.text}}`, `{{trunc media.doc.text 5000}}`).
