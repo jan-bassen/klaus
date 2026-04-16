@@ -25,7 +25,7 @@ Commands start with `/` and bypass the LLM entirely. Defined in `src/commands/`.
 
 ## overrides
 
-overrides start with `!` and override pipeline/agent behavior for the current message. Stripped before reaching the agent. Defined in `Klaus/overrides.yaml` (vault, hot-reloaded). Resolved by `src/pipeline/overrides.ts`.
+overrides start with `!` and override pipeline/agent behavior for the current message. Stripped before reaching the agent. Defined in `Klaus/overrides.yml` (vault, hot-reloaded). Resolved by `src/pipeline/overrides.ts`.
 
 Agent frontmatter can set any override field directly as a default (e.g. `forceVoice: true`). Per-message `!` overrides always take precedence.
 
@@ -97,7 +97,7 @@ Resolution: agent frontmatter defaults → per-message `!override` → final.
 
 ### Adding custom overrides
 
-Add entries to `Klaus/overrides.yaml`:
+Add entries to `Klaus/overrides.yml`:
 
 ```yaml
 mypreset:
@@ -218,15 +218,15 @@ File management (upload, download, read, list, delete). Meta-tool: `use_files`.
 
 ## Settings
 
-User-facing configuration in `Klaus/settings.yml`. Hot-reloaded with Zod validation. All fields optional — schema defaults apply. Defined in `src/config/schema.ts`.
+User-facing configuration in `Klaus/settings.yml`. Hot-reloaded with Zod validation. `settings.yml` is the single source of truth — every field is required, and the schema in `src/config/schema.ts` only validates (no `.default()` fallbacks). The repo ships a complete `Klaus/settings.yml` at its root, which is copied into `{vault}/Klaus/` on first run by `ensureDefaults()`. Values below show the shipped defaults.
 
 ### Top-level
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `defaultAgent` | `"klaus"` | Agent used when no `@agent` prefix |
-| `locale` | `"de-DE"` | Locale for date formatting |
-| `timezone` | `"Europe/Berlin"` | Timezone for cron scheduling |
+| `defaultAgent` | `"assistant"` | Agent used when no `@agent` prefix |
+| `locale` | `"en-GB"` | Locale for date formatting |
+| `timezone` | `"Europe/London"` | Timezone for cron scheduling |
 
 ### providers
 
@@ -270,14 +270,14 @@ Conversation history limits. Per-variable truncation inside prompts is done with
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `model` | `"eleven_multilingual_v2"` | ElevenLabs TTS model |
-| `voiceId` | `"Qqi8SzIZjZsatCWjDOp7"` | ElevenLabs voice ID |
+| `model` | `"eleven_ttv_v3"` | ElevenLabs TTS model |
+| `voiceId` | `""` | ElevenLabs voice ID — pick one at https://elevenlabs.io/app/voice-library |
 
 ### stt
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `model` | `"scribe_v1"` | ElevenLabs STT model |
+| `model` | `"scribe_v2"` | ElevenLabs STT model |
 | `timeoutMs` | `30000` | STT timeout |
 | `agentTriggers` | `["hey", "at", "an", "to", "dear"]` | Phrases triggering agent routing from voice |
 
@@ -385,7 +385,5 @@ Per-message !overrides  (highest)
     ↓
 Agent frontmatter defaults
     ↓
-Settings defaults (settings.yml)
-    ↓
-Schema defaults   (lowest)
+Settings (settings.yml — single source of truth)
 ```

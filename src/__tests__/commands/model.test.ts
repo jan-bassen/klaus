@@ -31,7 +31,7 @@ function makeMsg(overrides: Partial<InboundMessage> = {}): InboundMessage {
 const AGENT_FILE = join(tmpdir(), `test-agent-${Date.now()}.md`);
 
 const AGENT_CONTENT = `---
-name: default
+name: assistant
 modelTier: medium
 tools: [reply]
 toolsets: []
@@ -43,7 +43,7 @@ You are a helpful assistant.
 
 function makeAgent(tier: AgentDefinition["modelTier"]): AgentDefinition {
 	return {
-		name: "default",
+		name: "assistant",
 		aliases: [],
 		modelTier: tier,
 		tools: ["reply"],
@@ -60,13 +60,13 @@ function makeAgent(tier: AgentDefinition["modelTier"]): AgentDefinition {
 
 beforeEach(async () => {
 	await Bun.write(AGENT_FILE, AGENT_CONTENT);
-	agentRegistry.set("default", makeAgent("medium"));
+	agentRegistry.set("assistant", makeAgent("medium"));
 	_resetDefaultsForTest();
 	mockEnqueueMessage.mockClear();
 });
 
 afterEach(() => {
-	agentRegistry.delete("default");
+	agentRegistry.delete("assistant");
 });
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -82,7 +82,7 @@ describe("/model", () => {
 		expect(content).toContain("tier: large");
 
 		// Registry updated
-		expect(agentRegistry.get("default")?.modelTier).toBe("large");
+		expect(agentRegistry.get("assistant")?.modelTier).toBe("large");
 
 		// File updated
 		const raw = await Bun.file(AGENT_FILE).text();
@@ -108,7 +108,7 @@ describe("/model", () => {
 	});
 
 	test("unknown agent returns error", async () => {
-		agentRegistry.delete("default");
+		agentRegistry.delete("assistant");
 		await modelCommand.execute(makeMsg(), ["large"]);
 
 		const { content } = (

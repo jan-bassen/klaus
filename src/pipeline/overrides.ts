@@ -27,7 +27,7 @@ export interface TurnConfig {
 	[key: string]: unknown;
 }
 
-/** Validation schema for the `overrides:` map inside a preset entry in overrides.yaml. */
+/** Validation schema for the `overrides:` map inside a preset entry in overrides.yml. */
 export const overridesSchema = z
 	.object({
 		forceVoice: z.boolean().optional(),
@@ -88,13 +88,13 @@ export function getKnownOverrides(): string[] {
 /** Load override presets from a YAML file. Called at startup and on hot-reload. */
 export async function loadOverrides(yamlPath?: string): Promise<void> {
 	overrideRegistry.clear();
-	const filePath = yamlPath ?? `${settings.vault.internalPath}/overrides.yaml`;
+	const filePath = yamlPath ?? `${settings.vault.internalPath}/overrides.yml`;
 
 	let raw: string;
 	try {
 		raw = await Bun.file(filePath).text();
 	} catch {
-		log.warn("[overrides] overrides.yaml not found, no presets loaded");
+		log.warn("[overrides] overrides.yml not found, no presets loaded");
 		return;
 	}
 
@@ -102,7 +102,7 @@ export async function loadOverrides(yamlPath?: string): Promise<void> {
 	try {
 		parsed = parseYaml(raw);
 	} catch (err) {
-		log.warn("[overrides] failed to parse overrides.yaml", {
+		log.warn("[overrides] failed to parse overrides.yml", {
 			error: err instanceof Error ? err.message : String(err),
 		});
 		return;
@@ -110,7 +110,7 @@ export async function loadOverrides(yamlPath?: string): Promise<void> {
 
 	const result = YamlFileSchema.safeParse(parsed);
 	if (!result.success) {
-		log.warn("[overrides] invalid overrides.yaml schema", {
+		log.warn("[overrides] invalid overrides.yml schema", {
 			error: result.error.message,
 		});
 		return;

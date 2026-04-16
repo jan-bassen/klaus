@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { settings } from "@/config";
+import { _resetForTest, _setForTest } from "@/config/schema";
 import { textToSpeech } from "@/whatsapp/voice";
 
 describe("textToSpeech", () => {
@@ -10,6 +11,10 @@ describe("textToSpeech", () => {
 		originalKey = process.env.ELEVENLABS_API_KEY;
 		originalFetch = globalThis.fetch;
 		process.env.ELEVENLABS_API_KEY = "test-key";
+		// Bundled default ships with an empty voiceId placeholder; tests need a real one.
+		_setForTest({
+			tts: { ...settings.tts, voiceId: "test-voice-id" },
+		});
 	});
 
 	afterEach(() => {
@@ -19,6 +24,7 @@ describe("textToSpeech", () => {
 			process.env.ELEVENLABS_API_KEY = originalKey;
 		}
 		globalThis.fetch = originalFetch;
+		_resetForTest();
 	});
 
 	test("returns Error when ELEVENLABS_API_KEY is not set", async () => {

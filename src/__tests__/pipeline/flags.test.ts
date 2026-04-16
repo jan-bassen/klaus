@@ -12,7 +12,7 @@ import {
 
 // ── Setup: load all override definitions before tests ──────────────────────
 
-const yamlPath = path.join(import.meta.dir, "..", "fixtures", "overrides.yaml");
+const yamlPath = path.join(import.meta.dir, "..", "fixtures", "overrides.yml");
 
 beforeAll(async () => {
 	await loadOverrides(yamlPath);

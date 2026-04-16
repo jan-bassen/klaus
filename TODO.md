@@ -1,13 +1,5 @@
 # Features v0.2.0 (ignore migration paths, we're able to fully reset still)
 
-## Clear up and improve attachment/variable flows: 
-  - [x] rename src/context/ -> variables
-  - [x] remove UserMessageFallback and throw when now message template found
-  - [x] unify variable flow accross all templates (every template gets every variable + all are defined in a centralized place - src/variables/)
-  - [x] nest variables better (group related ones, so it's easier to reason about them - optimal case: 1 group = 1 file and not deeper than that)
-  - [x] Rethink and rename variables to be very usable and easy to understand. Examples of what I dont want from what we currently have: `extractedText` as top-level var for parsed document content. It should be att.doc.text or smth
-  - [x] Remove the currently messy setup for truncate options for vars into a unified system of limiting a var to a certain char length in handlebars directly
-
 ## Improve media/research flows
 Plan: Have a good look at the current document/web flow to give the agent efficient tools for common use-cases
 Options:
@@ -21,7 +13,7 @@ Goal: Add a simple system for a few key evals + live testing system to catch 80%
 
 ## Code quality
 - [x] Make schemas dynamic (or extendible depending on context). Providers resolved dynamically, overrides schema uses `.passthrough()`
-- [ ] Make sure we are consistent in file extensions (eg overrides.yaml and settings.yml, but maybe more cases across codebase): always use shortest name
+- [x] Make sure we are consistent in file extensions (eg overrides.yaml and settings.yml, but maybe more cases across codebase): always use shortest name — standardized on `.yml`
 - [ ] Contain baileys imports to just whatsapp/ + check the codebase for other similar leaks
 
 ## Remove remainder of token tracking

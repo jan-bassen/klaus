@@ -1,5 +1,6 @@
 import type { FSWatcher } from "node:fs";
-import { existsSync, watch } from "node:fs";
+import { existsSync, readFileSync, watch } from "node:fs";
+import path from "node:path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
 import { log } from "@/logger";
@@ -32,52 +33,23 @@ const ProviderSchema = z
 
 const ProvidersSchema = z
 	.object({
-		active: z.string().default("claude"),
-		claude: ProviderSchema.default({
-			sdk: "anthropic",
-			small: "claude-haiku-3-20250307",
-			medium: "claude-sonnet-4-20250514",
-			large: "claude-opus-4-20250514",
-			coldTemperature: 0,
-			hotTemperature: 1,
-			creativeTopP: 0.95,
-			rigidTopP: 0.1,
-		}),
-		chatgpt: ProviderSchema.default({
-			sdk: "openai",
-			small: "gpt-4o-mini",
-			medium: "gpt-4o",
-			large: "o3",
-			coldTemperature: 0,
-			hotTemperature: 1.5,
-			creativeTopP: 0.95,
-			rigidTopP: 0.1,
-		}),
-		gemini: ProviderSchema.default({
-			sdk: "google",
-			small: "gemini-2.0-flash-lite",
-			medium: "gemini-2.5-pro",
-			large: "gemini-2.5-pro",
-			coldTemperature: 0,
-			hotTemperature: 1.5,
-			creativeTopP: 0.95,
-			rigidTopP: 0.1,
-		}),
+		active: z.string(),
+		claude: ProviderSchema,
+		chatgpt: ProviderSchema,
+		gemini: ProviderSchema,
 	})
-	.catchall(ProviderSchema)
-	.default({});
+	.catchall(ProviderSchema);
 
 const ContextSchema = z
 	.object({
 		/** Char budget for conversation history messages (user + assistant turns incl. traces). */
-		conversationChars: z.number().default(80_000),
-		defaultConversationLimit: z.number().default(20),
+		conversationChars: z.number(),
+		defaultConversationLimit: z.number(),
 		/** How many of the most recent user turns keep full tool traces; older turns get compact summaries. */
-		traceDepth: z.number().default(3),
-		conversationLookbackDays: z.number().default(7),
+		traceDepth: z.number(),
+		conversationLookbackDays: z.number(),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const RateLimitEntrySchema = z
 	.object({
@@ -88,131 +60,112 @@ const RateLimitEntrySchema = z
 
 const RateLimitsSchema = z
 	.object({
-		messages: RateLimitEntrySchema.default({ max: 30, windowMs: 60_000 }),
-		modelCalls: RateLimitEntrySchema.default({ max: 60, windowMs: 60_000 }),
+		messages: RateLimitEntrySchema,
+		modelCalls: RateLimitEntrySchema,
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const TtsSchema = z
 	.object({
-		model: z.string().default("eleven_multilingual_v2"),
-		voiceId: z.string().default("Qqi8SzIZjZsatCWjDOp7"),
+		model: z.string(),
+		voiceId: z.string(),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const SttSchema = z
 	.object({
-		model: z.string().default("scribe_v1"),
-		timeoutMs: z.number().default(30_000),
-		agentTriggers: z
-			.array(z.string())
-			.default(["hey", "at", "an", "to", "dear"]),
+		model: z.string(),
+		timeoutMs: z.number(),
+		agentTriggers: z.array(z.string()),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const RetriesSchema = z
 	.object({
-		max: z.number().default(3),
-		backoffMs: z.number().default(1_000),
+		max: z.number(),
+		backoffMs: z.number(),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const SendSchema = z
 	.object({
-		interMessageDelayMs: z.number().default(1_500),
+		interMessageDelayMs: z.number(),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const LlmSchema = z
 	.object({
-		timeoutMs: z.number().default(120_000),
-		maxSteps: z.number().default(10),
+		timeoutMs: z.number(),
+		maxSteps: z.number(),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const DispatchSchema = z
 	.object({
-		maxChainDepth: z.number().default(10),
+		maxChainDepth: z.number(),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const PersistentSchema = z
 	.object({
-		minNextRunMs: z.number().default(60_000),
-		maxNextRunMs: z.number().default(7 * 86_400_000),
-		defaultNextRun: z.string().default("1h"),
+		minNextRunMs: z.number(),
+		maxNextRunMs: z.number(),
+		defaultNextRun: z.string(),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const TrailSchema = z
 	.object({
-		enabled: z.boolean().default(true),
-		retentionDays: z.number().default(3),
+		enabled: z.boolean(),
+		retentionDays: z.number(),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const WatcherSchema = z
 	.object({
-		debounceMs: z.number().default(1_000),
+		debounceMs: z.number(),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const VisionSchema = z
 	.object({
-		maxImageDimension: z.number().default(2048),
+		maxImageDimension: z.number(),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const DocumentSchema = z
 	.object({
 		/** Max chars of parsed text kept inline in the user message or returned by files.read */
-		maxChars: z.number().default(40_000),
+		maxChars: z.number(),
 		/** OCR for scanned PDFs / image-only pages */
-		ocrEnabled: z.boolean().default(true),
+		ocrEnabled: z.boolean(),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const WhatsAppSchema = z
 	.object({
-		selfMode: z.boolean().default(false),
-		systemLabel: z.string().default("System"),
-		maxDownloadBytes: z.number().default(67_108_864),
-		mediaDownloadTimeoutMs: z.number().default(30_000),
-		offlineWindowMs: z.number().default(300_000),
-		maxSeenSize: z.number().default(10_000),
-		confirmTimeoutMs: z.number().default(60_000),
+		selfMode: z.boolean(),
+		systemLabel: z.string(),
+		maxDownloadBytes: z.number(),
+		mediaDownloadTimeoutMs: z.number(),
+		offlineWindowMs: z.number(),
+		maxSeenSize: z.number(),
+		confirmTimeoutMs: z.number(),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 const VaultYamlSchema = z
 	.object({
-		folders: z
-			.array(VaultFolderSchema)
-			.default([{ path: "", default: "full" }]),
+		folders: z.array(VaultFolderSchema),
 		internalPermission: z
 			.object({
-				default: VaultPermissionSchema.default("read"),
+				default: VaultPermissionSchema,
 				request: VaultPermissionSchema.optional(),
 			})
-			.strict()
-			.default({ default: "read", request: "full" }),
-		maxListEntries: z.number().default(200),
+			.strict(),
+		maxListEntries: z.number(),
 	})
-	.strict()
-	.default({});
+	.strict();
 
 export const SettingsSchema = z
 	.object({
@@ -225,9 +178,9 @@ export const SettingsSchema = z
 		send: SendSchema,
 		llm: LlmSchema,
 		allowedChatId: z.string().optional(),
-		defaultAgent: z.string().default("default"),
-		locale: z.string().default("en-GB"),
-		timezone: z.string().default("Europe/London"),
+		defaultAgent: z.string(),
+		locale: z.string(),
+		timezone: z.string(),
 		dispatch: DispatchSchema,
 		persistent: PersistentSchema,
 		trail: TrailSchema,
@@ -237,12 +190,52 @@ export const SettingsSchema = z
 		whatsapp: WhatsAppSchema,
 		vault: VaultYamlSchema,
 	})
-	.strict()
-	.default({});
+	.strict();
 
 export type YamlSettings = z.output<typeof SettingsSchema>;
 
-let _current: YamlSettings = SettingsSchema.parse({});
+/**
+ * Bundled default settings.yml shipped with the repo. This is the single
+ * source of truth for defaults — the Zod schema only validates; it carries no
+ * `.default()` fallbacks. `_current` is initialized from this file at module
+ * load, and `loadSettingsFromDisk()` later overrides with the vault copy at
+ * runtime (after `ensureDefaults()` has copied the bundled file into the
+ * vault on first run).
+ */
+const BUNDLED_SETTINGS_PATH = path.join(
+	import.meta.dir,
+	"..",
+	"..",
+	"Klaus",
+	"settings.yml",
+);
+
+function loadBundledDefaults(): YamlSettings {
+	let raw: string;
+	try {
+		raw = readFileSync(BUNDLED_SETTINGS_PATH, "utf8");
+	} catch (err) {
+		throw new Error(
+			`Bundled default settings file missing or unreadable at ${BUNDLED_SETTINGS_PATH}. ` +
+				`This is a deployment bug — the repo's Klaus/settings.yml must ship with the binary. ` +
+				`Underlying error: ${err instanceof Error ? err.message : String(err)}`,
+		);
+	}
+
+	const parsed = parseYaml(raw);
+	const result = SettingsSchema.safeParse(parsed ?? {});
+	if (!result.success) {
+		const issues = result.error.issues
+			.map((i) => `${i.path.join(".")}: ${i.message}`)
+			.join("; ");
+		throw new Error(
+			`Bundled default settings at ${BUNDLED_SETTINGS_PATH} failed validation: ${issues}`,
+		);
+	}
+	return result.data;
+}
+
+let _current: YamlSettings = loadBundledDefaults();
 
 export function getYamlSettings(): YamlSettings {
 	return _current;
@@ -253,9 +246,9 @@ export function _setForTest(override: Partial<YamlSettings>): void {
 	_current = { ..._current, ...override };
 }
 
-/** For tests only — reset to schema defaults. */
+/** For tests only — reset to the bundled default settings. */
 export function _resetForTest(): void {
-	_current = SettingsSchema.parse({});
+	_current = loadBundledDefaults();
 }
 
 export async function loadSettingsFromDisk(): Promise<
@@ -264,7 +257,7 @@ export async function loadSettingsFromDisk(): Promise<
 	const filePath = config.vault.settingsPath;
 
 	if (!existsSync(filePath)) {
-		log.info("[settings] no settings.yml found, using schema defaults");
+		log.info("[settings] no settings.yml in vault, using bundled defaults");
 		return { ok: true };
 	}
 

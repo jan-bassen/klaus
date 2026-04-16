@@ -163,8 +163,8 @@ beforeAll(async () => {
 	const minimalFrontmatter = (name: string, tier: string) =>
 		`---\nname: ${name}\nmodelTier: ${tier}\ntools: []\n---\n`;
 	await writeFile(
-		join(agentsDir, "default.md"),
-		minimalFrontmatter("default", "medium"),
+		join(agentsDir, "assistant.md"),
+		minimalFrontmatter("assistant", "medium"),
 	);
 	await writeFile(
 		join(agentsDir, "thinking.md"),
@@ -484,10 +484,10 @@ describe("handleTurn — document media", () => {
 // ─── Agent routing ────────────────────────────────────────────────────────────
 
 describe("handleTurn — agent routing", () => {
-	test("routes to default agent when no @agent prefix", async () => {
+	test("routes to default (assistant) agent when no @agent prefix", async () => {
 		await handleTurn(makeMsg({ text: "just a normal message" }));
 		expect(mockAgentRunner).toHaveBeenCalledTimes(1);
-		expect(lastTurn().agent?.name).toBe("default");
+		expect(lastTurn().agent?.name).toBe("assistant");
 	});
 
 	test("@agent prefix routes to the named agent and strips prefix from text", async () => {

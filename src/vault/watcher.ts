@@ -185,14 +185,14 @@ export function startWatching(agentsDir: string, skillsDir: string): void {
 	});
 	watchers.push(skillWatcher);
 
-	// Watch Klaus/ internal dir for overrides.yaml changes
+	// Watch Klaus/ internal dir for overrides.yml changes
 	const internalDir = settings.vault.internalPath;
 	if (existsSync(internalDir)) {
 		const internalWatcher = watch(internalDir, (_event, filename) => {
-			if (filename !== "overrides.yaml") return;
+			if (filename !== "overrides.yml") return;
 			debounce("overrides", () => {
 				loadOverrides().catch((err) =>
-					log.error("[watcher] failed to reload overrides.yaml", {
+					log.error("[watcher] failed to reload overrides.yml", {
 						error: err instanceof Error ? err.message : String(err),
 					}),
 				);

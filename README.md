@@ -59,7 +59,9 @@ overrides start with `!` and can appear anywhere in your message. They control p
 
 overrides are stripped from the message text before it reaches the agent, so they don't interfere with your actual message. Combine freely: `@think !voice !large Explain quantum computing`.
 
-override presets are defined in `Klaus/overrides.yaml` (hot-reloaded). Agent frontmatter can set any override field directly as a default (e.g. `forceVoice: true`).
+override presets are defined in `Klaus/overrides.yml` (hot-reloaded). Agent frontmatter can set any override field directly as a default (e.g. `forceVoice: true`).
+
+The repo ships a complete default `Klaus/` tree at the repo root (agents, snippets, skills, `message.md`, `overrides.yml`, `settings.yml`). On first run, `ensureDefaults()` copies anything missing into `{vault}/Klaus/` — user edits are never overwritten.
 
 See [REFERENCE.md](REFERENCE.md) for a complete list of all commands, overrides, variables, tools, toolsets, and settings.
 
@@ -272,10 +274,9 @@ Built-in agents:
 
 | Agent      | Purpose                                                              |
 | ---------- | -------------------------------------------------------------------- |
-| klaus      | Default conversational agent                                         |
-| thinking   | High-tier agent for research and extended reasoning                  |
-| memorize   | Async agent dispatched to extract facts into memory.md and user.md   |
-| vault      | Obsidian vault specialist — read, search, create, and organize notes |
+| assistant  | Default conversational agent shipped with the repo                   |
+
+Add your own by dropping more `.md` files into `{vault}/Klaus/agents/`.
 
 ### Tools and toolsets
 
@@ -375,12 +376,12 @@ src/
 {VAULT_DIR}/           # Vault root — folders with per-folder permissions
 ├── Klaus/             # Internal folder (default: read, request: full)
 │   ├── agents/        # Agent prompt files (.md with YAML frontmatter)
-│   ├── settings.yml   # User-facing settings (providers, budgets, permissions, etc.)
 │   ├── skills/        # Static .md reference documents (loaded on demand)
-│   └── snippets/      # Prompt content with optional HBS conditionals (personality.md, communication.md)
-├── Leben/             # User content folders — permissions configured in Klaus/settings.yml
-├── Projekte/
-└── *.md               # Root-level files
+│   ├── snippets/      # Prompt content with optional HBS conditionals
+│   ├── message.md     # Handlebars template for the user message (required)
+│   ├── overrides.yml  # Override preset definitions
+│   └── settings.yml   # Single source of truth for all tunable settings
+└── ...                # Your own folders — permissions configured in Klaus/settings.yml
 ```
 
 ---
