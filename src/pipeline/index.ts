@@ -46,7 +46,12 @@ import {
 import { startTyping, stopTyping } from "@/whatsapp/presence";
 import { enqueueMessage, sendReaction } from "@/whatsapp/send";
 import { rewriteVoiceTranscript, transcribe } from "@/whatsapp/voice";
-import { isParseableDocument, parseDocument } from "./attachments";
+import {
+	extractUrls,
+	fetchWebContent,
+	isParseableDocument,
+	parseDocument,
+} from "./attachments";
 import {
 	parseOverrides,
 	resolveAgentDefaults,
@@ -193,7 +198,37 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			}
 		}
 
-		// Step 3b: Voice fuzzy matching — rewrite spoken agent/override patterns
+		// Step 3b: Fetch web links embedded in message text
+		const urlsInText = extractUrls(processedMsg.text ?? "");
+		if (urlsInText.length > 0) {
+			const urlsToFetch = urlsInText.slice(0, settings.web.maxUrls);
+			log.info("[pipeline] fetching web links", { count: urlsToFetch.length });
+
+			const results = await Promise.allSettled(
+				urlsToFetch.map((u) => fetchWebContent(u)),
+			);
+
+			const links: NonNullable<InboundMessage["links"]> = [];
+			for (const [i, r] of results.entries()) {
+				const fetchedUrl = urlsToFetch[i] ?? "";
+				if (r.status === "fulfilled" && !(r.value instanceof Error)) {
+					links.push({ url: fetchedUrl, ...r.value });
+				} else {
+					const reason =
+						r.status === "rejected" ? r.reason : (r.value as Error);
+					log.warn("[pipeline] web fetch failed", {
+						url: fetchedUrl,
+						error: reason instanceof Error ? reason.message : String(reason),
+					});
+				}
+			}
+
+			if (links.length > 0) {
+				processedMsg = { ...processedMsg, links };
+			}
+		}
+
+		// Step 3c: Voice fuzzy matching — rewrite spoken agent/override patterns
 		let rawText = processedMsg.text ?? "";
 		if (processedMsg.media?.transcription) {
 			rawText = rewriteVoiceTranscript(

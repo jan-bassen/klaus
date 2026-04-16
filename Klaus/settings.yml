@@ -94,6 +94,12 @@ document:
   maxChars: 40000
   ocrEnabled: true
 
+web:
+  maxChars: 12000
+  timeoutMs: 10000
+  maxUrls: 3
+  maxBodyBytes: 5242880
+
 whatsapp:
   selfMode: false
   systemLabel: System

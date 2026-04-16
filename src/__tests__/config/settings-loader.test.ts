@@ -79,6 +79,12 @@ function completeSettings(over: Record<string, unknown> = {}): unknown {
 		watcher: { debounceMs: 1000 },
 		vision: { maxImageDimension: 2048 },
 		document: { maxChars: 40000, ocrEnabled: true },
+		web: {
+			maxChars: 12000,
+			timeoutMs: 10000,
+			maxUrls: 3,
+			maxBodyBytes: 5242880,
+		},
 		whatsapp: {
 			selfMode: false,
 			systemLabel: "System",

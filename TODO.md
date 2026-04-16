@@ -5,8 +5,8 @@ Plan: Have a good look at the current document/web flow to give the agent effici
 Options:
 - [x] liteparse for better document flow — inline parse on current message, `files.read` tool for older/quoted attachments, `.parsed.txt` sidecar cache
 - [x] rename parse-document in pipeline to attachments (it will also include the web-links in the next step)
-- [ ] Handle a message contains one or more weblinks similarly: custom auto-webfetch + parsing with defuddle
-- [ ] add custom web-fetch tool with defuddle
+- [x] Handle a message contains one or more weblinks similarly: custom auto-webfetch + parsing with defuddle
+- [x] add custom web-fetch tool with defuddle
 
 ## Very simple evals
 Goal: Add a simple system for a few key evals + live testing system to catch 80% of issues while iterating
@@ -18,6 +18,15 @@ Goal: Add a simple system for a few key evals + live testing system to catch 80%
 
 ## Remove remainder of token tracking
 we still have stuff like "charsPerToken" in settings, although that doesn't even make sense. Let's clean that up. Track chars if we need to track something, but why would we?
+
+## Settings cleanup
+- [ ] Msg timeout -> whatsapp key
+- [ ] Maybe reorder?
+- [ ] Vault permissions
+  - [ ] Linearly escalating access levels: hidden, locked (know it’s there and locked, no open access), read, append-text or append-files for specific append types, append (for both), full (write)
+  One folder for vaults(?)
+  - [ ] Open question: how to handle agent specific settings?
+  
 
 ## Maybe's
 - [ ] Voice language field in settings.ts against awkward accents

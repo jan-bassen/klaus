@@ -118,6 +118,7 @@ Dynamic content injected into prompts and user message templates. All templates 
 |-----|-------|-------------|
 | `time` | `{ date, time, weekday }` | Current date, time, and weekday (locale/timezone-aware) |
 | `media` | `{ kind, doc, image, voice, quoted }` | Attached media for the current message. `kind` is `"doc" \| "image" \| "voice" \| null`; only one of `doc`/`image`/`voice` is populated accordingly. |
+| `links` | `{ count, items: [{ url, title, text }] }` | Web links auto-fetched from the message text via defuddle. `count` is the number of successfully fetched links; `items` contains the parsed content. |
 | `tasks` | `{ active: [{ kind, objective, runAt? }] }` | Running async jobs and pending timers |
 | `dispatch` | `{ caller, objective, hint, mode, hasMessage } \| null` | Set when the agent was invoked via `dispatch.agent` (or scheduled/persistent tick); `null` for direct `@agent` calls |
 | `config` | `TurnConfig` + `{ isVoiceOn, isVoiceOff, isVoiceAuto }` | Effective turn configuration — agent frontmatter defaults merged with per-message overrides. Templates read this without caring about provenance (e.g. `config.forceVoice`, `config.modelTier`, `config.provider`, `config.isVoiceOn`). |
@@ -153,6 +154,7 @@ Opt-in per agent via `tools:` in frontmatter. Defined in `src/tools/`.
 | `react` | React to a message with an emoji | `emoji`, `messageRef?` |
 | `conversation` | Search conversation history (text, around message, time range) | `query?`, `around_message_id?`, `after?`, `before?`, `limit?` |
 | `skill.get` | Load a reference document by name (scoped to agent's `skills:` list) | `name` (enum) |
+| `web.fetch` | Fetch a web page and extract readable text via defuddle | `url` |
 
 ### Provider tools
 
@@ -340,6 +342,15 @@ Conversation history limits. Per-variable truncation inside prompts is done with
 |-------|---------|-------------|
 | `maxChars` | `40000` | Max chars of parsed text kept inline in the user message or returned by `files.read` |
 | `ocrEnabled` | `true` | Run OCR (Tesseract.js) on scanned PDFs / image-only pages |
+
+### web
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `maxChars` | `12000` | Max chars of fetched content kept inline per URL |
+| `timeoutMs` | `10000` | Fetch timeout per URL (ms) |
+| `maxUrls` | `3` | Max URLs to auto-fetch per message |
+| `maxBodyBytes` | `5242880` | Max response body size (5 MB) before aborting |
 
 ### whatsapp
 

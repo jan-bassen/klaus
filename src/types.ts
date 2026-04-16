@@ -30,6 +30,8 @@ export interface InboundMessage {
 		/** For documents: text extracted by the parser (populated in pipeline normalize) */
 		extractedText?: string;
 	};
+	/** Web links extracted from message text, with fetched content (populated in pipeline normalize) */
+	links?: Array<{ url: string; title: string; text: string }>;
 	/** Set by receive.ts when this message is a reply to another message */
 	quotedMessage?: {
 		externalId: string;

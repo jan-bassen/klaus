@@ -134,6 +134,9 @@ export const settings = {
 	get document() {
 		return getYamlSettings().document;
 	},
+	get web() {
+		return getYamlSettings().web;
+	},
 	get whatsapp() {
 		return getYamlSettings().whatsapp;
 	},

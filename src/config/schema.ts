@@ -142,6 +142,19 @@ const DocumentSchema = z
 	})
 	.strict();
 
+const WebSchema = z
+	.object({
+		/** Max chars of fetched content kept inline per URL */
+		maxChars: z.number(),
+		/** Fetch timeout per URL in ms */
+		timeoutMs: z.number(),
+		/** Max number of URLs to auto-fetch per message */
+		maxUrls: z.number(),
+		/** Max response body size in bytes before aborting */
+		maxBodyBytes: z.number(),
+	})
+	.strict();
+
 const WhatsAppSchema = z
 	.object({
 		selfMode: z.boolean(),
@@ -187,6 +200,7 @@ export const SettingsSchema = z
 		watcher: WatcherSchema,
 		vision: VisionSchema,
 		document: DocumentSchema,
+		web: WebSchema,
 		whatsapp: WhatsAppSchema,
 		vault: VaultYamlSchema,
 	})
