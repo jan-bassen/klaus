@@ -63,6 +63,7 @@ mock.module("@whiskeysockets/baileys", () => ({
 	DisconnectReason: {
 		loggedOut: 401,
 	},
+	jidNormalizedUser: (jid: string) => jid,
 	fetchLatestBaileysVersion: mockFetchLatestBaileysVersion,
 	useMultiFileAuthState: mockUseMultiFileAuthState,
 }));

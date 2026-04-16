@@ -2,6 +2,7 @@ import path from "node:path";
 import makeWASocket, {
 	DisconnectReason,
 	fetchLatestBaileysVersion,
+	jidNormalizedUser,
 	useMultiFileAuthState,
 	type WASocket,
 } from "@whiskeysockets/baileys";
@@ -185,4 +186,9 @@ export function getConnectionState(): WhatsAppConnectionState {
 
 export function getLatestQr(): string | null {
 	return latestQr;
+}
+
+/** Normalize a raw JID to user@s.whatsapp.net form. */
+export function normalizeJid(rawJid: string): string {
+	return jidNormalizedUser(rawJid);
 }

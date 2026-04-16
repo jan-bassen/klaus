@@ -1,4 +1,3 @@
-import type { WAMessageKey } from "@whiskeysockets/baileys";
 import type { Command } from "@/commands";
 import { settings } from "@/config";
 import { formatUserError } from "@/errors";
@@ -11,7 +10,7 @@ import {
 } from "@/store/conversation";
 import type { InboundMessage } from "@/types";
 import { getSocket } from "@/whatsapp/connection";
-import { enqueueMessage, sendReaction } from "@/whatsapp/send";
+import { enqueueMessage, type MessageKey, sendReaction } from "@/whatsapp/send";
 
 const ERROR_EMOJI = "❌";
 
@@ -94,7 +93,7 @@ export const retryCommand: Command = {
 		}
 
 		const botId = getSocket().user?.id ?? "bot";
-		const targetKey: WAMessageKey = {
+		const targetKey: MessageKey = {
 			remoteJid: msg.chatId,
 			fromMe: false,
 			id: target.externalId,

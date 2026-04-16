@@ -1,5 +1,4 @@
 import path from "node:path";
-import { jidNormalizedUser } from "@whiskeysockets/baileys";
 import { agentRegistry, loadAgentDefinition } from "@/agent";
 import { type AgentRunResult, runAgent } from "@/agent/runner";
 import type { AgentDefinition, InboundMessage, TurnContext } from "@/types";
@@ -37,7 +36,7 @@ import {
 import { appendTrail } from "@/store/trail";
 import { recordTurnLog, toLogSteps } from "@/store/turn-log";
 import { assembleVariables } from "@/variables";
-import { getSocket } from "@/whatsapp/connection";
+import { getSocket, normalizeJid } from "@/whatsapp/connection";
 import {
 	clearLoginFolder,
 	clearSetupCode,
@@ -105,7 +104,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		if (!auth.allowed) {
 			if (auth.setupMode) {
 				if (settings.whatsapp.selfMode) {
-					const ownJid = jidNormalizedUser(getSocket().user?.id ?? "");
+					const ownJid = normalizeJid(getSocket().user?.id ?? "");
 					if (!ownJid) {
 						log.warn("[pipeline] self-mode: waiting for own JID");
 						return;

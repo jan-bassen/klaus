@@ -3,6 +3,10 @@ import type {
 	WAMessageKey,
 	WASocket,
 } from "@whiskeysockets/baileys";
+
+/** Re-export so consumers import from whatsapp/, not from baileys directly. */
+export type { WAMessageKey as MessageKey };
+
 import { settings } from "@/config";
 import { log } from "@/logger";
 

@@ -1,10 +1,9 @@
-import type { WAMessageKey } from "@whiskeysockets/baileys";
 import { z } from "zod";
 import { log } from "@/logger";
 import { appendReaction } from "@/store/conversation";
 import type { ToolDefinition } from "@/types";
 import { getSocket } from "@/whatsapp/connection";
-import { sendReaction } from "@/whatsapp/send";
+import { type MessageKey, sendReaction } from "@/whatsapp/send";
 
 const reactSchema = z.object({
 	emoji: z
@@ -30,7 +29,7 @@ export const reactTool: ToolDefinition<typeof reactSchema> = {
 		const chatId = context.chatId;
 
 		let externalId: string;
-		let key: WAMessageKey;
+		let key: MessageKey;
 
 		if (messageRef && messageRef !== "current") {
 			const ref = context.messageRefs?.[messageRef];
@@ -39,7 +38,7 @@ export const reactTool: ToolDefinition<typeof reactSchema> = {
 			key = { remoteJid: chatId, fromMe: ref.role !== "user", id: externalId };
 		} else {
 			externalId = context.message.id;
-			key = context.message.messageKey as WAMessageKey;
+			key = context.message.messageKey as MessageKey;
 		}
 
 		const result = await sendReaction(chatId, key, emoji);
