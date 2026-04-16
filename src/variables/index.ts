@@ -8,7 +8,7 @@ import type { TurnContext } from "@/types";
  * returns the subtree placed at that key.
  *
  * All variables run in parallel and are merged into a single nested object
- * passed straight into Handlebars. No token budget, no priority, no truncation —
+ * passed straight into Handlebars. No char budget, no priority, no truncation —
  * templates apply char limits explicitly via the `{{trunc}}` helper.
  */
 export interface Variable {

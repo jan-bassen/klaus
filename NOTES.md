@@ -3,7 +3,6 @@
 - [ ] Maybe ./whatsapp -> ./chat
 - [ ] Model command VALID_TIERS hardcoded (should be from settings)
 - [ ] Tiers should be arbitrary model name map (opus, sonnet, …)
-- [ ] Chars_per_token -> actual tokenizer if possible (sometimes it's also hardcoded... eg dispatch context). Also we're currently writing this in every query instead of handling it automatically for all
 - [ ] Maybe file names in settings.ts (eg store/budgets.ts)?
 - [ ] Budgets ts missing catch block(?)
 - [ ] Remove unnecessary comments? (eg store/budgets.ts)

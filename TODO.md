@@ -1,8 +1,5 @@
 # Features v0.2.0 (ignore migration paths, we're able to fully reset still)
 
-## Remove remainder of token tracking
-we still have stuff like "charsPerToken" in settings, although that doesn't even make sense. Let's clean that up. Track chars if we need to track something, but why would we?
-
 ## Settings cleanup
 - [ ] Msg timeout -> whatsapp key
 - [ ] Maybe reorder?

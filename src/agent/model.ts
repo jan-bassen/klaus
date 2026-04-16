@@ -86,7 +86,7 @@ function isRetryable(err: unknown): boolean {
 
 /**
  * Resolves the model tier to a provider+model, enforces the LLM-level rate limit,
- * calls the Vercel AI SDK, and records the full invocation trace including cost.
+ * calls the Vercel AI SDK, and records the full invocation trace.
  */
 export async function callModel(
 	opts: ModelCallOptions,

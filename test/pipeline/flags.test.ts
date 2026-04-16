@@ -353,7 +353,7 @@ describe("stripOverrides", () => {
 		expect(stripOverrides("!banana explain")).toBe("!banana explain");
 	});
 
-	test("removes only recognized flags among mixed tokens", () => {
+	test("removes only recognized flags among mixed words", () => {
 		expect(stripOverrides(`!${flagA} !banana data`)).toBe("!banana data");
 	});
 
@@ -375,7 +375,7 @@ describe("stripOverrides", () => {
 		expect(stripOverrides("hey ! what")).toBe("hey ! what");
 	});
 
-	test("strips alias tokens", () => {
+	test("strips alias flags", () => {
 		expect(stripOverrides("!s !v tell me more")).toBe("tell me more");
 	});
 });

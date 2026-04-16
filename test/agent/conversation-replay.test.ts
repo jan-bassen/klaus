@@ -298,8 +298,8 @@ describe("trace persistence", () => {
 	});
 });
 
-describe("token budget trimming", () => {
-	test("respects conversation token budget", async () => {
+describe("char budget trimming", () => {
+	test("respects conversation char budget", async () => {
 		// Insert many messages to exceed the budget
 		for (let i = 0; i < 50; i++) {
 			await appendMessage({
@@ -316,7 +316,7 @@ describe("token budget trimming", () => {
 
 		const { messages } = await buildConversationMessages(makeTurn());
 
-		// Should have fewer messages than total due to token budget
+		// Should have fewer messages than total due to char budget
 		expect(messages.length).toBeLessThan(100);
 		expect(messages.length).toBeGreaterThan(0);
 	});

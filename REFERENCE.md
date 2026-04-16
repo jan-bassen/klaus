@@ -250,7 +250,7 @@ Provider configuration. Each named entry (claude, chatgpt, gemini) uses the same
 
 ### context
 
-Conversation history limits. Per-variable truncation inside prompts is done with `{{trunc …}}` — there is no global token budget.
+Conversation history limits. Per-variable truncation inside prompts is done with `{{trunc …}}` — there is no global char budget.
 
 | Field | Default | Description |
 |-------|---------|-------------|

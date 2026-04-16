@@ -45,13 +45,13 @@ export function parseCommand(
 ): { name: string; args: string[] } | null {
 	if (!msg.text || !msg.text.startsWith("/")) return null;
 
-	const tokens = msg.text.split(/\s+/).filter(Boolean);
-	const raw = tokens[0]?.slice(1);
+	const parts = msg.text.split(/\s+/).filter(Boolean);
+	const raw = parts[0]?.slice(1);
 	if (!raw) return null;
 
 	return {
 		name: raw.toLowerCase(),
-		args: tokens.slice(1),
+		args: parts.slice(1),
 	};
 }
 

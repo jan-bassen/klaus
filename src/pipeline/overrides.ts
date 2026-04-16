@@ -131,32 +131,32 @@ export async function loadOverrides(yamlPath?: string): Promise<void> {
 
 // ── Parsing ─────────────────────────────────────────────────────────────
 
-/** Returns the canonical override name if a token is a recognized !preset or alias, otherwise null. */
-function overrideName(token: string): string | null {
-	if (!token.startsWith("!") || token.length <= 1) return null;
-	const def = overrideRegistry.get(token.slice(1));
+/** Returns the canonical override name if a word is a recognized !preset or alias, otherwise null. */
+function overrideName(word: string): string | null {
+	if (!word.startsWith("!") || word.length <= 1) return null;
+	const def = overrideRegistry.get(word.slice(1));
 	return def ? def.name : null;
 }
 
-/** Parse `!preset` tokens from a message and return the active preset names. */
+/** Parse `!preset` words from a message and return the active preset names. */
 export function parseOverrides(msg: {
 	text?: string;
 }): Record<string, boolean> {
 	if (!msg.text) return {};
 
 	const active: Record<string, boolean> = {};
-	for (const token of msg.text.split(/\s+/)) {
-		const name = overrideName(token);
+	for (const word of msg.text.split(/\s+/)) {
+		const name = overrideName(word);
 		if (name) active[name] = true;
 	}
 	return active;
 }
 
-/** Remove recognized `!preset` tokens from text and collapse whitespace. */
+/** Remove recognized `!preset` words from text and collapse whitespace. */
 export function stripOverrides(text: string): string {
 	return text
 		.split(/\s+/)
-		.filter((token) => overrideName(token) === null)
+		.filter((w) => overrideName(w) === null)
 		.join(" ")
 		.trim();
 }

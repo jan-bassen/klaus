@@ -245,9 +245,9 @@ Every inbound WhatsApp message flows through the same pipeline:
 2. **Rate limit** — per-chat rate limiting; soft reject with retry message
 3. **Normalize** — transcribe voice notes (ElevenLabs STT), parse attached documents to text (liteparse, cached in `.parsed.txt` sidecar), downscale large images
 4. **Parse** — extract /command (execute directly, bypass LLM) or @agent routing prefix
-5. **Strip overrides** — pull out !override tokens, resolve presets into typed overrides
+5. **Strip overrides** — pull out !override flags, resolve presets into typed overrides
 6. **Persist** — append message to conversation JSONL, resolve quote-reply
-7. **Assemble context** — run all context variables in parallel, trim to token budget
+7. **Assemble context** — run all context variables in parallel, trim to char budget
 8. **Execute agent** — Vercel AI SDK agentic loop with tools, send response via WhatsApp
 
 ### Agents
@@ -281,7 +281,7 @@ Add your own by dropping more `.md` files into `{vault}/Klaus/agents/`.
 
 ### Tools and toolsets
 
-**Tools** are always-available capabilities (e.g. reply, react, dispatch). **Toolsets** are groups of related tools that are lazy-loaded to save context tokens. Each toolset registers a use\_\<name\> meta-tool; when the model calls it, the actual tools are injected into the next step.
+**Tools** are always-available capabilities (e.g. reply, react, dispatch). **Toolsets** are groups of related tools that are lazy-loaded to keep prompts lean. Each toolset registers a use\_\<name\> meta-tool; when the model calls it, the actual tools are injected into the next step.
 
 | Toolset  | Tools                                               | Purpose                                |
 | -------- | --------------------------------------------------- | -------------------------------------- |
@@ -307,29 +307,33 @@ Klaus has three types of knowledge content, forming a spectrum from always-loade
 
 **Snippets** are `.md` files in `Klaus/snippets/` plus `Klaus/user.md`. They are loaded every turn as template variables (e.g., `{{personality}}`, `{{user}}`, `{{architecture}}`). Always in context — use for core identity and instructions. Snippets support optional YAML frontmatter with a `scope` field (`system` | `user` | `both`, default: `system`). System-scoped snippets are available as `{{var}}` in agent prompts. User-scoped snippets are available as `$var` in WhatsApp messages. `both` makes them available everywhere. Snippet content supports Handlebars templating with all resolved override fields as vars (e.g. `{{forceVoice}}`, `{{provider}}`, `{{modelTier}}`, plus `{{isVoiceOn}}`, `{{isVoiceOff}}`, `{{isVoiceAuto}}`), enabling conditional blocks like `{{#if isVoiceOn}}...{{/if}}`. Compiled in a first pass before agent prompt assembly — no recursion risk.
 
-**Skills** are `.md` files in `Klaus/skills/` with optional `description:` frontmatter. Declare `skills: [name1, name2]` in an agent's frontmatter to grant access via a `skill_get` tool scoped to those names via `z.enum`. The `{{skills}}` Handlebars var lists available skills in the prompt. Zero token overhead for agents without skills.
+**Skills** are `.md` files in `Klaus/skills/` with optional `description:` frontmatter. Declare `skills: [name1, name2]` in an agent's frontmatter to grant access via a `skill_get` tool scoped to those names via `z.enum`. The `{{skills}}` Handlebars var lists available skills in the prompt. Zero prompt overhead for agents without skills.
 
 All knowledge files are watched and hot-reloaded.
 
 ### Context assembly
 
-Context variables are modular async functions in `src/context/` that provide dynamic content. They run in parallel and support two interpolation syntaxes:
+Variables are modular async functions in `src/variables/` that provide dynamic content. Each exports a `Variable` with a `key` (the top-level namespace entry) and a `run()` function. All variables run in parallel and are merged into a single nested namespace consumed by Handlebars templates. There is no global char budget — templates apply explicit char limits via the `{{trunc}}` helper.
+
+Two interpolation syntaxes:
 
 - **System prompts**: Handlebars `{{variable}}` placeholders (full HBS support with helpers)
 - **User messages**: `$variable` syntax (mobile-friendly, typed in WhatsApp)
 
-Both syntaxes support params: `{{active_tasks?limit=3}}` or `$active_tasks?limit=3`. Params are passed to the variable's `run()` function at execution time. Unknown `$names` in user messages pass through unchanged.
+Both support params: `{{tasks?limit=3}}` or `$tasks?limit=3`. Unknown `$names` in user messages pass through unchanged.
 
-Each variable has a priority (lower = trimmed first when the token budget overflows) and a truncation strategy (never, always, oldest).
+Variables:
 
-Context variables:
-
-| Variable           | Priority | Params        | Purpose                                                        |
-| ------------------ | -------- | ------------- | -------------------------------------------------------------- |
-| `snippets`         | -1       | —             | Loads `Klaus/snippets/*.md` + `user.md` as template vars (scope-aware) |
-| `date`, `time`, `weekday` | -1 | —           | Current datetime (locale-aware, never trimmed)               |
-| `dispatch_context` | -1       | —             | Dispatch metadata when invoked via `dispatch.agent`            |
-| `active_tasks`     | 4        | `limit=N`     | Running async jobs and pending timers                          |
+| Variable   | Purpose                                                        |
+| ---------- | -------------------------------------------------------------- |
+| `time`     | Current date, time, weekday (locale-aware)                     |
+| `media`    | Attached document/image/voice + quoted-media mime              |
+| `links`    | Auto-fetched web link content (count + items)                  |
+| `tasks`    | Running async jobs and pending timers                          |
+| `dispatch` | Dispatch metadata when invoked via `dispatch.agent`            |
+| `config`   | Effective turn config (voice flags, provider, model, overrides)|
+| `user`     | User profile from `snippets/user.md`                           |
+| `snippets` | All other `snippets/*.md` compiled against the full namespace  |
 
 ### Storage
 
@@ -446,26 +450,20 @@ Then reference it by name in an agent's frontmatter tools list.
 
 ### Add a new context variable
 
-Create a .ts file in src/context/ that exports a ContextVariable. Each variable has a name (used as the {{variable}} in prompts), a priority (lower = trimmed first on token overflow), and a run function that returns content:
+Create a .ts file in `src/variables/` that exports a `Variable`. The `key` becomes the top-level namespace entry available in templates:
 
 ```typescript
-import type { ContextVariable } from "@/types";
+import type { Variable } from "@/variables";
 
-export const myVar: ContextVariable = {
-  name: "my_context",
-  priority: 50,
-  run: async (turn, params) => {
-    const content = "some dynamic context";
-    return {
-      content,
-      tokenCount: Math.ceil(content.length / 4),
-      truncate: "always",
-    };
+export const myVar: Variable = {
+  key: "my_context",
+  run: async (turn) => {
+    return { greeting: "hello", items: ["a", "b"] };
   },
 };
 ```
 
-Then use `{{my_context}}` in any agent prompt or `$my_context` in WhatsApp messages. Params are supported: `{{my_context?key=value}}` or `$my_context?key=value` — they are passed as the second argument to `run()`.
+Then use `{{my_context.greeting}}` in any agent prompt or `$my_context.greeting` in WhatsApp messages. Params are supported: `{{my_context?key=value}}` or `$my_context?key=value`.
 
 ### Add a new command
 
