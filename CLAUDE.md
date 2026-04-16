@@ -11,11 +11,11 @@ op run --env-file=.env -- bun run src/index.ts
 # Type checking
 bun run typecheck
 
-# Tests
+# Tests (Vitest)
 bun run test
 
 # Run a single test file
-bun test src/__tests__/pipeline/pipeline.test.ts
+npx vitest run test/pipeline/pipeline.test.ts
 
 # Watch mode
 bun run test:watch
@@ -194,14 +194,15 @@ HTTP endpoints: `/healthz` (JSON health check). Login is handled via the vault: 
 
 ### Testing conventions
 
-- Tests mirror source tree under `src/__tests__/`
+- Tests live in `test/` at the project root, grouped by domain (agent/, pipeline/, tools/, etc.)
+- Test runner: Vitest (`vitest.config.ts`), pool: forks for module isolation
 - Write tests alongside the code being developed, not after
-- Mocks must be registered **before** importing the module under test (Bun mock hoisting)
-- Mock at the `store/*` boundary for unit tests (e.g., `mock.module("@/store/conversation", ...)`)
+- Module mocking: use `vi.hoisted()` for mock functions referenced in `vi.mock()` factories, then `vi.mock("@/path", () => ({ fn: mockFn }))`
+- Mock at the `store/*` boundary for unit tests
+- `test/bun-polyfill.ts` shims Bun-specific APIs (Bun.file, Bun.write, Bun.Glob) for the Node runtime
 - Clean up registries in `afterEach` (agentRegistry, toolRegistry)
 - No coverage targets — optimize for confidence in the critical paths: pipeline, middleware, store read/write, tool execution
-- Agent evals (`*.eval.ts`) test non-deterministic behavior — not CI-blocking, tracked over time
-- Test timeout: 30s (bunfig.toml)
+- Test timeout: 30s (vitest.config.ts)
 
 ### Code conventions
 
