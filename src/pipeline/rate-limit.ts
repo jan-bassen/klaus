@@ -1,4 +1,5 @@
 import { settings } from "@/config";
+import { getServices, type RateLimiter } from "@/services";
 import type { InboundMessage } from "@/types";
 
 export interface RateLimitResult {
@@ -8,42 +9,40 @@ export interface RateLimitResult {
 
 type LimitKind = "messages" | "modelCalls";
 
-const windows: Record<LimitKind, number[]> = {
-	messages: [],
-	modelCalls: [],
-};
+export function createRateLimiter(): RateLimiter {
+	const windows: Record<LimitKind, number[]> = {
+		messages: [],
+		modelCalls: [],
+	};
 
-function check(kind: LimitKind, now = Date.now()): RateLimitResult {
-	const { max, windowMs } = settings.rateLimits[kind];
-	const cutoff = now - windowMs;
-	const timestamps = windows[kind];
+	function check(kind: LimitKind, now = Date.now()): RateLimitResult {
+		const { max, windowMs } = settings.rateLimits[kind];
+		const cutoff = now - windowMs;
+		const timestamps = windows[kind];
 
-	// Prune expired entries
-	while (timestamps.length > 0 && (timestamps[0] ?? Infinity) < cutoff) {
-		timestamps.shift();
+		while (timestamps.length > 0 && (timestamps[0] ?? Infinity) < cutoff) {
+			timestamps.shift();
+		}
+
+		if (timestamps.length >= max) {
+			const retryAfterMs = (timestamps[0] ?? 0) - cutoff;
+			return { allowed: false, retryAfterMs };
+		}
+
+		timestamps.push(now);
+		return { allowed: true };
 	}
 
-	if (timestamps.length >= max) {
-		const retryAfterMs = (timestamps[0] ?? 0) - cutoff;
-		return { allowed: false, retryAfterMs };
-	}
-
-	timestamps.push(now);
-	return { allowed: true };
+	return {
+		checkMessage: (_msg: InboundMessage) => check("messages"),
+		checkModel: () => check("modelCalls"),
+	};
 }
 
-/** Message-level gate — called by pipeline before any LLM work. */
-export function checkMessageRate(_msg: InboundMessage): RateLimitResult {
-	return check("messages");
+export function checkMessageRate(msg: InboundMessage): RateLimitResult {
+	return getServices().rateLimiter.checkMessage(msg);
 }
 
-/** LLM-call-level gate — called by model-router before each LLM invocation. */
 export function checkModelRate(): RateLimitResult {
-	return check("modelCalls");
-}
-
-/** Test-only: clear all sliding-window state. */
-export function _resetForTest(): void {
-	windows.messages = [];
-	windows.modelCalls = [];
+	return getServices().rateLimiter.checkModel();
 }

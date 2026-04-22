@@ -1,9 +1,33 @@
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, test } from "vitest";
-import { _resetForTest, _setForTest } from "@/config/schema";
-import { appendTrail, cleanupOldTrails } from "@/store/trail";
+import {
+	afterAll,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	test,
+	vi,
+} from "vitest";
+
+// Mutable override for trail settings. Each test resets then sets as needed.
+const overrides = vi.hoisted(() => ({
+	trail: null as null | { enabled: boolean; retentionDays: number },
+}));
+
+vi.mock("@/config/schema", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/config/schema")>();
+	return {
+		...actual,
+		getYamlSettings: () => {
+			const real = actual.getYamlSettings();
+			return overrides.trail ? { ...real, trail: overrides.trail } : real;
+		},
+	};
+});
+
+const { appendTrail, cleanupOldTrails } = await import("@/store/trail");
 
 let tmpDir: string;
 
@@ -15,18 +39,16 @@ afterAll(async () => {
 	await rm(tmpDir, { recursive: true, force: true });
 });
 
-afterEach(() => {
-	_resetForTest();
+beforeEach(() => {
+	overrides.trail = null;
 });
 
 describe("appendTrail", () => {
 	test("creates file with header on first call", async () => {
 		const trailDir = join(tmpDir, "trail-create");
 		process.env.VAULT_DIR = join(tmpDir, "trail-create-vault");
-		const { mkdir } = await import("node:fs/promises");
+		const { mkdir, symlink } = await import("node:fs/promises");
 		await mkdir(join(process.env.VAULT_DIR, "Klaus"), { recursive: true });
-
-		const { symlink } = await import("node:fs/promises");
 		await mkdir(trailDir, { recursive: true });
 		try {
 			await symlink(trailDir, join(process.env.VAULT_DIR, "Klaus", "trail"));
@@ -34,7 +56,7 @@ describe("appendTrail", () => {
 			// already exists
 		}
 
-		_setForTest({ trail: { enabled: true, retentionDays: 3 } });
+		// Default trail settings already have enabled: true, retentionDays: 3
 
 		await appendTrail({
 			chatId: "test",
@@ -69,8 +91,7 @@ describe("appendTrail", () => {
 
 	test("respects enabled: false", async () => {
 		process.env.VAULT_DIR = join(tmpDir, "trail-disabled-vault");
-
-		_setForTest({ trail: { enabled: false, retentionDays: 3 } });
+		overrides.trail = { enabled: false, retentionDays: 3 };
 
 		await appendTrail({
 			chatId: "test",

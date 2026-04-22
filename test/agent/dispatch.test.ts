@@ -1,8 +1,8 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { settings } from "@/config";
 import type { AgentDefinition, DispatchOptions } from "@/types";
 
-// ─── mocks (avoid vi.mock('@/core/agent') — it poisons agent.test.ts) ───
+// ─── Hoisted mocks ────────────────────────────────────────────────────────────
 
 const mocks = vi.hoisted(() => ({
 	mockAssembleVariables: vi.fn(async () => ({})),
@@ -12,6 +12,32 @@ const mocks = vi.hoisted(() => ({
 	mockLogWarn: vi.fn(() => {}),
 	mockLogError: vi.fn(() => {}),
 	mockLogDebug: vi.fn(() => {}),
+	mockRunAgent: vi.fn(async () => ({
+		usage: { promptTokens: 0, completionTokens: 0 },
+		durationMs: 0,
+		steps: [],
+		model: "test-model",
+		provider: "anthropic",
+		tier: "medium",
+		conversationMessages: 0,
+		systemPrompt: "",
+		userMessage: "",
+		replyContent: "",
+	})),
+	mockGetOrLoadAgent: vi.fn(
+		async (_name: string): Promise<AgentDefinition> => ({
+			name: "helper",
+			aliases: [],
+			modelTier: "medium",
+			tools: [],
+			toolsets: [],
+			providerTools: [],
+			skills: [],
+			persistent: false,
+			showToolsInContext: true,
+			promptPath: "/agents/helper.md",
+		}),
+	),
 }));
 
 vi.mock("@/variables", () => ({
@@ -32,44 +58,22 @@ vi.mock("@/logger", () => ({
 	},
 }));
 
-// Import after mocks, then install test seams for agent functions
-const { dispatch, _setDispatchSeamsForTest, _clearDispatchSeamsForTest } =
-	await import("@/agent/dispatch");
-const { agentRegistry } = await import("@/agent");
-const { runAgent } = await import("@/agent/runner");
-const { loadAgentDefinition } = await import("@/agent");
-
-const mockRunAgent = vi.fn(async () => ({
-	usage: { promptTokens: 0, completionTokens: 0 },
-	durationMs: 0,
-	steps: [],
-	model: "test-model",
-	provider: "anthropic",
-	tier: "medium",
-	conversationMessages: 0,
-	systemPrompt: "",
-	userMessage: "",
-	replyContent: "",
+vi.mock("@/agent/runner", () => ({
+	runAgent: mocks.mockRunAgent,
 }));
-const mockLoadAgentDefinition = vi.fn(
-	async (_path: string): Promise<AgentDefinition> => ({
-		name: "helper",
-		aliases: [],
-		modelTier: "medium",
-		tools: [],
-		toolsets: [],
-		providerTools: [],
-		skills: [],
-		persistent: false,
-		showToolsInContext: true,
-		promptPath: "/agents/helper.md",
-	}),
-);
 
-_setDispatchSeamsForTest({
-	runAgent: mockRunAgent as typeof runAgent,
-	loadAgentDefinition: mockLoadAgentDefinition as typeof loadAgentDefinition,
+vi.mock("@/agent/definitions", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/agent/definitions")>();
+	return {
+		...actual,
+		// dispatch calls getOrLoadAgent — mocking it lets tests assert how
+		// often dispatch re-resolves the agent when cache misses.
+		getOrLoadAgent: mocks.mockGetOrLoadAgent,
+	};
 });
+
+const { dispatch } = await import("@/agent/dispatch");
+const { agentRegistry } = await import("@/agent/definitions");
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -86,19 +90,11 @@ function makeOpts(overrides: Partial<DispatchOptions> = {}): DispatchOptions {
 }
 
 beforeEach(() => {
-	mockRunAgent.mockClear();
-	mockLoadAgentDefinition.mockClear();
+	mocks.mockRunAgent.mockClear();
+	mocks.mockGetOrLoadAgent.mockClear();
 	mocks.mockAssembleVariables.mockClear();
 	mocks.mockEnqueueJob.mockClear();
 	agentRegistry.clear();
-});
-
-afterEach(() => {
-	_clearDispatchSeamsForTest();
-	_setDispatchSeamsForTest({
-		runAgent: mockRunAgent as typeof runAgent,
-		loadAgentDefinition: mockLoadAgentDefinition as typeof loadAgentDefinition,
-	});
 });
 
 // ─── tests ───────────────────────────────────────────────────────────────────
@@ -107,7 +103,7 @@ describe("dispatch", () => {
 	test("inline mode calls runAgent and returns undefined", async () => {
 		const result = await dispatch(makeOpts({ mode: { kind: "inline" } }));
 		expect(result).toBeUndefined();
-		expect(mockRunAgent).toHaveBeenCalledTimes(1);
+		expect(mocks.mockRunAgent).toHaveBeenCalledTimes(1);
 		expect(mocks.mockEnqueueJob).not.toHaveBeenCalled();
 	});
 
@@ -115,7 +111,7 @@ describe("dispatch", () => {
 		const result = await dispatch(makeOpts({ mode: { kind: "async" } }));
 		expect(result).toBeUndefined();
 		expect(mocks.mockEnqueueJob).toHaveBeenCalledTimes(1);
-		expect(mockRunAgent).not.toHaveBeenCalled();
+		expect(mocks.mockRunAgent).not.toHaveBeenCalled();
 	});
 
 	test("max chain depth returns undefined without running", async () => {
@@ -123,7 +119,7 @@ describe("dispatch", () => {
 			makeOpts({ depth: settings.dispatch.maxChainDepth }),
 		);
 		expect(result).toBeUndefined();
-		expect(mockRunAgent).not.toHaveBeenCalled();
+		expect(mocks.mockRunAgent).not.toHaveBeenCalled();
 		expect(mocks.mockEnqueueJob).not.toHaveBeenCalled();
 	});
 
@@ -137,7 +133,7 @@ describe("dispatch", () => {
 
 	test("loads agent from disk when not in registry", async () => {
 		await dispatch(makeOpts({ mode: { kind: "inline" } }));
-		expect(mockLoadAgentDefinition).toHaveBeenCalledTimes(1);
+		expect(mocks.mockGetOrLoadAgent).toHaveBeenCalledTimes(1);
 	});
 
 	test("uses cached agent when in registry", async () => {
@@ -156,7 +152,7 @@ describe("dispatch", () => {
 		agentRegistry.set("helper", cached);
 
 		await dispatch(makeOpts({ mode: { kind: "inline" } }));
-		expect(mockLoadAgentDefinition).not.toHaveBeenCalled();
-		expect(mockRunAgent).toHaveBeenCalledTimes(1);
+		expect(mocks.mockGetOrLoadAgent).not.toHaveBeenCalled();
+		expect(mocks.mockRunAgent).toHaveBeenCalledTimes(1);
 	});
 });

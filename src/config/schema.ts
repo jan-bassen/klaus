@@ -255,16 +255,6 @@ export function getYamlSettings(): YamlSettings {
 	return _current;
 }
 
-/** For tests only — override settings in memory. */
-export function _setForTest(override: Partial<YamlSettings>): void {
-	_current = { ..._current, ...override };
-}
-
-/** For tests only — reset to the bundled default settings. */
-export function _resetForTest(): void {
-	_current = loadBundledDefaults();
-}
-
 export async function loadSettingsFromDisk(): Promise<
 	{ ok: true } | { ok: false; error: string }
 > {

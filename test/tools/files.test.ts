@@ -77,7 +77,6 @@ vi.mock("@/store/files", () => ({
 	findFileByExternalId: vi.fn(() => null),
 	updateFileMessageId: vi.fn(async () => undefined),
 	rebuildFileIndex: vi.fn(async () => {}),
-	_clearFileIndexForTest: vi.fn(() => {}),
 }));
 
 const PARSEABLE_MIMES = new Set([
@@ -90,7 +89,6 @@ const PARSEABLE_MIMES = new Set([
 vi.mock("@/pipeline/attachments", () => ({
 	isParseableDocument: (m: string) => PARSEABLE_MIMES.has(m),
 	parseDocument: mocks.mockParseDocument,
-	_resetParserForTest: () => {},
 }));
 
 // ─── import after mocks are registered ───────────────────────────────────────
@@ -103,7 +101,7 @@ import {
 	filesUploadTool,
 } from "@/tools/sets/files";
 import type { TurnContext } from "@/types";
-
+@/variables/tools/sets/files
 // ─── test fixtures ────────────────────────────────────────────────────────────
 
 beforeAll(async () => {

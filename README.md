@@ -64,8 +64,6 @@ override presets are defined in `Klaus/overrides.yml` (hot-reloaded). Agent fron
 
 The repo ships a complete default `Klaus/` tree at the repo root (agents, snippets, skills, `message.md`, `overrides.yml`, `settings.yml`). On first run, `ensureDefaults()` copies anything missing into `{vault}/Klaus/` — user edits are never overwritten.
 
-See [REFERENCE.md](REFERENCE.md) for a complete list of all commands, overrides, variables, tools, toolsets, and settings.
-
 ### Media
 
 Klaus handles more than text:

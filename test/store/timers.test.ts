@@ -3,40 +3,34 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	afterAll,
-	afterEach,
 	beforeAll,
+	beforeEach,
 	describe,
 	expect,
 	test,
 	vi,
 } from "vitest";
+import {
+	addTimer,
+	listTimers,
+	loadTimers,
+	removeTimer,
+	setOnTimerFire,
+} from "@/store/timers";
+import { installTestServices } from "../helpers/services";
 
 let tmpDir: string;
-let savedDataDir: string | undefined;
 
 beforeAll(async () => {
 	tmpDir = await mkdtemp(join(tmpdir(), "timers-test-"));
-	savedDataDir = process.env.DATA_DIR;
-	process.env.DATA_DIR = tmpDir;
 });
 
 afterAll(async () => {
-	if (savedDataDir !== undefined) process.env.DATA_DIR = savedDataDir;
-	else delete process.env.DATA_DIR;
 	await rm(tmpDir, { recursive: true, force: true });
 });
 
-const {
-	addTimer,
-	removeTimer,
-	listTimers,
-	loadTimers,
-	setOnTimerFire,
-	_clearTimersForTest,
-} = await import("@/store/timers");
-
-afterEach(() => {
-	_clearTimersForTest();
+beforeEach(() => {
+	installTestServices({ dataDir: tmpDir });
 });
 
 describe("addTimer / listTimers", () => {
@@ -93,7 +87,9 @@ describe("persistence", () => {
 			createdAt: new Date().toISOString(),
 		});
 
-		_clearTimersForTest();
+		// Fresh services pointing at the same dataDir — timers start empty,
+		// loadTimers() should repopulate from disk.
+		installTestServices({ dataDir: tmpDir });
 		await loadTimers();
 
 		const loaded = listTimers();

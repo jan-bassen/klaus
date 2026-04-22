@@ -1,10 +1,6 @@
-import { beforeEach, describe, expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import { settings } from "@/config";
-import {
-	_resetForTest,
-	checkMessageRate,
-	checkModelRate,
-} from "@/pipeline/rate-limit";
+import { checkMessageRate, checkModelRate } from "@/pipeline/rate-limit";
 import type { InboundMessage } from "@/types";
 
 function makeMsg(chatId = "user@s.whatsapp.net"): InboundMessage {
@@ -18,10 +14,6 @@ function makeMsg(chatId = "user@s.whatsapp.net"): InboundMessage {
 		messageKey: {},
 	};
 }
-
-beforeEach(() => {
-	_resetForTest();
-});
 
 describe("checkMessageRate", () => {
 	test("allows messages under the limit", () => {

@@ -1,7 +1,7 @@
 import type { FSWatcher } from "node:fs";
 import { existsSync, watch } from "node:fs";
 import { parse as parseYaml } from "yaml";
-import { agentRegistry, loadAgentDefinition } from "@/agent";
+import { agentRegistry, loadAgentDefinition } from "@/agent/definitions";
 import { settings } from "@/config";
 import { log } from "@/logger";
 import { loadOverrides } from "@/pipeline/overrides";
@@ -10,7 +10,7 @@ import {
 	SkillFrontmatterSchema,
 	type SkillMeta,
 	skillRegistry,
-} from "@/tools/skill";
+} from "@/variables/tools/skill";
 
 const watchers: FSWatcher[] = [];
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();

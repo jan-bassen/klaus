@@ -9,7 +9,7 @@ process.emitWarning = (warning, ...args) => {
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
-import { agentRegistry, loadAgents } from "./agent";
+import { agentRegistry, loadAgents } from "./agent/definitions";
 import { dispatch, startWorkers } from "./agent/dispatch";
 import { initQueue } from "./agent/queue";
 import {
@@ -20,6 +20,7 @@ import {
 } from "./config";
 import { log } from "./logger";
 import { loadOverrides } from "./pipeline/overrides";
+import { createServices, setServices } from "./services";
 import { rebuildIndexes as rebuildConversationIndexes } from "./store/conversation";
 import { rebuildFileIndex } from "./store/files";
 import {
@@ -30,8 +31,8 @@ import {
 	stopAllSchedules,
 } from "./store/schedules";
 import { loadTimers, setOnTimerFire, stopAllTimers } from "./store/timers";
-import { loadAllTools } from "./tools";
-import { loadSkills, skillRegistry } from "./tools/skill";
+import { loadAllTools } from "./variables/tools";
+import { loadSkills, skillRegistry } from "./variables/tools/skill";
 import { loadVariables, setVariables } from "./variables";
 import { startWatching, stopWatching } from "./vault/watcher";
 import {
@@ -153,6 +154,15 @@ async function main(): Promise<void> {
 	for (const dir of dirs) {
 		await mkdir(dir, { recursive: true });
 	}
+
+	// 1b. Initialise the services container — every module-level store function
+	// resolves through it, so this must run before any store call.
+	setServices(
+		createServices({
+			dataDir: settings.dataDir,
+			timezone: settings.timezone,
+		}),
+	);
 
 	// 2. Load tools, agents (from vault), variables, skills, overrides
 	log.info("[startup] loading tools, agents, variables, skills, and overrides");

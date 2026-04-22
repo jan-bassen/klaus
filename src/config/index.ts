@@ -2,10 +2,8 @@ import { config } from "./env";
 import { getYamlSettings } from "./schema";
 
 export { config } from "./env";
-export { _resetFactoryCacheForTest, createModel } from "./providers";
+export { createModel } from "./providers";
 export {
-	_resetForTest,
-	_setForTest,
 	getYamlSettings,
 	loadSettingsFromDisk,
 	SettingsSchema,

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { loadAgents } from "@/agent";
+import { loadAgents } from "@/agent/definitions";
 import { loadSettingsFromDisk, settings } from "@/config";
 import { loadOverrides } from "@/pipeline/overrides";
 import { loadSkills } from "@/tools/skill";

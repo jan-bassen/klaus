@@ -1,7 +1,7 @@
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { agentRegistry } from "@/agent";
+import { agentRegistry } from "@/agent/definitions";
 import { callModel } from "@/agent/model";
 import { type ModelTier, modelTiers, settings } from "@/config";
 import { hbs, readPromptBody } from "@/markdown";

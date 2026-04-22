@@ -1,8 +1,8 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { settings } from "@/config";
 import { log } from "@/logger";
+import { getServices, type TimerStore } from "@/services";
 
 export const TimerEntrySchema = z.object({
 	id: z.string(),
@@ -17,103 +17,126 @@ export const TimerEntrySchema = z.object({
 
 export type TimerEntry = z.infer<typeof TimerEntrySchema>;
 
-/** In-memory timer store */
-const timers = new Map<string, TimerEntry>();
-/** Active timeout handles */
-const timeouts = new Map<string, ReturnType<typeof setTimeout>>();
-
-function timersPath(): string {
-	return path.join(settings.dataDir, "timers.json");
+export interface TimerStoreEnv {
+	dataDir: string;
 }
 
-/** Persist timers to disk. */
-async function persist(): Promise<void> {
-	await mkdir(settings.dataDir, { recursive: true });
-	await Bun.write(timersPath(), JSON.stringify([...timers.values()], null, 2));
+export function createTimerStore(env: TimerStoreEnv): TimerStore {
+	const timers = new Map<string, TimerEntry>();
+	const timeouts = new Map<string, ReturnType<typeof setTimeout>>();
+	let onFire: ((entry: TimerEntry) => Promise<void>) | null = null;
+
+	const timersPath = (): string => path.join(env.dataDir, "timers.json");
+
+	async function persist(): Promise<void> {
+		await mkdir(env.dataDir, { recursive: true });
+		await Bun.write(
+			timersPath(),
+			JSON.stringify([...timers.values()], null, 2),
+		);
+	}
+
+	function scheduleTimeout(entry: TimerEntry): void {
+		const existing = timeouts.get(entry.id);
+		if (existing) clearTimeout(existing);
+
+		const delayMs = Math.max(0, new Date(entry.runAt).getTime() - Date.now());
+
+		const handle = setTimeout(() => {
+			timeouts.delete(entry.id);
+			timers.delete(entry.id);
+			persist().catch((err) =>
+				log.error("[timers] persist error after fire", {
+					id: entry.id,
+					error: err instanceof Error ? err.message : String(err),
+				}),
+			);
+			log.info(`[timers] fired for @${entry.agentName}`);
+			onFire?.(entry).catch((err) =>
+				log.error("[timers] fire handler error", {
+					id: entry.id,
+					error: err instanceof Error ? err.message : String(err),
+				}),
+			);
+		}, delayMs);
+
+		timeouts.set(entry.id, handle);
+	}
+
+	async function load(): Promise<void> {
+		try {
+			const text = await Bun.file(timersPath()).text();
+			const entries = z.array(TimerEntrySchema).parse(JSON.parse(text));
+			for (const entry of entries) {
+				timers.set(entry.id, entry);
+				scheduleTimeout(entry);
+			}
+			log.info(`[timers] loaded (${timers.size} timers)`);
+		} catch {
+			// No timers file yet
+		}
+	}
+
+	async function add(entry: TimerEntry): Promise<void> {
+		timers.set(entry.id, entry);
+		await persist();
+		scheduleTimeout(entry);
+	}
+
+	async function remove(id: string): Promise<boolean> {
+		const handle = timeouts.get(id);
+		if (handle) clearTimeout(handle);
+		timeouts.delete(id);
+		const existed = timers.delete(id);
+		if (existed) await persist();
+		return existed;
+	}
+
+	function list(): TimerEntry[] {
+		return [...timers.values()];
+	}
+
+	function stopAll(): void {
+		for (const handle of timeouts.values()) {
+			clearTimeout(handle);
+		}
+		timeouts.clear();
+	}
+
+	return {
+		setOnFire: (fn) => {
+			onFire = fn;
+		},
+		load,
+		add,
+		remove,
+		list,
+		stopAll,
+	};
 }
 
-/** Callback invoked when a timer fires. Set via setOnTimerFire(). */
-let _onTimerFire: ((entry: TimerEntry) => Promise<void>) | null = null;
+// Module-level delegators — preserve existing public API, route to registered instance.
 
 export function setOnTimerFire(fn: (entry: TimerEntry) => Promise<void>): void {
-	_onTimerFire = fn;
+	getServices().timers.setOnFire(fn);
 }
 
-/** Schedule a timeout for a timer entry. Fires immediately if runAt is past. */
-function scheduleTimeout(entry: TimerEntry): void {
-	const existing = timeouts.get(entry.id);
-	if (existing) clearTimeout(existing);
-
-	const delayMs = Math.max(0, new Date(entry.runAt).getTime() - Date.now());
-
-	const handle = setTimeout(() => {
-		timeouts.delete(entry.id);
-		timers.delete(entry.id);
-		persist().catch((err) =>
-			log.error("[timers] persist error after fire", {
-				id: entry.id,
-				error: err instanceof Error ? err.message : String(err),
-			}),
-		);
-		log.info(`[timers] fired for @${entry.agentName}`);
-		_onTimerFire?.(entry).catch((err) =>
-			log.error("[timers] fire handler error", {
-				id: entry.id,
-				error: err instanceof Error ? err.message : String(err),
-			}),
-		);
-	}, delayMs);
-
-	timeouts.set(entry.id, handle);
+export function loadTimers(): Promise<void> {
+	return getServices().timers.load();
 }
 
-/** Load timers from disk. Call at startup after setOnTimerFire(). */
-export async function loadTimers(): Promise<void> {
-	try {
-		const text = await Bun.file(timersPath()).text();
-		const entries = z.array(TimerEntrySchema).parse(JSON.parse(text));
-		for (const entry of entries) {
-			timers.set(entry.id, entry);
-			scheduleTimeout(entry);
-		}
-		log.info(`[timers] loaded (${timers.size} timers)`);
-	} catch {
-		// No timers file yet
-	}
+export function addTimer(entry: TimerEntry): Promise<void> {
+	return getServices().timers.add(entry);
 }
 
-/** Add a timer. Persists to disk and schedules the timeout. */
-export async function addTimer(entry: TimerEntry): Promise<void> {
-	timers.set(entry.id, entry);
-	await persist();
-	scheduleTimeout(entry);
+export function removeTimer(id: string): Promise<boolean> {
+	return getServices().timers.remove(id);
 }
 
-/** Remove a timer by ID. Clears timeout and persists. */
-export async function removeTimer(id: string): Promise<boolean> {
-	const handle = timeouts.get(id);
-	if (handle) clearTimeout(handle);
-	timeouts.delete(id);
-	const existed = timers.delete(id);
-	if (existed) await persist();
-	return existed;
-}
-
-/** List all pending timers. */
 export function listTimers(): TimerEntry[] {
-	return [...timers.values()];
+	return getServices().timers.list();
 }
 
-/** Stop all timeouts. Call on shutdown. */
 export function stopAllTimers(): void {
-	for (const handle of timeouts.values()) {
-		clearTimeout(handle);
-	}
-	timeouts.clear();
-}
-
-/** Clear all timers. Test-only. */
-export function _clearTimersForTest(): void {
-	stopAllTimers();
-	timers.clear();
+	getServices().timers.stopAll();
 }

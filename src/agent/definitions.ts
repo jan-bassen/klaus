@@ -1,7 +1,9 @@
+import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { type ModelTier, modelTiers, settings } from "@/config";
 import { log } from "@/logger";
+import { getServices } from "@/services";
 
 export const AgentFrontmatterSchema = z.object({
 	name: z.string().min(1),
@@ -27,7 +29,7 @@ export const AgentFrontmatterSchema = z.object({
 	topPPreset: z.enum(["creative", "rigid"]).optional(),
 	toolChoice: z.enum(["none", "required"]).optional(),
 	reasoningEffort: z.enum(["low", "high"]).optional(),
-	fast: z.boolean().optional(),
+  fast: z.boolean().optional(),
 });
 
 export type AgentDefinition = z.infer<typeof AgentFrontmatterSchema> & {
@@ -86,19 +88,26 @@ export async function loadAgents(agentsDir: string): Promise<void> {
 	}
 }
 
-// ─── Default agent per chat (inlined from core/defaults.ts) ──────────────────
+/**
+ * Return an AgentDefinition, loading it from disk if not yet in the registry.
+ * Used by pipeline, retry, and dispatch — the shared "resolve name to def" step.
+ */
+export async function getOrLoadAgent(name: string): Promise<AgentDefinition> {
+	const existing = agentRegistry.get(name);
+	if (existing) return existing;
+	const promptPath = path.join(settings.vault.agentsDir, `${name}.md`);
+	const def = await loadAgentDefinition(promptPath);
+	agentRegistry.set(def.name, def);
+	return def;
+}
 
-const defaultOverrides = new Map<string, string>();
+// ─── Default agent per chat ──────────────────────────────────────────────────
+// The registry itself lives in src/services.ts; these are thin delegators.
 
 export function getDefaultAgent(chatId: string): string {
-	return defaultOverrides.get(chatId) ?? settings.defaultAgent;
+	return getServices().defaultAgents.get(chatId);
 }
 
 export function setDefaultAgent(chatId: string, agent: string | null): void {
-	if (agent === null) defaultOverrides.delete(chatId);
-	else defaultOverrides.set(chatId, agent);
-}
-
-export function _resetDefaultsForTest(): void {
-	defaultOverrides.clear();
+	getServices().defaultAgents.set(chatId, agent);
 }

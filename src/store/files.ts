@@ -1,8 +1,8 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { settings } from "@/config";
 import { log } from "@/logger";
+import { type FileStore, getServices } from "@/services";
 
 export const FileMetaSchema = z.object({
 	id: z.string(),
@@ -16,161 +16,198 @@ export const FileMetaSchema = z.object({
 
 export type FileMeta = z.infer<typeof FileMetaSchema>;
 
-/** In-memory index: fileId → FileMeta */
-const fileIndex = new Map<string, FileMeta>();
-/** Reverse index: messageId → fileId */
-const messageFileIndex = new Map<string, string>();
-/** Reverse index: externalId → fileId */
-const externalFileIndex = new Map<string, string>();
-
-function filesDir(): string {
-	return path.join(settings.dataDir, "files");
+export interface FileStoreEnv {
+	dataDir: string;
 }
 
-function indexPath(): string {
-	return path.join(filesDir(), "files-index.jsonl");
+export function createFileStore(env: FileStoreEnv): FileStore {
+	const fileIndex = new Map<string, FileMeta>();
+	const messageFileIndex = new Map<string, string>();
+	const externalFileIndex = new Map<string, string>();
+
+	const filesDir = (): string => path.join(env.dataDir, "files");
+	const indexPath = (): string => path.join(filesDir(), "files-index.jsonl");
+
+	async function saveFileMeta(meta: {
+		path: string;
+		mimeType: string;
+		sizeBytes: number;
+		messageId?: string;
+		externalId?: string;
+	}): Promise<{ id: string; path: string } | Error> {
+		try {
+			await mkdir(filesDir(), { recursive: true });
+			const id = crypto.randomUUID();
+			const record: FileMeta = {
+				id,
+				path: meta.path,
+				mimeType: meta.mimeType,
+				sizeBytes: meta.sizeBytes,
+				...(meta.messageId ? { messageId: meta.messageId } : {}),
+				...(meta.externalId ? { externalId: meta.externalId } : {}),
+				createdAt: new Date().toISOString(),
+			};
+			await appendFile(indexPath(), `${JSON.stringify(record)}\n`);
+			fileIndex.set(id, record);
+			if (meta.messageId) messageFileIndex.set(meta.messageId, id);
+			if (meta.externalId) externalFileIndex.set(meta.externalId, id);
+			return { id, path: meta.path };
+		} catch (err) {
+			return err instanceof Error ? err : new Error(String(err));
+		}
+	}
+
+	async function updateFileMessageId(
+		fileId: string,
+		messageId: string,
+	): Promise<undefined | Error> {
+		const meta = fileIndex.get(fileId);
+		if (!meta) return new Error(`File not found: ${fileId}`);
+		meta.messageId = messageId;
+		messageFileIndex.set(messageId, fileId);
+		try {
+			await appendFile(
+				indexPath(),
+				`${JSON.stringify({ ...meta, _update: true })}\n`,
+			);
+		} catch (err) {
+			return err instanceof Error ? err : new Error(String(err));
+		}
+	}
+
+	function findFile(fileId: string): FileMeta | null {
+		return fileIndex.get(fileId) ?? null;
+	}
+
+	function findFileByMessageId(
+		messageId: string,
+	): { fileId: string; path: string; mimeType: string } | null {
+		const fileId = messageFileIndex.get(messageId);
+		if (!fileId) return null;
+		const meta = fileIndex.get(fileId);
+		if (!meta) return null;
+		return { fileId: meta.id, path: meta.path, mimeType: meta.mimeType };
+	}
+
+	function findFileByExternalId(
+		externalId: string,
+	): { fileId: string; path: string; mimeType: string } | null {
+		const fileId = externalFileIndex.get(externalId);
+		if (!fileId) return null;
+		const meta = fileIndex.get(fileId);
+		if (!meta) return null;
+		return { fileId: meta.id, path: meta.path, mimeType: meta.mimeType };
+	}
+
+	function listFiles(prefix?: string): FileMeta[] {
+		const all = [...fileIndex.values()];
+		if (!prefix) return all;
+		return all.filter((f) => f.path.startsWith(prefix));
+	}
+
+	function deleteFile(fileId: string): boolean {
+		const meta = fileIndex.get(fileId);
+		if (!meta) return false;
+		fileIndex.delete(fileId);
+		if (meta.messageId) messageFileIndex.delete(meta.messageId);
+		if (meta.externalId) externalFileIndex.delete(meta.externalId);
+		return true;
+	}
+
+	async function rebuildIndex(): Promise<void> {
+		fileIndex.clear();
+		messageFileIndex.clear();
+		externalFileIndex.clear();
+
+		try {
+			const text = await Bun.file(indexPath()).text();
+			for (const line of text.split("\n")) {
+				if (!line.trim()) continue;
+				try {
+					const record = FileMetaSchema.extend({
+						_update: z.boolean().optional(),
+					}).parse(JSON.parse(line));
+					fileIndex.set(record.id, {
+						id: record.id,
+						path: record.path,
+						mimeType: record.mimeType,
+						sizeBytes: record.sizeBytes,
+						...(record.messageId ? { messageId: record.messageId } : {}),
+						...(record.externalId ? { externalId: record.externalId } : {}),
+						createdAt: record.createdAt,
+					});
+					if (record.messageId)
+						messageFileIndex.set(record.messageId, record.id);
+					if (record.externalId)
+						externalFileIndex.set(record.externalId, record.id);
+				} catch {
+					log.warn("[files] skipping corrupt line in index rebuild", {
+						line: line.slice(0, 100),
+					});
+				}
+			}
+		} catch {
+			// No index file yet
+		}
+
+		log.info(`[files] index rebuilt (${fileIndex.size} files)`);
+	}
+
+	return {
+		saveFileMeta,
+		updateFileMessageId,
+		findFile,
+		findFileByMessageId,
+		findFileByExternalId,
+		listFiles,
+		deleteFile,
+		rebuildIndex,
+	};
 }
 
-/** Save file metadata to the index. Returns the file record. */
-export async function saveFileMeta(meta: {
+// Module-level delegators — preserve existing public API, route to registered instance.
+
+export function saveFileMeta(meta: {
 	path: string;
 	mimeType: string;
 	sizeBytes: number;
 	messageId?: string;
 	externalId?: string;
 }): Promise<{ id: string; path: string } | Error> {
-	try {
-		await mkdir(filesDir(), { recursive: true });
-		const id = crypto.randomUUID();
-		const record: FileMeta = {
-			id,
-			path: meta.path,
-			mimeType: meta.mimeType,
-			sizeBytes: meta.sizeBytes,
-			...(meta.messageId ? { messageId: meta.messageId } : {}),
-			...(meta.externalId ? { externalId: meta.externalId } : {}),
-			createdAt: new Date().toISOString(),
-		};
-		await appendFile(indexPath(), `${JSON.stringify(record)}\n`);
-		fileIndex.set(id, record);
-		if (meta.messageId) messageFileIndex.set(meta.messageId, id);
-		if (meta.externalId) externalFileIndex.set(meta.externalId, id);
-		return { id, path: meta.path };
-	} catch (err) {
-		return err instanceof Error ? err : new Error(String(err));
-	}
+	return getServices().files.saveFileMeta(meta);
 }
 
-/** Update the messageId for a file (backfill after message insert). */
-export async function updateFileMessageId(
+export function updateFileMessageId(
 	fileId: string,
 	messageId: string,
 ): Promise<undefined | Error> {
-	const meta = fileIndex.get(fileId);
-	if (!meta) return new Error(`File not found: ${fileId}`);
-	meta.messageId = messageId;
-	messageFileIndex.set(messageId, fileId);
-	// Append an update record to the index
-	try {
-		await appendFile(
-			indexPath(),
-			`${JSON.stringify({ ...meta, _update: true })}\n`,
-		);
-	} catch (err) {
-		return err instanceof Error ? err : new Error(String(err));
-	}
+	return getServices().files.updateFileMessageId(fileId, messageId);
 }
 
-/** Find a file by ID. */
 export function findFile(fileId: string): FileMeta | null {
-	return fileIndex.get(fileId) ?? null;
+	return getServices().files.findFile(fileId);
 }
 
-/** Find the file linked to a given message (any mime type). */
 export function findFileByMessageId(
 	messageId: string,
 ): { fileId: string; path: string; mimeType: string } | null {
-	const fileId = messageFileIndex.get(messageId);
-	if (!fileId) return null;
-	const meta = fileIndex.get(fileId);
-	if (!meta) return null;
-	return { fileId: meta.id, path: meta.path, mimeType: meta.mimeType };
+	return getServices().files.findFileByMessageId(messageId);
 }
 
-/** Find the file linked to a given WhatsApp externalId (any mime type). */
 export function findFileByExternalId(
 	externalId: string,
 ): { fileId: string; path: string; mimeType: string } | null {
-	const fileId = externalFileIndex.get(externalId);
-	if (!fileId) return null;
-	const meta = fileIndex.get(fileId);
-	if (!meta) return null;
-	return { fileId: meta.id, path: meta.path, mimeType: meta.mimeType };
+	return getServices().files.findFileByExternalId(externalId);
 }
 
-/** List all files, optionally filtered by path prefix. */
 export function listFiles(prefix?: string): FileMeta[] {
-	const all = [...fileIndex.values()];
-	if (!prefix) return all;
-	return all.filter((f) => f.path.startsWith(prefix));
+	return getServices().files.listFiles(prefix);
 }
 
-/** Delete a file from the index (does not remove the blob). */
 export function deleteFile(fileId: string): boolean {
-	const meta = fileIndex.get(fileId);
-	if (!meta) return false;
-	fileIndex.delete(fileId);
-	if (meta.messageId) messageFileIndex.delete(meta.messageId);
-	if (meta.externalId) externalFileIndex.delete(meta.externalId);
-	return true;
+	return getServices().files.deleteFile(fileId);
 }
 
-/**
- * Rebuild in-memory indexes from files-index.jsonl.
- * Call once at startup.
- */
-export async function rebuildFileIndex(): Promise<void> {
-	fileIndex.clear();
-	messageFileIndex.clear();
-	externalFileIndex.clear();
-
-	try {
-		const text = await Bun.file(indexPath()).text();
-		for (const line of text.split("\n")) {
-			if (!line.trim()) continue;
-			try {
-				const record = FileMetaSchema.extend({
-					_update: z.boolean().optional(),
-				}).parse(JSON.parse(line));
-				// Later entries override earlier ones (handles updates)
-				fileIndex.set(record.id, {
-					id: record.id,
-					path: record.path,
-					mimeType: record.mimeType,
-					sizeBytes: record.sizeBytes,
-					...(record.messageId ? { messageId: record.messageId } : {}),
-					...(record.externalId ? { externalId: record.externalId } : {}),
-					createdAt: record.createdAt,
-				});
-				if (record.messageId) messageFileIndex.set(record.messageId, record.id);
-				if (record.externalId)
-					externalFileIndex.set(record.externalId, record.id);
-			} catch {
-				log.warn("[files] skipping corrupt line in index rebuild", {
-					line: line.slice(0, 100),
-				});
-			}
-		}
-	} catch {
-		// No index file yet
-	}
-
-	log.info(`[files] index rebuilt (${fileIndex.size} files)`);
-}
-
-/** Clear indexes. Test-only. */
-export function _clearFileIndexForTest(): void {
-	fileIndex.clear();
-	messageFileIndex.clear();
-	externalFileIndex.clear();
+export function rebuildFileIndex(): Promise<void> {
+	return getServices().files.rebuildIndex();
 }

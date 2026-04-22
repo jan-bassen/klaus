@@ -32,8 +32,6 @@ vi.mock("@/config/providers", () => ({
 	createModel: mocks.mockCreateModel,
 }));
 
-import { _resetForTest } from "@/pipeline/rate-limit";
-
 const { callModel } = await import("@/agent/model");
 
 // ---- Helpers ----
@@ -45,7 +43,6 @@ const BASE_OPTS = {
 };
 
 beforeEach(() => {
-	_resetForTest();
 	mocks.mockGenerateText.mockClear();
 });
 

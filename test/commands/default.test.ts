@@ -16,7 +16,7 @@ vi.mock("@/whatsapp/send", () => ({
 	enqueueMessage: mocks.mockEnqueueMessage,
 }));
 
-vi.mock("@/agent", () => ({
+vi.mock("@/agent/definitions", () => ({
 	agentRegistry: mocks.mockAgentRegistry,
 	loadAgentDefinition: mocks.mockLoadAgentDefinition,
 	setDefaultAgent: mocks.mockSetDefaultAgent,

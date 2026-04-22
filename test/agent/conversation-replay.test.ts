@@ -18,19 +18,14 @@ vi.mock("@/agent/model", () => ({ callModel: mocks.mockCallModel }));
 
 // ---- Imports ----
 
-import { buildConversationMessages } from "@/agent/messages";
-import {
-	_clearIndexesForTest,
-	appendMessage,
-	appendTrace,
-	getTraces,
-} from "@/store/conversation";
+import { buildConversationMessages } from "@/agent/history";
+import { appendMessage, appendTrace, getTraces } from "@/store/conversation";
 import type { AgentDefinition, TurnContext } from "@/types";
+import { installTestServices } from "../helpers/services";
 
 // ---- Fixtures ----
 
 let tmpDir: string;
-let origDataDir: string | undefined;
 
 const dummyAgent: AgentDefinition = {
 	name: "test",
@@ -70,14 +65,10 @@ function makeTurn(
 beforeEach(async () => {
 	tmpDir = join(tmpdir(), `conv-replay-test-${Date.now()}`);
 	await mkdir(tmpDir, { recursive: true });
-	origDataDir = process.env.DATA_DIR;
-	process.env.DATA_DIR = tmpDir;
-	_clearIndexesForTest();
+	installTestServices({ dataDir: tmpDir });
 });
 
 afterEach(async () => {
-	if (origDataDir !== undefined) process.env.DATA_DIR = origDataDir;
-	else delete process.env.DATA_DIR;
 	await rm(tmpDir, { recursive: true, force: true });
 });
 

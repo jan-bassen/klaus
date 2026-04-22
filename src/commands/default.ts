@@ -1,5 +1,9 @@
 import path from "node:path";
-import { agentRegistry, loadAgentDefinition, setDefaultAgent } from "@/agent";
+import {
+	agentRegistry,
+	loadAgentDefinition,
+	setDefaultAgent,
+} from "@/agent/definitions";
 import type { Command } from "@/commands";
 import { settings } from "@/config";
 import type { InboundMessage } from "@/types";

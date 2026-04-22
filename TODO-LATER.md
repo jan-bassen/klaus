@@ -1,15 +1,7 @@
-# Features v0.2.0 (ignore migration paths, we're able to fully reset still)
+# Last Features
 
-## Settings cleanup
-- [ ] Msg timeout -> whatsapp key
-- [ ] Maybe reorder?
-- [ ] Vault permissions
-  - [ ] Linearly escalating access levels: hidden, locked (know it’s there and locked, no open access), read, append-text or append-files for specific append types, append (for both), full (write)
-  One folder for vaults(?)
-  - [ ] Open question: how to handle agent specific settings?
-
-## Maybe's
-- [ ] Voice language field in settings.ts against awkward accents
+- [ ] Add read markers to messages to persistance
+- [ ] Check Snippet vars in snippets - are they working (and how do we handle loops?)
 
 --- 
 

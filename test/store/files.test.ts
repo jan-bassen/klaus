@@ -9,36 +9,30 @@ import {
 	expect,
 	test,
 } from "vitest";
+import {
+	deleteFile,
+	findFile,
+	findFileByExternalId,
+	findFileByMessageId,
+	listFiles,
+	rebuildFileIndex,
+	saveFileMeta,
+	updateFileMessageId,
+} from "@/store/files";
+import { installTestServices } from "../helpers/services";
 
 let tmpDir: string;
-let savedDataDir: string | undefined;
 
 beforeAll(async () => {
 	tmpDir = await mkdtemp(join(tmpdir(), "files-test-"));
-	savedDataDir = process.env.DATA_DIR;
-	process.env.DATA_DIR = tmpDir;
 });
 
 afterAll(async () => {
-	if (savedDataDir !== undefined) process.env.DATA_DIR = savedDataDir;
-	else delete process.env.DATA_DIR;
 	await rm(tmpDir, { recursive: true, force: true });
 });
 
-const {
-	saveFileMeta,
-	findFile,
-	findFileByMessageId,
-	findFileByExternalId,
-	listFiles,
-	deleteFile,
-	updateFileMessageId,
-	rebuildFileIndex,
-	_clearFileIndexForTest,
-} = await import("@/store/files");
-
 beforeEach(() => {
-	_clearFileIndexForTest();
+	installTestServices({ dataDir: tmpDir });
 });
 
 describe("saveFileMeta", () => {
@@ -173,7 +167,8 @@ describe("rebuildFileIndex", () => {
 		});
 		const saved = result as { id: string };
 
-		_clearFileIndexForTest();
+		// Fresh services: in-memory index starts empty, rebuild should repopulate.
+		installTestServices({ dataDir: tmpDir });
 		expect(findFile(saved.id)).toBeNull();
 
 		await rebuildFileIndex();
@@ -191,7 +186,7 @@ describe("rebuildFileIndex", () => {
 		});
 		const saved = result as { id: string };
 
-		_clearFileIndexForTest();
+		installTestServices({ dataDir: tmpDir });
 		expect(findFileByExternalId("wa-rebuild-ext")).toBeNull();
 
 		await rebuildFileIndex();

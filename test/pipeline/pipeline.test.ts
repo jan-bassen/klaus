@@ -37,6 +37,9 @@ const mocks = vi.hoisted(() => ({
 		(_extId: string) =>
 			null as { fileId: string; path: string; mimeType: string } | null,
 	),
+	// Captures agent runs so tests can assert on TurnContext without invoking an LLM.
+	capturedTurns: [] as unknown[],
+	mockAgentRunner: vi.fn(),
 }));
 
 // ─── Mocks (must precede all imports of the modules under test) ───────────────
@@ -87,7 +90,6 @@ vi.mock("@/store/conversation", () => ({
 	readAllMessages: vi.fn(async () => []),
 	searchConversation: vi.fn(async () => []),
 	rebuildIndexes: vi.fn(async () => {}),
-	_clearIndexesForTest: vi.fn(() => {}),
 }));
 
 // @/store/turn-log — mock turn log recording
@@ -106,28 +108,29 @@ vi.mock("@/store/files", () => ({
 	listFiles: vi.fn(() => []),
 	deleteFile: vi.fn(() => false),
 	rebuildFileIndex: vi.fn(async () => {}),
-	_clearFileIndexForTest: vi.fn(() => {}),
+}));
+
+// @/agent/runner — substitute the real runAgent with a spy that captures the turn
+vi.mock("@/agent/runner", () => ({
+	runAgent: mocks.mockAgentRunner,
 }));
 
 // ─── Import after mocks ───────────────────────────────────────────────────────
 
-import { agentRegistry } from "@/agent";
+import { agentRegistry } from "@/agent/definitions";
 import { registry } from "@/commands";
 import { settings } from "@/config";
-import {
-	_clearAgentRunnerForTest,
-	_setAgentRunnerForTest,
-	handleTurn,
-} from "@/pipeline";
+import { handleTurn } from "@/pipeline";
 import { overrideRegistry } from "@/pipeline/overrides";
-import { _resetForTest, checkMessageRate } from "@/pipeline/rate-limit";
+import { checkMessageRate } from "@/pipeline/rate-limit";
 import { setVariables } from "@/variables";
 
-// ─── Test seam — captures agent turns without vi.mock pollution ───────────────
-
-const capturedTurns: TurnContext[] = [];
+const capturedTurns = mocks.capturedTurns as TurnContext[];
 const capturedAppendMessages: Record<string, unknown>[] = [];
-const mockAgentRunner = vi.fn(
+const mockAgentRunner = mocks.mockAgentRunner as unknown as ReturnType<
+	typeof vi.fn<(turn: TurnContext, def: AgentDefinition) => Promise<unknown>>
+>;
+mockAgentRunner.mockImplementation(
 	async (turn: TurnContext, _def: AgentDefinition) => {
 		capturedTurns.push(turn);
 		return {
@@ -193,13 +196,9 @@ beforeAll(async () => {
 
 	// Use no context variables so assembleContext always returns { vars: {}, totalTokens: 0 }
 	setVariables([]);
-
-	// Inject the agent runner test seam
-	_setAgentRunnerForTest(mockAgentRunner);
 });
 
 afterAll(async () => {
-	_clearAgentRunnerForTest();
 	await rm(tmpDir, { recursive: true, force: true });
 	if (savedAllowedChatId !== undefined) {
 		process.env.ALLOWED_CHAT_ID = savedAllowedChatId;
@@ -233,7 +232,6 @@ function lastTurn(): TurnContext {
 
 beforeEach(() => {
 	process.env.ALLOWED_CHAT_ID = TEST_CHAT_ID;
-	_resetForTest();
 	agentRegistry.clear();
 	capturedTurns.length = 0;
 	capturedAppendMessages.length = 0;

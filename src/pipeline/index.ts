@@ -1,24 +1,10 @@
-import path from "node:path";
-import { agentRegistry, loadAgentDefinition } from "@/agent";
-import { type AgentRunResult, runAgent } from "@/agent/runner";
-import type { AgentDefinition, InboundMessage, TurnContext } from "@/types";
-import { checkMessageRate } from "./rate-limit";
-
-// ─── Test seam ────────────────────────────────────────────────────────────────
-let _agentRunner: (
-	turn: TurnContext,
-	def: AgentDefinition,
-) => Promise<AgentRunResult> = runAgent;
-export function _setAgentRunnerForTest(
-	fn: (turn: TurnContext, def: AgentDefinition) => Promise<AgentRunResult>,
-): void {
-	_agentRunner = fn;
-}
-export function _clearAgentRunnerForTest(): void {
-	_agentRunner = runAgent;
-}
-
-import { getDefaultAgent } from "@/agent";
+import {
+	agentRegistry,
+	getDefaultAgent,
+	getOrLoadAgent,
+} from "@/agent/definitions";
+import { runAgent } from "@/agent/runner";
+import { buildTurn } from "@/agent/turn";
 import { registry as commandRegistry, parseCommand } from "@/commands";
 import { settings, updateAllowedChatId } from "@/config";
 import { formatUserError } from "@/errors";
@@ -35,7 +21,7 @@ import {
 } from "@/store/files";
 import { appendTrail } from "@/store/trail";
 import { recordTurnLog, toLogSteps } from "@/store/turn-log";
-import { assembleVariables } from "@/variables";
+import type { InboundMessage } from "@/types";
 import { getSocket, normalizeJid } from "@/whatsapp/connection";
 import {
 	clearLoginFolder,
@@ -57,6 +43,7 @@ import {
 	resolveOverrides,
 	stripOverrides,
 } from "./overrides";
+import { checkMessageRate } from "./rate-limit";
 
 // ─── Inlined from middleware.ts ──────────────────────────────────────────────
 
@@ -80,10 +67,6 @@ export function checkAllowlist(msg: InboundMessage): AuthResult {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-
-function agentsDir(): string {
-	return settings.vault.agentsDir;
-}
 
 /**
  * The single orchestrator for all user-initiated messages.
@@ -275,12 +258,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		let effectiveMsg: InboundMessage = { ...processedMsg, text: strippedText };
 
 		// Step 6: Resolve agent definition
-		let def = agentRegistry.get(agentName);
-		if (!def) {
-			const promptPath = path.join(agentsDir(), `${agentName}.md`);
-			def = await loadAgentDefinition(promptPath);
-			agentRegistry.set(def.name, def);
-		}
+		const def = await getOrLoadAgent(agentName);
 		log.info(`[pipeline] routing to @${agentName}`);
 
 		// Resolve agent defaults, per-message overrides take precedence
@@ -344,26 +322,21 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			}
 		}
 
-		// Build partial TurnContext for variable assembly
-		const partialTurn: Omit<TurnContext, "vars"> = {
+		// Step 7: Build full TurnContext (resolves defaults + assembles variables)
+		const turn = await buildTurn({
 			chatId: effectiveMsg.chatId,
+			def,
 			message: effectiveMsg,
-			agent: def,
 			overrides,
-			config,
-			messageRefs: {},
+			presetConfig,
 			...(messageId ? { messageId } : {}),
-		};
-
-		// Step 7: Assemble unified variable namespace (all variables in parallel)
-		const vars = await assembleVariables(partialTurn);
-		const turn: TurnContext = { ...partialTurn, vars };
+		});
 
 		// Step 8: Execute agent
 		if (msg.kind === "whatsapp") await startTyping(effectiveMsg.chatId);
-		let agentResult: Awaited<ReturnType<typeof _agentRunner>> | undefined;
+		let agentResult: Awaited<ReturnType<typeof runAgent>> | undefined;
 		try {
-			agentResult = await _agentRunner(turn, def);
+			agentResult = await runAgent(turn, def);
 		} finally {
 			if (msg.kind === "whatsapp") await stopTyping(effectiveMsg.chatId);
 		}

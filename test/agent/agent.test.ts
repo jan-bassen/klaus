@@ -51,7 +51,6 @@ const mocks = vi.hoisted(() => ({
 	mockResolveExternalId: vi.fn(() => null),
 	mockResolveMessageId: vi.fn(() => null),
 	mockRebuildIndexes: vi.fn(async () => {}),
-	mock_clearIndexesForTest: vi.fn(() => {}),
 }));
 
 vi.mock("@/agent/model", () => ({ callModel: mocks.mockCallModel }));
@@ -67,10 +66,9 @@ vi.mock("@/store/conversation", () => ({
 	resolveExternalId: mocks.mockResolveExternalId,
 	resolveMessageId: mocks.mockResolveMessageId,
 	rebuildIndexes: mocks.mockRebuildIndexes,
-	_clearIndexesForTest: mocks.mock_clearIndexesForTest,
 }));
 
-import { loadAgentDefinition } from "@/agent";
+import { loadAgentDefinition } from "@/agent/definitions";
 import { runAgent } from "@/agent/runner";
 
 import {
@@ -78,7 +76,7 @@ import {
 	registerToolset,
 	toolRegistry,
 	toolsetRegistry,
-} from "@/tools";
+} from "@/variables/tools";
 import type { TurnContext } from "@/types";
 
 // ---- runAgent helpers ----
@@ -532,7 +530,7 @@ describe("runAgent", () => {
 	});
 
 	test("generateMetaTool description lists all toolset tools", async () => {
-		const { generateMetaTool } = await import("@/tools");
+		const { generateMetaTool } = await import("@/variables/tools");
 		const ts = {
 			name: "demo",
 			description: "Use for demo things.",

@@ -30,6 +30,6 @@ export default defineConfig({
 		testTimeout: 30_000,
 		pool: "forks",
 		include: ["test/**/*.test.ts"],
-		setupFiles: ["test/bun-polyfill.ts"],
+		setupFiles: ["test/bun-polyfill.ts", "test/setup.ts"],
 	},
 });

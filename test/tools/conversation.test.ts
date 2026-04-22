@@ -19,7 +19,6 @@ vi.mock("@/store/conversation", () => ({
 	findByExternalId: vi.fn(() => null),
 	resolveExternalId: vi.fn(() => null),
 	rebuildIndexes: vi.fn(async () => {}),
-	_clearIndexesForTest: vi.fn(() => {}),
 }));
 
 vi.mock("@/logger", () => ({
@@ -31,7 +30,7 @@ vi.mock("@/logger", () => ({
 	},
 }));
 
-const { conversationTool } = await import("@/tools/conversation");
+const { conversationTool } = await import("@/variables/tools/conversation");
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 

@@ -37,7 +37,7 @@ vi.mock("@/variables", () => ({
 
 // ─── Import after mocks ───────────────────────────────────────────────────────
 
-import { agentRegistry } from "@/agent";
+import { agentRegistry } from "@/agent/definitions";
 import { registry } from "@/commands";
 import { helpCommand } from "@/commands/help";
 import { overrideRegistry } from "@/pipeline/overrides";

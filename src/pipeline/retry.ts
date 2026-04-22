@@ -1,20 +1,13 @@
-import path from "node:path";
-import { agentRegistry, getDefaultAgent, loadAgentDefinition } from "@/agent";
+import { getDefaultAgent, getOrLoadAgent } from "@/agent/definitions";
 import { runAgent } from "@/agent/runner";
-import { settings } from "@/config";
+import { buildTurn } from "@/agent/turn";
 import { log } from "@/logger";
 import {
 	type ConversationMessage,
 	readAllMessages,
 } from "@/store/conversation";
-import type { InboundMessage, TurnContext } from "@/types";
-import { assembleVariables } from "@/variables";
+import type { InboundMessage } from "@/types";
 import { startTyping, stopTyping } from "@/whatsapp/presence";
-import { resolveAgentDefaults } from "./overrides";
-
-function agentsDir(): string {
-	return settings.vault.agentsDir;
-}
 
 /**
  * Re-invoke the agent for a previously-persisted user message.
@@ -30,15 +23,8 @@ export async function executeRetry(
 		throw new Error("Target message has no externalId — cannot retry");
 	}
 
-	const agentName = getDefaultAgent(chatId);
-	let def = agentRegistry.get(agentName);
-	if (!def) {
-		const promptPath = path.join(agentsDir(), `${agentName}.md`);
-		def = await loadAgentDefinition(promptPath);
-		agentRegistry.set(def.name, def);
-	}
+	const def = await getOrLoadAgent(getDefaultAgent(chatId));
 
-	const config = resolveAgentDefaults({}, def);
 	const syntheticMsg: InboundMessage = {
 		kind: "whatsapp",
 		id: target.externalId,
@@ -49,18 +35,12 @@ export async function executeRetry(
 		messageKey: { remoteJid: chatId, fromMe: false, id: target.externalId },
 	};
 
-	const partialTurn: Omit<TurnContext, "vars"> = {
+	const turn = await buildTurn({
 		chatId,
+		def,
 		message: syntheticMsg,
-		agent: def,
-		overrides: {},
-		config,
-		messageRefs: {},
 		messageId: target.id,
-	};
-
-	const vars = await assembleVariables(partialTurn);
-	const turn: TurnContext = { ...partialTurn, vars };
+	});
 
 	log.info(`[retry] re-invoking @${def.name} for message ${target.id}`);
 	await startTyping(chatId);

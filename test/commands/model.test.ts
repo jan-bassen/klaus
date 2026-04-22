@@ -15,7 +15,7 @@ vi.mock("@/whatsapp/send", () => ({
 
 // ─── Import after mocks ───────────────────────────────────────────────────────
 
-import { _resetDefaultsForTest, agentRegistry } from "@/agent";
+import { agentRegistry } from "@/agent/definitions";
 import { modelCommand } from "@/commands/model";
 import type { AgentDefinition, InboundMessage } from "@/types";
 
@@ -67,7 +67,7 @@ function makeAgent(tier: AgentDefinition["modelTier"]): AgentDefinition {
 beforeEach(async () => {
 	writeFileSync(AGENT_FILE, AGENT_CONTENT);
 	agentRegistry.set("assistant", makeAgent("medium"));
-	_resetDefaultsForTest();
+	// test/setup.ts already installs fresh services → fresh defaultAgents registry
 	mocks.mockEnqueueMessage.mockClear();
 });
 

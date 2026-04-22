@@ -1,4 +1,4 @@
-import { agentRegistry } from "@/agent";
+import { agentRegistry } from "@/agent/definitions";
 import type { Command } from "@/commands";
 import { registry } from "@/commands";
 import { settings } from "@/config";

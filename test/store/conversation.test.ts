@@ -10,49 +10,41 @@ import {
 	expect,
 	test,
 } from "vitest";
+import {
+	appendAck,
+	appendBreak,
+	appendMessage,
+	appendReaction,
+	appendSupersede,
+	findByExternalId,
+	getConversation,
+	readAllMessages,
+	rebuildIndexes,
+	resolveExternalId,
+	resolveMessageId,
+	searchConversation,
+} from "@/store/conversation";
+import { installTestServices } from "../helpers/services";
 
 let tmpDir: string;
-let savedDataDir: string | undefined;
 
 beforeAll(async () => {
 	tmpDir = await mkdtemp(join(tmpdir(), "conv-test-"));
-	savedDataDir = process.env.DATA_DIR;
-	process.env.DATA_DIR = tmpDir;
 });
 
 afterAll(async () => {
-	if (savedDataDir !== undefined) process.env.DATA_DIR = savedDataDir;
-	else delete process.env.DATA_DIR;
 	await rm(tmpDir, { recursive: true, force: true });
 });
 
-const {
-	appendMessage,
-	appendAck,
-	appendReaction,
-	appendBreak,
-	appendSupersede,
-	getConversation,
-	findByExternalId,
-	resolveExternalId,
-	resolveMessageId,
-	rebuildIndexes,
-	readAllMessages,
-	searchConversation,
-	_clearIndexesForTest,
-} = await import("@/store/conversation");
-
 beforeEach(() => {
-	_clearIndexesForTest();
+	installTestServices({ dataDir: tmpDir });
 });
 
 afterEach(async () => {
-	const { readdir: readdirAsync, rm: rmAsync } = await import(
-		"node:fs/promises"
-	);
+	const { readdir, rm: rmAsync } = await import("node:fs/promises");
 	try {
 		const convDir = join(tmpDir, "conversations");
-		const files = await readdirAsync(convDir);
+		const files = await readdir(convDir);
 		for (const f of files) {
 			if (f.endsWith(".jsonl")) {
 				await rmAsync(join(convDir, f));
@@ -282,7 +274,9 @@ describe("rebuildIndexes", () => {
 		});
 		await appendAck(ackId, "wa-ack-1");
 
-		_clearIndexesForTest();
+		// Install a fresh services container pointing at the same dataDir —
+		// in-memory indexes start empty, rebuildIndexes() should repopulate them.
+		installTestServices({ dataDir: tmpDir });
 		expect(findByExternalId("wa-rebuild-1")).toBeNull();
 
 		await rebuildIndexes();

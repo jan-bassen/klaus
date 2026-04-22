@@ -27,8 +27,9 @@ vi.mock("@llamaindex/liteparse", () => ({
 	},
 }));
 
-const { parseDocument, isParseableDocument, _resetParserForTest } =
-	await import("@/pipeline/attachments");
+const { parseDocument, isParseableDocument } = await import(
+	"@/pipeline/attachments"
+);
 
 let tmpDir: string;
 
@@ -42,7 +43,6 @@ afterAll(async () => {
 
 beforeEach(() => {
 	mocks.mockParse.mockClear();
-	_resetParserForTest();
 });
 
 describe("isParseableDocument", () => {

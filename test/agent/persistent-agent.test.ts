@@ -21,14 +21,12 @@ const mocks = vi.hoisted(() => ({
 	mockResolveExternalId: vi.fn(() => null),
 	mockResolveMessageId: vi.fn(() => null),
 	mockRebuildIndexes: vi.fn(async () => {}),
-	mock_clearIndexesForTest: vi.fn(() => {}),
 	mockAddTimer: vi.fn(async () => {}),
 	mockRemoveTimer: vi.fn(async () => true),
 	mockListTimers: vi.fn(() => [] as Array<Record<string, string>>),
 	mockLoadTimers: vi.fn(async () => {}),
 	mockSetOnTimerFire: vi.fn(() => {}),
 	mockStopAllTimers: vi.fn(() => {}),
-	mock_clearTimersForTest: vi.fn(() => {}),
 }));
 
 vi.mock("@/agent/model", () => ({ callModel: mocks.mockCallModel }));
@@ -44,7 +42,6 @@ vi.mock("@/store/conversation", () => ({
 	resolveExternalId: mocks.mockResolveExternalId,
 	resolveMessageId: mocks.mockResolveMessageId,
 	rebuildIndexes: mocks.mockRebuildIndexes,
-	_clearIndexesForTest: mocks.mock_clearIndexesForTest,
 }));
 
 vi.mock("@/store/timers", () => ({
@@ -54,11 +51,11 @@ vi.mock("@/store/timers", () => ({
 	loadTimers: mocks.mockLoadTimers,
 	setOnTimerFire: mocks.mockSetOnTimerFire,
 	stopAllTimers: mocks.mockStopAllTimers,
-	_clearTimersForTest: mocks.mock_clearTimersForTest,
 }));
 
-import { loadAgentDefinition } from "@/agent";
-import { clampNextRun, runAgent } from "@/agent/runner";
+import { loadAgentDefinition } from "@/agent/definitions";
+import { clampNextRun } from "@/agent/persistent";
+import { runAgent } from "@/agent/runner";
 import type { TurnContext } from "@/types";
 
 // ---- Helpers ----

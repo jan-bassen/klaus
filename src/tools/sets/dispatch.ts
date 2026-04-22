@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { agentRegistry } from "@/agent";
+import { agentRegistry } from "@/agent/definitions";
 import { dispatch as dispatchAgent } from "@/agent/dispatch";
 import { addSchedule, getSchedules, removeSchedule } from "@/store/schedules";
 import { addTimer, listTimers, removeTimer } from "@/store/timers";

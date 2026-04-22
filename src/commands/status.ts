@@ -1,4 +1,4 @@
-import { getDefaultAgent } from "@/agent";
+import { getDefaultAgent } from "@/agent/definitions";
 import { getActiveJobs } from "@/agent/queue";
 import type { Command } from "@/commands";
 import { settings } from "@/config";

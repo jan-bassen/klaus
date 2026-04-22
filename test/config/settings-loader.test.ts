@@ -23,8 +23,10 @@ vi.mock("@/config/env", () => ({
 	},
 }));
 
-const { SettingsSchema, loadSettingsFromDisk, getYamlSettings, _resetForTest } =
-	await import("@/config/schema");
+// Typed reference for the schema module — actual instances are re-imported
+// per-test via vi.resetModules so each test starts with fresh _current state.
+type SchemaModule = typeof import("@/config/schema");
+let schema: SchemaModule;
 
 // A minimal complete settings object matching the (defaults-free) schema —
 // every required field must appear. Used as a base for partial overrides.
@@ -103,9 +105,11 @@ function completeSettings(over: Record<string, unknown> = {}): unknown {
 	return { ...base, ...over };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
 	mkdirSync(TEST_DIR, { recursive: true });
-	_resetForTest();
+	// Fresh module state each test — equivalent to reset-to-bundled-defaults.
+	vi.resetModules();
+	schema = await import("@/config/schema");
 });
 
 afterEach(() => {
@@ -114,12 +118,12 @@ afterEach(() => {
 
 describe("SettingsSchema", () => {
 	test("rejects empty object — every top-level field is required", () => {
-		const result = SettingsSchema.safeParse({});
+		const result = schema.SettingsSchema.safeParse({});
 		expect(result.success).toBe(false);
 	});
 
 	test("accepts a complete settings object", () => {
-		const result = SettingsSchema.safeParse(completeSettings());
+		const result = schema.SettingsSchema.safeParse(completeSettings());
 		expect(result.success).toBe(true);
 		if (!result.success) return;
 		expect(result.data.providers.active).toBe("claude");
@@ -128,7 +132,9 @@ describe("SettingsSchema", () => {
 	});
 
 	test("rejects unknown top-level keys", () => {
-		const result = SettingsSchema.safeParse(completeSettings({ bogus: true }));
+		const result = schema.SettingsSchema.safeParse(
+			completeSettings({ bogus: true }),
+		);
 		expect(result.success).toBe(false);
 	});
 
@@ -143,12 +149,12 @@ describe("SettingsSchema", () => {
 				large: "c",
 			},
 		};
-		const result = SettingsSchema.safeParse(withCustom);
+		const result = schema.SettingsSchema.safeParse(withCustom);
 		expect(result.success).toBe(true);
 	});
 
 	test("validates vault folder permissions", () => {
-		const result = SettingsSchema.safeParse(
+		const result = schema.SettingsSchema.safeParse(
 			completeSettings({
 				vault: {
 					folders: [{ path: "Test", default: "invalid" }],
@@ -163,11 +169,11 @@ describe("SettingsSchema", () => {
 
 describe("loadSettingsFromDisk", () => {
 	test("falls back to bundled defaults when file missing", async () => {
-		const result = await loadSettingsFromDisk();
+		const result = await schema.loadSettingsFromDisk();
 		expect(result.ok).toBe(true);
 		// Bundled default ships with the repo's Klaus/settings.yml.
-		expect(getYamlSettings().locale).toBe("en-GB");
-		expect(getYamlSettings().defaultAgent).toBe("assistant");
+		expect(schema.getYamlSettings().locale).toBe("en-GB");
+		expect(schema.getYamlSettings().defaultAgent).toBe("assistant");
 	});
 
 	test("loads valid YAML that overrides fields of the bundled default", async () => {
@@ -175,9 +181,9 @@ describe("loadSettingsFromDisk", () => {
 			SETTINGS_PATH,
 			stringifyYaml(completeSettings({ locale: "en-US" })),
 		);
-		const result = await loadSettingsFromDisk();
+		const result = await schema.loadSettingsFromDisk();
 		expect(result.ok).toBe(true);
-		expect(getYamlSettings().locale).toBe("en-US");
+		expect(schema.getYamlSettings().locale).toBe("en-US");
 	});
 
 	test("returns error for invalid YAML values", async () => {
@@ -204,7 +210,7 @@ describe("loadSettingsFromDisk", () => {
 				}),
 			),
 		);
-		const result = await loadSettingsFromDisk();
+		const result = await schema.loadSettingsFromDisk();
 		expect(result.ok).toBe(false);
 		if (result.ok) return;
 		expect(result.error).toContain("providers");
@@ -215,7 +221,7 @@ describe("loadSettingsFromDisk", () => {
 			SETTINGS_PATH,
 			stringifyYaml(completeSettings({ unknownKey: "value" })),
 		);
-		const result = await loadSettingsFromDisk();
+		const result = await schema.loadSettingsFromDisk();
 		expect(result.ok).toBe(false);
 	});
 
@@ -224,15 +230,15 @@ describe("loadSettingsFromDisk", () => {
 			SETTINGS_PATH,
 			stringifyYaml(completeSettings({ locale: "fr-FR" })),
 		);
-		await loadSettingsFromDisk();
-		expect(getYamlSettings().locale).toBe("fr-FR");
+		await schema.loadSettingsFromDisk();
+		expect(schema.getYamlSettings().locale).toBe("fr-FR");
 
 		writeFileSync(
 			SETTINGS_PATH,
 			stringifyYaml(completeSettings({ bogusKey: true })),
 		);
-		const result = await loadSettingsFromDisk();
+		const result = await schema.loadSettingsFromDisk();
 		expect(result.ok).toBe(false);
-		expect(getYamlSettings().locale).toBe("fr-FR");
+		expect(schema.getYamlSettings().locale).toBe("fr-FR");
 	});
 });

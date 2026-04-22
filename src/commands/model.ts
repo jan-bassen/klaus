@@ -1,4 +1,4 @@
-import { agentRegistry, getDefaultAgent } from "@/agent";
+import { agentRegistry, getDefaultAgent } from "@/agent/definitions";
 import type { Command } from "@/commands";
 import { getProviderNames, resolveProvider, settings } from "@/config";
 import { setFrontmatterField } from "@/markdown";

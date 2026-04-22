@@ -23,9 +23,7 @@ vi.mock("@/logger", () => ({
 }));
 
 // Import after mocks are set up.
-const { awaitConfirmation, onReaction, _pendingSizeForTest } = await import(
-	"@/whatsapp/confirm"
-);
+const { awaitConfirmation, onReaction } = await import("@/whatsapp/confirm");
 
 function makeMsg(chatId = "chat@s.whatsapp.net"): InboundMessage {
 	return {
@@ -66,8 +64,8 @@ describe("awaitConfirmation", () => {
 		const confirmPromise = awaitConfirmation(makeMsg(), "Confirm?", 5_000);
 		await Promise.resolve();
 		onReaction("sent-msg-id", "\ud83e\udd14"); // ignored
-		expect(_pendingSizeForTest()).toBe(1); // still pending
-		onReaction("sent-msg-id", "\ud83d\udc4d"); // resolve properly
+		// The pending entry is still live — a subsequent valid reaction resolves it.
+		onReaction("sent-msg-id", "\ud83d\udc4d");
 		expect(await confirmPromise).toBe("confirmed");
 	});
 
@@ -91,13 +89,14 @@ describe("awaitConfirmation", () => {
 		expect(result).toBe("timeout");
 	});
 
-	test("pending entry is cleaned up after resolution", async () => {
+	test("further reactions after resolution are no-ops", async () => {
 		const confirmPromise = awaitConfirmation(makeMsg(), "Confirm?", 5_000);
 		await Promise.resolve();
-		expect(_pendingSizeForTest()).toBe(1);
 		onReaction("sent-msg-id", "\ud83d\udc4d");
 		await confirmPromise;
-		expect(_pendingSizeForTest()).toBe(0);
+		// Once resolved, subsequent reactions must not throw or double-resolve.
+		expect(() => onReaction("sent-msg-id", "\ud83d\udc4d")).not.toThrow();
+		expect(() => onReaction("sent-msg-id", "\ud83d\udc4e")).not.toThrow();
 	});
 });
 

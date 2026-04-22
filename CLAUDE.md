@@ -5,56 +5,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Development (uses 1Password for env secrets)
-op run --env-file=.env -- bun run src/index.ts
-
-# Type checking
 bun run typecheck
-
-# Tests (Vitest)
 bun run test
-
-# Run a single test file
 npx vitest run test/pipeline/pipeline.test.ts
-
-# Watch mode
 bun run test:watch
-
-# Linting/formatting (Biome)
 bunx biome check --write .
-
-# Eval (prompt-only LLM-as-judge)
-bun run eval                          # all agents
-bun run eval assistant                # one agent
-bun run eval assistant greeting       # one case
-
-# Publish to Docker Hub (builds linux/amd64, pushes :version + :latest)
+bun run build
 bun run publish
 ```
 
-## Git workflow
-
-One logical change = one PR = one commit. A change is not done until all of the following are included together:
-
-- The implementation itself
-- Tests for the new/changed behavior (in `src/__tests__/`)
-- Updates to README.md if the change affects setup, architecture, or public-facing behavior
-- Updates to this file (CLAUDE.md) if the change affects conventions, commands, or architecture
-- Any TODO/task list updates if the project tracks open work
-
-Do not split these across multiple PRs or commits. Do not submit a feature and leave tests, docs, or housekeeping for a follow-up — include everything in the same PR.
-
-Before opening a PR, run `bun run typecheck`, `bun run test`, and `bunx biome check --write .` and fix any failures.
-
 ## Architecture
 
-Klaus is a headless personal AI agent: WhatsApp messages → TypeScript pipeline → Obsidian Vault + LLM → response.
+Klaus is a maximally simple opinionated headless personal AI agent living in WhatsApp + Obsidian Vault + Docker Container
 
 ### Stack
 
-Bun, TypeScript (strict), Baileys, Vercel AI SDK (multi-provider: `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google`). Containerized as a single Docker image (`janbassen1/klaus`).
+Bun, TypeScript (strict), Zod, Handlebars, Baileys, Vercel AI SDK (multi-provider: `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google`). Containerized as a single Docker image (`janbassen1/klaus`).
 
-Storage: JSONL flat files for operational data (conversations, invocations), JSON files for schedules and timers, Obsidian vault for knowledge (notes, wikilinks, tags as the knowledge graph).
+Liteparse for documents, defuddle + linkedom for websites, sharp for images.
+
+Storage: JSONL flat files for operational data (conversations, invocations), JSON files for schedules and timers. Obsidian vault for notes, wikilinks, knowledge graph, whatever...
 
 ### Message flow (pipeline.ts)
 
@@ -118,17 +88,21 @@ Prompt body with {{contextVar}} Handlebars interpolation (supports params: {{con
 
 ### Storage (src/store/)
 
-All operational data is stored as flat files — no database.
+All operational data is stored as flat files — no database. Stateful stores (conversation, files, timers, schedules) are **factory-created instances** wired through a services container — see "Services container" below.
 
 | Module | Format | Purpose |
 |--------|--------|---------|
 | `index.ts` | — | JSONL append/read utilities + timezone-aware date string helper |
-| `conversation.ts` | Day-partitioned JSONL (msg/ack/reaction/trace/break/supersede events) | Chat history with break markers, per-message supersede (for `/retry`), and in-memory indexes |
+| `conversation.ts` | Day-partitioned JSONL (msg/ack/reaction/trace/break/supersede events) | Factory `createConversationStore({dataDir})` — chat history with break markers, per-message supersede (for `/retry`), and in-memory indexes. Module exports are thin delegators to `getServices().conversations.*` |
 | `turn-log.ts` | Date-partitioned JSONL | Structured per-turn execution record (routing, context, LLM steps, outcome) |
 | `trail.ts` | Day-partitioned Markdown in vault `Klaus/trail/` | Human-readable turn trail for Obsidian debugging (auto-cleanup, configurable retention) |
-| `files.ts` | JSONL index + blob storage | File metadata |
-| `schedules.ts` | JSON + croner cron jobs | Recurring schedule persistence |
-| `timers.ts` | JSON + setTimeout | One-time future execution |
+| `files.ts` | JSONL index + blob storage | Factory `createFileStore({dataDir})` — file metadata. Delegators route to `getServices().files.*` |
+| `schedules.ts` | JSON + croner cron jobs | Factory `createScheduleStore({dataDir, timezone})` — recurring schedule persistence. Delegators route to `getServices().schedules.*` |
+| `timers.ts` | JSON + setTimeout | Factory `createTimerStore({dataDir})` — one-time future execution. Delegators route to `getServices().timers.*` |
+
+### Services container (src/services.ts)
+
+`src/services.ts` owns the lifecycle of all stateful singletons: the four stores plus the rate limiter and per-chat default-agent registry. `createServices({dataDir, timezone})` constructs fresh instances; `setServices()` / `getServices()` expose a module-level holder. `src/index.ts` calls `setServices(createServices(...))` once at bootstrap, right after settings load and before any store call. The module-level function exports on store files (e.g. `import { appendMessage } from "@/store/conversation"`) are thin delegators — they all route through `getServices()`, so callers don't need to know about the container. Tests construct fresh instances per suite via `installTestServices({ dataDir })` from `test/helpers/services.ts` — no `_resetForTest()` seams.
 
 The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[wikilinks]]` are edges, YAML frontmatter is metadata. Vault tools provide search, read, write, and link traversal. The vault has folder-level permissions (`read|append|full`) with optional elevated access via WhatsApp reaction confirmation. The internal folder (`Klaus/`) containing agents, skills, and snippets is separate but accessible (default: read, request: full).
 
@@ -137,6 +111,7 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | Path | Concern |
 |------|---------|
 | `src/types.ts` | Cross-cutting interfaces (InboundMessage, TurnContext, TurnResult) + re-exports of domain types |
+| `src/services.ts` | Services container. `createServices()`, `getServices()`, `setServices()` + the `Services`/`ConversationStore`/`FileStore`/`TimerStore`/`ScheduleStore`/`RateLimiter`/`DefaultAgentRegistry` interfaces. Wired once in `src/index.ts` at bootstrap |
 | `src/errors.ts` | `formatUserError` — maps LLM errors to user-friendly messages |
 | `src/markdown.ts` | Handlebars instance + helpers (`trunc`, `limit`, logic, comparisons), YAML frontmatter read/write, `$var` user-message interpolation with dot-path support |
 | `src/config/index.ts` | Public API: `settings`, `resolveProvider()`, `ModelTier`, `modelTiers`, `createModel()` |
@@ -146,12 +121,17 @@ The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[
 | `src/pipeline/index.ts` | Message orchestrator (inlined allowlist check) |
 | `src/pipeline/overrides.ts` | Override definitions, YAML loader, registry, parser, resolver (overrideDef, overrides) |
 | `src/pipeline/attachments.ts` | `parseDocument()` — liteparse wrapper with `.parsed.txt` sidecar cache, mime allow-list, char truncation. `fetchWebContent()` — defuddle-based web link fetching with in-memory cache, timeout, body size limit. `extractUrls()` — URL extraction from message text. |
-| `src/pipeline/rate-limit.ts` | Sliding window rate limiter |
-| `src/agent/index.ts` | AgentFrontmatterSchema, agentRegistry, loading, AgentDefinition |
-| `src/agent/runner.ts` | `runAgent()` execution loop (tool setup, provider options, AI SDK call, persistent scheduling) |
-| `src/agent/messages.ts` | `buildConversationMessages()` — conversation history reconstruction |
-| `src/agent/model.ts` | LLM call routing (provider-agnostic via provider factory) |
-| `src/agent/dispatch.ts` | Unified dispatch function (inline/async modes), DispatchMode/DispatchOptions |
+| `src/pipeline/rate-limit.ts` | Factory `createRateLimiter()` — sliding window rate limiter. Delegators route through `getServices().rateLimiter` |
+| `src/agent/definitions.ts` | `AgentFrontmatterSchema`, `AgentDefinition`, `agentRegistry`, `loadAgentDefinition`, `loadAgents`, `getOrLoadAgent`. Per-chat default agent accessors (`getDefaultAgent`/`setDefaultAgent`) delegate to `getServices().defaultAgents` |
+| `src/agent/turn.ts` | `buildTurn()` — shared helper that resolves agent defaults, builds the partial `TurnContext`, and assembles variables. Used by the pipeline, retry, and both dispatch paths |
+| `src/agent/runner.ts` | `runAgent()` — thin orchestrator. Composes `assembleTools` → `buildConversationMessages` → `buildUserContent` → `buildSystemPrompt` → `callModel` → trace persistence → persistent reschedule |
+| `src/agent/prompt.ts` | `buildSystemPrompt()` + `resolveSampling()` — Handlebars prompt compile and the `TurnConfig` → temperature/topP/providerOptions translation |
+| `src/agent/message.ts` | `buildUserContent()` — renders `{vault}/Klaus/message.md` and handles the vision pipeline (sharp downscale + image part) |
+| `src/agent/tools.ts` | `assembleTools()` — builds the SDK tool set (core + providerTools + toolsets + skills), the initial activeTools allowlist, and the `prepareStep` that expands it when meta-tools or `skill.get` are called |
+| `src/agent/history.ts` | `buildConversationMessages()` — conversation history reconstruction with trace replay for recent turns |
+| `src/agent/persistent.ts` | `schedulePersistentTimer()` + `clampNextRun()` + `toTraceSteps()` + `PersistentOutputSchema` — persistent-agent lifecycle and trace pairing |
+| `src/agent/model.ts` | `callModel()` — LLM call routing (provider-agnostic via provider factory), retries, timeout |
+| `src/agent/dispatch.ts` | Unified `dispatch()` (inline/async), `startWorkers()` for the queue. `DispatchMode`/`DispatchOptions` |
 | `src/agent/queue.ts` | In-memory job queue + active job tracking |
 | `src/variables/index.ts` | Variable assembly — runs all `Variable`s in parallel, plus an optional `after` phase. Produces the unified nested namespace consumed by every template. Defines the `Variable` interface. |
 | `src/variables/links.ts` | `links` variable — exposes auto-fetched web link content (count + items with url/title/text) |
@@ -206,8 +186,8 @@ HTTP endpoints: `/healthz` (JSON health check). Login is handled via the vault: 
 - Tests live in `test/` at the project root, grouped by domain (agent/, pipeline/, tools/, etc.)
 - Test runner: Vitest (`vitest.config.ts`), pool: forks for module isolation
 - Write tests alongside the code being developed, not after
-- Module mocking: use `vi.hoisted()` for mock functions referenced in `vi.mock()` factories, then `vi.mock("@/path", () => ({ fn: mockFn }))`
-- Mock at the `store/*` boundary for unit tests
+- **Services per test**: `test/setup.ts` (wired via `vitest.config.ts` `setupFiles`) installs a minimal services container before every test — real rate limiter, simple default-agent registry, throwing stubs for the file-backed stores. Tests that need real stores call `installTestServices({ dataDir: tmpDir })` from `test/helpers/services.ts` in their own `beforeEach`. No `_resetForTest` seams in `src/` — state isolation comes from fresh instances.
+- **Module mocking**: use `vi.hoisted()` for mock functions referenced in `vi.mock()` factories, then `vi.mock("@/path", () => ({ fn: mockFn }))`. For settings overrides, hoist a mutable holder and mock `@/config/schema.getYamlSettings` — see `test/store/trail.test.ts` for the pattern. Tests that need a fresh module snapshot call `vi.resetModules()` + dynamic re-import (see `test/config/settings-loader.test.ts`).
 - `test/bun-polyfill.ts` shims Bun-specific APIs (Bun.file, Bun.write, Bun.Glob) for the Node runtime
 - Clean up registries in `afterEach` (agentRegistry, toolRegistry)
 - No coverage targets — optimize for confidence in the critical paths: pipeline, middleware, store read/write, tool execution

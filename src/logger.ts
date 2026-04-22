@@ -42,11 +42,11 @@ function formatText(level: Level, msg: string): string {
 	return `${DIM}${time}${RESET} ${badge} ${msg}`;
 }
 
-// Silent during test runs by default. Use _enableForTest() / _disableForTest() in logger tests.
-let _silent = process.env.NODE_ENV === "test";
+// Silenced during test runs so assertions can inspect stdout/stderr without noise.
+const SILENT = process.env.NODE_ENV === "test";
 
 function emit(level: Level, msg: string, data?: Record<string, unknown>): void {
-	if (_silent) return;
+	if (SILENT) return;
 	const line = JSON_MODE
 		? JSON.stringify({ ts: new Date().toISOString(), level, msg, ...data })
 		: formatText(level, msg);
@@ -63,12 +63,3 @@ export const log = {
 	error: (msg: string, data?: Record<string, unknown>) =>
 		emit("error", msg, data),
 };
-
-/** Test-only: re-enable log output so logger behaviour can be asserted. */
-export function _enableForTest(): void {
-	_silent = false;
-}
-/** Test-only: restore silent mode after logger tests. */
-export function _disableForTest(): void {
-	_silent = true;
-}

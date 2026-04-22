@@ -79,11 +79,6 @@ export async function parseDocument(
 	}
 }
 
-/** Test-only — drop the parser singleton so a fresh config picks up. */
-export function _resetParserForTest(): void {
-	_parser = null;
-}
-
 // ─── Web link fetching ───────────────────────────────────────────────────────
 
 const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi;
@@ -208,9 +203,4 @@ export async function fetchWebContent(
 		}
 		return err instanceof Error ? err : new Error(String(err));
 	}
-}
-
-/** Test-only — clear the web content cache. */
-export function _resetWebCacheForTest(): void {
-	webCache.clear();
 }

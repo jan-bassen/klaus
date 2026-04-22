@@ -1,11 +1,11 @@
-import type { AgentDefinition } from "./agent";
+import type { AgentDefinition } from "./agent/definitions";
 import type { DispatchMode } from "./agent/dispatch";
 import type { TurnConfig } from "./pipeline/overrides";
 
 // Re-export domain types for convenience — consumers should prefer importing from the domain directly
-export type { AgentDefinition } from "./agent";
+export type { AgentDefinition } from "./agent/definitions";
 export type { DispatchMode, DispatchOptions } from "./agent/dispatch";
-export type { ToolDefinition, ToolsetDefinition } from "./tools";
+export type { ToolDefinition, ToolsetDefinition } from "./variables/tools";
 export type { Variable } from "./variables";
 export type { MessageOrdinal, OutboundMessage } from "./whatsapp/send";
 

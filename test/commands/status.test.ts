@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	afterAll,
-	afterEach,
 	beforeAll,
 	beforeEach,
 	describe,
@@ -26,7 +25,7 @@ vi.mock("@/agent/queue", () => ({
 	getActiveJobs: mocks.mockGetActiveJobs,
 }));
 
-import { _resetDefaultsForTest, setDefaultAgent } from "@/agent";
+import { setDefaultAgent } from "@/agent/definitions";
 import { statusCommand } from "@/commands/status";
 
 let tmpVault: string;
@@ -61,11 +60,7 @@ beforeEach(() => {
 	mocks.mockEnqueueMessage.mockClear();
 	mocks.mockGetActiveJobs.mockClear();
 	mocks.mockGetActiveJobs.mockImplementation(() => []);
-	_resetDefaultsForTest();
-});
-
-afterEach(() => {
-	_resetDefaultsForTest();
+	// test/setup.ts already installs fresh services → fresh defaultAgents registry
 });
 
 describe("/status", () => {

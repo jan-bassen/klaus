@@ -1,7 +1,22 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { settings } from "@/config";
-import { _resetForTest, _setForTest } from "@/config/schema";
-import { textToSpeech } from "@/whatsapp/voice";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+
+const overrides = vi.hoisted(() => ({
+	tts: null as null | { model: string; voiceId: string },
+}));
+
+vi.mock("@/config/schema", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/config/schema")>();
+	return {
+		...actual,
+		getYamlSettings: () => {
+			const real = actual.getYamlSettings();
+			return overrides.tts ? { ...real, tts: overrides.tts } : real;
+		},
+	};
+});
+
+const { settings } = await import("@/config");
+const { textToSpeech } = await import("@/whatsapp/voice");
 
 describe("textToSpeech", () => {
 	let originalKey: string | undefined;
@@ -12,19 +27,17 @@ describe("textToSpeech", () => {
 		originalFetch = globalThis.fetch;
 		process.env.ELEVENLABS_API_KEY = "test-key";
 		// Bundled default ships with an empty voiceId placeholder; tests need a real one.
-		_setForTest({
-			tts: { ...settings.tts, voiceId: "test-voice-id" },
-		});
-	});
+		overrides.tts = { model: settings.tts.model, voiceId: "test-voice-id" };
 
-	afterEach(() => {
-		if (originalKey === undefined) {
-			delete process.env.ELEVENLABS_API_KEY;
-		} else {
-			process.env.ELEVENLABS_API_KEY = originalKey;
-		}
-		globalThis.fetch = originalFetch;
-		_resetForTest();
+		return () => {
+			if (originalKey === undefined) {
+				delete process.env.ELEVENLABS_API_KEY;
+			} else {
+				process.env.ELEVENLABS_API_KEY = originalKey;
+			}
+			globalThis.fetch = originalFetch;
+			overrides.tts = null;
+		};
 	});
 
 	test("returns Error when ELEVENLABS_API_KEY is not set", async () => {

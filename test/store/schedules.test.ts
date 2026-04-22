@@ -1,34 +1,35 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, test } from "vitest";
+import {
+	afterAll,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	test,
+} from "vitest";
+import {
+	addSchedule,
+	findSchedule,
+	getSchedules,
+	loadSchedules,
+	removeSchedule,
+} from "@/store/schedules";
+import { installTestServices } from "../helpers/services";
 
 let tmpDir: string;
-let savedDataDir: string | undefined;
 
 beforeAll(async () => {
 	tmpDir = await mkdtemp(join(tmpdir(), "schedules-test-"));
-	savedDataDir = process.env.DATA_DIR;
-	process.env.DATA_DIR = tmpDir;
 });
 
 afterAll(async () => {
-	if (savedDataDir !== undefined) process.env.DATA_DIR = savedDataDir;
-	else delete process.env.DATA_DIR;
 	await rm(tmpDir, { recursive: true, force: true });
 });
 
-const {
-	addSchedule,
-	removeSchedule,
-	loadSchedules,
-	getSchedules,
-	findSchedule,
-	_clearSchedulesForTest,
-} = await import("@/store/schedules");
-
-afterEach(() => {
-	_clearSchedulesForTest();
+beforeEach(() => {
+	installTestServices({ dataDir: tmpDir });
 });
 
 describe("addSchedule / getSchedules", () => {
@@ -110,7 +111,8 @@ describe("persistence", () => {
 			createdAt: new Date().toISOString(),
 		});
 
-		_clearSchedulesForTest();
+		// Fresh services pointing at the same dataDir — load should repopulate.
+		installTestServices({ dataDir: tmpDir });
 		await loadSchedules();
 
 		const loaded = getSchedules();

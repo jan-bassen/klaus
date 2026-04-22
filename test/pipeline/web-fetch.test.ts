@@ -19,13 +19,10 @@ vi.mock("linkedom", () => ({
 	parseHTML: (html: string) => ({ document: { html } }),
 }));
 
-const { extractUrls, fetchWebContent, _resetWebCacheForTest } = await import(
-	"@/pipeline/attachments"
-);
+const { extractUrls, fetchWebContent } = await import("@/pipeline/attachments");
 
 beforeEach(() => {
 	mocks.mockDefuddle.mockClear();
-	_resetWebCacheForTest();
 });
 
 // ─── extractUrls ─────────────────────────────────────────────────────────────

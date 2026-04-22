@@ -69,8 +69,3 @@ export function onReaction(reactedToMsgId: string, emoji: string): void {
 	else if (emoji === "👎") resolve("rejected");
 	// Other emojis: do nothing — timeout will fire eventually
 }
-
-/** For testing: expose pending map size. */
-export function _pendingSizeForTest(): number {
-	return pending.size;
-}
