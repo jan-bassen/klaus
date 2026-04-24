@@ -1,0 +1,154 @@
+import { z } from "zod";
+import { log } from "@/infra/logger";
+import { appendAck, appendMessage } from "@/infra/store/history";
+import { enqueueMessage } from "@/infra/whatsapp/send";
+import { textToSpeech } from "@/pipeline/media";
+import type { ToolDefinition } from "@/primitives/tools";
+
+/** The canonical name of the output tool. Referenced by runner/messages to filter reply calls from traces. */
+export const REPLY_TOOL_NAME = "reply";
+
+const replySchema = z.object({
+	content: z.string().describe("The message content to send"),
+	voice: z
+		.boolean()
+		.optional()
+		.describe(
+			"Send as a voice message using text-to-speech. Use when the user requested audio output (e.g. !voice).",
+		),
+	messageRef: z
+		.string()
+		.optional()
+		.describe(
+			'Message label from conversation history (e.g. "3") or "current" to quote-reply to that message. Omit for a normal reply.',
+		),
+});
+
+export const replyTool: ToolDefinition<typeof replySchema> = {
+	name: REPLY_TOOL_NAME,
+	description:
+		"Send a WhatsApp message — works both as a reply to an inbound message and as a proactive/scheduled send.",
+	inputSchema: replySchema,
+	execute: async ({ content, voice, messageRef }, context) => {
+		// Inline dispatch: capture reply for caller instead of sending to WhatsApp
+		if (context._replyCollector) {
+			context._replyCollector.push(content);
+			return "sent";
+		}
+
+		log.info("[reply] enqueuing message");
+
+		// Resolve the quoted message reference if provided.
+		let quoted: { externalId: string; fromMe: boolean } | undefined;
+		if (messageRef) {
+			let ref: { externalId: string; role: string } | undefined;
+			if (messageRef === "current") {
+				if (!context.message) {
+					return {
+						error: 'messageRef "current" requires an inbound message context',
+					};
+				}
+				ref = { externalId: context.message.id, role: "user" };
+			} else {
+				ref = context.messageRefs?.[messageRef];
+			}
+			if (!ref) return { error: `Unknown message reference: #${messageRef}` };
+			quoted = { externalId: ref.externalId, fromMe: ref.role !== "user" };
+		}
+
+		// Persist assistant message to conversation (skip for ghost mode)
+		let rowId: string | undefined;
+		if (!context.config?.ghost) {
+			try {
+				rowId = await appendMessage({
+					role: "assistant",
+					content,
+					agent: context.agent.name,
+					runId: context.runId,
+				});
+			} catch (err) {
+				log.warn("[reply] failed to persist assistant message", {
+					error: err instanceof Error ? err.message : String(err),
+				});
+			}
+		}
+
+		const onSent = rowId
+			? (waId: string) => {
+					appendAck(rowId, waId).catch((err: unknown) => {
+						log.warn("[reply] failed to backfill externalId", {
+							error: err instanceof Error ? err.message : String(err),
+						});
+					});
+				}
+			: undefined;
+
+		const dedupBase = context.message
+			? `${context.message.id}:reply:${crypto.randomUUID()}`
+			: `${context.chatId}:reply:${crypto.randomUUID()}`;
+		const quotedPart = quoted ? { quoted } : {};
+		const useVoice =
+			!context.config?.suppressVoice && (voice || context.config?.forceVoice);
+		if (useVoice) {
+			const audio = await textToSpeech(content);
+			if (audio instanceof Error) {
+				log.warn("[reply] TTS failed, falling back to text", {
+					error: audio.message,
+				});
+				enqueueMessage(
+					{
+						chatId: context.chatId,
+						content,
+						dedupKey: dedupBase,
+						label: context.agent.name,
+						...quotedPart,
+					},
+					onSent,
+				);
+			} else {
+				enqueueMessage(
+					{
+						chatId: context.chatId,
+						content: audio,
+						mimeType: "audio/mpeg",
+						dedupKey: context.message
+							? `${context.message.id}:reply-voice:${crypto.randomUUID()}`
+							: `${context.chatId}:reply-voice:${crypto.randomUUID()}`,
+						label: context.agent.name,
+						...quotedPart,
+					},
+					onSent,
+				);
+			}
+		} else {
+			enqueueMessage(
+				{
+					chatId: context.chatId,
+					content,
+					dedupKey: dedupBase,
+					label: context.agent.name,
+					...quotedPart,
+				},
+				onSent,
+			);
+		}
+
+		return "sent";
+	},
+	/**
+	 * Under sim, never enqueue a real WhatsApp send. But if this is an
+	 * inline-dispatched child whose reply is being collected by the parent,
+	 * still push into the collector so the parent agent sees the simulated
+	 * reply text in its dispatch result.
+	 */
+	simulate: async ({ content }, context) => {
+		if (context._replyCollector) {
+			context._replyCollector.push(content);
+			return "sent";
+		}
+		return "(sim) reply not sent";
+	},
+	sideEffect: "external",
+	kind: "builtin",
+	capability: "tool",
+};

@@ -1,53 +1,88 @@
+/**
+ * Per-turn override system: `!preset` words in a user message, the
+ * `overrides.yml` registry, the resolved `TurnConfig` shape, and the layered
+ * merge that produces the effective per-turn config.
+ *
+ *   globalDefaults → agent frontmatter → parsed `!overrides` → TurnConfig
+ *
+ * Consumers read `turn.config` downstream — they never see the layers.
+ */
+
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { modelTiers, settings } from "@/config";
-import { log } from "@/logger";
-import type { AgentDefinition } from "@/types";
+import { modelTiers, settings } from "@/infra/config";
+import { log } from "@/infra/logger";
+import type { AgentDefinition } from "./agents";
 
-// ── TurnConfig ─────────────────────────────────────────────────────────
+// ── TurnConfig ─────────────────────────────────────────────────────────────
 
 /**
- * Effective turn configuration — agent frontmatter defaults merged with
- * per-message override presets. Consumed by the pipeline, runner, and the
- * `config` variable; templates read this via `{{config.*}}`.
+ * Effective configuration for one turn — merged from `settings.agentDefaults`,
+ * the agent's `settings:` frontmatter, and per-message `!overrides` (later
+ * layer wins; `vault` is deep-merged across all three).
+ *
+ * Fields here are what downstream code actually reads. Some come from the
+ * agent's `settings:` block (mapped via `fromFrontmatter`), some only ever
+ * come from `!overrides` (e.g. `ghost`, `fast`, `skipHistory`, `toolChoice`).
  */
 export interface TurnConfig {
-	forceVoice?: boolean;
-	skipHistory?: boolean;
-	modelTier?: (typeof modelTiers)[number];
+	// from agent settings + overrides
 	provider?: string;
+	modelTier?: (typeof modelTiers)[number];
+	forceVoice?: boolean;
+	suppressVoice?: boolean;
 	autoAccept?: boolean;
 	temperaturePreset?: "cold" | "hot";
 	topPPreset?: "creative" | "rigid";
-	toolChoice?: "none" | "required";
-	suppressVoice?: boolean;
-	ghost?: boolean;
 	reasoningEffort?: "low" | "high";
+	stepLimit?: number;
+	historyLimit?: number;
+	historyScope?: "full" | "agent";
+	showTrace?: boolean;
+	report?: "full" | "agent" | "none";
+	vault?: Record<string, "none" | "read" | "full">;
+	// override-only
+	skipHistory?: boolean;
+	ghost?: boolean;
 	fast?: boolean;
+	/**
+	 * `!simulate` — ephemeral run. Tool wrapper routes by `sideEffect` (no
+	 * external messages, no persistent writes). Implies `ghost` so neither the
+	 * inbound message nor the trace are persisted.
+	 */
+	simulate?: boolean;
+	toolChoice?: "none" | "required";
 	[key: string]: unknown;
 }
 
-/** Validation schema for the `overrides:` map inside a preset entry in overrides.yml. */
-export const overridesSchema = z
+/** Schema for a TurnConfig fragment as it appears under an `overrides:` block. */
+export const turnConfigSchema = z
 	.object({
-		forceVoice: z.boolean().optional(),
-		skipHistory: z.boolean().optional(),
-		modelTier: z.enum(modelTiers).optional(),
 		provider: z.string().optional(),
+		modelTier: z.enum(modelTiers).optional(),
+		forceVoice: z.boolean().optional(),
+		suppressVoice: z.boolean().optional(),
 		autoAccept: z.boolean().optional(),
 		temperaturePreset: z.enum(["cold", "hot"]).optional(),
 		topPPreset: z.enum(["creative", "rigid"]).optional(),
-		toolChoice: z.enum(["none", "required"]).optional(),
-		suppressVoice: z.boolean().optional(),
-		ghost: z.boolean().optional(),
 		reasoningEffort: z.enum(["low", "high"]).optional(),
+		stepLimit: z.number().optional(),
+		historyLimit: z.number().optional(),
+		historyScope: z.enum(["full", "agent"]).optional(),
+		showTrace: z.boolean().optional(),
+		report: z.enum(["full", "agent", "none"]).optional(),
+		vault: z.record(z.string(), z.enum(["none", "read", "full"])).optional(),
+		skipHistory: z.boolean().optional(),
+		ghost: z.boolean().optional(),
 		fast: z.boolean().optional(),
+		simulate: z.boolean().optional(),
+		toolChoice: z.enum(["none", "required"]).optional(),
 	})
 	.passthrough();
 
-// ── Override preset definition ─────────────────────────────────────────
+// ── Override preset registry ───────────────────────────────────────────────
 
-/** A named preset that maps a `!name` to a partial TurnConfig. */
+/** A `!name` preset loaded from `Klaus/overrides.yml`. */
 export interface OverrideDef {
 	name: string;
 	aliases?: string[];
@@ -55,37 +90,28 @@ export interface OverrideDef {
 	overrides: TurnConfig;
 }
 
-// ── YAML entry schema ──────────────────────────────────────────────────
-
 const YamlEntrySchema = z.object({
 	aliases: z.array(z.string()).optional(),
 	description: z.string(),
-	overrides: overridesSchema,
+	overrides: turnConfigSchema,
 });
 
 const YamlFileSchema = z.record(z.string(), YamlEntrySchema);
 
-// ── Registry ────────────────────────────────────────────────────────────
-
-/** Map for O(1) lookup — indexes both canonical names and aliases. */
+/** Lookup table — indexed by both canonical name and alias. */
 export const overrideRegistry = new Map<string, OverrideDef>();
 
-function registerOverride(def: OverrideDef): void {
+function register(def: OverrideDef): void {
 	overrideRegistry.set(def.name, def);
-	if (def.aliases) {
-		for (const alias of def.aliases) overrideRegistry.set(alias, def);
-	}
-	log.debug(`[overrides] registered: ${def.name}`);
+	for (const alias of def.aliases ?? []) overrideRegistry.set(alias, def);
+	log.debug(`[config] override registered: ${def.name}`);
 }
 
-/** Returns all known override preset names and aliases. */
 export function getKnownOverrides(): string[] {
 	return [...overrideRegistry.keys()];
 }
 
-// ── Loader ──────────────────────────────────────────────────────────────
-
-/** Load override presets from a YAML file. Called at startup and on hot-reload. */
+/** Load presets from `Klaus/overrides.yml`. Called at startup and on hot-reload. */
 export async function loadOverrides(yamlPath?: string): Promise<void> {
 	overrideRegistry.clear();
 	const filePath = yamlPath ?? `${settings.vault.internalPath}/overrides.yml`;
@@ -94,7 +120,7 @@ export async function loadOverrides(yamlPath?: string): Promise<void> {
 	try {
 		raw = await Bun.file(filePath).text();
 	} catch {
-		log.warn("[overrides] overrides.yml not found, no presets loaded");
+		log.warn("[config] overrides.yml not found, no presets loaded");
 		return;
 	}
 
@@ -102,7 +128,7 @@ export async function loadOverrides(yamlPath?: string): Promise<void> {
 	try {
 		parsed = parseYaml(raw);
 	} catch (err) {
-		log.warn("[overrides] failed to parse overrides.yml", {
+		log.warn("[config] failed to parse overrides.yml", {
 			error: err instanceof Error ? err.message : String(err),
 		});
 		return;
@@ -110,14 +136,14 @@ export async function loadOverrides(yamlPath?: string): Promise<void> {
 
 	const result = YamlFileSchema.safeParse(parsed);
 	if (!result.success) {
-		log.warn("[overrides] invalid overrides.yml schema", {
+		log.warn("[config] invalid overrides.yml schema", {
 			error: result.error.message,
 		});
 		return;
 	}
 
 	for (const [name, entry] of Object.entries(result.data)) {
-		registerOverride({
+		register({
 			name,
 			...(entry.aliases ? { aliases: entry.aliases } : {}),
 			description: entry.description,
@@ -126,99 +152,133 @@ export async function loadOverrides(yamlPath?: string): Promise<void> {
 	}
 
 	const count = new Set([...overrideRegistry.values()]).size;
-	log.info(`[overrides] loaded ${count} presets`);
+	log.info(`[config] loaded ${count} override presets`);
 }
 
-// ── Parsing ─────────────────────────────────────────────────────────────
+// ── Text-level parsing of !overrides ───────────────────────────────────────
 
-/** Returns the canonical override name if a word is a recognized !preset or alias, otherwise null. */
-function overrideName(word: string): string | null {
+function canonicalOverride(word: string): string | null {
 	if (!word.startsWith("!") || word.length <= 1) return null;
 	const def = overrideRegistry.get(word.slice(1));
 	return def ? def.name : null;
 }
 
-/** Parse `!preset` words from a message and return the active preset names. */
+/** Pull recognised `!preset` words from text into a `{ name: true }` map. */
 export function parseOverrides(msg: {
 	text?: string;
 }): Record<string, boolean> {
 	if (!msg.text) return {};
-
 	const active: Record<string, boolean> = {};
 	for (const word of msg.text.split(/\s+/)) {
-		const name = overrideName(word);
+		const name = canonicalOverride(word);
 		if (name) active[name] = true;
 	}
 	return active;
 }
 
-/** Remove recognized `!preset` words from text and collapse whitespace. */
+/** Drop recognised `!preset` words from text and tidy whitespace. */
 export function stripOverrides(text: string): string {
 	return text
 		.split(/\s+/)
-		.filter((w) => overrideName(w) === null)
+		.filter((w) => canonicalOverride(w) === null)
 		.join(" ")
 		.trim();
 }
 
-// ── Resolution ──────────────────────────────────────────────────────────
+// ── Layered merge ──────────────────────────────────────────────────────────
 
-/** Resolve parsed presets into a single TurnConfig by merging their override maps. */
+/** Map an agent's `settings` block into a TurnConfig. */
+function fromFrontmatter(def: AgentDefinition): TurnConfig {
+	const s = def.settings;
+	const out: TurnConfig = {};
+
+	if (s.provider !== undefined) out.provider = s.provider;
+	if (s.modelTier !== undefined) out.modelTier = s.modelTier;
+
+	if (s.voice === "on") out.forceVoice = true;
+	else if (s.voice === "off") out.suppressVoice = true;
+
+	if (s.accept) out.autoAccept = true;
+
+	if (s.temp === "cold") out.temperaturePreset = "cold";
+	else if (s.temp === "hot") out.temperaturePreset = "hot";
+
+	if (s.topP === "creative") out.topPPreset = "creative";
+	else if (s.topP === "rigid") out.topPPreset = "rigid";
+
+	if (s.reasoningEffort === "low") out.reasoningEffort = "low";
+	else if (s.reasoningEffort === "high") out.reasoningEffort = "high";
+
+	if (s.stepLimit !== undefined) out.stepLimit = s.stepLimit;
+	if (s.historyLimit !== undefined) out.historyLimit = s.historyLimit;
+	if (s.historyScope !== undefined) out.historyScope = s.historyScope;
+	if (s.showTrace !== undefined) out.showTrace = s.showTrace;
+	if (s.report !== undefined) out.report = s.report;
+	if (s.vault !== undefined) out.vault = s.vault;
+
+	return out;
+}
+
+/** Resolve a parsed-overrides map into a TurnConfig by merging recognised presets. */
 export function resolveOverrides(active: Record<string, boolean>): TurnConfig {
-	const result: TurnConfig = {};
+	const out: TurnConfig = {};
 	for (const [name, on] of Object.entries(active)) {
 		if (!on) continue;
 		const def = overrideRegistry.get(name);
 		if (!def) continue;
-		Object.assign(result, def.overrides);
+		Object.assign(out, def.overrides);
 	}
-	return result;
+	return out;
 }
 
-// ── Agent defaults ──────────────────────────────────────────────────────
-
-/** Keys that can appear directly in agent frontmatter as defaults. */
-const AGENT_DEFAULT_KEYS: readonly (keyof TurnConfig)[] = [
-	"forceVoice",
-	"suppressVoice",
-	"skipHistory",
-	"autoAccept",
-	"ghost",
-	"temperaturePreset",
-	"topPPreset",
-	"toolChoice",
-	"reasoningEffort",
-	"fast",
-] as const;
+/**
+ * Read-through of `settings.agentDefaults` into a TurnConfig fragment.
+ * Per-agent settings carry their own enum defaults like `voice: "auto"` so
+ * `fromFrontmatter` always wins for those — globalDefaults here only sets
+ * fields the per-agent layer leaves undefined (currently: `modelTier` and
+ * optional `provider`).
+ */
+function fromGlobalDefaults(): TurnConfig {
+	const ad = settings.agentDefaults;
+	const out: TurnConfig = {
+		modelTier: ad.modelTier,
+	};
+	if (ad.provider !== undefined) out.provider = ad.provider;
+	return out;
+}
 
 /**
- * Resolves agent-level frontmatter defaults, then merges per-message overrides on top.
- * Per-message overrides always take precedence.
+ * Layered build: globalDefaults → agent settings → per-message overrides.
+ * Per-message wins. `!voice` always clears `suppressVoice` (UX guarantee).
+ *
+ * `vault` map is deep-merged across the three layers (later keys win) so a
+ * global wildcard like `{"*":"read"}` survives a per-agent `{"Training":"full"}`.
  */
-export function resolveAgentDefaults(
-	presetOverrides: TurnConfig,
+export function buildTurnConfig(
 	def: AgentDefinition,
+	active: Record<string, boolean>,
 ): TurnConfig {
-	const agentDefaults: TurnConfig = {};
+	const presets = resolveOverrides(active);
+	const merged: TurnConfig = {
+		...fromGlobalDefaults(),
+		...fromFrontmatter(def),
+		...presets,
+	};
 
-	for (const key of AGENT_DEFAULT_KEYS) {
-		const value = (def as Record<string, unknown>)[key];
-		if (value !== undefined) {
-			(agentDefaults as Record<string, unknown>)[key] = value;
-		}
+	const vaultMap = {
+		...(settings.agentDefaults.vault ?? {}),
+		...(def.settings.vault ?? {}),
+		...((presets.vault as Record<string, "none" | "read" | "full">) ?? {}),
+	};
+	if (Object.keys(vaultMap).length > 0) merged.vault = vaultMap;
+
+	if (presets.forceVoice) merged.suppressVoice = false;
+
+	// Sim is a superset of ghost: never persist user-msg or assistant trace.
+	// Pinning ghost here means every existing `if (config.ghost)` site honours it.
+	if (merged.simulate) {
+		merged.ghost = true;
+		merged.skipHistory = true;
 	}
-
-	// provider and modelTier are first-class frontmatter fields
-	if (def.provider !== undefined) agentDefaults.provider = def.provider;
-	if (def.modelTier !== undefined) agentDefaults.modelTier = def.modelTier;
-
-	// Merge: per-message overrides win over agent defaults
-	const result = { ...agentDefaults, ...presetOverrides };
-
-	// Special case: !voice always clears suppressVoice
-	if (presetOverrides.forceVoice) {
-		result.suppressVoice = false;
-	}
-
-	return result;
+	return merged;
 }

@@ -1,34 +1,45 @@
-# Last Features
+# Later
 
-- [ ] Add read markers to messages to persistance
-- [ ] Check Snippet vars in snippets - are they working (and how do we handle loops?)
+## Custom Core 
+We don't need streaming, structured output, and many other things. To keep it more transparent and leaner, I want to implement a minimal custom core loop (now agent - then renamed loop) based on OpenRouter
 
---- 
+## Last features
 
-# Repo understandability v0.2.0
-I decided I want to open source this as "the agent for tinkerers". Let's make this codebase perfect.
+- [ ] image gen
+- [ ] openrouter cost checker/ analytics tool
+- [ ] Bundle obsidian headless in the same container?
+- [ ] Add read markers to messages in persistence
+- [ ] Snippet vars inside snippets — do they work, and how to handle loops?
+- [ ] Envs via dotenvx or varlock
+- [ ] Resolve `src/types.ts` (move types to their home modules, drop re-exports)
 
-## Remaining cleanup 
-- [ ] remove any unnecessary config/top-level files used for my dev environment
-- [ ] move setting defaults out of the schema, everything else already lives in the Klaus folder
+## Repo understandability v0.2.0
 
-## Add docs
-- [ ] Update readme to be perfect and poignant (short intro (incl what it is and isn't) + quick setup guide + architecture overview inlc how to tinker infos and pointers to /docs)
-- [ ] Add docs/ with:
-  - [ ] setup-guide (more in-depth guide for common setups and issues)
-  - [ ] codebase-walkthrough (not 1:1 explainer of code, but more so the used patterns, chosen structure, key files/flows, etc - like getting a 10min "how to work with klaus' codebase 101" class)
-  - [ ] vault-walkthrough (same but with the vault side incl key settings and folders)
-  - [ ] iterate-in-obsidian (quick explainer of the most useful patterns with examples)
-  - [ ] iterate-in-code (same with code for adding a command, variable, tool, ...)
+Opening this up as "the agent for tinkerers". Polish the codebase and the docs before that.
 
-## Comments cleanup
-- [ ] Remove any redundant comments (use good naming and clear code over explanations - comments are for anything that the code doesn't show or where misunderstandings are possible)
+### Remaining cleanup
+
+- [ ] Remove any unnecessary config/top-level files used for dev
+
+### Docs
+
+- [ ] Update README to be perfect and poignant (short intro + quick setup + architecture pointers to /docs)
+- [ ] Add `docs/`:
+  - [ ] setup-guide — deeper common setups + issues
+  - [ ] codebase-walkthrough — patterns, structure, key files/flows ("how to work with klaus' codebase 101")
+  - [ ] vault-walkthrough — vault side incl. key settings and folders
+  - [ ] iterate-in-obsidian — most useful patterns with examples
+  - [ ] iterate-in-code — adding a command / variable / tool
+
+### Comments cleanup
+
+- [ ] Remove redundant comments (good naming > explanations; comments are for the non-obvious)
 - [ ] Shorten comments where possible
-- [ ] Make sure comments cover the ide inline 
-- [ ] Check everything as final check - it should be up-to-date and fitting with the implemented code
+- [ ] Final pass — everything up-to-date and matching the implemented code
 
-## Cleanup agent tooling 
-The codebase should be ready for agents, but fully unopinionated. 
-- [ ] CLAUDE.md -> AGENT.md + shorten drastically while optimizing for future forkers
-- [ ] remove REFERENCE & TODO
-- [ ] remove .claude
+### Agent tooling
+
+The codebase should be ready for agents, but unopinionated.
+
+- [ ] CLAUDE.md → AGENT.md (shorten further, optimise for forkers)
+- [ ] Remove `.claude/`

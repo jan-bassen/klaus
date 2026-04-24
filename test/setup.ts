@@ -1,47 +1,27 @@
-import { beforeEach } from "vitest";
-
 /**
- * Install a minimal Services container before every test. Store slots are
- * throwing stubs — tests that need real stores call `installTestServices()`
- * from test/helpers/services to override. This keeps setup robust for tests
- * that mock store modules wholesale (so `createXStore` is undefined).
+ * Global test setup.
  *
- * All imports are dynamic so setup files don't freeze module bindings before
- * per-file vi.mock calls get a chance to register.
+ * 1. Preloads `@/infra/config` before anything else — there's a circular import
+ *    between config and the logger that crashes at load time if the logger
+ *    module evaluates first. Importing config eagerly here pins the order for
+ *    every test file.
+ *
+ * 2. Per-test cleanup of in-memory registries that survive between suites.
  */
-beforeEach(async () => {
-	const { createRateLimiter } = await import("@/pipeline/rate-limit");
-	const { setServices } = await import("@/services");
 
-	const defaults = new Map<string, string>();
-	const stub = (name: string) =>
-		new Proxy(
-			{},
-			{
-				get() {
-					return () => {
-						throw new Error(
-							`test/setup.ts: ${name} store not installed. Call installTestServices({ dataDir: tmp }) in the test's beforeEach.`,
-						);
-					};
-				},
-			},
-		);
+// Critical: must be the very first import.
+import "@/infra/config";
 
-	// biome-ignore lint/suspicious/noExplicitAny: intentional — sub-fields are Proxy stubs typed dynamically
-	const services: any = {
-		conversations: stub("conversations"),
-		files: stub("files"),
-		timers: stub("timers"),
-		schedules: stub("schedules"),
-		rateLimiter: createRateLimiter(),
-		defaultAgents: {
-			get: (chatId: string) => defaults.get(chatId) ?? "assistant",
-			set: (chatId: string, agent: string | null) => {
-				if (agent === null) defaults.delete(chatId);
-				else defaults.set(chatId, agent);
-			},
-		},
-	};
-	setServices(services);
+import { afterEach } from "vitest";
+import { agentRegistry } from "@/pipeline/agents";
+import { overrideRegistry } from "@/pipeline/overrides";
+import { toolRegistry, toolsetRegistry } from "@/primitives/tools";
+import { skillRegistry } from "@/primitives/tools/skill";
+
+afterEach(() => {
+	agentRegistry.clear();
+	overrideRegistry.clear();
+	toolRegistry.clear();
+	toolsetRegistry.clear();
+	skillRegistry.clear();
 });

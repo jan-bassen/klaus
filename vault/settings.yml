@@ -1,0 +1,125 @@
+basics:
+  locale: en-GB
+  timezone: Europe/London
+  # allowedChatId is set at runtime via /setup; uncomment to pin manually
+  # allowedChatId: ""
+
+agent:
+  defaultAgent: assistant
+  maxSteps: 10
+  timeout: 120000
+  retries:
+    max: 3
+    backoffMs: 1000
+  maxChainDepth: 10
+  lookbackDays: 7
+  # Cap on reasoning text replayed into history per past step.
+  maxReasoningChars: 2000
+
+agentDefaults:
+  modelTier: medium
+  voice: auto
+  accept: false
+  temp: default
+  topP: default
+  reasoningEffort: default
+  historyLimit: 20
+  historyScope: full
+  showTrace: true
+  report: agent
+  vault:
+    "*": full
+  # provider: claude   # uncomment to pin a default provider; otherwise uses providers.active
+
+providers:
+  active: claude
+  claude:
+    sdk: anthropic
+    small: claude-haiku-4-5
+    medium: claude-sonnet-4-6
+    large: claude-opus-4-6
+    coldTemperature: 0
+    hotTemperature: 1
+    creativeTopP: 0.95
+    rigidTopP: 0.1
+  chatgpt:
+    sdk: openai
+    small: gpt-5.4-nano
+    medium: gpt-5.4-mini
+    large: gpt-5.4
+    coldTemperature: 0
+    hotTemperature: 1.5
+    creativeTopP: 0.95
+    rigidTopP: 0.1
+  gemini:
+    sdk: google
+    small: gemini-3.1-flash-lite-preview
+    medium: gemini-3-flash-preview
+    large: gemini-3.1-pro-preview-customtools
+    coldTemperature: 0
+    hotTemperature: 1.5
+    creativeTopP: 0.95
+    rigidTopP: 0.1
+
+media:
+  voice:
+    tts:
+      model: eleven_ttv_v3
+      # ElevenLabs voice ID — pick one at https://elevenlabs.io/app/voice-library
+      voiceId: ""
+    stt:
+      model: scribe_v2
+      timeout: 30000
+      agentTriggers:
+        - hey
+        - at
+        - an
+        - to
+        - dear
+  image:
+    vision:
+      maxSize: 2048
+    gen:
+      provider: ""
+      model: ""
+  document:
+    ocr: true
+    maxChars: 40000
+  web:
+    timeout: 10000
+    maxChars: 12000
+    maxUrls: 3
+    maxBodyBytes: 5242880
+
+whatsapp:
+  selfMode: false
+  systemLabel: System
+  sendDelay: 1500
+  retries:
+    max: 3
+    backoffMs: 1000
+  maxDownload: 67108864
+  mediaDownloadTimeout: 30000
+  offlineWindow: 300000
+  maxSeenSize: 10000
+
+vault:
+  watcherDebounce: 1000
+  maxList: 200
+  folders:
+    - path: ""
+      default: full
+  internalPermission:
+    default: read
+
+persistence:
+  minNextRun: 60000
+  maxNextRun: 604800000
+  defaultNextRun: 1h
+
+reports:
+  # Mirror each turn's report into {vault}/reports/<date>.md for human reading.
+  # JSONL under {dataDir}/logs/ is always written when settings.agentDefaults.report != "none".
+  vaultMarkdown: false
+  # Days of report history surfaced via /reports.
+  lookbackDays: 7
