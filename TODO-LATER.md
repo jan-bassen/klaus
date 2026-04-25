@@ -2,12 +2,10 @@
 
 ## Last features
 
-- [ ] openrouter cost checker/ analytics tool
 - [ ] Bundle obsidian headless in the same container?
 - [ ] Add read markers to messages in persistence
 - [ ] Snippet vars inside snippets — do they work, and how to handle loops?
 - [ ] Envs via dotenvx or varlock
-- [ ] Resolve `src/types.ts` (move types to their home modules, drop re-exports)
 
 ## Repo understandability v0.2.0
 
