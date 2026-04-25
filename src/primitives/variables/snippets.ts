@@ -32,24 +32,50 @@ function compile(content: string, vars: Record<string, unknown>): string {
 /**
  * Loads snippets from `{vault}/Klaus/snippets/*.md`.
  * Each snippet is compiled against the full assembled namespace, making it a
- * true reusable template. The `user.md` snippet is handled by the `user` variable.
+ * true reusable template. Snippets may reference other snippets via
+ * `{{snippets.<name>}}` — resolved by fixed-point iteration up to
+ * `MAX_RECURSION_PASSES`. The `user.md` snippet is handled by the `user` variable.
  */
+const MAX_RECURSION_PASSES = 5;
+
 export const snippetsVariable: Variable = {
 	key: "snippets",
 	description: "Named reusable prompt fragments",
 	after: true,
 	async run(turn) {
 		const snippetsDir = settings.vault.snippetsDir;
-		const result: Record<string, string> = {};
 		const vars = turn.vars ?? {};
+		const raw: Record<string, string> = {};
 
 		const glob = new Bun.Glob("*.md");
 		for await (const file of glob.scan({ cwd: snippetsDir })) {
 			const stem = path.basename(file, ".md");
 			if (stem === "user") continue; // owned by user variable
-			const content = await readSnippet(path.join(snippetsDir, file));
-			result[stem] = compile(content, vars);
+			raw[stem] = await readSnippet(path.join(snippetsDir, file));
 		}
-		return result;
+
+		let prev: Record<string, string> = {};
+		for (const [k, content] of Object.entries(raw)) {
+			prev[k] = compile(content, vars);
+		}
+		for (let pass = 0; pass < MAX_RECURSION_PASSES; pass++) {
+			const next: Record<string, string> = {};
+			for (const [k, content] of Object.entries(raw)) {
+				next[k] = compile(content, { ...vars, snippets: prev });
+			}
+			let stable = true;
+			for (const k of Object.keys(raw)) {
+				if (next[k] !== prev[k]) {
+					stable = false;
+					break;
+				}
+			}
+			prev = next;
+			if (stable) return prev;
+		}
+		log.warn(
+			`[snippets] did not stabilise after ${MAX_RECURSION_PASSES} passes — possible cycle`,
+		);
+		return prev;
 	},
 };
