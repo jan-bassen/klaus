@@ -2,8 +2,6 @@
 
 ## Last features
 
-- [ ] zod v4
-- [ ] image gen
 - [ ] openrouter cost checker/ analytics tool
 - [ ] Bundle obsidian headless in the same container?
 - [ ] Add read markers to messages in persistence
