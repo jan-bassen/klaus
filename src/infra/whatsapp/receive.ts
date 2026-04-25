@@ -94,9 +94,9 @@ export function attachReceiveHandler(socket: WASocket): void {
 			const msg = await normalizeMessage(raw);
 			if (msg) {
 				log.info("[receive] incoming message");
+				socket.readMessages([raw.key]).catch(() => {});
 				try {
 					await handleTurn(msg);
-					socket.readMessages([raw.key]).catch(() => {});
 				} catch (err) {
 					log.error("[receive] unhandled error in handleTurn", {
 						error: err instanceof Error ? err.message : String(err),

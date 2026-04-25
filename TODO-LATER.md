@@ -2,8 +2,6 @@
 
 ## Last features
 
-- [ ] Add read markers to messages in persistence
-- [ ] Snippet vars inside snippets — do they work, and how to handle loops?
 - [ ] Envs via dotenvx or varlock
 
 ## Repo understandability v0.2.0
