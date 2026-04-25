@@ -8,16 +8,19 @@
  * resolved) to render their replies.
  */
 
-import { type ModelMessage, type StepResult, type ToolSet, tool } from "ai";
-import { resolveProvider, settings } from "@/infra/config";
+import type {
+	ChatMessages as ChatMessage,
+	ChatFunctionTool as ChatTool,
+} from "@openrouter/sdk/models";
+import type { z } from "zod";
+import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
 import { fakeExternal, fakeStateful, getOverlay } from "@/infra/simulation";
-import {
-	type AgentTrace,
-	getConversation,
-	getTraces,
-} from "@/infra/store/history";
+import { getConversation, getTraces } from "@/infra/store/history";
+import type { ModelCallStep, TurnContext } from "@/pipeline/agent";
+import type { AgentDefinition } from "@/pipeline/agents";
 import { renderTemplate } from "@/pipeline/prompts";
+import type { ToolDefinition } from "@/primitives/tools";
 import {
 	generateMetaTool,
 	toolRegistry,
@@ -27,9 +30,6 @@ import { getProviderTool } from "@/primitives/tools/provider";
 import { REPLY_TOOL_NAME } from "@/primitives/tools/reply";
 import { buildSkillTool, skillRegistry } from "@/primitives/tools/skill";
 import type { Variable } from "@/primitives/variables";
-import type { AgentDefinition } from "@/pipeline/agents";
-import type { TurnContext } from "@/pipeline/agent";
-import type { ToolDefinition } from "@/primitives/tools";
 
 // ── Variables ──────────────────────────────────────────────────────────────
 
@@ -79,10 +79,28 @@ async function runVariablePhase(
 
 // ── Tools ──────────────────────────────────────────────────────────────────
 
+/**
+ * Internal client-executable tool shape — what the loop needs to dispatch a
+ * function tool call. The zod `inputSchema` flows out as JSON Schema for the
+ * outgoing request; `execute` is a closure that already binds the turn.
+ */
+export interface FunctionTool {
+	description: string;
+	inputSchema: z.ZodTypeAny;
+	execute(input: unknown): Promise<unknown>;
+}
+
+export type FunctionToolSet = Record<string, FunctionTool>;
+
 export interface AssembledTools {
-	allTools: ToolSet;
+	/** Client-executable function tools, keyed by SDK-safe (underscored) name. */
+	functionTools: FunctionToolSet;
+	/** Server tools (e.g. openrouter:web_search). Always included verbatim. */
+	serverTools: ChatTool[];
+	/** Function-tool names exposed in the first request. */
 	initialActive: string[];
-	prepareStep: (steps: StepResult<ToolSet>[]) => string[];
+	/** After each step, returns the updated active function-tool name list. */
+	prepareStep: (steps: ModelCallStep[]) => string[];
 }
 
 /**
@@ -106,7 +124,7 @@ async function invokeTool(
 	const overlay = getOverlay(turn);
 
 	// Tool-declared simulate handler wins regardless of category. This lets
-	// pure read tools (e.g. vault.read) consult the overlay so they see
+	// pure read tools (e.g. vault_read) consult the overlay so they see
 	// writes made earlier in the same turn.
 	if (t.simulate) {
 		const result = await t.simulate(input, turn);
@@ -141,7 +159,7 @@ async function invokeTool(
 }
 
 /**
- * Build the SDK tool set + initial allowlist.
+ * Build the function-tool set + initial allowlist.
  *
  * Core tools, provider tools, and toolset meta-tools start active. Toolset
  * tools are pre-registered but hidden until `use_<set>` is called. Skills
@@ -151,14 +169,13 @@ export function assembleTools(
 	def: AgentDefinition,
 	turn: TurnContext,
 ): AssembledTools {
-	const wrap = (t: ToolDefinition) =>
-		tool({
-			description: t.description,
-			inputSchema: t.inputSchema,
-			execute: async (input) => invokeTool(t, input, turn),
-		});
+	const wrap = (t: ToolDefinition): FunctionTool => ({
+		description: t.description,
+		inputSchema: t.inputSchema,
+		execute: (input: unknown) => invokeTool(t, input, turn),
+	});
 
-	const allTools: ToolSet = {};
+	const functionTools: FunctionToolSet = {};
 	const initialActive: string[] = [];
 
 	for (const name of def.tools) {
@@ -167,22 +184,18 @@ export function assembleTools(
 			log.warn(`[context] unknown tool: ${name}`);
 			continue;
 		}
-		const sdkName = t.name.replace(/\./g, "_");
-		allTools[sdkName] = wrap(t);
-		initialActive.push(sdkName);
+		functionTools[t.name] = wrap(t);
+		initialActive.push(t.name);
 	}
 
-	const providerCfg = resolveProvider(turn.config?.provider);
+	const serverTools: ChatTool[] = [];
 	for (const name of def.providerTools ?? []) {
-		const pt = getProviderTool(name, providerCfg.sdk);
+		const pt = getProviderTool(name);
 		if (!pt) {
-			log.warn(
-				`[context] provider tool "${name}" not available for ${providerCfg.sdk}`,
-			);
+			log.warn(`[context] provider tool "${name}" not available`);
 			continue;
 		}
-		allTools[name] = pt;
-		initialActive.push(name);
+		serverTools.push(pt);
 	}
 
 	for (const tsName of def.toolsets ?? []) {
@@ -192,18 +205,17 @@ export function assembleTools(
 			continue;
 		}
 		const meta = generateMetaTool(ts);
-		allTools[meta.name] = wrap(meta);
+		functionTools[meta.name] = wrap(meta);
 		initialActive.push(meta.name);
 		for (const t of ts.tools) {
-			allTools[t.name.replace(/\./g, "_")] = wrap(t);
+			functionTools[t.name] = wrap(t);
 		}
 	}
 
 	if (def.skills?.length) {
 		const skillTool = buildSkillTool(def.skills, settings.vault.skillsDir);
-		const sdkToolName = skillTool.name.replace(/\./g, "_");
-		allTools[sdkToolName] = wrap(skillTool);
-		initialActive.push(sdkToolName);
+		functionTools[skillTool.name] = wrap(skillTool);
+		initialActive.push(skillTool.name);
 
 		for (const sName of def.skills) {
 			const meta = skillRegistry.get(sName);
@@ -214,8 +226,7 @@ export function assembleTools(
 					log.warn(`[context] unknown tool "${toolName}" in skill ${sName}`);
 					continue;
 				}
-				const n = t.name.replace(/\./g, "_");
-				if (!allTools[n]) allTools[n] = wrap(t);
+				if (!functionTools[t.name]) functionTools[t.name] = wrap(t);
 			}
 			for (const tsName of meta.toolsets) {
 				const ts = toolsetRegistry.get(tsName);
@@ -224,36 +235,35 @@ export function assembleTools(
 					continue;
 				}
 				for (const t of ts.tools) {
-					const n = t.name.replace(/\./g, "_");
-					if (!allTools[n]) allTools[n] = wrap(t);
+					if (!functionTools[t.name]) functionTools[t.name] = wrap(t);
 				}
 			}
 		}
 	}
 
-	const prepareStep = (steps: StepResult<ToolSet>[]): string[] => {
+	const prepareStep = (steps: ModelCallStep[]): string[] => {
 		const active = new Set(initialActive);
 		for (const step of steps) {
 			for (const call of step.toolCalls) {
-				const name = call.toolName as string;
+				const name = call.toolName;
 				if (name.startsWith("use_")) {
 					const tsName = name.slice(4);
 					const ts = toolsetRegistry.get(tsName);
 					if (!ts) continue;
 					active.delete(`use_${tsName}`);
-					for (const t of ts.tools) active.add(t.name.replace(/\./g, "_"));
+					for (const t of ts.tools) active.add(t.name);
 				} else if (name === "skill_get") {
-					const sName = (call as unknown as { input?: { name?: string } }).input
-						?.name;
+					const sName =
+						typeof call.args?.name === "string" ? call.args.name : undefined;
 					const meta = sName ? skillRegistry.get(sName) : undefined;
 					if (!meta) continue;
 					for (const toolName of meta.tools) {
-						active.add(toolName.replace(/\./g, "_"));
+						active.add(toolName);
 					}
 					for (const tsName of meta.toolsets) {
 						const ts = toolsetRegistry.get(tsName);
 						if (!ts) continue;
-						for (const t of ts.tools) active.add(t.name.replace(/\./g, "_"));
+						for (const t of ts.tools) active.add(t.name);
 					}
 				}
 			}
@@ -261,41 +271,10 @@ export function assembleTools(
 		return [...active];
 	};
 
-	return { allTools, initialActive, prepareStep };
+	return { functionTools, serverTools, initialActive, prepareStep };
 }
 
 // ── History ────────────────────────────────────────────────────────────────
-
-/** Fallback caps when a tool doesn't specify its own. Tools may override
- * via `maxResultChars` / `maxArgSnippetChars` on their `ToolDefinition`. */
-const DEFAULT_TOOL_RESULT_CHARS = 2_000;
-const DEFAULT_TOOL_ARG_SNIPPET_CHARS = 40;
-
-/**
- * Trace lines reference tools by their SDK name (dots replaced with
- * underscores at registration). The registry is keyed by the original name,
- * so try the trace name first then the dot-restored form.
- */
-function findToolByTraceName(traceName: string) {
-	return (
-		toolRegistry.get(traceName) ??
-		toolRegistry.get(traceName.replace(/_/g, "."))
-	);
-}
-
-/** Per-call view exposed to `message-agent.md` / `message-tool.md`. */
-export interface TemplateCall {
-	tool: string;
-	args: unknown;
-	argSnippet: string;
-	result: unknown;
-}
-
-/** Per-step view exposed to `message-agent.md`. */
-export interface TemplateStep {
-	reasoning?: string;
-	calls: TemplateCall[];
-}
 
 export interface HistoryOptions {
 	/** Max past messages included; defaults to settings.agentDefaults.historyLimit. */
@@ -306,19 +285,22 @@ export interface HistoryOptions {
 	 * reply was from this agent, plus this agent's replies).
 	 */
 	scope?: "full" | "agent";
-	/** Render the per-turn `[Used X, Y → replied]` summary in history? */
-	showTrace?: boolean;
 }
 
 export interface AssembledHistory {
-	messages: ModelMessage[];
+	messages: ChatMessage[];
 	messageRefs: Record<string, { externalId: string; role: string }>;
 }
 
 /**
- * Read the conversation log, trim to `limit`, and reconstruct ModelMessages
- * via the templates. History is text-only — every past turn renders to a
- * single string per role; provider-specific structural replay is gone.
+ * Read the conversation log, trim to `limit`, and reconstruct ChatMessages.
+ *
+ * **Structured replay**: assistant turns expand into the OpenAI-shape
+ * `assistant` (with `tool_calls`) → `role: "tool"` (per call) → final
+ * `assistant` (with `content`) sequence, mirroring what the model produced.
+ * Reply tool calls (REPLY_TOOL_NAME) stay filtered out of the trace; the
+ * final assistant `content` is the persisted reply text from the conversation
+ * log. This keeps existing JSONL files backward-compatible.
  */
 export async function assembleHistory(
 	turn: Omit<TurnContext, "vars">,
@@ -327,7 +309,6 @@ export async function assembleHistory(
 	if (!turn.message) return { messages: [], messageRefs: {} };
 
 	const limit = opts.limit ?? settings.agentDefaults.historyLimit;
-	const showTrace = opts.showTrace ?? settings.agentDefaults.showTrace;
 	const scope = opts.scope ?? "full";
 	const agentName = turn.agent?.name;
 
@@ -350,7 +331,7 @@ export async function assembleHistory(
 	}
 	const recent = filtered.slice(-limit);
 
-	const messages: ModelMessage[] = [];
+	const messages: ChatMessage[] = [];
 	const messageRefs: Record<string, { externalId: string; role: string }> = {};
 
 	for (let i = 0; i < recent.length; i++) {
@@ -377,89 +358,49 @@ export async function assembleHistory(
 		}
 
 		const trace = row.runId ? traceMap.get(row.runId) : undefined;
-		const steps = trace ? shapeTrace(trace) : [];
+		const replyText = row.content ?? "";
 
-		messages.push({
-			role: "assistant",
-			content: renderTemplate("message-agent", {
-				agent: row.agent,
-				text: row.content ?? "",
-				showTrace,
-				steps,
-			}),
-		});
+		if (trace) {
+			for (const step of trace.steps) {
+				const calls = step.toolCalls.filter(
+					(tc) => tc.toolName !== REPLY_TOOL_NAME,
+				);
+				if (calls.length === 0) continue;
+
+				const resultMap = new Map(
+					step.toolResults
+						.filter((tr) => tr.toolName !== REPLY_TOOL_NAME)
+						.map((tr) => [tr.toolCallId, tr]),
+				);
+				// Skip steps where every call is orphaned (replay would be malformed).
+				const paired = calls.filter((tc) => resultMap.has(tc.toolCallId));
+				if (paired.length === 0) continue;
+
+				messages.push({
+					role: "assistant",
+					content: "",
+					toolCalls: paired.map((tc) => ({
+						id: tc.toolCallId,
+						type: "function",
+						function: { name: tc.toolName, arguments: tc.args },
+					})),
+				});
+				for (const tc of paired) {
+					const tr = resultMap.get(tc.toolCallId);
+					if (!tr) continue;
+					messages.push({
+						role: "tool",
+						toolCallId: tc.toolCallId,
+						content: tr.result,
+					});
+				}
+			}
+		}
+
+		messages.push({ role: "assistant", content: replyText });
 	}
 
 	return { messages, messageRefs };
-}
-
-/**
- * Convert the persisted `TraceStep[]` into the friendly shape templates see.
- * Drops the reply tool (it's the message body, not a side effect), strips
- * orphaned calls, and pre-computes argSnippet + capped result per call.
- */
-function shapeTrace(trace: AgentTrace): TemplateStep[] {
-	return trace.steps
-		.map((step): TemplateStep => {
-			const resultMap = new Map(
-				step.toolResults.map((tr) => [tr.toolCallId, tr]),
-			);
-			const calls: TemplateCall[] = [];
-
-			for (const tc of step.toolCalls) {
-				if (tc.toolName === REPLY_TOOL_NAME) continue;
-				const tr = resultMap.get(tc.toolCallId);
-				if (!tr) continue;
-
-				calls.push({
-					tool: tc.toolName,
-					args: tryParse(tc.args),
-					argSnippet: computeArgSnippet(tc.toolName, tc.args),
-					result: capResult(tr.toolName, tr.result),
-				});
-			}
-
-			return {
-				...(step.reasoning
-					? {
-							reasoning: step.reasoning.slice(
-								0,
-								settings.agent.maxReasoningChars,
-							),
-						}
-					: {}),
-				calls,
-			};
-		})
-		.filter((s) => s.reasoning || s.calls.length > 0);
-}
-
-function tryParse(json: string): unknown {
-	try {
-		return JSON.parse(json);
-	} catch {
-		return json;
-	}
-}
-
-function computeArgSnippet(toolName: string, argsJson: string): string {
-	const parsed = tryParse(argsJson);
-	if (typeof parsed !== "object" || parsed === null) return "";
-	const firstVal = Object.values(parsed as Record<string, unknown>)[0];
-	if (firstVal === undefined) return "";
-	const s = String(firstVal);
-	const cap =
-		findToolByTraceName(toolName)?.maxArgSnippetChars ??
-		DEFAULT_TOOL_ARG_SNIPPET_CHARS;
-	return s.length > cap ? `${s.slice(0, cap)}…` : s;
-}
-
-function capResult(toolName: string, raw: string): unknown {
-	const cap =
-		findToolByTraceName(toolName)?.maxResultChars ?? DEFAULT_TOOL_RESULT_CHARS;
-	const truncated = raw.length > cap ? raw.slice(0, cap) : raw;
-	const parsed = tryParse(truncated);
-	return parsed === truncated ? truncated : parsed;
 }
 
 // ── Orchestrator ───────────────────────────────────────────────────────────
@@ -495,9 +436,6 @@ export async function assembleContext(
 			? { limit: turn.config.historyLimit }
 			: {}),
 		...(turn.config?.historyScope ? { scope: turn.config.historyScope } : {}),
-		...(turn.config?.showTrace !== undefined
-			? { showTrace: turn.config.showTrace }
-			: {}),
 	};
 
 	const [vars, history] = await Promise.all([

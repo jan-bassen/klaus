@@ -25,7 +25,6 @@ import { log } from "@/infra/logger";
  */
 export const AgentSettingsSchema = z
 	.object({
-		provider: z.string().optional(),
 		modelTier: z.enum(modelTiers).optional(),
 		voice: z.enum(["on", "auto", "off"]).default("auto"),
 		accept: z.boolean().default(false),

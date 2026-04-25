@@ -27,25 +27,15 @@ describe("infra/store/report", () => {
 		"round-trip: writeReport then readReports({days:1}) returns the same entry (schema-validated)",
 	);
 
-	it.todo(
-		"readReports returns most-recent first",
-	);
+	it.todo("readReports returns most-recent first");
 
-	it.todo(
-		"filter by agent narrows results",
-	);
+	it.todo("filter by agent narrows results");
 
-	it.todo(
-		"filter by chatId narrows results",
-	);
+	it.todo("filter by chatId narrows results");
 
-	it.todo(
-		"filter by runId returns at most one entry",
-	);
+	it.todo("filter by runId returns at most one entry");
 
-	it.todo(
-		"limit caps the number returned",
-	);
+	it.todo("limit caps the number returned");
 
 	it.todo(
 		"simulatedActions round-trip preserves arbitrary JSON args + results",

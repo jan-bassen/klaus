@@ -5,8 +5,8 @@ import {
 	downloadMediaMessage,
 	normalizeMessageContent,
 } from "@whiskeysockets/baileys";
-import { settings } from "@/infra/config";
 import { formatUserError } from "@/errors";
+import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
 import { saveFileMeta } from "@/infra/store/files";
 import { appendReaction } from "@/infra/store/history";

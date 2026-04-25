@@ -15,9 +15,8 @@
 
 import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
-import { parseCommand } from "@/primitives/commands";
 import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { parseOverrides, stripOverrides } from "./overrides";
+import { parseCommand } from "@/primitives/commands";
 import {
 	extractUrls,
 	fetchWebContent,
@@ -25,6 +24,7 @@ import {
 	parseDocument,
 	transcribe,
 } from "./media";
+import { parseOverrides, stripOverrides } from "./overrides";
 
 /**
  * Result of normalizing + parsing a single inbound message.

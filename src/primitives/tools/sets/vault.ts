@@ -13,8 +13,8 @@ import {
 	resolveVaultPath,
 	type VaultOp,
 } from "@/infra/vault";
-import type { ToolDefinition, ToolsetDefinition } from "@/primitives/tools";
 import type { TurnContext } from "@/pipeline/agent";
+import type { ToolDefinition, ToolsetDefinition } from "@/primitives/tools";
 
 const vaultRoot = () => settings.vault.root;
 
@@ -69,7 +69,7 @@ const vaultReadSchema = z.object({
 });
 
 export const vaultReadTool: ToolDefinition<typeof vaultReadSchema> = {
-	name: "vault.read",
+	name: "vault_read",
 	description:
 		"Read a note from the vault by its relative path. Returns the full markdown content including frontmatter.",
 	inputSchema: vaultReadSchema,
@@ -106,7 +106,7 @@ const vaultSearchSchema = z.object({
 });
 
 export const vaultSearchTool: ToolDefinition<typeof vaultSearchSchema> = {
-	name: "vault.search",
+	name: "vault_search",
 	description:
 		"Full-text search across all markdown notes in the vault. Returns matching file paths with context lines.",
 	inputSchema: vaultSearchSchema,
@@ -210,7 +210,7 @@ const vaultListSchema = z.object({
 });
 
 export const vaultListTool: ToolDefinition<typeof vaultListSchema> = {
-	name: "vault.list",
+	name: "vault_list",
 	description:
 		"Browse the directory structure of the vault. Returns a tree of folders and .md files. When called with no directory, shows all accessible folders.",
 	inputSchema: vaultListSchema,
@@ -412,9 +412,9 @@ const vaultWriteSchema = z.object({
 });
 
 export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
-	name: "vault.write",
+	name: "vault_write",
 	description:
-		"Create or override a note in the vault. Parent directories are created automatically. overrideS the entire file — read first with vault.read if you need to preserve existing content.",
+		"Create or override a note in the vault. Parent directories are created automatically. overrideS the entire file — read first with vault_read if you need to preserve existing content.",
 	inputSchema: vaultWriteSchema,
 	execute: async ({ path: rel, content }, context) => {
 		const result = await gate(rel, "full", context);
@@ -451,9 +451,9 @@ const vaultAppendSchema = z.object({
 });
 
 export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
-	name: "vault.append",
+	name: "vault_append",
 	description:
-		"Append content to an existing note (useful for daily notes, logs, inboxes). Creates the file if it does not exist. For structured notes with sections, set the heading parameter to append inside a specific section — use vault.outline first to see available sections.",
+		"Append content to an existing note (useful for daily notes, logs, inboxes). Creates the file if it does not exist. For structured notes with sections, set the heading parameter to append inside a specific section — use vault_outline first to see available sections.",
 	inputSchema: vaultAppendSchema,
 	execute: async ({ path: rel, content, heading }, context) => {
 		const result = await gate(rel, "append", context);
@@ -546,7 +546,7 @@ const vaultBacklinksSchema = z.object({
 });
 
 export const vaultBacklinksTool: ToolDefinition<typeof vaultBacklinksSchema> = {
-	name: "vault.backlinks",
+	name: "vault_backlinks",
 	description:
 		"Find all notes that link to a given note via [[wikilinks]]. Returns file paths with the linking line.",
 	inputSchema: vaultBacklinksSchema,
@@ -606,7 +606,7 @@ const vaultMoveSchema = z.object({
 });
 
 export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
-	name: "vault.move",
+	name: "vault_move",
 	description:
 		"Move or rename a note within the vault. Optionally updates all [[wikilinks]] across the vault that referenced the old name.",
 	inputSchema: vaultMoveSchema,
@@ -705,7 +705,7 @@ const vaultDeleteSchema = z.object({
 });
 
 export const vaultDeleteTool: ToolDefinition<typeof vaultDeleteSchema> = {
-	name: "vault.delete",
+	name: "vault_delete",
 	description:
 		"Permanently delete a note from the vault. Requires confirm: true to prevent accidents.",
 	inputSchema: vaultDeleteSchema,
@@ -750,9 +750,9 @@ const vaultPatchSchema = z.object({
 });
 
 export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
-	name: "vault.patch",
+	name: "vault_patch",
 	description:
-		"Replace the body of a specific section in a note by heading. The heading line is kept; everything beneath it until the next same-or-higher-level heading (or EOF) is replaced. Read the note first with vault.read to see current content before replacing.",
+		"Replace the body of a specific section in a note by heading. The heading line is kept; everything beneath it until the next same-or-higher-level heading (or EOF) is replaced. Read the note first with vault_read to see current content before replacing.",
 	inputSchema: vaultPatchSchema,
 	execute: async ({ path: rel, heading, newContent }, context) => {
 		const result = await gate(rel, "full", context);
@@ -815,7 +815,7 @@ const vaultTagsSchema = z.object({
 });
 
 export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
-	name: "vault.tags",
+	name: "vault_tags",
 	description:
 		"Find notes by frontmatter tag, or list all tags used across the vault. Use list: true to discover available tags.",
 	inputSchema: vaultTagsSchema,
@@ -898,9 +898,9 @@ const vaultLinksSchema = z.object({
 });
 
 export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
-	name: "vault.links",
+	name: "vault_links",
 	description:
-		"Extract all outgoing [[wikilinks]] from a note. Complements vault.backlinks for graph traversal.",
+		"Extract all outgoing [[wikilinks]] from a note. Complements vault_backlinks for graph traversal.",
 	inputSchema: vaultLinksSchema,
 	execute: async ({ path: rel }, context) => {
 		const result = await gate(rel, "read", context);
@@ -935,9 +935,9 @@ const vaultOutlineSchema = z.object({
 });
 
 export const vaultOutlineTool: ToolDefinition<typeof vaultOutlineSchema> = {
-	name: "vault.outline",
+	name: "vault_outline",
 	description:
-		"Return the heading structure of a note with item counts per section. Use before vault.append or vault.patch to see available sections without reading the full note.",
+		"Return the heading structure of a note with item counts per section. Use before vault_append or vault_patch to see available sections without reading the full note.",
 	inputSchema: vaultOutlineSchema,
 	execute: async ({ path: rel }, context) => {
 		const result = await gate(rel, "read", context);
@@ -1000,7 +1000,7 @@ export const vaultOutlineTool: ToolDefinition<typeof vaultOutlineSchema> = {
 export const vaultToolset: ToolsetDefinition = {
 	name: "vault",
 	description:
-		"Use when the request involves Jan's vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. The vault has multiple folders with different permission levels (some read-only, some full access, some requiring confirmation for writes). Notes are memory, [[wikilinks]] are relationships, frontmatter tags enable discovery. Use for anything that sounds like a note, a document, something to remember, or something Jan would have written down. Prefer read-before-write: use vault.read or vault.outline before modifying notes to understand structure, language, and existing content.",
+		"Use when the request involves Jan's vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. The vault has multiple folders with different permission levels (some read-only, some full access, some requiring confirmation for writes). Notes are memory, [[wikilinks]] are relationships, frontmatter tags enable discovery. Use for anything that sounds like a note, a document, something to remember, or something Jan would have written down. Prefer read-before-write: use vault_read or vault_outline before modifying notes to understand structure, language, and existing content.",
 	tools: [
 		vaultReadTool,
 		vaultSearchTool,

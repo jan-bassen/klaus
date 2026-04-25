@@ -26,8 +26,7 @@ const MODULE_DIR =
 
 // ── Env-derived paths (resolved once at startup) ───────────────────────────
 
-const VAULT_ROOT =
-	process.env.VAULT_DIR ?? path.join(process.cwd(), "vault");
+const VAULT_ROOT = process.env.VAULT_DIR ?? path.join(process.cwd(), "vault");
 const INTERNAL_NAME = "Klaus";
 const INTERNAL_PATH = path.join(VAULT_ROOT, INTERNAL_NAME);
 
@@ -76,16 +75,19 @@ export interface VaultFolder {
 }
 
 export interface ProviderConfig {
-	sdk: string;
+	/** Base URL of an OpenAI-compatible chat completions API. */
+	baseURL: string;
+	/** Name of the env var holding the API key. */
+	apiKeyEnv: string;
 	small: string;
 	medium: string;
 	large: string;
-	temperature?: number;
-	coldTemperature?: number;
-	hotTemperature?: number;
-	topP?: number;
-	creativeTopP?: number;
-	rigidTopP?: number;
+	temperature?: number | undefined;
+	coldTemperature?: number | undefined;
+	hotTemperature?: number | undefined;
+	topP?: number | undefined;
+	creativeTopP?: number | undefined;
+	rigidTopP?: number | undefined;
 }
 
 // ── Zod schema (validates YAML from settings.yml) ──────────────────────────
@@ -129,7 +131,6 @@ const AgentSchema = z
 
 const AgentDefaultsSchema = z
 	.object({
-		provider: z.string().optional(),
 		modelTier: z.enum(modelTiers),
 		voice: z.enum(["on", "auto", "off"]),
 		accept: z.boolean(),
@@ -147,7 +148,8 @@ const AgentDefaultsSchema = z
 
 const ProviderSchema = z
 	.object({
-		sdk: z.string(),
+		baseURL: z.string(),
+		apiKeyEnv: z.string(),
 		small: z.string(),
 		medium: z.string(),
 		large: z.string(),
@@ -159,15 +161,6 @@ const ProviderSchema = z
 		rigidTopP: z.number().optional(),
 	})
 	.strict();
-
-const ProvidersSchema = z
-	.object({
-		active: z.string(),
-		claude: ProviderSchema,
-		chatgpt: ProviderSchema,
-		gemini: ProviderSchema,
-	})
-	.catchall(ProviderSchema);
 
 const MediaSchema = z
 	.object({
@@ -269,7 +262,7 @@ export const SettingsSchema = z
 		basics: BasicsSchema,
 		agent: AgentSchema,
 		agentDefaults: AgentDefaultsSchema,
-		providers: ProvidersSchema,
+		provider: ProviderSchema,
 		media: MediaSchema,
 		whatsapp: WhatsAppSchema,
 		vault: VaultYamlSchema,
@@ -416,20 +409,21 @@ export async function updateAllowedChatId(chatId: string): Promise<void> {
 
 // ── Provider resolution ────────────────────────────────────────────────────
 
-/** Resolve provider config by name. Falls back to global active provider. */
-export function resolveProvider(override?: string): ProviderConfig {
-	const name = override ?? settings.providers.active;
-	const cfg = (settings.providers as Record<string, unknown>)[name] as
-		| ProviderConfig
-		| undefined;
-	if (!cfg || typeof cfg !== "object" || !("sdk" in cfg)) {
-		throw new Error(`Unknown provider: ${name}`);
+/**
+ * Return the active provider config and the resolved API key (read from the
+ * env var named in `apiKeyEnv`). Throws if the env var is unset — fail-closed
+ * is preferable to discovering it mid-turn.
+ */
+export function resolveProvider(): {
+	config: ProviderConfig;
+	apiKey: string;
+} {
+	const config = settings.provider;
+	const apiKey = process.env[config.apiKeyEnv];
+	if (!apiKey) {
+		throw new Error(
+			`Provider API key missing: env var ${config.apiKeyEnv} is unset`,
+		);
 	}
-	return cfg;
-}
-
-/** All configured provider names, excluding the `active` pointer. */
-export function getProviderNames(): string[] {
-	const { active: _active, ...rest } = settings.providers;
-	return Object.keys(rest);
+	return { config, apiKey };
 }

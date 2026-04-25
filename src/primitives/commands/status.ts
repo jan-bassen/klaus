@@ -1,8 +1,8 @@
 import { settings } from "@/infra/config";
+import type { InboundMessage } from "@/infra/whatsapp/receive";
 import { enqueueMessage } from "@/infra/whatsapp/send";
 import { getDefaultAgent } from "@/pipeline/agents";
 import type { Command } from "@/primitives/commands";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
 
 export const statusCommand: Command = {
 	name: "status",

@@ -1,9 +1,9 @@
 import { settings } from "@/infra/config";
 import { updateFrontmatter } from "@/infra/vault/markdown";
+import type { InboundMessage } from "@/infra/whatsapp/receive";
 import { enqueueMessage } from "@/infra/whatsapp/send";
 import { agentRegistry, getDefaultAgent } from "@/pipeline/agents";
 import type { Command } from "@/primitives/commands";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
 
 export const acceptCommand: Command = {
 	name: "accept",

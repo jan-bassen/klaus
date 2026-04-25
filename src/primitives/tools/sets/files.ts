@@ -23,7 +23,7 @@ const filesUploadSchema = z.object({
 });
 
 export const filesUploadTool: ToolDefinition<typeof filesUploadSchema> = {
-	name: "files.upload",
+	name: "files_upload",
 	description:
 		"Upload a file to the files directory and create a metadata entry.",
 	inputSchema: filesUploadSchema,
@@ -80,7 +80,7 @@ const filesDownloadSchema = z.object({
 });
 
 export const filesDownloadTool: ToolDefinition<typeof filesDownloadSchema> = {
-	name: "files.download",
+	name: "files_download",
 	description:
 		"Download a file by UUID or partial filename. Returns base64-encoded content.",
 	inputSchema: filesDownloadSchema,
@@ -130,9 +130,9 @@ const filesReadSchema = z.object({
 });
 
 export const filesReadTool: ToolDefinition<typeof filesReadSchema> = {
-	name: "files.read",
+	name: "files_read",
 	description:
-		"Read a file's text content. Parses PDFs, docx, xlsx, pptx to plain text; returns text files directly. For images, use files.download.",
+		"Read a file's text content. Parses PDFs, docx, xlsx, pptx to plain text; returns text files directly. For images, use files_download.",
 	inputSchema: filesReadSchema,
 	execute: async ({ name }, _context) => {
 		const isUuid = /^[0-9a-f-]{36}$/i.test(name);
@@ -155,10 +155,10 @@ export const filesReadTool: ToolDefinition<typeof filesReadSchema> = {
 		}
 
 		if (meta.mimeType.startsWith("image/")) {
-			return `${path.basename(meta.path)} is an image (${meta.mimeType}). Use files.download to retrieve its bytes.`;
+			return `${path.basename(meta.path)} is an image (${meta.mimeType}). Use files_download to retrieve its bytes.`;
 		}
 
-		return `Cannot read ${path.basename(meta.path)} — unsupported mime type ${meta.mimeType}. Use files.download for binary content.`;
+		return `Cannot read ${path.basename(meta.path)} — unsupported mime type ${meta.mimeType}. Use files_download for binary content.`;
 	},
 	simulate: async ({ name }, context) => {
 		const overlay = getOverlay(context);
@@ -191,7 +191,7 @@ const filesListSchema = z.object({
 });
 
 export const filesListTool: ToolDefinition<typeof filesListSchema> = {
-	name: "files.list",
+	name: "files_list",
 	description: "List files. Optionally filter by name prefix.",
 	inputSchema: filesListSchema,
 	execute: async ({ prefix }, _context) => {
@@ -241,7 +241,7 @@ const filesDeleteSchema = z.object({
 });
 
 export const filesDeleteTool: ToolDefinition<typeof filesDeleteSchema> = {
-	name: "files.delete",
+	name: "files_delete",
 	description: "Delete a file — removes both the blob and its metadata.",
 	inputSchema: filesDeleteSchema,
 	execute: async ({ name }, _context) => {

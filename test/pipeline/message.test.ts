@@ -28,17 +28,11 @@ describe("pipeline/message.parseMessage: text messages", () => {
 		// register("voice"), register("large"), registerCommand("foo")
 	});
 
-	it.todo(
-		"plain text: no agent, no overrides, cleanText === text",
-	);
+	it.todo("plain text: no agent, no overrides, cleanText === text");
 
-	it.todo(
-		"`@name do thing` → agent === 'name', cleanText === 'do thing'",
-	);
+	it.todo("`@name do thing` → agent === 'name', cleanText === 'do thing'");
 
-	it.todo(
-		"`@name-with-dash ...` supports dashes in the name regex",
-	);
+	it.todo("`@name-with-dash ...` supports dashes in the name regex");
 
 	it.todo(
 		"`@name !voice hello` → agent + overrides:{voice:true}, cleanText === 'hello'",
@@ -80,17 +74,11 @@ describe("pipeline/message.parseMessage: normalize (STT)", () => {
 });
 
 describe("pipeline/message.parseMessage: normalize (documents)", () => {
-	it.todo(
-		"parseable doc: extractedText attached to msg.media.extractedText",
-	);
+	it.todo("parseable doc: extractedText attached to msg.media.extractedText");
 
-	it.todo(
-		"parse error: msg.media.extractedText stays undefined (no throw)",
-	);
+	it.todo("parse error: msg.media.extractedText stays undefined (no throw)");
 
-	it.todo(
-		"non-parseable mime: parseDocument not called, extractedText absent",
-	);
+	it.todo("non-parseable mime: parseDocument not called, extractedText absent");
 });
 
 describe("pipeline/message.parseMessage: normalize (links)", () => {
@@ -102,9 +90,7 @@ describe("pipeline/message.parseMessage: normalize (links)", () => {
 		"failed fetches: logged and dropped — only successful links appear in msg.links",
 	);
 
-	it.todo(
-		"no URLs: msg.links stays absent (no empty array)",
-	);
+	it.todo("no URLs: msg.links stays absent (no empty array)");
 });
 
 describe("pipeline/message.parseMessage: voice transcript rewriting", () => {
@@ -112,17 +98,11 @@ describe("pipeline/message.parseMessage: voice transcript rewriting", () => {
 		"trigger prefix: 'hey fitness, help me' with trigger 'hey' → '@fitness help me'",
 	);
 
-	it.todo(
-		"bare name comma: 'fitness, help me' → '@fitness help me'",
-	);
+	it.todo("bare name comma: 'fitness, help me' → '@fitness help me'");
 
-	it.todo(
-		"unknown name after trigger: 'hey unknown, do' → unchanged",
-	);
+	it.todo("unknown name after trigger: 'hey unknown, do' → unchanged");
 
-	it.todo(
-		"no trigger, no comma: 'fitness help me' → unchanged (conservative)",
-	);
+	it.todo("no trigger, no comma: 'fitness help me' → unchanged (conservative)");
 
 	it.todo(
 		"rewrite runs BEFORE overrides/agent parsing (rewritten @name is picked up)",

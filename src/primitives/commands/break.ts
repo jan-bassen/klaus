@@ -1,8 +1,8 @@
 import { settings } from "@/infra/config";
 import { appendBreak } from "@/infra/store/history";
+import type { InboundMessage } from "@/infra/whatsapp/receive";
 import { enqueueMessage } from "@/infra/whatsapp/send";
 import type { Command } from "@/primitives/commands";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
 
 export const breakCommand: Command = {
 	name: "break",

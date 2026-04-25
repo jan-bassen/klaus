@@ -48,7 +48,6 @@ const ReportStepSchema = z.object({
 });
 
 const ReportLlmSchema = z.object({
-	provider: z.string(),
 	model: z.string(),
 	tier: z.string(),
 	durationMs: z.number(),
@@ -72,7 +71,6 @@ const ReportLlmSchema = z.object({
 });
 
 const ReportConfigSchema = z.object({
-	provider: z.string().optional(),
 	modelTier: z.string().optional(),
 	historyLimit: z.number().optional(),
 	historyScope: z.string().optional(),

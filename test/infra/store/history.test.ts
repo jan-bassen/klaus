@@ -20,9 +20,7 @@ describe("infra/store/history: AppendMessageInput discriminated union", () => {
 		"assistant row requires agent + runId (ts-expect-error when missing)",
 	);
 
-	it.todo(
-		"user row refuses agent + runId (ts-expect-error when passed)",
-	);
+	it.todo("user row refuses agent + runId (ts-expect-error when passed)");
 });
 
 describe("infra/store/history: round-trip", () => {
@@ -41,17 +39,11 @@ describe("infra/store/history: round-trip", () => {
 		"appendMessage → getConversation returns the same row with generated id",
 	);
 
-	it.todo(
-		"assistant row round-trips agent + runId",
-	);
+	it.todo("assistant row round-trips agent + runId");
 
-	it.todo(
-		"externalId is indexed — findByExternalId returns the messageId",
-	);
+	it.todo("externalId is indexed — findByExternalId returns the messageId");
 
-	it.todo(
-		"appendAck backfills externalId on the existing message",
-	);
+	it.todo("appendAck backfills externalId on the existing message");
 });
 
 describe("infra/store/history: break markers", () => {
@@ -69,19 +61,13 @@ describe("infra/store/history: reactions", () => {
 		"a reaction with empty emoji removes the existing reaction for that sender",
 	);
 
-	it.todo(
-		"re-reacting updates the emoji in place (no duplicate)",
-	);
+	it.todo("re-reacting updates the emoji in place (no duplicate)");
 });
 
 describe("infra/store/history: traces", () => {
-	it.todo(
-		"appendTrace → getTraces returns a Map keyed by runId",
-	);
+	it.todo("appendTrace → getTraces returns a Map keyed by runId");
 
-	it.todo(
-		"trace persists trigger.kind and agent name",
-	);
+	it.todo("trace persists trigger.kind and agent name");
 });
 
 describe("infra/store/history: rebuildIndexes", () => {

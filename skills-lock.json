@@ -1,0 +1,15 @@
+{
+	"version": 1,
+	"skills": {
+		"biome-configuration": {
+			"source": "thebushidocollective/han",
+			"sourceType": "github",
+			"computedHash": "b7089f83d1590799da04d07ea6ea731b28ca27d82a972b9d7cd33ac5c9b10e26"
+		},
+		"openrouter-api": {
+			"source": "jrajasekera/claude-skills",
+			"sourceType": "github",
+			"computedHash": "0c317c641af560411006f33a287843d492aa3d8e8b7a5957e6400f218251661b"
+		}
+	}
+}

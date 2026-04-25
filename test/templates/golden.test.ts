@@ -21,21 +21,13 @@ describe("templates/message-user", () => {
 		"voice note with caption: 'Transcript of voice note. Caption: \"…\" …'",
 	);
 
-	it.todo(
-		"image: 'Image' marker + quoted text prefix when set",
-	);
+	it.todo("image: 'Image' marker + quoted text prefix when set");
 
-	it.todo(
-		"document attached: shows fileName + mimeType",
-	);
+	it.todo("document attached: shows fileName + mimeType");
 
-	it.todo(
-		"web links: renders [title](url) + truncated text per link",
-	);
+	it.todo("web links: renders [title](url) + truncated text per link");
 
-	it.todo(
-		"plain text fallback: no marker, just `[#label] messageText`",
-	);
+	it.todo("plain text fallback: no marker, just `[#label] messageText`");
 });
 
 describe("templates/message-agent", () => {
@@ -43,45 +35,29 @@ describe("templates/message-agent", () => {
 		"showTrace true + steps present: renders '[@agent used X, Y → replied]' prefix",
 	);
 
-	it.todo(
-		"showTrace false: omits the trace line, keeps text",
-	);
+	it.todo("showTrace false: omits the trace line, keeps text");
 
 	it.todo(
 		"single call in a single step: comma handling is correct (no trailing comma)",
 	);
 
-	it.todo(
-		"multiple calls across multiple steps: separators look right",
-	);
+	it.todo("multiple calls across multiple steps: separators look right");
 });
 
 describe("templates/message-tool", () => {
-	it.todo(
-		"with argSnippet: 'toolName(\"argSnippet\")'",
-	);
+	it.todo("with argSnippet: 'toolName(\"argSnippet\")'");
 
-	it.todo(
-		"without argSnippet: 'toolName' alone",
-	);
+	it.todo("without argSnippet: 'toolName' alone");
 });
 
 describe("templates/error-message", () => {
-	it.todo(
-		"kind: 'timeout' → 'The AI model timed out — please try again.'",
-	);
+	it.todo("kind: 'timeout' → 'The AI model timed out — please try again.'");
 
-	it.todo(
-		"kind: 'rate_limit' → 'Too many requests right now…'",
-	);
+	it.todo("kind: 'rate_limit' → 'Too many requests right now…'");
 
-	it.todo(
-		"kind: 'too_long' → 'Your conversation got too long…'",
-	);
+	it.todo("kind: 'too_long' → 'Your conversation got too long…'");
 
-	it.todo(
-		"default kind: 'Something went wrong: {{message}}'",
-	);
+	it.todo("default kind: 'Something went wrong: {{message}}'");
 });
 
 describe("templates/report-short", () => {
@@ -89,13 +65,9 @@ describe("templates/report-short", () => {
 		"ok outcome + llm: 'TIMESTAMP @agent (trigger) — ok in Xms | model A↑/B↓ (N steps)'",
 	);
 
-	it.todo(
-		"error outcome: includes 'error: ErrorName' in the middle",
-	);
+	it.todo("error outcome: includes 'error: ErrorName' in the middle");
 
-	it.todo(
-		"simulation: true: appends ' ⚠ SIM'",
-	);
+	it.todo("simulation: true: appends ' ⚠ SIM'");
 });
 
 describe("templates/report-full", () => {
@@ -103,9 +75,7 @@ describe("templates/report-full", () => {
 		"level: 'full' with llm + message + variablesSummary renders all three sections",
 	);
 
-	it.todo(
-		"with simulatedActions: '## Simulated actions' block present",
-	);
+	it.todo("with simulatedActions: '## Simulated actions' block present");
 
 	it.todo(
 		"with historyTranscript: '### History transcript' block with per-role fenced blocks",
@@ -115,7 +85,5 @@ describe("templates/report-full", () => {
 		"verbatim systemPrompt + userMessage render in fenced code blocks (injection-safe)",
 	);
 
-	it.todo(
-		"error outcome: '**Outcome**: error — `Name: message`'",
-	);
+	it.todo("error outcome: '**Outcome**: error — `Name: message`'");
 });

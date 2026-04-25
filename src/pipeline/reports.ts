@@ -25,9 +25,9 @@ import {
 	type ReportStep,
 	writeReport,
 } from "@/infra/store/report";
-import { renderTemplate } from "@/pipeline/prompts";
-import type { InboundMessage } from "@/infra/whatsapp/receive"
+import type { InboundMessage } from "@/infra/whatsapp/receive";
 import type { TurnContext } from "@/pipeline/agent";
+import { renderTemplate } from "@/pipeline/prompts";
 import type { AgentRunResult } from "./agent";
 import type { TurnConfig } from "./overrides";
 
@@ -105,7 +105,6 @@ function errorOutcome(err: unknown): ReportEntry["outcome"] {
 
 function pickConfig(c: TurnConfig): ReportEntry["config"] {
 	const out: ReportEntry["config"] = {};
-	if (c.provider) out.provider = c.provider;
 	if (c.modelTier) out.modelTier = c.modelTier;
 	if (c.historyLimit !== undefined) out.historyLimit = c.historyLimit;
 	if (c.historyScope) out.historyScope = c.historyScope;
@@ -119,7 +118,6 @@ function buildLlmSection(
 	level: "agent" | "full",
 ): ReportLlm {
 	const llm: ReportLlm = {
-		provider: result.provider,
 		model: result.model,
 		tier: result.tier,
 		durationMs: result.durationMs,

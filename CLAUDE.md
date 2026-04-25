@@ -17,7 +17,7 @@ bun run publish
 
 A maximally simple, headless personal AI agent: **WhatsApp → TypeScript → Obsidian vault → Docker**.
 
-Stack: Bun, TypeScript strict, Zod, Handlebars, Baileys, Vercel AI SDK (multi-provider: `@ai-sdk/anthropic` | `openai` | `google`). Liteparse for docs, defuddle for web, sharp for images. JSONL for conversations/reports, JSON for schedules/timers. No database.
+Stack: Bun, TypeScript strict, Zod, Handlebars, Baileys. Models via a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default OpenRouter); request/response types come from the `openai` npm package (devDep, types-only) with small extensions for OpenRouter-specific bits (`reasoning.effort`, `openrouter:web_search` / `openrouter:web_fetch` server tools). Liteparse for docs, defuddle for web, sharp for images. JSONL for conversations/reports, JSON for schedules/timers. No database.
 
 ## Directory layout
 
@@ -55,7 +55,7 @@ src/
 2. **Parse** — `parseMessage`: STT transcribe → doc extract → link fetch → voice transcript rewrite → `/command` → `@agent` → `!overrides`.
 3. **Resolve agent + build config** — `getOrLoadAgent` + `buildTurnConfig` (globalDefaults → frontmatter → `!overrides`).
 4. **Persist message** — append to day-partitioned JSONL, resolve quoted media.
-5. **Execute agent** — `executeAgent`: assemble context (vars + tools + history) → compile prompts → `generateText` loop → report → reschedule if persistent.
+5. **Execute agent** — `executeAgent`: assemble context (vars + tools + history) → compile prompts → `runLoop` (multi-step `completeChat` calls until the model stops calling tools) → report → reschedule if persistent.
 
 Dispatched runs (cron, timer, `dispatch` tool) start at step 5 with a synthesised `Trigger`.
 
@@ -103,6 +103,8 @@ Persistence:
 
 **Tools** declare `sideEffect: "external" | "stateful" | "pure"` (enforced at registration). Under `!simulate`, `external`/`stateful` calls route through the per-turn simulation overlay — either a custom `simulate` handler or a generic faker. `pure` passes through.
 
+**Provider tools** (e.g. `web_search`, `web_fetch`) are OpenRouter server tools — they get appended verbatim to the request's `tools` array (`{ type: "openrouter:web_search" }`) and execute server-side; the agent loop never sees a client-side tool_call for them. Declared per agent in `providerTools: […]`.
+
 **Toolsets** are lazy-loaded via `use_<name>` meta-tools so the initial context stays lean.
 
 **Skills** are `.md` docs in `{vault}/Klaus/skills/`, loaded via a per-agent `skill_get` tool scoped to the agent's declared list.
@@ -132,7 +134,7 @@ Try actions with real data, no real consequences. Reports always emitted, tagged
 
 Elevates `ghost: true` + `skipHistory: true` — neither the user message nor the trace persist. Inline dispatch propagates `simulate` into sub-agents automatically.
 
-Overlay gives read-from-write coherence: a `vault.write` followed by `vault.read` sees the pending content. Same for dispatch timers/schedules and file uploads.
+Overlay gives read-from-write coherence: a `vault_write` followed by `vault_read` sees the pending content. Same for dispatch timers/schedules and file uploads.
 
 ## Storage
 
@@ -152,8 +154,8 @@ All under `{dataDir}` (default `~/.klaus/data`). The vault is separate — it's 
 agents/       # agent .md files
 skills/       # on-demand reference docs
 snippets/     # prompt fragments compiled into {{snippets.<name>}}
-templates/    # message-user.md, message-agent.md, message-tool.md,
-              # report-short.md, report-full.md, error-message.md
+templates/    # message-user.md, report-short.md, report-full.md,
+              # error-message.md
 reports/      # optional vault-markdown report mirror
 overrides.yml # !preset definitions
 settings.yml  # YAML settings (hot-reloaded via Zod validation)

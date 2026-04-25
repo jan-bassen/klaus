@@ -28,35 +28,25 @@ describe("pipeline/context.assembleVariables", () => {
 		"after-phase variables see partial `turn.vars` from first-phase results",
 	);
 
-	it.todo(
-		"a failing variable is logged but doesn't crash the phase",
-	);
+	it.todo("a failing variable is logged but doesn't crash the phase");
 });
 
 describe("pipeline/context.assembleHistory", () => {
-	it.todo(
-		"renders past assistant rows through message-agent.md template",
-	);
+	it.todo("renders past assistant rows through message-agent.md template");
 
 	it.todo(
 		"historyScope: 'agent' keeps only user messages whose NEXT assistant is the target agent",
 	);
 
-	it.todo(
-		"historyLimit caps the window to the last N message pairs",
-	);
+	it.todo("historyLimit caps the window to the last N message pairs");
 
-	it.todo(
-		"skipHistory yields an empty transcript",
-	);
+	it.todo("skipHistory yields an empty transcript");
 
 	it.todo(
 		"trace replay uses row.runId — not positional — to find the matching trace",
 	);
 
-	it.todo(
-		"showTrace: false suppresses the '[@X used Y → replied]' header",
-	);
+	it.todo("showTrace: false suppresses the '[@X used Y → replied]' header");
 });
 
 describe("pipeline/context.invokeTool (sim wrapper)", () => {
@@ -67,13 +57,9 @@ describe("pipeline/context.invokeTool (sim wrapper)", () => {
 		/* registries cleared in setup.ts */
 	});
 
-	it.todo(
-		"no sim → passes through to tool.execute (real invocation)",
-	);
+	it.todo("no sim → passes through to tool.execute (real invocation)");
 
-	it.todo(
-		"sim + pure tool without handler → passes through",
-	);
+	it.todo("sim + pure tool without handler → passes through");
 
 	it.todo(
 		"sim + external tool without handler → fakeExternal result, overlay action logged",

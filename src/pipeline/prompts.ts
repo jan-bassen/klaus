@@ -1,9 +1,9 @@
 /**
  * Per-turn prompt compilation.
  *
- * Single home for all template rendering: the agent's `.md` body, the four
- * `Klaus/templates/` files (`message-user`, `message-agent`, `message-tool`,
- * `error-message`), and the sampling-config translation.
+ * Single home for all template rendering: the agent's `.md` body, the
+ * `Klaus/templates/` files (`message-user`, `error-message`,
+ * `report-short`, `report-full`), and the sampling-config translation.
  *
  * Templates are eager-loaded at startup via `loadTemplates()` so each one
  * doubles as a Handlebars partial others can include via `{{> name}}`. The
@@ -14,20 +14,26 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import type { ImagePart, TextPart, UserContent } from "ai";
+import type {
+	ChatContentImage,
+	ChatContentItems as ChatContentItem,
+	ChatContentText,
+	ChatUserMessage,
+} from "@openrouter/sdk/models";
 import { resolveProvider, settings } from "@/infra/config";
 import { log } from "@/infra/logger";
 import { hbs, interpolateUserVars } from "@/infra/vault/markdown";
-import { prepareImage } from "@/pipeline/media";
 import type { TurnContext } from "@/pipeline/agent";
+import { prepareImage } from "@/pipeline/media";
 import type { TurnConfig } from "./overrides";
+
+/** User-message content as accepted by the chat completions API. */
+export type UserContent = ChatUserMessage["content"];
 
 // ── Template loader ────────────────────────────────────────────────────────
 
 export type TemplateName =
 	| "message-user"
-	| "message-agent"
-	| "message-tool"
 	| "error-message"
 	| "report-short"
 	| "report-full";
@@ -168,15 +174,16 @@ export async function buildUserMessage(
 	if (visionMedia) {
 		const text = renderUserText(turn);
 		const resized = await prepareImage(visionMedia.path);
-		const imagePart: ImagePart = {
-			type: "image",
-			image: new Uint8Array(resized),
-			mediaType: visionMedia.mimeType as Exclude<
-				ImagePart["mediaType"],
-				undefined
-			>,
+		const imagePart: ChatContentImage = {
+			type: "image_url",
+			imageUrl: {
+				url: `data:${visionMedia.mimeType};base64,${resized.toString("base64")}`,
+			},
 		};
-		return text ? [imagePart, { type: "text", text } as TextPart] : [imagePart];
+		const parts: ChatContentItem[] = text
+			? [imagePart, { type: "text", text } as ChatContentText]
+			: [imagePart];
+		return parts;
 	}
 
 	if (turn.message) return renderUserText(turn);
@@ -189,20 +196,16 @@ export async function buildUserMessage(
 export interface ResolvedSampling {
 	temperature?: number;
 	topP?: number;
-	providerOptions?: Record<string, Record<string, unknown>>;
+	reasoning?: { effort: "low" | "high" };
 }
 
 /**
  * Translate `TurnConfig` sampling/reasoning overrides into concrete model-call
- * parameters. Temperature/topP resolve against the active provider's preset
- * numbers; reasoning effort and fast mode map to provider-specific
- * `providerOptions` keys.
+ * parameters. Temperature/topP resolve against the configured provider's preset
+ * numbers; reasoning effort maps to OpenAI-shape `reasoning.effort`.
  */
-export function resolveSampling(
-	config: TurnConfig,
-	providerName?: string,
-): ResolvedSampling {
-	const providerCfg = resolveProvider(providerName);
+export function resolveSampling(config: TurnConfig): ResolvedSampling {
+	const { config: providerCfg } = resolveProvider();
 	const out: ResolvedSampling = {};
 
 	const tempPreset = config.temperaturePreset;
@@ -223,46 +226,8 @@ export function resolveSampling(
 		out.topP = providerCfg.topP;
 	}
 
-	const sdkName = providerCfg.sdk;
-
 	if (config.reasoningEffort) {
-		out.providerOptions ??= {};
-		switch (sdkName) {
-			case "anthropic":
-				out.providerOptions.anthropic = {
-					...out.providerOptions.anthropic,
-					effort: config.reasoningEffort,
-				};
-				break;
-			case "openai":
-				out.providerOptions.openai = {
-					...out.providerOptions.openai,
-					reasoningEffort: config.reasoningEffort,
-				};
-				break;
-			case "google":
-				out.providerOptions.google = {
-					...out.providerOptions.google,
-					thinkingConfig: { thinkingLevel: config.reasoningEffort },
-				};
-				break;
-			default:
-				log.warn(`[prompts] reasoning effort not supported for ${sdkName}`);
-		}
-	}
-
-	if (config.fast) {
-		out.providerOptions ??= {};
-		switch (sdkName) {
-			case "anthropic":
-				out.providerOptions.anthropic = {
-					...out.providerOptions.anthropic,
-					speed: "fast",
-				};
-				break;
-			default:
-				log.warn(`[prompts] fast mode not supported for ${sdkName}`);
-		}
+		out.reasoning = { effort: config.reasoningEffort };
 	}
 
 	return out;

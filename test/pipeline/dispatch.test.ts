@@ -31,9 +31,7 @@ describe("pipeline/dispatch.dispatch: basic invocation", () => {
 		// vi.restoreAllMocks()
 	});
 
-	it.todo(
-		"passes agent, prompt, chatId, trigger through to executeAgent",
-	);
+	it.todo("passes agent, prompt, chatId, trigger through to executeAgent");
 
 	it.todo(
 		"defaults to the explicitly-named agent — no implicit 'dispatch' fallback at primitive layer (the tool layer sets the default)",
@@ -45,17 +43,13 @@ describe("pipeline/dispatch.dispatch: basic invocation", () => {
 });
 
 describe("pipeline/dispatch.dispatch: chain depth guard", () => {
-	it.todo(
-		"depth below settings.agent.maxChainDepth: runs normally",
-	);
+	it.todo("depth below settings.agent.maxChainDepth: runs normally");
 
 	it.todo(
 		"depth === maxChainDepth: returns undefined without invoking executeAgent",
 	);
 
-	it.todo(
-		"warn logged when depth cap trips",
-	);
+	it.todo("warn logged when depth cap trips");
 });
 
 describe("pipeline/dispatch.dispatch: reply collector wiring", () => {
@@ -67,13 +61,9 @@ describe("pipeline/dispatch.dispatch: reply collector wiring", () => {
 		"replyCollector omitted: turn._replyCollector is undefined — replies fall through to WhatsApp",
 	);
 
-	it.todo(
-		"return value: joins collector entries with '\\n\\n' when populated",
-	);
+	it.todo("return value: joins collector entries with '\\n\\n' when populated");
 
-	it.todo(
-		"return value: undefined when collector is absent OR empty",
-	);
+	it.todo("return value: undefined when collector is absent OR empty");
 });
 
 describe("pipeline/dispatch.dispatch: overrides + config", () => {
@@ -85,9 +75,7 @@ describe("pipeline/dispatch.dispatch: overrides + config", () => {
 		"dispatchContext.prompt === opts.prompt (available to the child's prompt template)",
 	);
 
-	it.todo(
-		"pendingSubReplies initialised as [] on the partial turn",
-	);
+	it.todo("pendingSubReplies initialised as [] on the partial turn");
 });
 
 describe("pipeline/dispatch.dispatch: trigger propagation", () => {

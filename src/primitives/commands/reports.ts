@@ -1,9 +1,9 @@
 import { settings } from "@/infra/config";
 import { readReports } from "@/infra/store/report";
+import type { InboundMessage } from "@/infra/whatsapp/receive";
 import { enqueueMessage } from "@/infra/whatsapp/send";
 import { renderTemplate } from "@/pipeline/prompts";
 import type { Command } from "@/primitives/commands";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;

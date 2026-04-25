@@ -1,9 +1,9 @@
 import { settings } from "@/infra/config";
 import { getSchedules } from "@/infra/store/schedules";
 import { listTimers } from "@/infra/store/timers";
+import type { InboundMessage } from "@/infra/whatsapp/receive";
 import { enqueueMessage } from "@/infra/whatsapp/send";
 import type { Command } from "@/primitives/commands";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
 
 const timeFormatter = new Intl.DateTimeFormat(settings.locale, {
 	hour: "2-digit",

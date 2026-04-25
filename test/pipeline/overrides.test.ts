@@ -17,17 +17,11 @@ import { describe, it } from "vitest";
 // import { buildTurnConfig, overrideRegistry } from "@/pipeline/overrides";
 
 describe("pipeline/overrides.buildTurnConfig", () => {
-	it.todo(
-		"global defaults fill modelTier when frontmatter doesn't set it",
-	);
+	it.todo("global defaults fill modelTier when frontmatter doesn't set it");
 
-	it.todo(
-		"frontmatter `settings.modelTier` wins over global defaults",
-	);
+	it.todo("frontmatter `settings.modelTier` wins over global defaults");
 
-	it.todo(
-		"`!large` override wins over both global and frontmatter",
-	);
+	it.todo("`!large` override wins over both global and frontmatter");
 
 	it.todo(
 		"vault map deep-merges across defaults + frontmatter + preset (all three keys present)",
@@ -37,9 +31,7 @@ describe("pipeline/overrides.buildTurnConfig", () => {
 		"`!voice` clears `suppressVoice` even when frontmatter set voice: 'off'",
 	);
 
-	it.todo(
-		"simulate override force-elevates ghost: true AND skipHistory: true",
-	);
+	it.todo("simulate override force-elevates ghost: true AND skipHistory: true");
 
 	it.todo(
 		"unknown override names are silently ignored (don't throw, don't pollute config)",

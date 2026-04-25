@@ -12,27 +12,17 @@ import { describe, it } from "vitest";
 // import type { ToolDefinition } from "@/primitives/tools";
 
 describe("primitives/tools: sideEffect enforcement", () => {
-	it.todo(
-		"registerTool with missing sideEffect throws",
-	);
+	it.todo("registerTool with missing sideEffect throws");
 
-	it.todo(
-		"registerTool with sideEffect: 'invalid' throws",
-	);
+	it.todo("registerTool with sideEffect: 'invalid' throws");
 
-	it.todo(
-		"registerTool accepts 'external' | 'stateful' | 'pure'",
-	);
+	it.todo("registerTool accepts 'external' | 'stateful' | 'pure'");
 
-	it.todo(
-		"generateMetaTool produces a tool with sideEffect: 'pure'",
-	);
+	it.todo("generateMetaTool produces a tool with sideEffect: 'pure'");
 });
 
 describe("primitives/tools: registerToolset", () => {
-	it.todo(
-		"registers each contained tool + validates sideEffect on each",
-	);
+	it.todo("registers each contained tool + validates sideEffect on each");
 
 	it.todo(
 		"a toolset containing a tool with missing sideEffect throws at register time",

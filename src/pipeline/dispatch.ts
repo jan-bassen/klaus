@@ -15,11 +15,11 @@
 
 import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
+import type { Trigger, TurnContext } from "@/pipeline/agent";
 import { executeAgent } from "@/pipeline/agent";
 import { agentRegistry, getOrLoadAgent } from "@/pipeline/agents";
 import { buildTurnConfig } from "@/pipeline/overrides";
 import { getVariables } from "@/primitives/variables";
-import type { Trigger, TurnContext } from "@/pipeline/agent";
 
 export interface DispatchOptions {
 	agent: string;

@@ -3,8 +3,8 @@
  *
  * Setup strategy:
  *   - Mock `@/infra/whatsapp/send` so `enqueueMessage` becomes a spy.
- *   - Mock `generateText` from `ai` to return canned `AgentRunResult`-shaped
- *     steps with a single `reply` tool call.
+ *   - Mock `@openrouter/sdk` so `new OpenRouter(...).chat.send` returns
+ *     canned `ChatResult` payloads with a single `reply` tool call.
  *   - `initAllStores(tmpDir)` in beforeEach; point `settings.basics.allowedChatId`
  *     at a known chatId (mutate the live `settings` object from `@/infra/config`
  *     directly in beforeEach, or use `vi.resetModules` + dynamic import).

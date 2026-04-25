@@ -1,41 +1,32 @@
-import { anthropic } from "@ai-sdk/anthropic";
-import { google } from "@ai-sdk/google";
-import { openai } from "@ai-sdk/openai";
-import type { Tool } from "ai";
+/**
+ * Provider tools — server-side tools executed by OpenRouter (no Klaus
+ * `execute` handler). Agents declare them in frontmatter as
+ * `providerTools: [web_search, web_fetch]`; the loop appends them to the
+ * outgoing `tools` array verbatim.
+ *
+ * The OpenAI-compatible response only surfaces *function* tool calls — server
+ * tools execute transparently and their results are folded into the next
+ * assistant turn by the router. Klaus never sees a tool_call entry for them.
+ */
+
+import type { ChatFunctionTool as ChatTool } from "@openrouter/sdk/models";
 import { log } from "@/infra/logger";
 
-const providerToolMap: Record<string, Record<string, Tool>> = {
-	anthropic: {
-		web_search: anthropic.tools.webSearch_20260209(),
-		code_execution: anthropic.tools.codeExecution_20260120(),
-	},
-	openai: {
-		web_search: openai.tools.webSearch(),
-		code_execution: openai.tools.codeInterpreter(),
-	},
-	google: {
-		web_search: google.tools.googleSearch({}),
-		code_execution: google.tools.codeExecution({}),
-	},
+const SERVER_TOOLS: Record<string, ChatTool> = {
+	web_search: { type: "openrouter:web_search" },
+	web_fetch: { type: "openrouter:web_fetch" },
 };
 
-export function getProviderTool(
-	name: string,
-	provider: string,
-): Tool | undefined {
-	if (!providerToolMap[provider]) {
-		log.warn(
-			`[tools] unknown Provider "${provider}" for provider tool "${name}"`,
-		);
+export function getProviderTool(name: string): ChatTool | undefined {
+	const tool = SERVER_TOOLS[name];
+	if (!tool) {
+		log.warn(`[tools] unknown server tool "${name}"`);
 		return undefined;
 	}
+	return tool;
+}
 
-	if (!providerToolMap[provider][name]) {
-		log.warn(
-			`[tools] unknown Provider tool "${name}" for provider "${provider}"`,
-		);
-		return undefined;
-	}
-
-	return providerToolMap[provider][name];
+/** Names of all known provider/server tools. */
+export function listProviderToolNames(): string[] {
+	return Object.keys(SERVER_TOOLS);
 }

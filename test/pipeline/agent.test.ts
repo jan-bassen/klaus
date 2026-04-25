@@ -2,13 +2,23 @@
  * `pipeline/agent.ts`: `runAgent`, `executeAgent`, `flushPendingSubReplies`,
  * dynamic persistence forced tool call.
  *
- * Mocking: `vi.mock("ai", ...)` to control `generateText` return values.
- * Keep `stepCountIs` + `tool` passthrough (or mock minimally).
- *
- * Shape to mock for a single-step run:
- *   { text, usage: {inputTokens, outputTokens}, steps: [{
- *       reasoningText, toolCalls, toolResults, finishReason, usage
- *   }] }
+ * Mocking: `vi.mock("@openrouter/sdk", ...)` so `new OpenRouter(...).chat.send`
+ * returns canned `ChatResult` payloads. The response shape Klaus consumes
+ * (camelCase, parsed by the SDK from snake_case wire):
+ *   {
+ *     id, model, object: "chat.completion", created, systemFingerprint,
+ *     choices: [{
+ *       index,
+ *       message: {
+ *         role: "assistant",
+ *         content: string | null,
+ *         reasoning?: string | null,
+ *         toolCalls?: [{ id, type: "function", function: { name, arguments } }]
+ *       },
+ *       finishReason: "stop" | "tool_calls" | "length" | ...
+ *     }],
+ *     usage: { promptTokens, completionTokens, totalTokens }
+ *   }
  *
  * For flushPendingSubReplies tests: call directly after populating
  * `turn.pendingSubReplies` — no model call needed.
@@ -21,7 +31,7 @@ import { afterEach, beforeEach, describe, it } from "vitest";
 
 describe("pipeline/agent.runAgent", () => {
 	beforeEach(() => {
-		// vi.mock("ai", ...)  — canned generateText
+		// vi.mock("@openrouter/sdk", ...) — canned chat.send
 	});
 
 	afterEach(() => {
@@ -37,34 +47,26 @@ describe("pipeline/agent.runAgent", () => {
 	);
 
 	it.todo(
-		"throws LlmTimeoutError when generateText hangs past `settings.agent.timeout`",
+		"throws LlmTimeoutError when chat.send hangs past `settings.agent.timeout`",
 	);
 
 	it.todo(
 		"retries retryable errors up to `settings.agent.retries.max` with exponential backoff",
 	);
 
-	it.todo(
-		"does NOT retry on timeout, rate_limit, or 'prompt is too long' errors",
-	);
+	it.todo("does NOT retry on timeout, rate_limit, or 4xx errors (incl. 429)");
 });
 
 describe("pipeline/agent.executeAgent", () => {
-	it.todo(
-		"emits a report at `turn.config.report` level on successful run",
-	);
+	it.todo("emits a report at `turn.config.report` level on successful run");
 
 	it.todo(
 		"emits an error report when runAgent throws (outcome.kind === 'error')",
 	);
 
-	it.todo(
-		"skips trace persistence when turn.config.ghost is true",
-	);
+	it.todo("skips trace persistence when turn.config.ghost is true");
 
-	it.todo(
-		"skips trace persistence under !simulate (ghost elevated)",
-	);
+	it.todo("skips trace persistence under !simulate (ghost elevated)");
 });
 
 describe("pipeline/agent.flushPendingSubReplies", () => {
@@ -84,9 +86,7 @@ describe("pipeline/agent.flushPendingSubReplies", () => {
 		"preserves dispatch-call order when slots are filled out-of-order (B fills before A)",
 	);
 
-	it.todo(
-		"clears pendingSubReplies after flush",
-	);
+	it.todo("clears pendingSubReplies after flush");
 });
 
 describe("pipeline/agent: dynamic persistence", () => {
@@ -94,9 +94,7 @@ describe("pipeline/agent: dynamic persistence", () => {
 		"after the main loop, forces a `persist` tool call and creates a timer via addTimer",
 	);
 
-	it.todo(
-		"timer runAt falls inside [now + minNextRun, now + maxNextRun]",
-	);
+	it.todo("timer runAt falls inside [now + minNextRun, now + maxNextRun]");
 
 	it.todo(
 		"propagates `overrides` from the persist tool call to the scheduled timer entry",
@@ -108,17 +106,11 @@ describe("pipeline/agent: dynamic persistence", () => {
 });
 
 describe("pipeline/agent.computeNextRun", () => {
-	it.todo(
-		"accepts ISO datetime strings",
-	);
+	it.todo("accepts ISO datetime strings");
 
-	it.todo(
-		"accepts duration strings: '6h', '30m', '2d', '90s'",
-	);
+	it.todo("accepts duration strings: '6h', '30m', '2d', '90s'");
 
-	it.todo(
-		"clamps out-of-bounds values into [minNextRun, maxNextRun]",
-	);
+	it.todo("clamps out-of-bounds values into [minNextRun, maxNextRun]");
 
 	it.todo(
 		"falls back to settings.persistence.defaultNextRun on unparseable input",

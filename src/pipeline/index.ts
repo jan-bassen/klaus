@@ -8,8 +8,8 @@
  *   5. Execute agent (assemble context, prompts, run loop)
  */
 
-import { settings, updateAllowedChatId } from "@/infra/config";
 import { formatUserError } from "@/errors";
+import { settings, updateAllowedChatId } from "@/infra/config";
 import { log } from "@/infra/logger";
 import {
 	findFileByExternalId,
@@ -28,6 +28,7 @@ import {
 	getSetupCode,
 } from "@/infra/whatsapp/login";
 import { startTyping, stopTyping } from "@/infra/whatsapp/presence";
+import type { InboundMessage } from "@/infra/whatsapp/receive";
 import { enqueueMessage, sendReaction } from "@/infra/whatsapp/send";
 import {
 	agentRegistry,
@@ -36,11 +37,10 @@ import {
 } from "@/pipeline/agents";
 import { registry as commandRegistry } from "@/primitives/commands";
 import { getVariables } from "@/primitives/variables";
-import type { InboundMessage } from "@/infra/whatsapp/receive"
 import type { Trigger, TurnContext } from "./agent";
 import { executeAgent } from "./agent";
-import { buildTurnConfig } from "./overrides";
 import { parseMessage } from "./message";
+import { buildTurnConfig } from "./overrides";
 
 export interface AuthResult {
 	allowed: boolean;

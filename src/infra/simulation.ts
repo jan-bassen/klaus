@@ -16,8 +16,8 @@
 import type { FileMeta } from "@/infra/store/files";
 import type { ScheduleEntry } from "@/infra/store/schedules";
 import type { TimerEntry } from "@/infra/store/timers";
-import type { SideEffect } from "@/primitives/tools";
 import type { TurnContext } from "@/pipeline/agent";
+import type { SideEffect } from "@/primitives/tools";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

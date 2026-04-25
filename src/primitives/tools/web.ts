@@ -7,7 +7,7 @@ const webFetchSchema = z.object({
 });
 
 export const webFetchTool: ToolDefinition<typeof webFetchSchema> = {
-	name: "web.fetch",
+	name: "fetch_url",
 	description:
 		"Fetch a web page and extract its readable text content. Use when you need to read a URL that was not auto-fetched or when the user asks you to look something up.",
 	inputSchema: webFetchSchema,

@@ -22,9 +22,7 @@ describe("infra/simulation: overlay isolation", () => {
 		"different TurnContext objects get different overlays (WeakMap identity)",
 	);
 
-	it.todo(
-		"repeated getOverlay(sameTurn) returns the same overlay instance",
-	);
+	it.todo("repeated getOverlay(sameTurn) returns the same overlay instance");
 });
 
 describe("infra/simulation: fakers", () => {
@@ -36,9 +34,7 @@ describe("infra/simulation: fakers", () => {
 		"fakeExternal('react', {emoji:'👍'}) returns {result:'reacted', intent}",
 	);
 
-	it.todo(
-		"fakeStateful summarises the first arg into intent (name=value…)",
-	);
+	it.todo("fakeStateful summarises the first arg into intent (name=value…)");
 });
 
 describe("infra/simulation: vault overlay read-from-write", () => {
@@ -54,36 +50,26 @@ describe("infra/simulation: vault overlay read-from-write", () => {
 		// rmTmpDir(tmpDir);
 	});
 
+	it.todo("vault_write(sim) + vault_read(sim) → returns pending content");
+
 	it.todo(
-		"vault.write(sim) + vault.read(sim) → returns pending content",
+		"real vault_read of the same path returns 'Note not found' (disk untouched)",
+	);
+
+	it.todo("vault_append(sim) on overlay-written note concatenates correctly");
+
+	it.todo("vault_append(sim) with a heading inserts under that heading");
+
+	it.todo("vault_delete(sim) + vault_read(sim) → 'Note not found'");
+
+	it.todo("vault_move(sim) copies content to new path and tombstones old");
+
+	it.todo(
+		"vault_list(sim) annotates [sim +N: …] and [sim -N: …] for in-scope changes",
 	);
 
 	it.todo(
-		"real vault.read of the same path returns 'Note not found' (disk untouched)",
-	);
-
-	it.todo(
-		"vault.append(sim) on overlay-written note concatenates correctly",
-	);
-
-	it.todo(
-		"vault.append(sim) with a heading inserts under that heading",
-	);
-
-	it.todo(
-		"vault.delete(sim) + vault.read(sim) → 'Note not found'",
-	);
-
-	it.todo(
-		"vault.move(sim) copies content to new path and tombstones old",
-	);
-
-	it.todo(
-		"vault.list(sim) annotates [sim +N: …] and [sim -N: …] for in-scope changes",
-	);
-
-	it.todo(
-		"vault.search(sim) returns overlay hits tagged '(sim)' alongside real hits",
+		"vault_search(sim) returns overlay hits tagged '(sim)' alongside real hits",
 	);
 });
 
@@ -92,42 +78,34 @@ describe("infra/simulation: dispatch overlay", () => {
 		"dispatch.timer(sim) adds to overlay.pendingTimers; listTimers() unchanged",
 	);
 
+	it.todo("dispatch_schedule(sim) adds to overlay.pendingSchedules");
+
+	it.todo("dispatch_list(sim) merges real + pending and tags sim entries");
+
 	it.todo(
-		"dispatch.schedule(sim) adds to overlay.pendingSchedules",
+		"dispatch_cancel(sim) on a sim-only timer removes it from pendingTimers",
 	);
 
 	it.todo(
-		"dispatch.list(sim) merges real + pending and tags sim entries",
-	);
-
-	it.todo(
-		"dispatch.cancel(sim) on a sim-only timer removes it from pendingTimers",
-	);
-
-	it.todo(
-		"dispatch.cancel(sim) on a real timer ID adds to cancelledIds (real untouched)",
+		"dispatch_cancel(sim) on a real timer ID adds to cancelledIds (real untouched)",
 	);
 });
 
 describe("infra/simulation: files overlay", () => {
 	it.todo(
-		"files.upload(sim) creates a virtual FileMeta; listFiles() unchanged",
+		"files_upload(sim) creates a virtual FileMeta; listFiles() unchanged",
+	);
+
+	it.todo("files_list(sim) merges real + sim and filters deletes");
+
+	it.todo("files_delete(sim) of a sim-upload removes it outright");
+
+	it.todo(
+		"files_delete(sim) of a real fileId adds to deletedFileIds (disk untouched)",
 	);
 
 	it.todo(
-		"files.list(sim) merges real + sim and filters deletes",
-	);
-
-	it.todo(
-		"files.delete(sim) of a sim-upload removes it outright",
-	);
-
-	it.todo(
-		"files.delete(sim) of a real fileId adds to deletedFileIds (disk untouched)",
-	);
-
-	it.todo(
-		"files.read(sim) / files.download(sim) flag sim-uploads as 'content not materialized'",
+		"files_read(sim) / files_download(sim) flag sim-uploads as 'content not materialized'",
 	);
 });
 

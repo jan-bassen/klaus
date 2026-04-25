@@ -1,5 +1,9 @@
 import path from "node:path";
-import { settings, type VaultFolder, type VaultPermission } from "@/infra/config";
+import {
+	settings,
+	type VaultFolder,
+	type VaultPermission,
+} from "@/infra/config";
 
 export type VaultOp = "read" | "append" | "full";
 export type PermissionCheck = "allowed" | "denied";

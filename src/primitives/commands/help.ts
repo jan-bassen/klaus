@@ -1,11 +1,11 @@
 import { settings } from "@/infra/config";
+import type { InboundMessage } from "@/infra/whatsapp/receive";
 import { enqueueMessage } from "@/infra/whatsapp/send";
 import { agentRegistry } from "@/pipeline/agents";
 import { overrideRegistry } from "@/pipeline/overrides";
 import type { Command } from "@/primitives/commands";
 import { registry } from "@/primitives/commands";
 import { getVariables } from "@/primitives/variables";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
 
 function buildCommandsSection(): string {
 	const lines = registry.getAll().map((cmd) => {

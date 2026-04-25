@@ -1,8 +1,8 @@
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { log } from "@/infra/logger";
-import { toolsetRegistry } from "@/primitives/tools";
 import type { ToolDefinition } from "@/primitives/tools";
+import { toolsetRegistry } from "@/primitives/tools";
 
 export const SkillFrontmatterSchema = z.object({
 	description: z.string().min(1).optional(),
@@ -49,7 +49,7 @@ export async function loadSkills(skillsDir: string): Promise<void> {
 }
 
 /**
- * Build a skill.get tool scoped to the given skill names.
+ * Build a skill_get tool scoped to the given skill names.
  * Only registered for agents that declare `skills:` in frontmatter.
  */
 export function buildSkillTool(
@@ -69,7 +69,7 @@ export function buildSkillTool(
 	});
 
 	return {
-		name: "skill.get",
+		name: "skill_get",
 		description,
 		inputSchema,
 		execute: async ({ name }) => {

@@ -98,7 +98,7 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 	capability: "tool",
 };
 
-// ── dispatch.schedule ──────────────────────────────────────────────────────
+// ── dispatch_schedule ──────────────────────────────────────────────────────
 
 const dispatchScheduleSchema = z.object({
 	agent: z.string().describe("Name of the agent to schedule"),
@@ -112,9 +112,9 @@ const dispatchScheduleSchema = z.object({
 });
 
 const dispatchScheduleTool: ToolDefinition<typeof dispatchScheduleSchema> = {
-	name: "dispatch.schedule",
+	name: "dispatch_schedule",
 	description:
-		"Create a recurring schedule that invokes an agent on a cron pattern. Use `dispatch.list` to see active schedules, `dispatch.cancel` to remove one.",
+		"Create a recurring schedule that invokes an agent on a cron pattern. Use `dispatch_list` to see active schedules, `dispatch_cancel` to remove one.",
 	inputSchema: dispatchScheduleSchema,
 	execute: async (input, context) => {
 		const id = crypto.randomUUID();
@@ -151,12 +151,12 @@ const dispatchScheduleTool: ToolDefinition<typeof dispatchScheduleSchema> = {
 	capability: "tool",
 };
 
-// ── dispatch.list ──────────────────────────────────────────────────────────
+// ── dispatch_list ──────────────────────────────────────────────────────────
 
 const dispatchListSchema = z.object({});
 
 const dispatchListTool: ToolDefinition<typeof dispatchListSchema> = {
-	name: "dispatch.list",
+	name: "dispatch_list",
 	description: "List all active schedules and pending timers.",
 	inputSchema: dispatchListSchema,
 	execute: async () => renderList(getSchedules(), listTimers()),
@@ -209,16 +209,16 @@ function renderList(
 		: "No active schedules or pending timers.";
 }
 
-// ── dispatch.cancel ────────────────────────────────────────────────────────
+// ── dispatch_cancel ────────────────────────────────────────────────────────
 
 const dispatchCancelSchema = z.object({
 	id: z.string().describe("ID of the schedule or timer to cancel"),
 });
 
 const dispatchCancelTool: ToolDefinition<typeof dispatchCancelSchema> = {
-	name: "dispatch.cancel",
+	name: "dispatch_cancel",
 	description:
-		"Cancel an active schedule or pending timer by ID. Use `dispatch.list` to find IDs.",
+		"Cancel an active schedule or pending timer by ID. Use `dispatch_list` to find IDs.",
 	inputSchema: dispatchCancelSchema,
 	execute: async (input) => {
 		const removedTimer = await removeTimer(input.id);

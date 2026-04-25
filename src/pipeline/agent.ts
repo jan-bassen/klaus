@@ -1,41 +1,45 @@
 /**
  * Agent core loop: take a fully-prepared turn (config, context, prompts) and
- * drive the Vercel AI SDK to produce an `AgentRunResult`.
+ * drive an OpenAI-compatible /chat/completions endpoint to produce an
+ * `AgentRunResult`.
  *
  * The orchestrator (`pipeline/index.ts`) handles parsing, config, context, and
  * prompt assembly. By the time we get here, everything is in place and we just
  * call the model and post-process.
  */
 
-import type { ProviderOptions } from "@ai-sdk/provider-utils";
+import { OpenRouter } from "@openrouter/sdk";
 import type {
-	LanguageModel,
-	ModelMessage,
-	StepResult,
-	ToolSet,
-	UserContent,
-} from "ai";
-import { generateText, stepCountIs, tool } from "ai";
+	ChatMessages as ChatMessage,
+	ChatRequest,
+	ChatFunctionTool as ChatTool,
+	ChatToolCall,
+	ChatToolChoice,
+} from "@openrouter/sdk/models";
+import { OpenRouterError } from "@openrouter/sdk/models/errors";
 import { z } from "zod";
+import { toJSONSchema } from "zod/v4";
 import { type ModelTier, resolveProvider, settings } from "@/infra/config";
 import { log } from "@/infra/logger";
 import { appendTrace, type TraceStep } from "@/infra/store/history";
 import { addTimer } from "@/infra/store/timers";
+import type { InboundMessage } from "@/infra/whatsapp/receive";
 import { enqueueMessage } from "@/infra/whatsapp/send";
 import {
 	type AssembledTools,
 	assembleContext,
+	type FunctionToolSet,
 	type HistoryOptions,
 } from "@/pipeline/context";
 import {
 	buildSystemPrompt,
 	buildUserMessage,
 	resolveSampling,
+	type UserContent,
 } from "@/pipeline/prompts";
 import { emitReport } from "@/pipeline/reports";
 import { REPLY_TOOL_NAME } from "@/primitives/tools/reply";
 import type { Variable } from "@/primitives/variables";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
 import type { AgentDefinition } from "./agents";
 import type { TurnConfig } from "./overrides";
 
@@ -111,8 +115,8 @@ export interface ModelCallStep {
 		toolName: string;
 		result: unknown;
 	}>;
-	finishReason?: string;
-	usage?: { inputTokens: number; outputTokens: number };
+	finishReason?: string | undefined;
+	usage?: { inputTokens: number; outputTokens: number } | undefined;
 }
 
 export interface AgentRunResult {
@@ -120,10 +124,9 @@ export interface AgentRunResult {
 	durationMs: number;
 	steps: ModelCallStep[];
 	model: string;
-	provider: string;
 	tier: string;
 	/** Verbatim transcript that hit the model — full prompts for `report: "full"`. */
-	historyMessages: ModelMessage[];
+	historyMessages: ChatMessage[];
 	systemPrompt: string;
 	userMessage: string;
 	replyContent: string;
@@ -135,7 +138,7 @@ export interface RunAgentInput {
 	system: string;
 	userContent: UserContent;
 	tools: AssembledTools;
-	historyMessages: ModelMessage[];
+	historyMessages: ChatMessage[];
 }
 
 export interface ExecuteAgentInput {
@@ -257,57 +260,44 @@ function resolveReportLevel(
 
 /**
  * Low-level: take a fully-prepared turn (config, context, prompts) and
- * drive the Vercel AI SDK to produce an `AgentRunResult`.
+ * drive the chat-completions API to produce an `AgentRunResult`.
  * Most callers want `executeAgent` instead.
  */
 export async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 	const { turn, def, system, userContent, tools, historyMessages } = input;
 
-	const providerCfg = resolveProvider(turn.config?.provider);
+	const { config: providerCfg } = resolveProvider();
 	const tier: ModelTier =
 		turn.config?.modelTier ?? settings.agentDefaults.modelTier;
 	const modelId = providerCfg[tier];
 	const toolChoice = turn.config?.toolChoice;
 	const stepLimit = turn.config?.stepLimit ?? settings.agent.maxSteps;
-	const sampling = resolveSampling(turn.config, turn.config?.provider);
+	const sampling = resolveSampling(turn.config);
 
-	log.info(
-		`[agent] calling ${modelId} via ${providerCfg.sdk} for @${def.name}`,
-	);
+	log.info(`[agent] calling ${modelId} for @${def.name}`);
 
-	const messages: ModelMessage[] = [
+	const initialMessages: ChatMessage[] = [
 		...historyMessages,
 		{ role: "user", content: userContent },
 	];
 
-	const hasTools = Object.keys(tools.allTools).length > 0;
-	const activeTools =
-		toolChoice === "none" ? [REPLY_TOOL_NAME] : tools.initialActive;
-
-	const result = await callModel({
-		tier,
-		provider: turn.config?.provider,
-		agentName: def.name,
-		chatId: turn.chatId,
-		stepLimit,
-		runId: turn.runId,
+	const result = await runLoop({
+		modelId,
 		system,
-		messages,
-		...(sampling.temperature !== undefined
-			? { temperature: sampling.temperature }
-			: {}),
-		...(sampling.topP !== undefined ? { topP: sampling.topP } : {}),
-		...(sampling.providerOptions
-			? { providerOptions: sampling.providerOptions }
-			: {}),
-		...(toolChoice === "required" ? { toolChoice: "required" as const } : {}),
-		...(hasTools
-			? {
-					tools: tools.allTools,
-					activeTools,
-					...(toolChoice !== "none" ? { prepareStep: tools.prepareStep } : {}),
-				}
-			: {}),
+		messages: initialMessages,
+		tools,
+		stepLimit,
+		toolChoice:
+			toolChoice === "none"
+				? "none"
+				: toolChoice === "required"
+					? "required"
+					: undefined,
+		temperature: sampling.temperature,
+		topP: sampling.topP,
+		reasoning: sampling.reasoning,
+		runId: turn.runId,
+		agentName: def.name,
 	});
 
 	// Fire-and-forget — trace persistence is best-effort, never blocks reply.
@@ -341,7 +331,6 @@ export async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 		durationMs: result.durationMs,
 		steps: result.steps,
 		model: modelId,
-		provider: providerCfg.sdk,
 		tier,
 		historyMessages,
 		systemPrompt: system,
@@ -350,168 +339,259 @@ export async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 	};
 }
 
-// ── Model call (private) ───────────────────────────────────────────────────
+// ── Loop core (private) ────────────────────────────────────────────────────
 
-interface ModelCallOptions {
-	tier: ModelTier;
-	chatId?: string;
-	provider?: string | undefined;
-	system?: string;
-	messages: ModelMessage[];
-	tools?: ToolSet;
-	stepLimit?: number;
-	runId?: string;
-	agentName?: string;
-	activeTools?: string[];
-	prepareStep?: (steps: StepResult<ToolSet>[]) => string[];
-	temperature?: number;
-	topP?: number;
-	toolChoice?: "none" | "required";
-	providerOptions?: Record<string, Record<string, unknown>>;
+interface RunLoopOptions {
+	modelId: string;
+	system: string;
+	messages: ChatMessage[];
+	tools: AssembledTools;
+	stepLimit: number;
+	toolChoice?: "none" | "required" | undefined;
+	temperature?: number | undefined;
+	topP?: number | undefined;
+	reasoning?: { effort: "low" | "high" } | undefined;
+	runId: string;
+	agentName: string;
 }
 
-interface ModelCallResult {
-	content: string;
+interface RunLoopResult {
 	usage: { promptTokens: number; completionTokens: number };
 	steps: ModelCallStep[];
 	durationMs: number;
 }
 
+async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
+	const startTime = Date.now();
+	const { tools } = opts;
+
+	const messages: ChatMessage[] = [...opts.messages];
+	let active =
+		opts.toolChoice === "none" ? [REPLY_TOOL_NAME] : tools.initialActive;
+	const steps: ModelCallStep[] = [];
+	let totalIn = 0;
+	let totalOut = 0;
+
+	for (let i = 0; i < opts.stepLimit; i++) {
+		const requestTools = buildRequestTools(
+			tools.functionTools,
+			tools.serverTools,
+			active,
+		);
+		const hasTools = requestTools.length > 0;
+
+		const requestBody: ChatRequest = {
+			model: opts.modelId,
+			messages: [
+				...(opts.system
+					? [{ role: "system" as const, content: opts.system }]
+					: []),
+				...messages,
+			],
+			...(opts.temperature !== undefined
+				? { temperature: opts.temperature }
+				: {}),
+			...(opts.topP !== undefined ? { topP: opts.topP } : {}),
+			...(opts.reasoning ? { reasoning: opts.reasoning } : {}),
+			...(hasTools ? { tools: requestTools } : {}),
+			...(hasTools && opts.toolChoice
+				? { toolChoice: opts.toolChoice as ChatToolChoice }
+				: {}),
+		};
+
+		const response = await callWithRetry(requestBody, opts.modelId);
+		const choice = response.choices[0];
+		if (!choice) {
+			throw new Error(
+				`[agent] ${opts.modelId} returned no choices for @${opts.agentName}`,
+			);
+		}
+		const msg = choice.message;
+		const inputTokens = response.usage?.promptTokens ?? 0;
+		const outputTokens = response.usage?.completionTokens ?? 0;
+		totalIn += inputTokens;
+		totalOut += outputTokens;
+
+		// Narrow to function-type tool calls (the only kind we care about — custom
+		// tool calls aren't part of Klaus's surface).
+		const rawCalls = (msg.toolCalls ?? []).filter(
+			(tc): tc is ChatToolCall => tc.type === "function",
+		);
+		const toolCalls = rawCalls.map((tc) => ({
+			toolCallId: tc.id,
+			toolName: tc.function.name,
+			args: parseArgs(tc.function.arguments),
+		}));
+
+		const toolResults = await Promise.all(
+			toolCalls.map(async (tc) => {
+				const t = tools.functionTools[tc.toolName];
+				if (!t) {
+					return {
+						toolCallId: tc.toolCallId,
+						toolName: tc.toolName,
+						result: { error: `Unknown tool: ${tc.toolName}` },
+					};
+				}
+				try {
+					const result = await t.execute(tc.args);
+					return { toolCallId: tc.toolCallId, toolName: tc.toolName, result };
+				} catch (err) {
+					return {
+						toolCallId: tc.toolCallId,
+						toolName: tc.toolName,
+						result: {
+							error: err instanceof Error ? err.message : String(err),
+						},
+					};
+				}
+			}),
+		);
+
+		const reasoning = typeof msg.reasoning === "string" ? msg.reasoning : "";
+		steps.push({
+			reasoning,
+			toolCalls,
+			toolResults,
+			finishReason: choice.finishReason ?? undefined,
+			usage: { inputTokens, outputTokens },
+		});
+
+		if (toolCalls.length === 0) break;
+
+		// Append assistant message + tool responses to the running conversation
+		// for the next step. Pass through the raw toolCalls (unparsed args) to
+		// preserve the wire-shape the model produced.
+		messages.push({
+			role: "assistant",
+			content: typeof msg.content === "string" ? msg.content : "",
+			toolCalls: rawCalls,
+		});
+		for (const tr of toolResults) {
+			messages.push({
+				role: "tool",
+				toolCallId: tr.toolCallId,
+				content:
+					typeof tr.result === "string" ? tr.result : JSON.stringify(tr.result),
+			});
+		}
+
+		active = tools.prepareStep(steps);
+	}
+
+	return {
+		usage: { promptTokens: totalIn, completionTokens: totalOut },
+		steps,
+		durationMs: Date.now() - startTime,
+	};
+}
+
+function parseArgs(raw: string): Record<string, unknown> {
+	if (!raw) return {};
+	try {
+		const parsed = JSON.parse(raw);
+		return parsed && typeof parsed === "object"
+			? (parsed as Record<string, unknown>)
+			: {};
+	} catch {
+		log.warn("[agent] failed to parse tool call arguments JSON", {
+			raw: raw.slice(0, 200),
+		});
+		return {};
+	}
+}
+
+function buildRequestTools(
+	functionTools: FunctionToolSet,
+	serverTools: ChatTool[],
+	active: string[],
+): ChatTool[] {
+	const out: ChatTool[] = [];
+	for (const name of active) {
+		const t = functionTools[name];
+		if (!t) continue;
+		out.push({
+			type: "function",
+			function: {
+				name,
+				description: t.description,
+				// zod schemas cross a runtime-compatible but TS-incompatible boundary
+				// between zod v3 (used elsewhere) and v4's toJSONSchema (only here).
+				parameters: toJSONSchema(t.inputSchema as never) as Record<
+					string,
+					unknown
+				>,
+			},
+		});
+	}
+	out.push(...serverTools);
+	return out;
+}
+
 /** Retryable = transient (network blip, 5xx). Timeouts and rate limits are not. */
 function isRetryable(err: unknown): boolean {
 	if (err instanceof LlmTimeoutError) return false;
+	if (err instanceof OpenRouterError) {
+		if (err.statusCode === 429) return false;
+		if (err.statusCode >= 400 && err.statusCode < 500) return false;
+		return true;
+	}
 	if (err instanceof Error && /rate.?limit/i.test(err.message)) return false;
 	if (err instanceof Error && /prompt is too long/i.test(err.message))
 		return false;
 	return true;
 }
 
-async function callModel(opts: ModelCallOptions): Promise<ModelCallResult> {
-	const providerCfg = resolveProvider(opts.provider);
-	const modelId = providerCfg[opts.tier];
-	const model = createModel(providerCfg.sdk, modelId);
-
-	const startTime = Date.now();
+async function callWithRetry(body: ChatRequest, modelId: string) {
+	const { config: providerCfg, apiKey } = resolveProvider();
 	const timeoutMs = settings.agent.timeout;
 	const MAX_ATTEMPTS = settings.agent.retries.max;
 
-	let result: Awaited<ReturnType<typeof generateText>> | undefined;
-	let lastErr: unknown;
+	const client = new OpenRouter({
+		apiKey,
+		serverURL: providerCfg.baseURL,
+		retryConfig: { strategy: "none" },
+	});
 
+	let lastErr: unknown;
 	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-		let timeoutId: ReturnType<typeof setTimeout> | undefined;
+		const ac = new AbortController();
+		const timeoutId = setTimeout(() => ac.abort(), timeoutMs);
 		try {
-			const timeoutPromise = new Promise<never>((_, reject) => {
-				timeoutId = setTimeout(
-					() => reject(new LlmTimeoutError(modelId, timeoutMs)),
-					timeoutMs,
-				);
-			});
-			result = await Promise.race([
-				generateText({
-					model,
-					...(opts.system ? { system: opts.system } : {}),
-					messages: opts.messages,
-					...(opts.temperature !== undefined
-						? { temperature: opts.temperature }
-						: {}),
-					...(opts.topP !== undefined ? { topP: opts.topP } : {}),
-					...(opts.toolChoice ? { toolChoice: opts.toolChoice } : {}),
-					...(opts.providerOptions
-						? { providerOptions: opts.providerOptions as ProviderOptions }
-						: {}),
-					...(opts.tools && Object.keys(opts.tools).length > 0
-						? {
-								tools: opts.tools,
-								stopWhen: stepCountIs(
-									opts.stepLimit ?? settings.agent.maxSteps,
-								),
-								...(opts.activeTools
-									? { activeTools: opts.activeTools as Array<keyof ToolSet> }
-									: {}),
-								...(opts.prepareStep
-									? {
-											prepareStep: ({
-												steps,
-											}: {
-												steps: StepResult<ToolSet>[];
-											}) => ({
-												activeTools: opts.prepareStep?.(steps) as Array<
-													keyof ToolSet
-												>,
-											}),
-										}
-									: {}),
-							}
-						: {}),
-				}),
-				timeoutPromise,
-			]);
+			const response = await client.chat.send(
+				{ chatRequest: { ...body, stream: false } },
+				{ signal: ac.signal },
+			);
 			clearTimeout(timeoutId);
-			break;
+			return response;
 		} catch (err) {
 			clearTimeout(timeoutId);
-			lastErr = err;
-			if (!isRetryable(err)) {
+			const isAbort = err instanceof DOMException && err.name === "AbortError";
+			const wrapped = isAbort ? new LlmTimeoutError(modelId, timeoutMs) : err;
+			lastErr = wrapped;
+			if (!isRetryable(wrapped)) {
 				log.error(`[agent] ${modelId} call failed (non-retryable)`, {
-					error: err instanceof Error ? err.message : String(err),
-					stack: err instanceof Error ? err.stack : undefined,
+					error: wrapped instanceof Error ? wrapped.message : String(wrapped),
 				});
-				throw err;
+				throw wrapped;
 			}
 			if (attempt < MAX_ATTEMPTS) {
 				const delayMs = settings.agent.retries.backoffMs * 2 ** (attempt - 1);
 				log.warn(
 					`[agent] ${modelId} call failed, retrying (attempt ${attempt}/${MAX_ATTEMPTS})`,
-					{ error: err instanceof Error ? err.message : String(err) },
+					{
+						error: wrapped instanceof Error ? wrapped.message : String(wrapped),
+					},
 				);
 				await new Promise<void>((r) => setTimeout(r, delayMs));
 			}
 		}
 	}
 
-	if (!result) {
-		log.error(`[agent] ${modelId} call failed after all retries`, {
-			error: lastErr instanceof Error ? lastErr.message : String(lastErr),
-			stack: lastErr instanceof Error ? lastErr.stack : undefined,
-		});
-		throw lastErr;
-	}
-
-	const durationMs = Date.now() - startTime;
-	const promptTokens = result.steps.reduce(
-		(s, st) => s + (st.usage.inputTokens ?? 0),
-		0,
-	);
-	const completionTokens = result.steps.reduce(
-		(s, st) => s + (st.usage.outputTokens ?? 0),
-		0,
-	);
-	const steps: ModelCallStep[] = result.steps.map((s) => ({
-		reasoning: s.reasoningText ?? "",
-		toolCalls: (s.toolCalls ?? []).map((tc) => ({
-			toolCallId: tc.toolCallId,
-			toolName: tc.toolName,
-			args: (tc.input ?? {}) as Record<string, unknown>,
-		})),
-		toolResults: (s.toolResults ?? []).map((tr) => ({
-			toolCallId: tr.toolCallId,
-			toolName: tr.toolName,
-			result: tr.output,
-		})),
-		finishReason: s.finishReason,
-		usage: {
-			inputTokens: s.usage.inputTokens ?? 0,
-			outputTokens: s.usage.outputTokens ?? 0,
-		},
-	}));
-
-	return {
-		content: result.text,
-		usage: { promptTokens, completionTokens },
-		steps,
-		durationMs,
-	};
+	log.error(`[agent] ${modelId} call failed after all retries`, {
+		error: lastErr instanceof Error ? lastErr.message : String(lastErr),
+	});
+	throw lastErr;
 }
 
 // ── Trace transform (private) ──────────────────────────────────────────────
@@ -563,6 +643,8 @@ function toTraceSteps(steps: ModelCallStep[]): TraceStep[] {
 
 // ── Dynamic persistence (forced tool call) ─────────────────────────────────
 
+const PERSIST_TOOL_NAME = "persist";
+
 const persistInputSchema = z.object({
 	nextRun: z
 		.string()
@@ -584,7 +666,7 @@ interface PersistDynamicInput {
 	def: AgentDefinition;
 	turn: TurnContext;
 	system: string;
-	historyMessages: ModelMessage[];
+	historyMessages: ChatMessage[];
 	userContent: UserContent;
 	replyContent: string;
 	hint: string;
@@ -597,20 +679,12 @@ interface PersistDynamicInput {
  * reschedules hide bugs.
  */
 async function persistDynamic(input: PersistDynamicInput): Promise<void> {
-	const persistTool = tool({
-		description:
-			"Schedule the next run of this persistent agent. You MUST call this exactly once.",
-		inputSchema: persistInputSchema,
-		execute: async (i) => i,
-	});
-
-	const providerCfg = resolveProvider(input.turn.config?.provider);
+	const { config: providerCfg, apiKey } = resolveProvider();
 	const tier: ModelTier =
 		input.turn.config?.modelTier ?? settings.agentDefaults.modelTier;
 	const modelId = providerCfg[tier];
-	const model = createModel(providerCfg.sdk, modelId);
 
-	const messages: ModelMessage[] = [
+	const messages: ChatMessage[] = [
 		...input.historyMessages,
 		{ role: "user", content: input.userContent },
 	];
@@ -619,28 +693,50 @@ async function persistDynamic(input: PersistDynamicInput): Promise<void> {
 	}
 	messages.push({
 		role: "user",
-		content: `Now schedule your next run by calling the \`persist\` tool. Hint: ${input.hint}`,
+		content: `Now schedule your next run by calling the \`${PERSIST_TOOL_NAME}\` tool. Hint: ${input.hint}`,
 	});
 
 	log.info(`[persist] forcing tool call for @${input.def.name}`);
 
-	const result = await generateText({
-		model,
-		system: input.system,
-		messages,
-		tools: { persist: persistTool },
-		toolChoice: { type: "tool", toolName: "persist" },
+	const persistTool: ChatTool = {
+		type: "function",
+		function: {
+			name: PERSIST_TOOL_NAME,
+			description:
+				"Schedule the next run of this persistent agent. You MUST call this exactly once.",
+			parameters: toJSONSchema(persistInputSchema as never) as Record<
+				string,
+				unknown
+			>,
+		},
+	};
+
+	const client = new OpenRouter({
+		apiKey,
+		serverURL: providerCfg.baseURL,
+		retryConfig: { strategy: "none" },
 	});
 
-	const call = result.steps
-		.flatMap((s) => s.toolCalls ?? [])
-		.find((tc) => tc.toolName === "persist");
+	const response = await client.chat.send({
+		chatRequest: {
+			model: modelId,
+			messages: [{ role: "system", content: input.system }, ...messages],
+			tools: [persistTool],
+			toolChoice: { type: "function", function: { name: PERSIST_TOOL_NAME } },
+			stream: false,
+		},
+	});
+
+	const call = response.choices[0]?.message.toolCalls?.find(
+		(tc): tc is ChatToolCall =>
+			tc.type === "function" && tc.function.name === PERSIST_TOOL_NAME,
+	);
 
 	if (!call) {
 		throw new Error(`@${input.def.name}: persist tool was not called`);
 	}
 
-	const parsed = persistInputSchema.parse(call.input);
+	const parsed = persistInputSchema.parse(parseArgs(call.function.arguments));
 	const runAt = computeNextRun(parsed.nextRun);
 
 	await addTimer({
@@ -698,36 +794,4 @@ function computeNextRun(nextRun: string): string {
 
 function clamp(v: number, lo: number, hi: number): number {
 	return Math.max(lo, Math.min(hi, v));
-}
-
-// ── SDK factory (private) ──────────────────────────────────────────────────
-
-/**
- * Resolve a Vercel AI SDK model for the given sdk + model ID. `@ai-sdk/<sdk>`
- * is imported dynamically so forkers can add providers by installing the
- * package and adding an entry under `settings.providers`.
- */
-function createModel(sdk: string, modelId: string): LanguageModel {
-	let factory: ((id: string) => LanguageModel) | undefined;
-	try {
-		const m = require(`@ai-sdk/${sdk}`);
-		factory = m[sdk] ?? m.default;
-		if (typeof factory !== "function") {
-			throw new Error(
-				`@ai-sdk/${sdk} does not export a model factory as "${sdk}" or "default"`,
-			);
-		}
-	} catch (err) {
-		if (
-			err instanceof Error &&
-			"code" in err &&
-			(err as NodeJS.ErrnoException).code === "MODULE_NOT_FOUND"
-		) {
-			throw new Error(
-				`AI SDK package @ai-sdk/${sdk} not found. Install it: bun add @ai-sdk/${sdk}`,
-			);
-		}
-		throw err;
-	}
-	return factory(modelId);
 }
