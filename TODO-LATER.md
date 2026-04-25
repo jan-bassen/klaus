@@ -6,7 +6,6 @@ We don't need streaming, structured output, and many other things. To keep it mo
 ## Last features
 
 - [ ] zod v4
-- [ ] remove fetch_url and such
 - [ ] image gen
 - [ ] openrouter cost checker/ analytics tool
 - [ ] Bundle obsidian headless in the same container?

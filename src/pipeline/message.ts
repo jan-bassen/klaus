@@ -4,7 +4,6 @@
  * Normalize = turn raw inbound into a fully-enriched InboundMessage:
  *   - transcribe voice notes (STT)
  *   - parse attached documents to text
- *   - fetch embedded web links
  *   - rewrite spoken `@agent` / `!override` patterns in voice transcripts
  *
  * Parse = detect `/command`, extract `@agent` route, pull out `!overrides`.
@@ -13,17 +12,10 @@
  * orchestrates and handles the message-level text munging.
  */
 
-import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
 import type { InboundMessage } from "@/infra/whatsapp/receive";
 import { parseCommand } from "@/primitives/commands";
-import {
-	extractUrls,
-	fetchWebContent,
-	isParseableDocument,
-	parseDocument,
-	transcribe,
-} from "./media";
+import { isParseableDocument, parseDocument, transcribe } from "./media";
 import { parseOverrides, stripOverrides } from "./overrides";
 
 /**
@@ -112,27 +104,6 @@ async function normalize(
 		if (!(extracted instanceof Error)) {
 			m = { ...m, media: { ...m.media, extractedText: extracted } };
 		}
-	}
-
-	const urls = extractUrls(m.text ?? "");
-	if (urls.length > 0) {
-		const toFetch = urls.slice(0, settings.media.web.maxUrls);
-		const results = await Promise.allSettled(toFetch.map(fetchWebContent));
-		const links: NonNullable<InboundMessage["links"]> = [];
-		for (let i = 0; i < results.length; i++) {
-			const r = results[i];
-			const url = toFetch[i] ?? "";
-			if (r && r.status === "fulfilled" && !(r.value instanceof Error)) {
-				links.push({ url, ...r.value });
-			} else if (r && r.status === "rejected") {
-				log.warn("[message] web fetch failed", {
-					url,
-					error:
-						r.reason instanceof Error ? r.reason.message : String(r.reason),
-				});
-			}
-		}
-		if (links.length > 0) m = { ...m, links };
 	}
 
 	return m;

@@ -1,6 +1,6 @@
 /**
  * All media-in/out for the pipeline lives here:
- *   STT, TTS, vision prep, document parse, web fetch, image generation.
+ *   STT, TTS, vision prep, document parse, image generation.
  *
  * Lower-level transport (downloading WhatsApp blobs, sending audio back) stays
  * in `infra/whatsapp`. This module is the single surface the pipeline talks to.
@@ -9,7 +9,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { LiteParse } from "@llamaindex/liteparse";
-import { parseHTML } from "linkedom";
 import sharp from "sharp";
 import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
@@ -171,121 +170,6 @@ export async function parseDocument(
 			error: error.message,
 		});
 		return error;
-	}
-}
-
-// ── Web fetch ──────────────────────────────────────────────────────────────
-
-const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi;
-
-/** Extract deduplicated URLs from text, preserving order, trimming trailing punctuation. */
-export function extractUrls(text: string): string[] {
-	const matches = text.match(URL_PATTERN);
-	if (!matches) return [];
-	const cleaned = matches.map(cleanUrl).filter((u) => u.length > 10);
-	return [...new Set(cleaned)];
-}
-
-function cleanUrl(raw: string): string {
-	let url = raw.replace(/[.,;:!?]+$/, "");
-	while (url.endsWith(")") && count(url, "(") < count(url, ")"))
-		url = url.slice(0, -1);
-	while (url.endsWith("]") && count(url, "[") < count(url, "]"))
-		url = url.slice(0, -1);
-	return url;
-}
-
-function count(s: string, ch: string): number {
-	let n = 0;
-	for (let i = 0; i < s.length; i++) if (s[i] === ch) n++;
-	return n;
-}
-
-const WEB_CACHE = new Map<
-	string,
-	{ title: string; text: string; fetchedAt: number }
->();
-const WEB_CACHE_TTL_MS = 3_600_000;
-
-/**
- * Fetch a URL and extract its readable text via defuddle. In-memory cached for 1h.
- * Returns `{ title, text }` or an Error value.
- */
-export async function fetchWebContent(
-	url: string,
-): Promise<{ title: string; text: string } | Error> {
-	const cached = WEB_CACHE.get(url);
-	if (cached && Date.now() - cached.fetchedAt < WEB_CACHE_TTL_MS) {
-		return { title: cached.title, text: cached.text };
-	}
-
-	try {
-		const controller = new AbortController();
-		const timer = setTimeout(
-			() => controller.abort(),
-			settings.media.web.timeout,
-		);
-		const response = await fetch(url, {
-			signal: controller.signal,
-			headers: { "User-Agent": "Klaus/0.2 (link preview)" },
-			redirect: "follow",
-		});
-		clearTimeout(timer);
-
-		if (!response.ok) return new Error(`HTTP ${response.status} for ${url}`);
-
-		const contentType = response.headers.get("content-type") ?? "";
-		if (
-			!contentType.includes("text/html") &&
-			!contentType.includes("text/plain")
-		) {
-			return new Error(`Non-text content type: ${contentType}`);
-		}
-
-		const reader = response.body?.getReader();
-		if (!reader) return new Error("No response body");
-
-		const chunks: Uint8Array[] = [];
-		let total = 0;
-		while (true) {
-			const { done, value } = await reader.read();
-			if (done) break;
-			total += value.byteLength;
-			if (total > settings.media.web.maxBodyBytes) {
-				reader.cancel();
-				return new Error(
-					`Response too large (>${settings.media.web.maxBodyBytes} bytes)`,
-				);
-			}
-			chunks.push(value);
-		}
-
-		const body = new TextDecoder().decode(Buffer.concat(chunks));
-
-		if (contentType.includes("text/plain")) {
-			const text = trunc(body.trim(), settings.media.web.maxChars);
-			const out = { title: url, text };
-			WEB_CACHE.set(url, { ...out, fetchedAt: Date.now() });
-			return out;
-		}
-
-		const { Defuddle } = await import("defuddle/node");
-		const { document } = parseHTML(body);
-		const parsed = await Defuddle(document, url, { markdown: true });
-		const text = trunc(
-			(parsed.content ?? parsed.title ?? "").trim(),
-			settings.media.web.maxChars,
-		);
-		const title = parsed.title ?? url;
-
-		const out = { title, text };
-		WEB_CACHE.set(url, { ...out, fetchedAt: Date.now() });
-		return out;
-	} catch (err) {
-		if (err instanceof DOMException && err.name === "AbortError") {
-			return new Error(`Fetch timed out for ${url}`);
-		}
-		return err instanceof Error ? err : new Error(String(err));
 	}
 }
 

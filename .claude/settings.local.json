@@ -83,7 +83,8 @@
 			"Bash(echo \"exit=$?\")",
 			"Read(//Users/janbassen/Code/klaus/**)",
 			"Read(//Users/janbassen/Code/klaus/=== leftover TODO/**)",
-			"Bash(xargs sed *)"
+			"Bash(xargs sed *)",
+			"Bash(find /Users/janbassen/Code/klaus -name \"*.ts\" -type f -exec grep -l \"Defuddle\\\\|defuddle\" {} \\\\;)"
 		]
 	}
 }

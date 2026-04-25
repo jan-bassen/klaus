@@ -5,6 +5,7 @@ tools:
   - react
 providerTools:
   - web_search
+  - web_fetch
 toolsets:
   - vault
   - dispatch

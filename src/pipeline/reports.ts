@@ -165,7 +165,6 @@ function buildMessageSection(msg: InboundMessage): ReportEntry["message"] {
 		out.hasMedia = true;
 		out.mediaType = msg.media.mimeType;
 	}
-	if (msg.links?.length) out.links = msg.links.length;
 	return out;
 }
 

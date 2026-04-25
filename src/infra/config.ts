@@ -203,14 +203,6 @@ const MediaSchema = z
 				maxChars: z.number(),
 			})
 			.strict(),
-		web: z
-			.object({
-				timeout: z.number(),
-				maxChars: z.number(),
-				maxUrls: z.number(),
-				maxBodyBytes: z.number(),
-			})
-			.strict(),
 	})
 	.strict();
 

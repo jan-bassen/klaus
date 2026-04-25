@@ -13,7 +13,6 @@
 ## Message
 {{#if message.text}}> {{trunc message.text 500}}
 {{/if}}{{#if message.hasMedia}}- Media: {{message.mediaType}}
-{{/if}}{{#if message.links}}- Links: {{message.links}}
 {{/if}}{{/if}}
 
 {{#if llm}}

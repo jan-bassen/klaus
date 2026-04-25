@@ -6,9 +6,8 @@
  * for every downstream phase.
  *
  * Setup:
- *   - Mock `@/pipeline/media` so `transcribe`, `parseDocument`, and
- *     `fetchWebContent` are spies returning canned values. No real network /
- *     disk work.
+ *   - Mock `@/pipeline/media` so `transcribe` and `parseDocument` are spies
+ *     returning canned values. No real network / disk work.
  *   - `parseOverrides` / `stripOverrides` come from `@/pipeline/overrides` and
  *     depend on the live `overrideRegistry`. Either preload
  *     `Klaus/overrides.yml` via `loadOverrides()` once in beforeAll, or
@@ -79,18 +78,6 @@ describe("pipeline/message.parseMessage: normalize (documents)", () => {
 	it.todo("parse error: msg.media.extractedText stays undefined (no throw)");
 
 	it.todo("non-parseable mime: parseDocument not called, extractedText absent");
-});
-
-describe("pipeline/message.parseMessage: normalize (links)", () => {
-	it.todo(
-		"URLs in text: fetchWebContent called for up to settings.media.web.maxUrls, results attached to msg.links",
-	);
-
-	it.todo(
-		"failed fetches: logged and dropped — only successful links appear in msg.links",
-	);
-
-	it.todo("no URLs: msg.links stays absent (no empty array)");
 });
 
 describe("pipeline/message.parseMessage: voice transcript rewriting", () => {

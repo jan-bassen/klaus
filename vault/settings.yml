@@ -69,11 +69,6 @@ media:
   document:
     ocr: true
     maxChars: 40000
-  web:
-    timeout: 10000
-    maxChars: 12000
-    maxUrls: 3
-    maxBodyBytes: 5242880
 
 whatsapp:
   selfMode: false

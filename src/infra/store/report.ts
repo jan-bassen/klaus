@@ -83,7 +83,6 @@ const ReportMessageSchema = z.object({
 	text: z.string().optional(),
 	hasMedia: z.boolean().optional(),
 	mediaType: z.string().optional(),
-	links: z.number().optional(),
 });
 
 const ReportOutcomeSchema = z.discriminatedUnion("kind", [

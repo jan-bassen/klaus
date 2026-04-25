@@ -18,7 +18,7 @@ import { enqueueMessage, setSocket, wasSentByUs } from "./send";
  * Baileys `WAMessage`, then flows through the whole pipeline as the
  * canonical user-input shape. Populated incrementally:
  *   - `media` is filled as the blob downloads into the files store.
- *   - `media.transcription` / `media.extractedText` / `links` are added by
+ *   - `media.transcription` / `media.extractedText` are added by
  *     `pipeline/media.ts` during normalize.
  *   - `quotedMessage.media` is resolved in `pipeline/index.ts` from the
  *     files store when the user replies to a prior attachment.
@@ -41,8 +41,6 @@ export interface InboundMessage {
 		/** For documents: text extracted by the parser (populated in normalize). */
 		extractedText?: string;
 	};
-	/** Web links auto-fetched from message text (populated in normalize). */
-	links?: Array<{ url: string; title: string; text: string }>;
 	/** Set by this module when the message is a reply to another message. */
 	quotedMessage?: {
 		externalId: string;

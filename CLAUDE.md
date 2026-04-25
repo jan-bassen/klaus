@@ -17,7 +17,7 @@ bun run publish
 
 A maximally simple, headless personal AI agent: **WhatsApp → TypeScript → Obsidian vault → Docker**.
 
-Stack: Bun, TypeScript strict, Zod, Handlebars, Baileys. Models via a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default OpenRouter); request/response types come from the `openai` npm package (devDep, types-only) with small extensions for OpenRouter-specific bits (`reasoning.effort`, `openrouter:web_search` / `openrouter:web_fetch` server tools). Liteparse for docs, defuddle for web, sharp for images. JSONL for conversations/reports, JSON for schedules/timers. No database.
+Stack: Bun, TypeScript strict, Zod, Handlebars, Baileys. Models via a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default OpenRouter); request/response types come from the `openai` npm package (devDep, types-only) with small extensions for OpenRouter-specific bits (`reasoning.effort`, `openrouter:web_search` / `openrouter:web_fetch` server tools). Liteparse for docs, sharp for images. JSONL for conversations/reports, JSON for schedules/timers. No database.
 
 ## Directory layout
 
@@ -34,7 +34,7 @@ src/
 │   ├── prompts.ts    # system/user message rendering
 │   ├── agent.ts      # core model loop (runAgent, executeAgent, persist) + TurnContext + Trigger
 │   ├── dispatch.ts   # dispatch() primitive
-│   ├── media.ts      # STT, doc parsing, web fetch
+│   ├── media.ts      # STT, doc parsing, image prep
 │   └── reports.ts    # per-turn report emitter
 ├── primitives/       # pluggable extensions (auto-discovered via glob)
 │   ├── tools/        # reply, react, web, conversation, skill + sets/{vault,dispatch,files}

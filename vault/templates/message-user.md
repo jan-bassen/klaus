@@ -5,11 +5,3 @@
 {{#if quotedText}}> Quoted: {{quotedText}} {{/if}}
 
 {{#if label}}[#{{label}}] {{/if}}{{messageText}}
-
-{{#if links.count}}
-{{#each links.items}}
----
-[{{title}}]({{url}})
-{{trunc text 8000}}
-{{/each}}
-{{/if}}
