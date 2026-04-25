@@ -31,6 +31,7 @@ import {
 	setOnTimerFire,
 	stopAllTimers,
 } from "./infra/store/timers";
+import { type SyncHandle, startSync } from "./infra/sync";
 import { startWatching, stopWatching } from "./infra/vault/watcher";
 import {
 	closeSocket,
@@ -57,14 +58,18 @@ if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
 }
 
 let shuttingDown = false;
+const shutdownController = new AbortController();
+let syncHandle: SyncHandle | null = null;
 async function shutdown(signal: string): Promise<void> {
 	if (shuttingDown) return;
 	shuttingDown = true;
 	log.info("[shutdown] received signal, shutting down gracefully", { signal });
 
+	shutdownController.abort();
+
 	await Promise.race([
-		drainQueue(),
-		new Promise<void>((r) => setTimeout(r, 5_000)),
+		Promise.all([drainQueue(), syncHandle?.stop() ?? Promise.resolve()]),
+		new Promise<void>((r) => setTimeout(r, 10_000)),
 	]);
 
 	closeSocket();
@@ -145,6 +150,31 @@ async function main(): Promise<void> {
 	for (const dir of dirs) {
 		await mkdir(dir, { recursive: true });
 	}
+
+	log.info("[startup] starting bundled obsidian-headless sync");
+	const syncResult = await startSync({
+		vaultRoot: settings.vault.root,
+		configDir: path.join(settings.dataDir, "obsidian-headless"),
+		signal: shutdownController.signal,
+		shutdownTimeoutMs: settings.sync.shutdownTimeoutMs,
+		backoff: settings.sync.restartBackoff,
+	});
+	if (!syncResult.ok) {
+		const err = syncResult.error;
+		if (err.kind === "missing-env") {
+			log.error("[startup] obsidian sync env vars missing", {
+				missing: err.vars,
+			});
+		} else {
+			log.error("[startup] obsidian sync setup failed", {
+				step: err.step,
+				exitCode: err.exitCode,
+				stderr: err.stderr,
+			});
+		}
+		process.exit(1);
+	}
+	syncHandle = syncResult.handle;
 
 	initHistoryStore({ dataDir: settings.dataDir });
 	initFilesStore({ dataDir: settings.dataDir });

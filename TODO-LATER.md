@@ -2,7 +2,6 @@
 
 ## Last features
 
-- [ ] Bundle obsidian headless in the same container?
 - [ ] Add read markers to messages in persistence
 - [ ] Snippet vars inside snippets — do they work, and how to handle loops?
 - [ ] Envs via dotenvx or varlock

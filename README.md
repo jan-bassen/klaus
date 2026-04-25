@@ -20,11 +20,11 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Obsidian va
 
 ## Quick start
 
-Prereqs: Docker, an Anthropic API key.
+Prereqs: Docker, an Anthropic API key, an Obsidian Sync subscription (the container bundles `obsidian-headless` and keeps your vault in sync).
 
 ```bash
 git clone <repo-url> && cd klaus
-cp .env.example .env    # fill in ANTHROPIC_API_KEY (and ELEVENLABS_API_KEY for voice)
+cp .env.example .env    # fill in ANTHROPIC_API_KEY, OBSIDIAN_*, etc.
 
 docker run -d --restart unless-stopped \
   --env-file .env \
@@ -35,9 +35,18 @@ docker run -d --restart unless-stopped \
   janbassen1/klaus:latest
 ```
 
-1. On first start, Klaus writes a QR to `{vault}/Klaus/_login/qr-code.svg`. Scan it from WhatsApp → Linked Devices.
+`.env` must include `OBSIDIAN_EMAIL`, `OBSIDIAN_PASSWORD`, and `OBSIDIAN_VAULT_NAME` (the remote vault to sync). `OBSIDIAN_MFA` and `OBSIDIAN_E2EE_PASSWORD` are optional — set the latter if your vault is end-to-end encrypted.
+
+1. On first start, Klaus logs into Obsidian Sync, links `/app/vault` to the remote vault, then writes a WhatsApp QR to `{vault}/Klaus/_login/qr-code.svg`. Scan it from WhatsApp → Linked Devices.
 2. Send any message to the paired number. Klaus is in **setup mode** and replies with your chat ID.
 3. Add `allowedChatId: "<id>"` to `{vault}/Klaus/settings.yml` — hot-reloaded, no restart.
+
+If MFA isn't accepted via `OBSIDIAN_MFA` (Obsidian Sync may not honour it on every login), seed the token interactively once:
+
+```bash
+docker run --rm -it -v klaus-data:/app/data janbassen1/klaus:latest \
+  ob --config-dir /app/data/obsidian-headless login
+```
 
 ### Self-mode (single number)
 
@@ -150,10 +159,15 @@ Hot-reload covers agent files, skills, snippets, templates, `overrides.yml`, and
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | Required |
 | `ELEVENLABS_API_KEY` | — | For voice notes (STT/TTS) |
+| `OBSIDIAN_EMAIL` | — | Required — Obsidian Sync account email |
+| `OBSIDIAN_PASSWORD` | — | Required — Obsidian Sync account password |
+| `OBSIDIAN_VAULT_NAME` | — | Required — name of the remote vault to sync |
+| `OBSIDIAN_MFA` | — | Optional — TOTP code for first login |
+| `OBSIDIAN_E2EE_PASSWORD` | — | Optional — vault E2EE password (if enabled) |
 | `ALLOWED_CHAT_ID` | — | Fallback — prefer `basics.allowedChatId` in settings.yml |
 | `LOG_FORMAT` | `text` | `text` or `json` (NAS log viewers prefer `json`) |
 | `PORT` | `3000` | HTTP port for `/healthz` |
-| `DATA_DIR` | `~/.klaus/data` | Conversations, reports, files, timers |
+| `DATA_DIR` | `~/.klaus/data` | Conversations, reports, files, timers, sync state |
 | `VAULT_DIR` | `./vault` | Obsidian vault root |
 
 `{vault}/Klaus/settings.yml` — everything tunable (providers, model tiers, media, whatsapp, vault folders + permissions, persistence bounds, reports). Hot-reloaded with Zod validation.

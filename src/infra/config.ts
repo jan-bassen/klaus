@@ -249,6 +249,20 @@ const ReportsSchema = z
 	})
 	.strict();
 
+const SyncSchema = z
+	.object({
+		/** SIGTERM grace period before SIGKILL is sent to the `ob` child. */
+		shutdownTimeoutMs: z.number(),
+		restartBackoff: z
+			.object({
+				initialMs: z.number(),
+				maxMs: z.number(),
+				resetAfterUpMs: z.number(),
+			})
+			.strict(),
+	})
+	.strict();
+
 export const SettingsSchema = z
 	.object({
 		basics: BasicsSchema,
@@ -260,6 +274,7 @@ export const SettingsSchema = z
 		vault: VaultYamlSchema,
 		persistence: PersistenceSchema,
 		reports: ReportsSchema,
+		sync: SyncSchema,
 	})
 	.strict();
 
