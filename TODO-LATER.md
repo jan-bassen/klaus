@@ -1,8 +1,5 @@
 # Later
 
-## Custom Core 
-We don't need streaming, structured output, and many other things. To keep it more transparent and leaner, I want to implement a minimal custom core loop (now agent - then renamed loop) based on OpenRouter
-
 ## Last features
 
 - [ ] zod v4

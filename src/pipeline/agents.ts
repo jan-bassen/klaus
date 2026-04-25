@@ -76,7 +76,7 @@ export const AgentSchema = z.object({
 	toolsets: z.array(z.string()).default([]),
 	providerTools: z.array(z.string()).default([]),
 	skills: z.array(z.string()).default([]),
-	settings: AgentSettingsSchema.default({}),
+	settings: AgentSettingsSchema.prefault({}),
 	persistence: PersistenceSchema.optional(),
 });
 
