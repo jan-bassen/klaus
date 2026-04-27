@@ -1,51 +1,148 @@
 /**
- * `infra/store/report.ts` — writeReport/readReports round-trip + filters.
- *
- * Call `initReportStore({dataDir: tmpDir})` per suite. The Zod schema
- * (`ReportEntrySchema`) validates on read, so round-trip also proves schema
- * compatibility.
+ * `infra/store/report.ts` — writeReport/readReports round-trip.
  */
 
-import { afterEach, beforeEach, describe, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+	initReportStore,
+	type ReportEntry,
+	readReports,
+	writeReport,
+} from "@/infra/store/report";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
 
-// import { initReportStore, writeReport, readReports, type ReportEntry } from "@/infra/store/report";
-// import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+function makeEntry(overrides: Partial<ReportEntry> = {}): ReportEntry {
+	const base: ReportEntry = {
+		runId: crypto.randomUUID(),
+		chatId: "c1",
+		agent: "fitness",
+		trigger: { kind: "message", messageId: "m-1" },
+		timestamp: new Date().toISOString(),
+		durationMs: 42,
+		level: "agent",
+		outcome: { kind: "ok" },
+		overrides: [],
+		config: {},
+	};
+	return { ...base, ...overrides };
+}
 
 describe("infra/store/report", () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
-		// tmpDir = makeTmpDir();
-		// initReportStore({ dataDir: tmpDir });
+		tmpDir = makeTmpDir();
+		initReportStore({ dataDir: tmpDir });
 	});
 
 	afterEach(() => {
-		// rmTmpDir(tmpDir);
+		rmTmpDir(tmpDir);
 	});
 
-	it.todo(
-		"round-trip: writeReport then readReports({days:1}) returns the same entry (schema-validated)",
-	);
+	it("round-trip: writeReport then readReports returns the entry", async () => {
+		const e = makeEntry();
+		await writeReport(e);
+		const out = await readReports({ days: 1 });
+		expect(out).toHaveLength(1);
+		expect(out[0]?.runId).toBe(e.runId);
+	});
 
-	it.todo("readReports returns most-recent first");
+	it("filters by agent / chatId / runId", async () => {
+		const a = makeEntry({ agent: "fitness", chatId: "c1" });
+		const b = makeEntry({ agent: "coach", chatId: "c2" });
+		await writeReport(a);
+		await writeReport(b);
 
-	it.todo("filter by agent narrows results");
+		const byAgent = await readReports({ agent: "coach" });
+		expect(byAgent.map((e) => e.agent)).toEqual(["coach"]);
 
-	it.todo("filter by chatId narrows results");
+		const byChat = await readReports({ chatId: "c1" });
+		expect(byChat.map((e) => e.chatId)).toEqual(["c1"]);
 
-	it.todo("filter by runId returns at most one entry");
+		const byRun = await readReports({ runId: a.runId });
+		expect(byRun).toHaveLength(1);
+		expect(byRun[0]?.runId).toBe(a.runId);
+	});
 
-	it.todo("limit caps the number returned");
+	it("limit caps the number returned", async () => {
+		for (let i = 0; i < 5; i++) await writeReport(makeEntry());
+		const out = await readReports({ limit: 2 });
+		expect(out).toHaveLength(2);
+	});
 
-	it.todo(
-		"simulatedActions round-trip preserves arbitrary JSON args + results",
-	);
+	it("error outcome round-trips", async () => {
+		const e = makeEntry({
+			outcome: { kind: "error", error: { name: "Boom", message: "nope" } },
+		});
+		await writeReport(e);
+		const out = await readReports({ runId: e.runId });
+		expect(out[0]?.outcome).toEqual({
+			kind: "error",
+			error: { name: "Boom", message: "nope" },
+		});
+	});
 
-	it.todo(
-		"level: 'full' entries preserve systemPrompt, userMessage, historyTranscript",
-	);
+	it("simulatedActions round-trips with arbitrary args + results", async () => {
+		const e = makeEntry({
+			simulation: true,
+			simulatedActions: [
+				{
+					tool: "vault.write",
+					sideEffect: "stateful",
+					args: { path: "Notes/x.md", content: "hi" },
+					intent: "Would write Notes/x.md",
+					result: "(sim) ok",
+				},
+			],
+		});
+		await writeReport(e);
+		const out = await readReports({ runId: e.runId });
+		expect(out[0]?.simulation).toBe(true);
+		expect(out[0]?.simulatedActions).toEqual(e.simulatedActions);
+	});
 
-	it.todo(
-		"corrupt lines are skipped (not thrown) — valid entries around them still return",
-	);
+	it("full-level entries preserve verbatim systemPrompt / userMessage / historyTranscript", async () => {
+		const e = makeEntry({
+			level: "full",
+			llm: {
+				model: "gpt",
+				tier: "medium",
+				durationMs: 10,
+				usage: { promptTokens: 1, completionTokens: 2 },
+				systemPromptChars: 5,
+				userMessageChars: 3,
+				historyMessageCount: 2,
+				replyChars: 1,
+				steps: [],
+				systemPrompt: "SYS",
+				userMessage: "USR",
+				historyTranscript: [{ role: "user", content: "hi" }],
+			},
+		});
+		await writeReport(e);
+		const out = await readReports({ runId: e.runId });
+		expect(out[0]?.llm?.systemPrompt).toBe("SYS");
+		expect(out[0]?.llm?.userMessage).toBe("USR");
+		expect(out[0]?.llm?.historyTranscript).toEqual([
+			{ role: "user", content: "hi" },
+		]);
+	});
+
+	it("corrupt lines are skipped, valid entries around them still return", async () => {
+		const e = makeEntry();
+		await writeReport(e);
+		// Append corrupt line manually.
+		const date = new Date().toISOString().slice(0, 10);
+		// readReports uses settings.timezone for the file partition. Just append
+		// to the same file written by writeReport (look it up).
+		const fs = await import("node:fs/promises");
+		const path = await import("node:path");
+		const dir = path.join(tmpDir, "logs");
+		const files = await fs.readdir(dir);
+		const file = path.join(dir, files[0] as string);
+		await fs.appendFile(file, "{not json\n");
+
+		const out = await readReports({ days: 1 });
+		expect(out.map((x) => x.runId)).toContain(e.runId);
+	});
 });

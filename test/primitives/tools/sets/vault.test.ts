@@ -1,103 +1,101 @@
 /**
- * `primitives/tools/sets/vault.ts` + `infra/vault/index.ts`
+ * `infra/vault/index.ts` — pure permission + path resolution logic.
  *
- * The vault permission model is the core business rule. A regression here
- * would silently expose or withhold folders from agents.
- *
- * Split into two halves:
- *   1. Pure logic — `checkPermission`, `resolveVaultPath`, `effectivePermission`.
- *      No disk work; drive with fixture folder configs + agent maps.
- *   2. Tool execute paths — gate() → real fs ops. Use `makeTmpDir` for a fake
- *      vault and override `settings.vault.root` + `settings.vault.folders` via
- *      direct mutation (the live `settings` object is mutable).
- *
- * Setup for tools layer:
- *   - tmpDir as vault root
- *   - one "Notes" folder (default: full), one "Private" folder (default: read)
- *   - internal Klaus/ dir with `settings.vault.internalPermission = {default: read}`
+ * The full tool execute paths require fs + settings mutation. Here we only
+ * cover the pure logic, which is the actually load-bearing part of the
+ * permission model.
  */
 
-import { afterEach, beforeEach, describe, it } from "vitest";
-
-// import {
-//   checkPermission, resolveVaultPath,
-//   type AgentVaultMap,
-// } from "@/infra/vault";
-// import { vaultToolset } from "@/primitives/tools/sets/vault";
-// import { makeTmpDir, rmTmpDir } from "../../../helpers/tmp";
-// import { makeTurn } from "../../../helpers/turn";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { settings, type VaultFolder } from "@/infra/config";
+import {
+	type AgentVaultMap,
+	checkPermission,
+	resolveVaultPath,
+} from "@/infra/vault";
 
 describe("infra/vault.checkPermission", () => {
-	it.todo("op <= folder.default → allowed (read on full → allowed)");
+	const folder: VaultFolder = { path: "Notes", default: "read" };
 
-	it.todo("op > folder.default → denied (full on read → denied)");
+	it("op <= folder.default → allowed (read on read → allowed)", () => {
+		expect(checkPermission(folder, "read")).toBe("allowed");
+	});
 
-	it.todo("agent map exact folder.path match wins over default");
+	it("op > folder.default → denied (full on read → denied)", () => {
+		expect(checkPermission(folder, "full")).toBe("denied");
+	});
 
-	it.todo("agent map '*' wildcard applies when no exact match");
+	it("agent map exact path match wins over default", () => {
+		const map: AgentVaultMap = { Notes: "full" };
+		expect(checkPermission(folder, "full", map)).toBe("allowed");
+	});
 
-	it.todo("exact match wins over wildcard (both present)");
+	it("agent map '*' wildcard applies when no exact match", () => {
+		const map: AgentVaultMap = { "*": "full" };
+		expect(checkPermission(folder, "full", map)).toBe("allowed");
+	});
 
-	it.todo("agentMap: 'none' denies every op");
+	it("exact match wins over wildcard", () => {
+		const map: AgentVaultMap = { "*": "full", Notes: "none" };
+		expect(checkPermission(folder, "read", map)).toBe("denied");
+	});
+
+	it("agent map 'none' denies every op", () => {
+		const map: AgentVaultMap = { Notes: "none" };
+		expect(checkPermission(folder, "read", map)).toBe("denied");
+		expect(checkPermission(folder, "full", map)).toBe("denied");
+	});
 });
 
 describe("infra/vault.resolveVaultPath", () => {
-	it.todo("relative path inside configured folder: returns absolute + folder");
-
-	it.todo("path traversal ('../../etc/passwd'): returns null");
-
-	it.todo(
-		"path inside internalPath: returns {isInternal: true, folder: internal config}",
-	);
-
-	it.todo("path outside any configured folder: returns null");
-
-	it.todo("longest-prefix wins when folders nest ('Notes' vs 'Notes/Private')");
-});
-
-describe("vault tools: gate() + read/write/append/delete/move", () => {
-	let tmpDir: string;
+	const originalFolders = settings.vault.folders;
+	const originalRoot = settings.vault.root;
+	const originalInternal = settings.vault.internalPath;
 
 	beforeEach(() => {
-		// tmpDir = makeTmpDir();
-		// mutate settings.vault.root / folders
+		// Mutate to a synthetic layout for resolution tests.
+		const root = "/fake/vault";
+		(settings.vault as { root: string }).root = root;
+		(settings.vault as { internalPath: string }).internalPath = path.join(
+			root,
+			"Klaus",
+		);
+		(settings.vault as { folders: VaultFolder[] }).folders = [
+			{ path: "Notes", default: "full" },
+			{ path: "Notes/Private", default: "read" },
+		];
 	});
 
 	afterEach(() => {
-		// rmTmpDir(tmpDir); restore settings
+		(settings.vault as { folders: VaultFolder[] }).folders = originalFolders;
+		(settings.vault as { root: string }).root = originalRoot;
+		(settings.vault as { internalPath: string }).internalPath =
+			originalInternal;
 	});
 
-	it.todo("vault_write into allowed folder: file created with content");
+	it("relative path inside configured folder: returns absolute + folder", () => {
+		const r = resolveVaultPath("Notes/today.md");
+		expect(r?.absolute).toBe("/fake/vault/Notes/today.md");
+		expect(r?.folder.path).toBe("Notes");
+		expect(r?.isInternal).toBe(false);
+	});
 
-	it.todo(
-		"vault_write into read-only folder: returns permission error, no file written",
-	);
+	it("path traversal returns null", () => {
+		expect(resolveVaultPath("../../etc/passwd")).toBeNull();
+	});
 
-	it.todo("vault_append: concatenates content to the end of existing file");
+	it("internal path resolves to internal folder + isInternal: true", () => {
+		const r = resolveVaultPath("Klaus/agents/x.md");
+		expect(r?.isInternal).toBe(true);
+	});
 
-	it.todo(
-		"vault_append with heading arg: inserts under that heading (keeps surrounding text intact)",
-	);
+	it("longest-prefix wins when folders nest", () => {
+		const r = resolveVaultPath("Notes/Private/secret.md");
+		expect(r?.folder.path).toBe("Notes/Private");
+	});
 
-	it.todo(
-		"vault_read: returns file content; missing file returns 'Note not found'",
-	);
-
-	it.todo("vault_delete: removes the file; denied on read-only folder");
-
-	it.todo(
-		"vault_move: src removed, dst created; denied if either side lacks permission",
-	);
-
-	it.todo(
-		"vault_list: respects maxList cap and reads from readable folders only",
-	);
-});
-
-describe("vault tools: agent vault override (turn.config.vault)", () => {
-	it.todo("agent map escalates 'read' folder to 'full' → write succeeds");
-
-	it.todo("agent map downgrades 'full' folder to 'none' → read denied");
-
-	it.todo("'*' wildcard agent map applies to every unnamed folder");
+	it("path outside configured folders returns null when no root catch-all", () => {
+		expect(resolveVaultPath("Other/note.md")).toBeNull();
+	});
 });

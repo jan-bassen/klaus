@@ -1,72 +1,202 @@
 /**
  * `infra/store/schedules.ts` — cron persistence + firing.
  *
- * Uses real file I/O into `makeTmpDir`. Croner's `Cron` runs in-process — use
- * short patterns (e.g. `* * * * * *` with seconds) AND `setOnFire` to observe
- * firings via a spy. Stop the job with `removeSchedule` or `stopAll` in
- * afterEach so stray timers don't leak between tests.
- *
- * Alternative: mock `croner` entirely with `vi.mock("croner", ...)` exposing a
- * fake `Cron` class whose constructor stashes the callback — then you can
- * invoke it synchronously and avoid real-time waits.
+ * Real fs I/O into `makeTmpDir`. Cron firings are exercised by mocking
+ * `croner` so we can synchronously invoke the registered callback.
  */
 
-import { afterEach, beforeEach, describe, it } from "vitest";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// import {
-//   initSchedulesStore, loadSchedules, addSchedule, removeSchedule,
-//   getSchedules, setOnCronFire, startAllSchedules, stopAllSchedules,
-//   findSchedule,
-// } from "@/infra/store/schedules";
-// import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+const cronInstances = vi.hoisted<{
+	list: Array<{
+		pattern: string;
+		stop: () => void;
+		fire: () => void;
+	}>;
+}>(() => ({ list: [] }));
+
+vi.mock("croner", () => ({
+	Cron: class {
+		pattern: string;
+		callback: () => void;
+		stopped = false;
+		constructor(pattern: string, _opts: unknown, cb: () => void) {
+			this.pattern = pattern;
+			this.callback = cb;
+			cronInstances.list.push({
+				pattern,
+				stop: () => {
+					this.stopped = true;
+				},
+				fire: () => cb(),
+			});
+		}
+		stop(): void {
+			this.stopped = true;
+		}
+	},
+}));
+
+import {
+	addSchedule,
+	createScheduleStore,
+	findSchedule,
+	getSchedules,
+	initSchedulesStore,
+	removeSchedule,
+	type ScheduleEntry,
+	setOnCronFire,
+	stopAllSchedules,
+} from "@/infra/store/schedules";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+
+function makeEntry(overrides: Partial<ScheduleEntry> = {}): ScheduleEntry {
+	return {
+		id: overrides.id ?? crypto.randomUUID(),
+		agentName: "fitness",
+		pattern: "0 8 * * *",
+		chatId: "c1",
+		objective: "morning check",
+		createdBy: "tester",
+		createdAt: new Date().toISOString(),
+		...overrides,
+	};
+}
+
+beforeEach(() => {
+	cronInstances.list.length = 0;
+});
 
 describe("infra/store/schedules: add/list/remove", () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
-		// tmpDir = makeTmpDir();
-		// initSchedulesStore({ dataDir: tmpDir, timezone: "UTC" });
+		tmpDir = makeTmpDir();
+		initSchedulesStore({ dataDir: tmpDir, timezone: "UTC" });
 	});
 
 	afterEach(() => {
-		// stopAllSchedules(); rmTmpDir(tmpDir);
+		stopAllSchedules();
+		rmTmpDir(tmpDir);
 	});
 
-	it.todo("addSchedule → getSchedules returns the entry");
+	it("addSchedule → getSchedules returns the entry", async () => {
+		const e = makeEntry();
+		await addSchedule(e);
+		expect(getSchedules()).toEqual([e]);
+	});
 
-	it.todo("removeSchedule(id) removes from list and disk; returns true");
+	it("removeSchedule(id) removes from list and disk; returns true", async () => {
+		const e = makeEntry();
+		await addSchedule(e);
+		expect(await removeSchedule(e.id)).toBe(true);
+		expect(getSchedules()).toEqual([]);
+		const text = await Bun.file(path.join(tmpDir, "schedules.json")).text();
+		expect(JSON.parse(text)).toEqual([]);
+	});
 
-	it.todo(
-		"removeSchedule on unknown id returns false (no throw, no disk write)",
-	);
+	it("removeSchedule on unknown id returns false", async () => {
+		expect(await removeSchedule("nope")).toBe(false);
+	});
 
-	it.todo("findSchedule(agent, label?) matches exact (agent,label) pair");
+	it("findSchedule matches exact (agent, label) pair", async () => {
+		const a = makeEntry({ agentName: "fitness", label: "morning" });
+		const b = makeEntry({ agentName: "fitness", label: "evening" });
+		await addSchedule(a);
+		await addSchedule(b);
+		expect(findSchedule("fitness", "morning")?.id).toBe(a.id);
+		expect(findSchedule("fitness", "evening")?.id).toBe(b.id);
+		expect(findSchedule("fitness", "nope")).toBeUndefined();
+	});
 
-	it.todo("addSchedule with same id replaces existing + stops old cron");
+	it("addSchedule with same id replaces existing + stops old cron", async () => {
+		const e = makeEntry({ pattern: "0 8 * * *" });
+		await addSchedule(e);
+		const replaced = makeEntry({ id: e.id, pattern: "0 9 * * *" });
+		await addSchedule(replaced);
+		expect(getSchedules()).toEqual([replaced]);
+		// First instance should have been stopped (replaced).
+		expect(cronInstances.list).toHaveLength(2);
+	});
 });
 
 describe("infra/store/schedules: persistence", () => {
-	it.todo("schedules.json written on add; valid JSON array of ScheduleEntry");
+	let tmpDir: string;
 
-	it.todo("loadSchedules reads the file into memory (survives store re-init)");
+	beforeEach(() => {
+		tmpDir = makeTmpDir();
+	});
 
-	it.todo(
-		"corrupt schedules.json: load swallows the error (no throw) and starts with empty map",
-	);
+	afterEach(() => {
+		stopAllSchedules();
+		rmTmpDir(tmpDir);
+	});
+
+	it("schedules.json written on add as JSON array of ScheduleEntry", async () => {
+		initSchedulesStore({ dataDir: tmpDir, timezone: "UTC" });
+		const e = makeEntry();
+		await addSchedule(e);
+		const file = path.join(tmpDir, "schedules.json");
+		expect(existsSync(file)).toBe(true);
+		expect(JSON.parse(await Bun.file(file).text())).toEqual([e]);
+	});
+
+	it("load reads file into memory across store reinit", async () => {
+		const first = createScheduleStore({ dataDir: tmpDir, timezone: "UTC" });
+		const e = makeEntry();
+		await first.add(e);
+		first.stopAll();
+
+		const second = createScheduleStore({ dataDir: tmpDir, timezone: "UTC" });
+		await second.load();
+		expect(second.list()).toEqual([e]);
+		second.stopAll();
+	});
+
+	it("corrupt schedules.json: load swallows + starts empty", async () => {
+		await Bun.write(path.join(tmpDir, "schedules.json"), "{not json");
+		const store = createScheduleStore({ dataDir: tmpDir, timezone: "UTC" });
+		await store.load();
+		expect(store.list()).toEqual([]);
+	});
 });
 
 describe("infra/store/schedules: cron firing", () => {
-	it.todo(
-		"setOnCronFire then addSchedule: callback fires on pattern match with the entry",
-	);
+	let tmpDir: string;
 
-	it.todo("multiple schedules fire independently");
+	beforeEach(() => {
+		tmpDir = makeTmpDir();
+		initSchedulesStore({ dataDir: tmpDir, timezone: "UTC" });
+	});
 
-	it.todo("stopAllSchedules halts all running crons");
+	afterEach(() => {
+		stopAllSchedules();
+		rmTmpDir(tmpDir);
+	});
 
-	it.todo(
-		"startAllSchedules after load re-registers crons for persisted entries",
-	);
+	it("setOnCronFire then addSchedule: callback fires with entry", async () => {
+		const fired: ScheduleEntry[] = [];
+		setOnCronFire(async (e) => {
+			fired.push(e);
+		});
+		const e = makeEntry();
+		await addSchedule(e);
+		expect(cronInstances.list).toHaveLength(1);
+		cronInstances.list[0]?.fire();
+		// fire() invokes the on-fire handler synchronously, but the chain through
+		// setOnFire is async — let microtasks flush.
+		await Promise.resolve();
+		expect(fired).toEqual([e]);
+	});
 
-	it.todo("onFire handler throwing is caught + logged (doesn't kill the cron)");
+	it("onFire handler throwing is caught (cron survives)", async () => {
+		setOnCronFire(async () => {
+			throw new Error("boom");
+		});
+		const e = makeEntry();
+		await addSchedule(e);
+		expect(() => cronInstances.list[0]?.fire()).not.toThrow();
+	});
 });

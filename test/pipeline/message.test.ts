@@ -2,96 +2,216 @@
  * `pipeline/message.ts` — `parseMessage`: STT apply, `@agent` extract,
  * `!overrides` strip, command parse, voice transcript rewriting.
  *
- * This is the first mile of the pipeline — regressions here break routing
- * for every downstream phase.
- *
- * Setup:
- *   - Mock `@/pipeline/media` so `transcribe` and `parseDocument` are spies
- *     returning canned values. No real network / disk work.
- *   - `parseOverrides` / `stripOverrides` come from `@/pipeline/overrides` and
- *     depend on the live `overrideRegistry`. Either preload
- *     `Klaus/overrides.yml` via `loadOverrides()` once in beforeAll, or
- *     register a minimal handful manually (`register("voice")`, `register("large")`).
- *   - `parseCommand` comes from `@/primitives/commands`. Register a dummy
- *     command so `/foo` is recognised; otherwise commands always parse as
- *     `undefined` and you can't exercise the short-circuit branch.
+ * Mocks `@/pipeline/media` so transcribe / parseDocument are spies and no
+ * real network or disk work happens. Override registry is populated manually
+ * via `loadOverrides` against the bundled vault yaml.
  */
 
-import { beforeEach, describe, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// import { parseMessage } from "@/pipeline/message";
-// import type { InboundMessage } from "@/infra/whatsapp/receive";
+const transcribeMock = vi.hoisted(() => vi.fn());
+const parseDocumentMock = vi.hoisted(() => vi.fn());
 
-describe("pipeline/message.parseMessage: text messages", () => {
-	beforeEach(() => {
-		// register("voice"), register("large"), registerCommand("foo")
+vi.mock("@/pipeline/media", () => ({
+	transcribe: transcribeMock,
+	parseDocument: parseDocumentMock,
+	isParseableDocument: (mime: string) => mime === "application/pdf",
+}));
+
+import type { InboundMessage } from "@/infra/whatsapp/receive";
+import { parseMessage } from "@/pipeline/message";
+import { type OverrideDef, overrideRegistry } from "@/pipeline/overrides";
+
+function regOv(def: OverrideDef): void {
+	overrideRegistry.set(def.name, def);
+	for (const a of def.aliases ?? []) overrideRegistry.set(a, def);
+}
+
+function baseMsg(text: string): InboundMessage {
+	return {
+		kind: "whatsapp",
+		id: "m-1",
+		chatId: "c1",
+		senderId: "s1",
+		text,
+		timestamp: new Date(),
+		messageKey: {},
+	};
+}
+
+beforeEach(() => {
+	transcribeMock.mockReset();
+	parseDocumentMock.mockReset();
+	regOv({
+		name: "voice",
+		aliases: ["v"],
+		description: "",
+		overrides: { forceVoice: true },
+	});
+	regOv({
+		name: "large",
+		aliases: ["l"],
+		description: "",
+		overrides: { modelTier: "large" },
+	});
+});
+
+describe("pipeline/message.parseMessage: text", () => {
+	it("plain text: no agent, no overrides, cleanText === text", async () => {
+		const r = await parseMessage(baseMsg("hello there"), new Set(), []);
+		expect(r.cleanText).toBe("hello there");
+		expect(r.agent).toBeUndefined();
+		expect(r.overrides).toEqual({});
+		expect(r.command).toBeUndefined();
 	});
 
-	it.todo("plain text: no agent, no overrides, cleanText === text");
+	it("@name extracts agent and trims it from cleanText", async () => {
+		const r = await parseMessage(baseMsg("@fitness do thing"), new Set(), []);
+		expect(r.agent).toBe("fitness");
+		expect(r.cleanText).toBe("do thing");
+	});
 
-	it.todo("`@name do thing` → agent === 'name', cleanText === 'do thing'");
+	it("@name-with-dash supports hyphenated names", async () => {
+		const r = await parseMessage(baseMsg("@bug-bot ping"), new Set(), []);
+		expect(r.agent).toBe("bug-bot");
+		expect(r.cleanText).toBe("ping");
+	});
 
-	it.todo("`@name-with-dash ...` supports dashes in the name regex");
+	it("@name + !voice extracts both, leaves cleanText", async () => {
+		const r = await parseMessage(
+			baseMsg("@fitness !voice hello"),
+			new Set(),
+			[],
+		);
+		expect(r.agent).toBe("fitness");
+		expect(r.overrides).toEqual({ voice: true });
+		expect(r.cleanText).toBe("hello");
+	});
 
-	it.todo(
-		"`@name !voice hello` → agent + overrides:{voice:true}, cleanText === 'hello'",
-	);
+	it("multiple !overrides without agent", async () => {
+		const r = await parseMessage(baseMsg("!voice !large hello"), new Set(), []);
+		expect(r.overrides).toEqual({ voice: true, large: true });
+		expect(r.cleanText).toBe("hello");
+	});
 
-	it.todo(
-		"`!voice !large hello` with no agent → overrides both set, cleanText === 'hello'",
-	);
+	it("unknown !word stays in cleanText", async () => {
+		const r = await parseMessage(baseMsg("!unknown hi"), new Set(), []);
+		expect(r.cleanText).toBe("!unknown hi");
+		expect(r.overrides).toEqual({});
+	});
 
-	it.todo(
-		"unknown `!unknown` word stays in cleanText (parseOverrides only extracts recognised)",
-	);
-
-	it.todo(
-		"`/foo bar baz` → command:{name:'foo', args:['bar','baz']}, other fields absent",
-	);
-
-	it.todo(
-		"`/foo` at start short-circuits before @agent or !overrides extraction",
-	);
+	it("/command short-circuits: returns command, no agent or overrides parsed", async () => {
+		const r = await parseMessage(
+			baseMsg("/foo bar baz @fitness !voice"),
+			new Set(),
+			[],
+		);
+		expect(r.command).toEqual({
+			name: "foo",
+			args: ["bar", "baz", "@fitness", "!voice"],
+		});
+		expect(r.agent).toBeUndefined();
+		expect(r.overrides).toEqual({});
+	});
 });
 
-describe("pipeline/message.parseMessage: normalize (STT)", () => {
-	it.todo(
-		"audio/* media: transcribe() called; msg.text replaced with transcript",
-	);
+describe("pipeline/message.parseMessage: STT", () => {
+	it("audio media: transcribe replaces text and stashes voiceCaption + transcription", async () => {
+		transcribeMock.mockResolvedValue("hello from voice");
+		const msg: InboundMessage = {
+			...baseMsg("typed caption"),
+			media: { fileId: "f", path: "/tmp/x.ogg", mimeType: "audio/ogg" },
+		};
+		const r = await parseMessage(msg, new Set(), []);
+		expect(r.msg.text).toBe("hello from voice");
+		expect(r.msg.media?.transcription).toBe("hello from voice");
+		expect(r.msg.media?.voiceCaption).toBe("typed caption");
+	});
 
-	it.todo(
-		"voice note: original typed caption preserved as msg.media.voiceCaption",
-	);
-
-	it.todo(
-		"voice note: msg.media.transcription === raw transcript (pre-rewrite)",
-	);
-
-	it.todo(
-		"transcription error: logged and skipped — msg.text keeps original caption",
-	);
+	it("transcription error: original caption preserved", async () => {
+		transcribeMock.mockResolvedValue(new Error("boom"));
+		const msg: InboundMessage = {
+			...baseMsg("caption"),
+			media: { fileId: "f", path: "/tmp/x.ogg", mimeType: "audio/ogg" },
+		};
+		const r = await parseMessage(msg, new Set(), []);
+		expect(r.msg.text).toBe("caption");
+		expect(r.msg.media?.transcription).toBeUndefined();
+	});
 });
 
-describe("pipeline/message.parseMessage: normalize (documents)", () => {
-	it.todo("parseable doc: extractedText attached to msg.media.extractedText");
+describe("pipeline/message.parseMessage: documents", () => {
+	it("parseable doc: extractedText attached", async () => {
+		parseDocumentMock.mockResolvedValue("doc body");
+		const msg: InboundMessage = {
+			...baseMsg("look at this"),
+			media: { fileId: "f", path: "/tmp/x.pdf", mimeType: "application/pdf" },
+		};
+		const r = await parseMessage(msg, new Set(), []);
+		expect(r.msg.media?.extractedText).toBe("doc body");
+	});
 
-	it.todo("parse error: msg.media.extractedText stays undefined (no throw)");
+	it("parse error: extractedText stays undefined", async () => {
+		parseDocumentMock.mockResolvedValue(new Error("parse failed"));
+		const msg: InboundMessage = {
+			...baseMsg("look"),
+			media: { fileId: "f", path: "/tmp/x.pdf", mimeType: "application/pdf" },
+		};
+		const r = await parseMessage(msg, new Set(), []);
+		expect(r.msg.media?.extractedText).toBeUndefined();
+	});
 
-	it.todo("non-parseable mime: parseDocument not called, extractedText absent");
+	it("non-parseable mime: parseDocument not called", async () => {
+		const msg: InboundMessage = {
+			...baseMsg("look"),
+			media: { fileId: "f", path: "/tmp/x.png", mimeType: "image/png" },
+		};
+		await parseMessage(msg, new Set(), []);
+		expect(parseDocumentMock).not.toHaveBeenCalled();
+	});
 });
 
 describe("pipeline/message.parseMessage: voice transcript rewriting", () => {
-	it.todo(
-		"trigger prefix: 'hey fitness, help me' with trigger 'hey' → '@fitness help me'",
-	);
+	it("trigger prefix: 'hey fitness, help me' → '@fitness help me'", async () => {
+		transcribeMock.mockResolvedValue("hey fitness, help me");
+		const msg: InboundMessage = {
+			...baseMsg(""),
+			media: { fileId: "f", path: "/tmp/x.ogg", mimeType: "audio/ogg" },
+		};
+		const r = await parseMessage(msg, new Set(["fitness"]), ["hey"]);
+		expect(r.agent).toBe("fitness");
+		expect(r.cleanText).toBe("help me");
+	});
 
-	it.todo("bare name comma: 'fitness, help me' → '@fitness help me'");
+	it("bare-name comma: 'fitness, help me' → '@fitness help me'", async () => {
+		transcribeMock.mockResolvedValue("fitness, help me");
+		const msg: InboundMessage = {
+			...baseMsg(""),
+			media: { fileId: "f", path: "/tmp/x.ogg", mimeType: "audio/ogg" },
+		};
+		const r = await parseMessage(msg, new Set(["fitness"]), ["hey"]);
+		expect(r.agent).toBe("fitness");
+		expect(r.cleanText).toBe("help me");
+	});
 
-	it.todo("unknown name after trigger: 'hey unknown, do' → unchanged");
+	it("unknown agent after trigger: text unchanged", async () => {
+		transcribeMock.mockResolvedValue("hey unknown, do thing");
+		const msg: InboundMessage = {
+			...baseMsg(""),
+			media: { fileId: "f", path: "/tmp/x.ogg", mimeType: "audio/ogg" },
+		};
+		const r = await parseMessage(msg, new Set(["fitness"]), ["hey"]);
+		expect(r.agent).toBeUndefined();
+		expect(r.cleanText).toContain("hey unknown");
+	});
 
-	it.todo("no trigger, no comma: 'fitness help me' → unchanged (conservative)");
-
-	it.todo(
-		"rewrite runs BEFORE overrides/agent parsing (rewritten @name is picked up)",
-	);
+	it("no trigger, no comma: unchanged (conservative)", async () => {
+		transcribeMock.mockResolvedValue("fitness help me please");
+		const msg: InboundMessage = {
+			...baseMsg(""),
+			media: { fileId: "f", path: "/tmp/x.ogg", mimeType: "audio/ogg" },
+		};
+		const r = await parseMessage(msg, new Set(["fitness"]), ["hey"]);
+		expect(r.agent).toBeUndefined();
+	});
 });

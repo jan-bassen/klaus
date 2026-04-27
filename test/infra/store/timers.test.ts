@@ -1,70 +1,186 @@
 /**
  * `infra/store/timers.ts` — one-shot persistence + firing.
  *
- * Real fs I/O into `makeTmpDir`; use `vi.useFakeTimers()` to drive timer
- * firings without real-time waits. Each test should restore real timers in
- * afterEach.
- *
- * Key invariants:
- *   - Timers fire exactly once and self-delete from memory + disk.
- *   - `load()` re-schedules remaining timers with a delay relative to NOW
- *     (handles `runAt` in the past → fires immediately with delay clamped to 0).
- *   - Remove before fire cancels cleanly.
+ * Real fs I/O into `makeTmpDir`. Real `setTimeout` with short delays so we
+ * don't fight Bun's timer semantics under `vi.useFakeTimers()`.
  */
 
-import { afterEach, beforeEach, describe, it } from "vitest";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+	addTimer,
+	createTimerStore,
+	initTimersStore,
+	listTimers,
+	removeTimer,
+	stopAllTimers,
+	type TimerEntry,
+} from "@/infra/store/timers";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
 
-// import {
-//   initTimersStore, loadTimers, addTimer, removeTimer, listTimers,
-//   setOnTimerFire, stopAllTimers,
-// } from "@/infra/store/timers";
-// import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+function makeEntry(overrides: Partial<TimerEntry> = {}): TimerEntry {
+	return {
+		id: overrides.id ?? crypto.randomUUID(),
+		agentName: "test",
+		chatId: "c1",
+		objective: "do thing",
+		runAt: new Date(Date.now() + 60_000).toISOString(),
+		createdBy: "tester",
+		createdAt: new Date().toISOString(),
+		...overrides,
+	};
+}
 
 describe("infra/store/timers: add/list/remove", () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
-		// vi.useFakeTimers(); tmpDir = makeTmpDir();
-		// initTimersStore({ dataDir: tmpDir });
+		tmpDir = makeTmpDir();
+		initTimersStore({ dataDir: tmpDir });
 	});
 
 	afterEach(() => {
-		// stopAllTimers(); vi.useRealTimers(); rmTmpDir(tmpDir);
+		stopAllTimers();
+		rmTmpDir(tmpDir);
 	});
 
-	it.todo("addTimer → listTimers includes the entry");
+	it("addTimer → listTimers includes the entry", async () => {
+		const e = makeEntry();
+		await addTimer(e);
+		expect(listTimers()).toEqual([e]);
+	});
 
-	it.todo(
-		"removeTimer(id) before fire: returns true, entry gone, disk updated",
-	);
+	it("removeTimer(id) before fire: returns true, entry gone, disk updated", async () => {
+		const e = makeEntry();
+		await addTimer(e);
+		const removed = await removeTimer(e.id);
+		expect(removed).toBe(true);
+		expect(listTimers()).toEqual([]);
 
-	it.todo("removeTimer on unknown id returns false");
+		const text = await Bun.file(path.join(tmpDir, "timers.json")).text();
+		expect(JSON.parse(text)).toEqual([]);
+	});
+
+	it("removeTimer on unknown id returns false", async () => {
+		expect(await removeTimer("nope")).toBe(false);
+	});
 });
 
 describe("infra/store/timers: firing", () => {
-	it.todo(
-		"setOnTimerFire + addTimer with runAt=now+5s: advance 5s → callback fires once",
-	);
+	let tmpDir: string;
 
-	it.todo("after fire: entry removed from listTimers AND from timers.json");
+	beforeEach(() => {
+		tmpDir = makeTmpDir();
+		initTimersStore({ dataDir: tmpDir });
+	});
 
-	it.todo("runAt in the past: fires on the next tick (delay clamped to 0)");
+	afterEach(() => {
+		stopAllTimers();
+		rmTmpDir(tmpDir);
+	});
 
-	it.todo("stopAllTimers: pending timers do NOT fire when advanced past runAt");
+	it("fires once and self-deletes from list + disk", async () => {
+		const store = createTimerStore({ dataDir: tmpDir });
+		const fired: TimerEntry[] = [];
+		store.setOnFire(async (e) => {
+			fired.push(e);
+		});
 
-	it.todo(
-		"removeTimer on a fired-and-self-deleted id returns false (idempotent)",
-	);
+		const e = makeEntry({ runAt: new Date(Date.now() + 10).toISOString() });
+		await store.add(e);
+		expect(store.list()).toHaveLength(1);
 
-	it.todo("onFire handler throwing is caught + logged (no uncaught rejection)");
+		await new Promise((r) => setTimeout(r, 60));
+		// Allow the post-fire persist() to settle.
+		await new Promise((r) => setTimeout(r, 30));
+
+		expect(fired).toEqual([e]);
+		expect(store.list()).toEqual([]);
+
+		const text = await Bun.file(path.join(tmpDir, "timers.json")).text();
+		expect(JSON.parse(text)).toEqual([]);
+	});
+
+	it("runAt in the past: still fires (delay clamped to 0)", async () => {
+		const store = createTimerStore({ dataDir: tmpDir });
+		const fired: TimerEntry[] = [];
+		store.setOnFire(async (e) => {
+			fired.push(e);
+		});
+
+		const e = makeEntry({ runAt: new Date(Date.now() - 10_000).toISOString() });
+		await store.add(e);
+
+		await new Promise((r) => setTimeout(r, 30));
+		expect(fired).toEqual([e]);
+	});
+
+	it("stopAll cancels pending timers (no fire)", async () => {
+		const store = createTimerStore({ dataDir: tmpDir });
+		const fired: TimerEntry[] = [];
+		store.setOnFire(async (e) => {
+			fired.push(e);
+		});
+
+		await store.add(
+			makeEntry({ runAt: new Date(Date.now() + 20).toISOString() }),
+		);
+		store.stopAll();
+
+		await new Promise((r) => setTimeout(r, 50));
+		expect(fired).toEqual([]);
+	});
 });
 
 describe("infra/store/timers: persistence + reload", () => {
-	it.todo("timers.json written after add; valid JSON array of TimerEntry");
+	let tmpDir: string;
 
-	it.todo(
-		"loadTimers on a fresh store restores entries AND re-schedules timeouts",
-	);
+	beforeEach(() => {
+		tmpDir = makeTmpDir();
+	});
 
-	it.todo("corrupt timers.json: load swallows + starts empty");
+	afterEach(() => {
+		stopAllTimers();
+		rmTmpDir(tmpDir);
+	});
+
+	it("timers.json written after add; readable JSON array of TimerEntry", async () => {
+		initTimersStore({ dataDir: tmpDir });
+		const e = makeEntry();
+		await addTimer(e);
+
+		const file = path.join(tmpDir, "timers.json");
+		expect(existsSync(file)).toBe(true);
+		const parsed = JSON.parse(await Bun.file(file).text());
+		expect(parsed).toEqual([e]);
+	});
+
+	it("load on a fresh store restores entries AND re-schedules timeouts", async () => {
+		const first = createTimerStore({ dataDir: tmpDir });
+		const e = makeEntry({ runAt: new Date(Date.now() + 30).toISOString() });
+		await first.add(e);
+		first.stopAll();
+
+		const second = createTimerStore({ dataDir: tmpDir });
+		const fired: TimerEntry[] = [];
+		second.setOnFire(async (entry) => {
+			fired.push(entry);
+		});
+		await second.load();
+		expect(second.list()).toEqual([e]);
+
+		await new Promise((r) => setTimeout(r, 80));
+		expect(fired).toHaveLength(1);
+		expect(fired[0]?.id).toBe(e.id);
+
+		second.stopAll();
+	});
+
+	it("missing/corrupt timers.json: load swallows and starts empty", async () => {
+		await Bun.write(path.join(tmpDir, "timers.json"), "{not json");
+		const store = createTimerStore({ dataDir: tmpDir });
+		await store.load();
+		expect(store.list()).toEqual([]);
+	});
 });
