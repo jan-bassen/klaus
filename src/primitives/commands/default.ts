@@ -1,4 +1,3 @@
-import path from "node:path";
 import { settings } from "@/infra/config";
 import type { InboundMessage } from "@/infra/whatsapp/receive";
 import { enqueueMessage } from "@/infra/whatsapp/send";
@@ -8,8 +7,6 @@ import {
 	setDefaultAgent,
 } from "@/pipeline/agents";
 import type { Command } from "@/primitives/commands";
-
-const AGENTS_DIR = path.join(import.meta.dir, "..", "agents");
 
 export const defaultCommand: Command = {
 	name: "default",
@@ -42,7 +39,7 @@ export const defaultCommand: Command = {
 		// Try loading from disk
 		try {
 			const def = await loadAgentDefinition(
-				path.join(AGENTS_DIR, `${agentName}.md`),
+				`${settings.vault.agentsDir}/${agentName}.md`,
 			);
 			agentRegistry.set(def.name, def);
 			setDefaultAgent(msg.chatId, agentName);

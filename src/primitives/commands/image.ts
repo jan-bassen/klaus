@@ -5,7 +5,7 @@ import { log } from "@/infra/logger";
 import { saveFileMeta } from "@/infra/store/files";
 import type { InboundMessage } from "@/infra/whatsapp/receive";
 import { enqueueMessage } from "@/infra/whatsapp/send";
-import { generateImage } from "@/pipeline/imagegen";
+import { generateImage } from "@/pipeline/media";
 import type { Command } from "@/primitives/commands";
 
 export const imageCommand: Command = {

@@ -15,9 +15,9 @@
 
 import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
+import { agentRegistry, getOrLoadAgent } from "@/pipeline/agents";
 import type { Trigger, TurnContext } from "@/pipeline/core";
 import { executeAgent } from "@/pipeline/core";
-import { agentRegistry, getOrLoadAgent } from "@/pipeline/agents";
 import { buildTurnConfig } from "@/pipeline/overrides";
 import { getVariables } from "@/primitives/variables";
 

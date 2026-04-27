@@ -3,8 +3,8 @@
  * without going through `handleTurn`. Override any field via `patch`.
  */
 
-import type { TurnContext } from "@/pipeline/core";
 import type { AgentDefinition } from "@/pipeline/agents";
+import type { TurnContext } from "@/pipeline/core";
 import type { TurnConfig } from "@/pipeline/overrides";
 
 export function makeTurn(patch: Partial<TurnContext> = {}): TurnContext {

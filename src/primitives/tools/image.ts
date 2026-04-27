@@ -7,7 +7,7 @@ import { getOverlay } from "@/infra/simulation";
 import { saveFileMeta } from "@/infra/store/files";
 import { appendAck, appendMessage } from "@/infra/store/history";
 import { enqueueMessage } from "@/infra/whatsapp/send";
-import { generateImage } from "@/pipeline/imagegen";
+import { generateImage } from "@/pipeline/media";
 import type { ToolDefinition } from "@/primitives/tools";
 
 const imageGenerateSchema = z.object({

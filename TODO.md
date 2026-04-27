@@ -1,14 +1,8 @@
-- [ ] [agent] in non-default agent wa message (maybe template message-agent.md?)
-
-
 # Repo understandability v0.2.0
 
 Opening this up as "the agent for tinkerers". Polish the codebase and the docs before that.
 
-## Check
-- [ ] what happens when a message comes in while running?
-
-### Docs
+## Docs
 
 - [ ] Update README to be perfect and poignant (short intro + quick setup + architecture pointers to /docs)
 - [ ] Add `docs/`:
@@ -18,13 +12,13 @@ Opening this up as "the agent for tinkerers". Polish the codebase and the docs b
   - [ ] iterate-in-obsidian — most useful patterns with examples
   - [ ] iterate-in-code — adding a command / variable / tool
 
-### Comments cleanup
+## Comments cleanup
 
 - [ ] Remove redundant comments (good naming > explanations; comments are for the non-obvious)
 - [ ] Shorten comments where possible
 - [ ] Final pass — everything up-to-date and matching the implemented code
 
-### Agent tooling
+## Agent tooling
 
 The codebase should be ready for agents, but unopinionated.
 

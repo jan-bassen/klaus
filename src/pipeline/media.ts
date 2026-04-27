@@ -9,8 +9,9 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { LiteParse } from "@llamaindex/liteparse";
+import { OpenRouter } from "@openrouter/sdk";
 import sharp from "sharp";
-import { settings } from "@/infra/config";
+import { resolveImageModel, settings } from "@/infra/config";
 import { log } from "@/infra/logger";
 
 // ── Speech-to-Text ─────────────────────────────────────────────────────────
@@ -173,22 +174,78 @@ export async function parseDocument(
 	}
 }
 
-// ── Image generation (stubbed in phase 2; implemented in phase 9) ─────────
+// ── Image generation ──────────────────────────────────────────────────────
 
 export interface GeneratedImage {
 	bytes: Buffer;
 	mimeType: string;
-	prompt: string;
 }
 
-/** Phase-2 placeholder. Phase 9 wires this to the configured provider. */
+export interface GenerateImageInput {
+	prompt: string;
+	/** Override the configured image model. */
+	model?: string;
+}
+
 export async function generateImage(
-	_prompt: string,
+	input: GenerateImageInput,
 ): Promise<GeneratedImage | Error> {
-	return new Error("generateImage: not implemented yet (phase 9)");
+	let baseURL: string;
+	let apiKey: string;
+	let configuredModel: string;
+	try {
+		const resolved = resolveImageModel();
+		baseURL = resolved.baseURL;
+		apiKey = resolved.apiKey;
+		configuredModel = resolved.modelId;
+	} catch (err) {
+		return err instanceof Error ? err : new Error(String(err));
+	}
+
+	const model = input.model || configuredModel;
+	log.info(`[imagegen] generating with ${model}`);
+
+	const client = new OpenRouter({
+		apiKey,
+		serverURL: baseURL,
+		retryConfig: { strategy: "none" },
+	});
+
+	try {
+		const response = await client.chat.send({
+			chatRequest: {
+				model,
+				modalities: ["image", "text"],
+				messages: [{ role: "user", content: input.prompt }],
+				stream: false,
+			},
+		});
+
+		const message = response.choices[0]?.message;
+		const dataUrl = message?.images?.[0]?.imageUrl?.url;
+		if (!dataUrl) {
+			return new Error(
+				`Image model ${model} returned no image data. Check that the model supports image output.`,
+			);
+		}
+
+		return decodeDataUrl(dataUrl);
+	} catch (err) {
+		return err instanceof Error ? err : new Error(String(err));
+	}
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+function decodeDataUrl(dataUrl: string): GeneratedImage | Error {
+	const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+	if (!match) {
+		return new Error("Image response was not a base64 data URL");
+	}
+	const mimeType = match[1] ?? "image/png";
+	const base64 = match[2] ?? "";
+	return { bytes: Buffer.from(base64, "base64"), mimeType };
+}
 
 function trunc(text: string, max: number): string {
 	if (text.length <= max) return text;

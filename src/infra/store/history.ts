@@ -386,8 +386,10 @@ export function createConversationStore(
 
 		let startIndex = 0;
 		for (let i = allLines.length - 1; i >= 0; i--) {
+			const line = allLines[i];
+			if (!line) continue;
 			try {
-				const parsed = JSON.parse(allLines[i]!);
+				const parsed = JSON.parse(line);
 				if (parsed.kind === "break") {
 					startIndex = i + 1;
 					break;

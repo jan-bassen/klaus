@@ -132,7 +132,6 @@ describe("infra/store/report", () => {
 		const e = makeEntry();
 		await writeReport(e);
 		// Append corrupt line manually.
-		const date = new Date().toISOString().slice(0, 10);
 		// readReports uses settings.timezone for the file partition. Just append
 		// to the same file written by writeReport (look it up).
 		const fs = await import("node:fs/promises");
