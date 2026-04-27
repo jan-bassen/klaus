@@ -1,14 +1,11 @@
+- [ ] [agent] in non-default agent wa message (maybe template message-agent.md?)
+
+
 # Repo understandability v0.2.0
 
 Opening this up as "the agent for tinkerers". Polish the codebase and the docs before that.
 
-### Remaining cleanup
-
-- [ ] sync move -> /vault/
-- [ ] pipeline/agent rename -> pipeline/core or pipeline/loop
-- [ ] Remove any unnecessary config/top-level files used for dev
-
-### Remaining cleanup
+## Check
 - [ ] what happens when a message comes in while running?
 
 ### Docs

@@ -2,7 +2,10 @@ import { z } from "zod";
 import { log } from "@/infra/logger";
 import { appendAck, appendMessage } from "@/infra/store/history";
 import { enqueueMessage } from "@/infra/whatsapp/send";
+import { getDefaultAgent } from "@/pipeline/agents";
+import type { TurnContext } from "@/pipeline/core";
 import { textToSpeech } from "@/pipeline/media";
+import { renderTemplate } from "@/pipeline/prompts";
 import type { ToolDefinition } from "@/primitives/tools";
 
 /** The canonical name of the output tool. Referenced by runner/messages to filter reply calls from traces. */
@@ -87,6 +90,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			? `${context.message.id}:reply:${crypto.randomUUID()}`
 			: `${context.chatId}:reply:${crypto.randomUUID()}`;
 		const quotedPart = quoted ? { quoted } : {};
+		const userFacingContent = formatUserFacingAgentMessage(content, context);
 		const useVoice =
 			!context.config?.suppressVoice && (voice || context.config?.forceVoice);
 		if (useVoice) {
@@ -98,7 +102,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 				enqueueMessage(
 					{
 						chatId: context.chatId,
-						content,
+						content: userFacingContent,
 						dedupKey: dedupBase,
 						label: context.agent.name,
 						...quotedPart,
@@ -124,7 +128,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			enqueueMessage(
 				{
 					chatId: context.chatId,
-					content,
+					content: userFacingContent,
 					dedupKey: dedupBase,
 					label: context.agent.name,
 					...quotedPart,
@@ -152,3 +156,19 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 	kind: "builtin",
 	capability: "tool",
 };
+
+function formatUserFacingAgentMessage(
+	content: string,
+	context: TurnContext,
+): string {
+	const defaultAgentName = getDefaultAgent(context.chatId);
+	const isDefaultAgent = context.agent.name === defaultAgentName;
+	return renderTemplate("message-agent", {
+		message: content,
+		agentName: context.agent.name,
+		agentLabel: context.agent.name,
+		defaultAgentName,
+		isDefaultAgent,
+		isNotDefaultAgent: !isDefaultAgent,
+	});
+}

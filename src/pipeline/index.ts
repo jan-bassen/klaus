@@ -38,7 +38,7 @@ import {
 import { registry as commandRegistry } from "@/primitives/commands";
 import { getVariables } from "@/primitives/variables";
 import type { Trigger, TurnContext } from "./core";
-import { executeAgent } from "./core";
+import { executeAgent, isAbortError } from "./core";
 import { parseMessage } from "./message";
 import { buildTurnConfig } from "./overrides";
 
@@ -46,6 +46,14 @@ export interface AuthResult {
 	allowed: boolean;
 	setupMode?: boolean;
 }
+
+interface ActiveTurn {
+	ac: AbortController;
+	done: Promise<void>;
+}
+
+const activeTurns = new Map<string, ActiveTurn>();
+const turnGenerations = new Map<string, number>();
 
 /** Verify the sender's chatId matches the configured allowedChatId. Fail-closed: unset blocks all. */
 export function checkAllowlist(msg: InboundMessage): AuthResult {
@@ -126,6 +134,27 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			}
 		}
 
+		const turnKey = `${effectiveMsg.chatId}:${agentName}`;
+		const generation = (turnGenerations.get(turnKey) ?? 0) + 1;
+		turnGenerations.set(turnKey, generation);
+		for (;;) {
+			const existing = activeTurns.get(turnKey);
+			if (!existing) break;
+			existing.ac.abort();
+			await existing.done;
+			if (turnGenerations.get(turnKey) !== generation) {
+				throw new DOMException("Turn superseded", "AbortError");
+			}
+		}
+
+		const ac = new AbortController();
+		let resolveThis!: () => void;
+		const done = new Promise<void>((resolve) => {
+			resolveThis = resolve;
+		});
+		const activeEntry: ActiveTurn = { ac, done };
+		activeTurns.set(turnKey, activeEntry);
+
 		const trigger: Trigger = {
 			kind: "message",
 			messageId: effectiveMsg.id,
@@ -143,18 +172,28 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			pendingSubReplies: [],
 		};
 
-		if (msg.kind === "whatsapp") await startTyping(effectiveMsg.chatId);
 		try {
+			if (msg.kind === "whatsapp") await startTyping(effectiveMsg.chatId);
 			await executeAgent({
 				turn: partialTurn,
 				def,
 				variables: getVariables(),
+				signal: ac.signal,
 			});
 		} finally {
 			if (msg.kind === "whatsapp") await stopTyping(effectiveMsg.chatId);
+			if (activeTurns.get(turnKey) === activeEntry) {
+				activeTurns.delete(turnKey);
+			}
+			if (turnGenerations.get(turnKey) === generation) {
+				turnGenerations.delete(turnKey);
+			}
+			resolveThis();
 		}
 	} catch (err) {
-		await reportPipelineError(msg, err);
+		if (!isAbortError(err)) {
+			await reportPipelineError(msg, err);
+		}
 	}
 }
 

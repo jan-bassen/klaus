@@ -33,6 +33,7 @@ export type UserContent = ChatUserMessage["content"];
 // ── Template loader ────────────────────────────────────────────────────────
 
 export type TemplateName =
+	| "message-agent"
 	| "message-user"
 	| "error-message"
 	| "report-short"

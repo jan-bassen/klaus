@@ -103,6 +103,10 @@ export class LlmTimeoutError extends Error {
 	}
 }
 
+export function isAbortError(err: unknown): boolean {
+	return err instanceof DOMException && err.name === "AbortError";
+}
+
 export interface ModelCallStep {
 	reasoning: string;
 	toolCalls: Array<{
@@ -139,6 +143,7 @@ export interface RunAgentInput {
 	userContent: UserContent;
 	tools: AssembledTools;
 	historyMessages: ChatMessage[];
+	signal?: AbortSignal;
 }
 
 export interface ExecuteAgentInput {
@@ -147,6 +152,7 @@ export interface ExecuteAgentInput {
 	def: AgentDefinition;
 	variables: Variable[];
 	history?: HistoryOptions;
+	signal?: AbortSignal;
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────
@@ -187,6 +193,7 @@ export async function executeAgent(
 			userContent,
 			tools: ctx.tools,
 			historyMessages: ctx.history.messages,
+			...(input.signal ? { signal: input.signal } : {}),
 		});
 
 		if (input.def.persistence?.mode === "dynamic") {
@@ -198,6 +205,7 @@ export async function executeAgent(
 				userContent,
 				replyContent: result.replyContent,
 				hint: input.def.persistence.hint,
+				...(input.signal ? { signal: input.signal } : {}),
 			});
 		}
 
@@ -210,7 +218,14 @@ export async function executeAgent(
 		return result;
 	} catch (err) {
 		if (reportLevel) {
-			emitReport({ turn: fullTurn, startedAt, level: reportLevel, error: err });
+			if (!isAbortError(err)) {
+				emitReport({
+					turn: fullTurn,
+					startedAt,
+					level: reportLevel,
+					error: err,
+				});
+			}
 		}
 		throw err;
 	}
@@ -301,6 +316,7 @@ export async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 		reasoning: sampling.reasoning,
 		runId: turn.runId,
 		agentName: def.name,
+		...(input.signal ? { signal: input.signal } : {}),
 	});
 
 	// Fire-and-forget — trace persistence is best-effort, never blocks reply.
@@ -360,6 +376,7 @@ interface RunLoopOptions {
 	reasoning?: { effort: "low" | "high" } | undefined;
 	runId: string;
 	agentName: string;
+	signal?: AbortSignal;
 }
 
 interface RunLoopResult {
@@ -380,6 +397,8 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 	let totalOut = 0;
 
 	for (let i = 0; i < opts.stepLimit; i++) {
+		if (opts.signal?.aborted) break;
+
 		const requestTools = buildRequestTools(
 			tools.functionTools,
 			tools.serverTools,
@@ -411,6 +430,7 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 			opts.modelId,
 			opts.baseURL,
 			opts.apiKey,
+			opts.signal,
 		);
 		const choice = response.choices[0];
 		if (!choice) {
@@ -559,6 +579,7 @@ async function callWithRetry(
 	modelId: string,
 	baseURL: string,
 	apiKey: string,
+	signal?: AbortSignal,
 ) {
 	const timeoutMs = settings.agent.timeout;
 	const MAX_ATTEMPTS = settings.agent.retries.max;
@@ -571,18 +592,24 @@ async function callWithRetry(
 
 	let lastErr: unknown;
 	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-		const ac = new AbortController();
-		const timeoutId = setTimeout(() => ac.abort(), timeoutMs);
+		const timeoutAc = new AbortController();
+		const timeoutId = setTimeout(() => timeoutAc.abort(), timeoutMs);
+		const combinedSignal = signal
+			? AbortSignal.any([timeoutAc.signal, signal])
+			: timeoutAc.signal;
 		try {
 			const response = await client.chat.send(
 				{ chatRequest: { ...body, stream: false } },
-				{ signal: ac.signal },
+				{ signal: combinedSignal },
 			);
 			clearTimeout(timeoutId);
 			return response;
 		} catch (err) {
 			clearTimeout(timeoutId);
-			const isAbort = err instanceof DOMException && err.name === "AbortError";
+			if (isAbortError(err) && signal?.aborted) {
+				throw err;
+			}
+			const isAbort = isAbortError(err);
 			const wrapped = isAbort ? new LlmTimeoutError(modelId, timeoutMs) : err;
 			lastErr = wrapped;
 			if (!isRetryable(wrapped)) {
@@ -686,6 +713,7 @@ interface PersistDynamicInput {
 	userContent: UserContent;
 	replyContent: string;
 	hint: string;
+	signal?: AbortSignal;
 }
 
 /**
@@ -733,15 +761,18 @@ async function persistDynamic(input: PersistDynamicInput): Promise<void> {
 		retryConfig: { strategy: "none" },
 	});
 
-	const response = await client.chat.send({
-		chatRequest: {
-			model: modelId,
-			messages: [{ role: "system", content: input.system }, ...messages],
-			tools: [persistTool],
-			toolChoice: { type: "function", function: { name: PERSIST_TOOL_NAME } },
-			stream: false,
+	const response = await client.chat.send(
+		{
+			chatRequest: {
+				model: modelId,
+				messages: [{ role: "system", content: input.system }, ...messages],
+				tools: [persistTool],
+				toolChoice: { type: "function", function: { name: PERSIST_TOOL_NAME } },
+				stream: false,
+			},
 		},
-	});
+		input.signal ? { signal: input.signal } : undefined,
+	);
 
 	const call = response.choices[0]?.message.toolCalls?.find(
 		(tc): tc is ChatToolCall =>
