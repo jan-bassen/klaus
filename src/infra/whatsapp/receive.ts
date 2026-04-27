@@ -8,11 +8,9 @@ import {
 import { formatUserError } from "@/errors";
 import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
-import { findConfirmationByPromptId } from "@/infra/store/confirmations";
 import { saveFileMeta } from "@/infra/store/files";
 import { appendReaction } from "@/infra/store/history";
 import { handleTurn } from "@/pipeline";
-import { handleConfirmationResume } from "@/pipeline/confirmations";
 import { enqueueMessage, setSocket, wasSentByUs } from "./send";
 
 /**
@@ -146,48 +144,9 @@ export function attachReceiveHandler(socket: WASocket): void {
 				// Confirmation routing: if the reacted-to message is an open
 				// confirmation prompt and the emoji classifies, fire the resume.
 				// Bot's own reactions are skipped — only user reactions count.
-				if (!fromMe) {
-					maybeResolveConfirmation(reactedId, reaction.text, chatId).catch(
-						(err) =>
-							log.warn("[receive] confirmation resolve failed", {
-								error: err instanceof Error ? err.message : String(err),
-							}),
-					);
-				}
 			}
 		}
 	});
-}
-
-/**
- * Look up a pending confirmation by the WhatsApp message externalId the
- * user reacted to; if the emoji is in the configured approve/deny set,
- * fire `handleConfirmationResume`. Anything else (including the user's
- * own ad-hoc reactions to bot messages) is ignored.
- */
-async function maybeResolveConfirmation(
-	reactedId: string,
-	emoji: string,
-	chatId: string,
-): Promise<void> {
-	const entry = findConfirmationByPromptId(reactedId);
-	if (!entry) return;
-	if (entry.chatId !== chatId) return;
-
-	const decision = classifyEmoji(emoji);
-	if (!decision) return;
-
-	log.info(
-		`[receive] reaction ${emoji} → ${decision} for ${entry.id} (${entry.triggerSummary})`,
-	);
-	await handleConfirmationResume(entry.id, { decision });
-}
-
-function classifyEmoji(emoji: string): "approve" | "deny" | null {
-	const trimmed = emoji.trim();
-	if (settings.agent.confirmEmojis.approve.includes(trimmed)) return "approve";
-	if (settings.agent.confirmEmojis.deny.includes(trimmed)) return "deny";
-	return null;
 }
 
 /**

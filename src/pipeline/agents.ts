@@ -28,7 +28,6 @@ export const AgentSettingsSchema = z
 		provider: z.string().optional(),
 		modelTier: z.enum(modelTiers).optional(),
 		voice: z.enum(["on", "auto", "off"]).default("auto"),
-		accept: z.boolean().default(false),
 		temp: z.enum(["cold", "default", "hot"]).default("default"),
 		topP: z.enum(["creative", "default", "rigid"]).default("default"),
 		reasoningEffort: z.enum(["low", "default", "high"]).default("default"),

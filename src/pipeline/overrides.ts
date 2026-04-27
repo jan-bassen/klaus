@@ -31,7 +31,6 @@ export interface TurnConfig {
 	modelTier?: (typeof modelTiers)[number];
 	forceVoice?: boolean;
 	suppressVoice?: boolean;
-	autoAccept?: boolean;
 	temperaturePreset?: "cold" | "hot";
 	topPPreset?: "creative" | "rigid";
 	reasoningEffort?: "low" | "high";
@@ -62,7 +61,6 @@ export const turnConfigSchema = z
 		modelTier: z.enum(modelTiers).optional(),
 		forceVoice: z.boolean().optional(),
 		suppressVoice: z.boolean().optional(),
-		autoAccept: z.boolean().optional(),
 		temperaturePreset: z.enum(["cold", "hot"]).optional(),
 		topPPreset: z.enum(["creative", "rigid"]).optional(),
 		reasoningEffort: z.enum(["low", "high"]).optional(),
@@ -210,8 +208,6 @@ function fromFrontmatter(def: AgentDefinition): TurnConfig {
 
 	if (s.voice === "on") out.forceVoice = true;
 	else if (s.voice === "off") out.suppressVoice = true;
-
-	if (s.accept) out.autoAccept = true;
 
 	if (s.temp === "cold") out.temperaturePreset = "cold";
 	else if (s.temp === "hot") out.temperaturePreset = "hot";

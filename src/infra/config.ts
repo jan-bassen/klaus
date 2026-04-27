@@ -171,23 +171,6 @@ const AgentSchema = z
 		lookbackDays: z.number(),
 		/** Cap on reasoning text replayed into history per past step. */
 		maxReasoningChars: z.number(),
-		/** Pending tool-confirmation timeout (minutes). Expired entries notify the user if `confirmExpiryNotify`. */
-		confirmTimeoutMinutes: z.number(),
-		/** Emoji classification for confirmation reactions. Anything outside both lists is ignored. */
-		confirmEmojis: z
-			.object({
-				approve: z.array(z.string()),
-				deny: z.array(z.string()),
-			})
-			.strict(),
-		/** When true, send a system message when a pending confirmation expires. */
-		confirmExpiryNotify: z.boolean(),
-		/**
-		 * When true, a non-quoted user message arriving while a confirmation is
-		 * pending supersedes (drops) all pending entries for that chat. The
-		 * agent sees them as cancelled in its next turn.
-		 */
-		confirmSupersedeOnNewTurn: z.boolean(),
 	})
 	.strict();
 
@@ -195,7 +178,6 @@ const AgentDefaultsSchema = z
 	.object({
 		modelTier: z.enum(modelTiers),
 		voice: z.enum(["on", "auto", "off"]),
-		accept: z.boolean(),
 		temp: z.enum(["cold", "default", "hot"]),
 		topP: z.enum(["creative", "default", "rigid"]),
 		reasoningEffort: z.enum(["low", "default", "high"]),

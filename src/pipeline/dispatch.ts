@@ -36,12 +36,6 @@ export interface DispatchOptions {
 	 * for top-level runs (cron/timer) so their replies go direct.
 	 */
 	replyCollector?: string[];
-	/**
-	 * If set, the framework's confirmation gate skips exactly once when the
-	 * agent calls a tool with this name. Used by `handleConfirmationResume`
-	 * so the approved tool can complete without re-prompting.
-	 */
-	bypassConfirmationForTool?: string;
 }
 
 async function resolveAgent(name: string) {
@@ -87,9 +81,6 @@ export async function dispatch(
 		dispatchContext: { prompt },
 		pendingSubReplies: [],
 		...(replyCollector ? { _replyCollector: replyCollector } : {}),
-		...(opts.bypassConfirmationForTool
-			? { bypassConfirmationForTool: opts.bypassConfirmationForTool }
-			: {}),
 	};
 
 	await executeAgent({

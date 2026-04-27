@@ -18,11 +18,6 @@ simulate:
   description: Dry-run — fake external/stateful tools, no real side effects
   overrides: { simulate: true }
 
-accept:
-  aliases: [a]
-  description: Auto-accept confirmations
-  overrides: { autoAccept: true }
-
 small:
   aliases: [s]
   description: Use small model

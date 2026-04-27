@@ -11,7 +11,7 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Obsidian va
 | Layer | Tech |
 |---|---|
 | Runtime | Bun + TypeScript (strict) |
-| LLM | Vercel AI SDK — Anthropic / OpenAI / Google |
+| LLM | Custom loop · any OpenAI-compatible endpoint (default: OpenRouter) |
 | STT / TTS | ElevenLabs |
 | WhatsApp | Baileys (unofficial multi-device) |
 | Knowledge | Obsidian vault (notes, wikilinks, frontmatter) |
@@ -24,7 +24,7 @@ Prereqs: Docker, an Anthropic API key, an Obsidian Sync subscription (the contai
 
 ```bash
 git clone <repo-url> && cd klaus
-cp .env.example .env    # fill in ANTHROPIC_API_KEY, OBSIDIAN_*, etc.
+cp .env.example .env    # fill in OPENROUTER_API_KEY, OBSIDIAN_*, etc.
 
 docker run -d --restart unless-stopped \
   --env-file .env \
@@ -73,7 +73,7 @@ Bypass the LLM entirely:
 - `/default <agent>` — set the default agent for this chat
 - `/model [small|medium|large]` — show or switch model tier
 - `/provider [claude|openai|gemini|...]` — show or switch provider
-- `/voice on|off|auto`, `/accept on|off` — toggle agent frontmatter flags
+- `/voice on|off|auto` — toggle agent frontmatter flags
 - `/break` — hide prior conversation from the next turn (fresh context)
 - `/retry` — re-run the last turn with the same input
 - `/reports [agent] [limit]` — recent per-turn reports
@@ -95,7 +95,6 @@ Bypass the LLM entirely:
 | `!no-tools` / `!use-tools` (`!nt`/`!ut`) | Tool choice |
 | `!ghost` (`!g`) | Ephemeral, no persistence |
 | `!simulate` (`!sim`) | Dry-run — fake external/stateful tools, no real side effects |
-| `!accept` (`!a`) | Auto-accept confirmations |
 
 Combine freely: `@fitness !voice !large plan tomorrow's session`.
 
@@ -111,7 +110,7 @@ Every WhatsApp message goes through a fixed pipeline:
 2. **Parse** — STT, doc extract, web-link fetch, voice transcript rewrite, `/command`, `@agent`, `!overrides`
 3. **Resolve agent + config** — agent frontmatter merged with overrides into a `TurnConfig`
 4. **Persist** — append to day-partitioned conversation JSONL
-5. **Execute** — assemble context (variables + tools + history), render prompts, run the Vercel AI SDK agentic loop, emit a structured report
+5. **Execute** — assemble context (variables + tools + history), render prompts, run the model loop, emit a structured report
 
 Cron schedules and one-shot timers (including dynamic-persistence reschedules and `dispatch(when: ...)`) also enter at step 5 with a synthesised trigger.
 
@@ -159,7 +158,7 @@ Hot-reload covers agent files, skills, snippets, templates, `overrides.yml`, and
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | Required |
+| `OPENROUTER_API_KEY` | — | Required (default endpoint) |
 | `ELEVENLABS_API_KEY` | — | For voice notes (STT/TTS) |
 | `OBSIDIAN_EMAIL` | — | Required — Obsidian Sync account email |
 | `OBSIDIAN_PASSWORD` | — | Required — Obsidian Sync account password |

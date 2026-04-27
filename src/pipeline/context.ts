@@ -19,7 +19,6 @@ import { fakeExternal, fakeStateful, getOverlay } from "@/infra/simulation";
 import { getConversation, getTraces } from "@/infra/store/history";
 import type { ModelCallStep, TurnContext } from "@/pipeline/agent";
 import type { AgentDefinition } from "@/pipeline/agents";
-import { evaluateGate, requestConfirmation } from "@/pipeline/confirmations";
 import { renderTemplate } from "@/pipeline/prompts";
 import type { ToolDefinition } from "@/primitives/tools";
 import {
@@ -118,21 +117,6 @@ async function invokeTool(
 	input: unknown,
 	turn: TurnContext,
 ): Promise<unknown> {
-	// Confirmation gate: declared per-tool via `requiresConfirmation`. The gate
-	// itself decides skip-vs-intercept based on turn mode (sim/autoAccept/
-	// trigger kind/bypass slot). Intercepted calls return a synthetic
-	// `awaiting_confirmation` result and never hit `execute`.
-	const decision = evaluateGate(t, input, turn);
-	if (decision.kind === "gate") {
-		return requestConfirmation({
-			tool: t,
-			input,
-			turn,
-			verb: decision.verb,
-			summary: decision.summary,
-		});
-	}
-
 	if (!turn.config?.simulate) {
 		return t.execute(input, turn);
 	}

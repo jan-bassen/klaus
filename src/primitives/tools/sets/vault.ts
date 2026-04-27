@@ -34,38 +34,10 @@ async function gate(
 	const resolved = resolveVaultPath(rel);
 	if (!resolved) return { error: accessError() };
 
-	// `needsConfirm` is treated as proceed here — the framework's confirmation
-	// gate (in `pipeline/confirmations.ts`) is the actual enforcement point.
-	// Reaching execute means the user already approved (or the call was
-	// non-gated for reasons like sim/autoAccept). This branch only blocks
-	// outright denials.
 	if (checkPermission(resolved.folder, op, vaultMap(context)) === "denied")
 		return { error: permissionError(resolved.folder.path, op) };
 
 	return resolved.absolute;
-}
-
-/**
- * `requiresConfirmation` builder shared by all write-class vault tools. Asks
- * for confirmation iff the path resolves into a folder whose effective
- * permission for `op` comes back as `needsConfirm`. Resolution failures
- * (escapes, unmapped paths) and outright denials skip the gate — `execute`'s
- * own `gate()` call surfaces them as user-facing errors.
- */
-function vaultConfirm(verb: string, op: VaultOp) {
-	return (
-		input: { path: string },
-		context: TurnContext,
-	): false | { verb: string; summary: string } => {
-		const resolved = resolveVaultPath(input.path);
-		if (!resolved) return false;
-		if (
-			checkPermission(resolved.folder, op, vaultMap(context)) === "needsConfirm"
-		) {
-			return { verb, summary: input.path };
-		}
-		return false;
-	};
 }
 
 /**
@@ -460,7 +432,6 @@ export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
 		overlay.vaultDeletes.delete(gated);
 		return `(sim) Written: ${rel}`;
 	},
-	requiresConfirmation: vaultConfirm("write", "full"),
 	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
@@ -561,7 +532,6 @@ export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
 		overlay.vaultDeletes.delete(gated);
 		return `(sim) Appended to section ${heading === "" ? "(top-level)" : `"${heading}"`} in: ${rel}`;
 	},
-	requiresConfirmation: vaultConfirm("append to", "append"),
 	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
@@ -718,16 +688,6 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 			: "";
 		return `(sim) Moved: ${from} → ${to}.${backlinkNote}`;
 	},
-	requiresConfirmation: (input, context) => {
-		// Treat the destination as the gate target; that's where the new
-		// content lands. The source's own deletion is implicit.
-		const fromCheck = vaultConfirm("move from", "full")(
-			{ path: input.from },
-			context,
-		);
-		if (fromCheck) return fromCheck;
-		return vaultConfirm("move to", "full")({ path: input.to }, context);
-	},
 	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
@@ -763,7 +723,6 @@ export const vaultDeleteTool: ToolDefinition<typeof vaultDeleteSchema> = {
 		overlay.vaultWrites.delete(gated);
 		return `(sim) Deleted: ${rel}`;
 	},
-	requiresConfirmation: vaultConfirm("delete", "full"),
 	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
@@ -829,7 +788,6 @@ export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
 		overlay.vaultDeletes.delete(gated);
 		return `(sim) Patched section "${heading}" in ${rel}.`;
 	},
-	requiresConfirmation: vaultConfirm("patch", "full"),
 	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",

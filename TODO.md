@@ -4,8 +4,8 @@ Opening this up as "the agent for tinkerers". Polish the codebase and the docs b
 
 ### Remaining cleanup
 
-- [ ] sync -> /vault/
-- [ ] pipeline/agent -> pipeline/core or pipeline/loop
+- [ ] sync move -> /vault/
+- [ ] pipeline/agent rename -> pipeline/core or pipeline/loop
 - [ ] Remove any unnecessary config/top-level files used for dev
 
 ### Docs

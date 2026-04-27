@@ -11,7 +11,6 @@
 import { formatUserError } from "@/errors";
 import { settings, updateAllowedChatId } from "@/infra/config";
 import { log } from "@/infra/logger";
-import { findConfirmationByPromptId } from "@/infra/store/confirmations";
 import {
 	findFileByExternalId,
 	findFileByMessageId,
@@ -40,10 +39,6 @@ import { registry as commandRegistry } from "@/primitives/commands";
 import { getVariables } from "@/primitives/variables";
 import type { Trigger, TurnContext } from "./agent";
 import { executeAgent } from "./agent";
-import {
-	handleConfirmationResume,
-	supersedeConfirmationsForChat,
-} from "./confirmations";
 import { parseMessage } from "./message";
 import { buildTurnConfig } from "./overrides";
 
@@ -72,26 +67,6 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		if (!auth.allowed) {
 			if (auth.setupMode) await handleSetupMode(msg);
 			return;
-		}
-
-		// Quote-reply confirmation intercept: if the user is quoting an open
-		// confirmation prompt, treat it as deny + reason and consume the turn.
-		// (An emoji-only quote could in principle be classified as approve, but
-		// the reaction channel is the documented happy path for that — keeping
-		// quote-reply purely as the "deny with reason" channel avoids ambiguity.)
-		if (msg.quotedMessage?.externalId) {
-			const pending = findConfirmationByPromptId(msg.quotedMessage.externalId);
-			if (pending && pending.chatId === msg.chatId) {
-				log.info(
-					`[pipeline] quote-reply deny for ${pending.id} (${pending.triggerSummary})`,
-				);
-				const reason = msg.text?.trim();
-				await handleConfirmationResume(pending.id, {
-					decision: "deny",
-					...(reason ? { reason } : {}),
-				});
-				return;
-			}
 		}
 
 		const knownAgents = new Set(agentRegistry.keys());
@@ -167,21 +142,6 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			messageRefs: {},
 			pendingSubReplies: [],
 		};
-
-		// Non-quoted user message → drop pending confirmations for this chat
-		// before the agent runs, so the agent sees a clean slate. Without this,
-		// stale prompts could collide with whatever the user is asking now.
-		if (
-			settings.agent.confirmSupersedeOnNewTurn &&
-			!msg.quotedMessage?.externalId
-		) {
-			const dropped = await supersedeConfirmationsForChat(effectiveMsg.chatId);
-			if (dropped.length > 0) {
-				log.info(
-					`[pipeline] superseded ${dropped.length} pending confirmation(s) for ${effectiveMsg.chatId}`,
-				);
-			}
-		}
 
 		if (msg.kind === "whatsapp") await startTyping(effectiveMsg.chatId);
 		try {

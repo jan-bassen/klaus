@@ -9,14 +9,9 @@ process.emitWarning = (warning, ...args) => {
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
+import { formatUserError } from "./errors";
 import { loadSettingsFromDisk, settings } from "./infra/config";
 import { log } from "./infra/logger";
-import {
-	initConfirmationsStore,
-	loadConfirmations,
-	setOnConfirmationExpire,
-	stopAllConfirmations,
-} from "./infra/store/confirmations";
 import { initFilesStore, rebuildFileIndex } from "./infra/store/files";
 import {
 	initHistoryStore,
@@ -83,7 +78,6 @@ async function shutdown(signal: string): Promise<void> {
 	stopWatching();
 	stopAllSchedules();
 	stopAllTimers();
-	stopAllConfirmations();
 
 	log.info("[shutdown] complete");
 	process.exit(0);
@@ -191,7 +185,6 @@ async function main(): Promise<void> {
 		timezone: settings.timezone,
 	});
 	initTimersStore({ dataDir: settings.dataDir });
-	initConfirmationsStore({ dataDir: settings.dataDir });
 
 	log.info("[startup] loading tools, agents, variables, skills, and overrides");
 	await loadAllTools(path.join(import.meta.dir, "primitives", "tools"));
@@ -247,37 +240,46 @@ async function main(): Promise<void> {
 	}
 
 	setOnCronFire(async (entry) => {
-		await dispatch({
-			agent: entry.agentName,
-			prompt: entry.objective,
-			...(entry.overrides ? { overrides: entry.overrides } : {}),
-			chatId: entry.chatId,
-			trigger: { kind: "schedule", scheduleId: entry.id },
-		});
+		try {
+			await dispatch({
+				agent: entry.agentName,
+				prompt: entry.objective,
+				...(entry.overrides ? { overrides: entry.overrides } : {}),
+				chatId: entry.chatId,
+				trigger: { kind: "schedule", scheduleId: entry.id },
+			});
+		} catch (err) {
+			log.error("[cron] dispatch failed", { scheduleId: entry.id, error: err });
+			enqueueMessage({
+				chatId: entry.chatId,
+				content: `⚠️ Scheduled @${entry.agentName} run failed:\n${formatUserError(err)}`,
+				dedupKey: `cron-error:${entry.id}:${Date.now()}`,
+				label: settings.whatsapp.systemLabel,
+			});
+		}
 	});
 	startAllSchedules();
 
 	setOnTimerFire(async (entry) => {
-		await dispatch({
-			agent: entry.agentName,
-			prompt: entry.objective,
-			...(entry.overrides ? { overrides: entry.overrides } : {}),
-			chatId: entry.chatId,
-			trigger: { kind: "timer", timerId: entry.id },
-		});
+		try {
+			await dispatch({
+				agent: entry.agentName,
+				prompt: entry.objective,
+				...(entry.overrides ? { overrides: entry.overrides } : {}),
+				chatId: entry.chatId,
+				trigger: { kind: "timer", timerId: entry.id },
+			});
+		} catch (err) {
+			log.error("[timer] dispatch failed", { timerId: entry.id, error: err });
+			enqueueMessage({
+				chatId: entry.chatId,
+				content: `⚠️ Scheduled @${entry.agentName} run failed:\n${formatUserError(err)}`,
+				dedupKey: `timer-error:${entry.id}:${Date.now()}`,
+				label: settings.whatsapp.systemLabel,
+			});
+		}
 	});
 	await loadTimers();
-
-	setOnConfirmationExpire(async (entry) => {
-		if (!settings.agent.confirmExpiryNotify) return;
-		enqueueMessage({
-			chatId: entry.chatId,
-			content: `⌛ Pending confirmation for \`${entry.triggerSummary}\` expired without a response.`,
-			dedupKey: `confirm-expired:${entry.id}`,
-			label: settings.whatsapp.systemLabel,
-		});
-	});
-	await loadConfirmations();
 
 	startWatching(agentsDir, settings.vault.skillsDir);
 

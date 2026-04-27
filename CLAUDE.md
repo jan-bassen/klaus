@@ -39,7 +39,7 @@ src/
 ├── primitives/       # pluggable extensions (auto-discovered via glob)
 │   ├── tools/        # reply, react, web, conversation, skill + sets/{vault,dispatch,files}
 │   ├── variables/    # time, media, links, tasks, dispatch, config, user, snippets, trigger
-│   └── commands/     # /status, /tasks, /voice, /accept, /model, /provider, /break, /retry, /reports, /help, /default
+│   └── commands/     # /status, /tasks, /voice, /model, /provider, /break, /retry, /reports, /help, /default
 └── infra/            # external systems + state
     ├── config.ts     # YAML settings + env paths + resolveModel/resolveImageModel (live mutable `settings`)
     ├── logger.ts
@@ -75,7 +75,6 @@ settings:
   provider: claude|openai|gemini|qwen|deepseek
   modelTier: small|medium|large
   voice: on|auto|off
-  accept: false
   temp: cold|default|hot
   topP: creative|default|rigid
   reasoningEffort: low|default|high
