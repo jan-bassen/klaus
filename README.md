@@ -71,7 +71,8 @@ Bypass the LLM entirely:
 
 - `/status`, `/tasks`, `/help`
 - `/default <agent>` — set the default agent for this chat
-- `/model <small|medium|large|claude|chatgpt|gemini>` — change tier or provider
+- `/model [small|medium|large]` — show or switch model tier
+- `/provider [claude|openai|gemini|...]` — show or switch provider
 - `/voice on|off|auto`, `/accept on|off` — toggle agent frontmatter flags
 - `/break` — hide prior conversation from the next turn (fresh context)
 - `/retry` — re-run the last turn with the same input
@@ -86,7 +87,7 @@ Bypass the LLM entirely:
 | `!voice` (`!v`) | Guaranteed TTS reply |
 | `!clean` (`!cl`) | Skip conversation history |
 | `!small` / `!medium` / `!large` (`!s`/`!m`/`!l`) | Model tier |
-| `!claude` / `!chatgpt` / `!gemini` | Provider |
+| `!claude` / `!openai` / `!gemini` / `!qwen` / `!deepseek` | Provider |
 | `!cold` / `!hot` (`!c`/`!h`) | Temperature preset |
 | `!creative` / `!rigid` (`!cr`/`!r`) | topP preset |
 | `!low` / `!high` (`!lo`/`!hi`) | Reasoning effort |
@@ -131,6 +132,7 @@ toolsets: [vault]
 providerTools: [web_search]
 skills: [obsidian-markdown]
 settings:
+  provider: claude
   modelTier: large
 ---
 You are a research assistant. {{time.date}} — use web_search + vault.

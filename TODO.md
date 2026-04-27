@@ -1,17 +1,11 @@
-# Later
-
-## Last features
-
-- [ ] Envs via dotenvx or varlock
-- [ ] providers -> model sets
-- [ ] sync -> /vault/
-
-## Repo understandability v0.2.0
+# Repo understandability v0.2.0
 
 Opening this up as "the agent for tinkerers". Polish the codebase and the docs before that.
 
 ### Remaining cleanup
 
+- [ ] sync -> /vault/
+- [ ] pipeline/agent -> pipeline/core or pipeline/loop
 - [ ] Remove any unnecessary config/top-level files used for dev
 
 ### Docs

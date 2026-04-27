@@ -88,6 +88,28 @@ describe("pipeline/overrides.buildTurnConfig", () => {
 		expect(cfg.modelTier).toBe("large");
 	});
 
+	it("global defaultProvider fills when frontmatter doesn't set it", () => {
+		const cfg = buildTurnConfig(makeAgent(), {});
+		expect(cfg.provider).toBe(settings.defaultProvider);
+	});
+
+	it("frontmatter provider wins over global default", () => {
+		const cfg = buildTurnConfig(makeAgent({ provider: "openai" }), {});
+		expect(cfg.provider).toBe("openai");
+	});
+
+	it("preset provider wins over frontmatter and global", () => {
+		register({
+			name: "gemini",
+			description: "",
+			overrides: { provider: "gemini" },
+		});
+		const cfg = buildTurnConfig(makeAgent({ provider: "openai" }), {
+			gemini: true,
+		});
+		expect(cfg.provider).toBe("gemini");
+	});
+
 	it("vault map deep-merges across global + frontmatter + preset", () => {
 		register({
 			name: "openPrivate",

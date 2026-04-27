@@ -39,9 +39,9 @@ src/
 ├── primitives/       # pluggable extensions (auto-discovered via glob)
 │   ├── tools/        # reply, react, web, conversation, skill + sets/{vault,dispatch,files}
 │   ├── variables/    # time, media, links, tasks, dispatch, config, user, snippets, trigger
-│   └── commands/     # /status, /tasks, /voice, /accept, /model, /models, /break, /retry, /reports, /help, /default
+│   └── commands/     # /status, /tasks, /voice, /accept, /model, /provider, /break, /retry, /reports, /help, /default
 └── infra/            # external systems + state
-    ├── config.ts     # YAML settings + env paths + resolveProvider (live mutable `settings`)
+    ├── config.ts     # YAML settings + env paths + resolveModel/resolveImageModel (live mutable `settings`)
     ├── logger.ts
     ├── simulation.ts # per-turn overlay (WeakMap<TurnContext>) + fakers
     ├── store/        # flat-file stores (history, files, report, schedules, timers)
@@ -72,6 +72,7 @@ toolsets: [vault, dispatch]
 providerTools: [web_search]
 skills: [workout-plan]
 settings:
+  provider: claude|openai|gemini|qwen|deepseek
   modelTier: small|medium|large
   voice: on|auto|off
   accept: false

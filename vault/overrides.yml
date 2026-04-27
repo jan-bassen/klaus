@@ -42,13 +42,22 @@ claude:
   description: Use Claude provider
   overrides: { provider: claude }
 
-chatgpt:
-  description: Use ChatGPT provider
-  overrides: { provider: chatgpt }
+openai:
+  aliases: [chatgpt, gpt]
+  description: Use OpenAI provider
+  overrides: { provider: openai }
 
 gemini:
   description: Use Gemini provider
   overrides: { provider: gemini }
+
+qwen:
+  description: Use Qwen provider
+  overrides: { provider: qwen }
+
+deepseek:
+  description: Use DeepSeek provider
+  overrides: { provider: deepseek }
 
 cold:
   aliases: [c]

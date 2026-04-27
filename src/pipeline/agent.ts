@@ -19,7 +19,7 @@ import type {
 import { OpenRouterError } from "@openrouter/sdk/models/errors";
 import { z } from "zod";
 import { toJSONSchema } from "zod/v4";
-import { type ModelTier, resolveProvider, settings } from "@/infra/config";
+import { type ModelTier, resolveModel, settings } from "@/infra/config";
 import { log } from "@/infra/logger";
 import { appendTrace, type TraceStep } from "@/infra/store/history";
 import { addTimer } from "@/infra/store/timers";
@@ -278,15 +278,15 @@ function resolveReportLevel(
 export async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 	const { turn, def, system, userContent, tools, historyMessages } = input;
 
-	const { config: providerCfg } = resolveProvider();
+	const provider = turn.config?.provider ?? settings.defaultProvider;
 	const tier: ModelTier =
 		turn.config?.modelTier ?? settings.agentDefaults.modelTier;
-	const modelId = providerCfg[tier];
+	const { baseURL, apiKey, modelId, tempScale } = resolveModel(provider, tier);
 	const toolChoice = turn.config?.toolChoice;
 	const stepLimit = turn.config?.stepLimit ?? settings.agent.maxSteps;
 	const sampling = resolveSampling(turn.config);
 
-	log.info(`[agent] calling ${modelId} for @${def.name}`);
+	log.info(`[agent] calling ${modelId} (${provider}/${tier}) for @${def.name}`);
 
 	const initialMessages: ChatMessage[] = [
 		...historyMessages,
@@ -294,7 +294,10 @@ export async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 	];
 
 	const result = await runLoop({
+		baseURL,
+		apiKey,
 		modelId,
+		tempScale,
 		system,
 		messages: initialMessages,
 		tools,
@@ -354,7 +357,11 @@ export async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 // ── Loop core (private) ────────────────────────────────────────────────────
 
 interface RunLoopOptions {
+	baseURL: string;
+	apiKey: string;
 	modelId: string;
+	/** Native temperature scale of the provider — opts.temperature is multiplied by this before send. */
+	tempScale: number;
 	system: string;
 	messages: ChatMessage[];
 	tools: AssembledTools;
@@ -401,7 +408,7 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 				...messages,
 			],
 			...(opts.temperature !== undefined
-				? { temperature: opts.temperature }
+				? { temperature: opts.temperature * opts.tempScale }
 				: {}),
 			...(opts.topP !== undefined ? { topP: opts.topP } : {}),
 			...(opts.reasoning ? { reasoning: opts.reasoning } : {}),
@@ -411,7 +418,12 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 				: {}),
 		};
 
-		const response = await callWithRetry(requestBody, opts.modelId);
+		const response = await callWithRetry(
+			requestBody,
+			opts.modelId,
+			opts.baseURL,
+			opts.apiKey,
+		);
 		const choice = response.choices[0];
 		if (!choice) {
 			throw new Error(
@@ -554,14 +566,18 @@ function isRetryable(err: unknown): boolean {
 	return true;
 }
 
-async function callWithRetry(body: ChatRequest, modelId: string) {
-	const { config: providerCfg, apiKey } = resolveProvider();
+async function callWithRetry(
+	body: ChatRequest,
+	modelId: string,
+	baseURL: string,
+	apiKey: string,
+) {
 	const timeoutMs = settings.agent.timeout;
 	const MAX_ATTEMPTS = settings.agent.retries.max;
 
 	const client = new OpenRouter({
 		apiKey,
-		serverURL: providerCfg.baseURL,
+		serverURL: baseURL,
 		retryConfig: { strategy: "none" },
 	});
 
@@ -691,10 +707,10 @@ interface PersistDynamicInput {
  * reschedules hide bugs.
  */
 async function persistDynamic(input: PersistDynamicInput): Promise<void> {
-	const { config: providerCfg, apiKey } = resolveProvider();
+	const provider = input.turn.config?.provider ?? settings.defaultProvider;
 	const tier: ModelTier =
 		input.turn.config?.modelTier ?? settings.agentDefaults.modelTier;
-	const modelId = providerCfg[tier];
+	const { baseURL, apiKey, modelId } = resolveModel(provider, tier);
 
 	const messages: ChatMessage[] = [
 		...input.historyMessages,
@@ -725,7 +741,7 @@ async function persistDynamic(input: PersistDynamicInput): Promise<void> {
 
 	const client = new OpenRouter({
 		apiKey,
-		serverURL: providerCfg.baseURL,
+		serverURL: baseURL,
 		retryConfig: { strategy: "none" },
 	});
 

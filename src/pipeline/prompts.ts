@@ -20,7 +20,7 @@ import type {
 	ChatContentText,
 	ChatUserMessage,
 } from "@openrouter/sdk/models";
-import { resolveProvider, settings } from "@/infra/config";
+import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
 import { hbs, interpolateUserVars } from "@/infra/vault/markdown";
 import type { TurnContext } from "@/pipeline/agent";
@@ -201,29 +201,30 @@ export interface ResolvedSampling {
 
 /**
  * Translate `TurnConfig` sampling/reasoning overrides into concrete model-call
- * parameters. Temperature/topP resolve against the configured provider's preset
- * numbers; reasoning effort maps to OpenAI-shape `reasoning.effort`.
+ * parameters. Temperature/topP resolve against the global `sampling` presets
+ * (normalized 0–1 space — the runtime multiplies by the provider's `tempScale`
+ * before sending). Reasoning effort maps to OpenAI-shape `reasoning.effort`.
  */
 export function resolveSampling(config: TurnConfig): ResolvedSampling {
-	const { config: providerCfg } = resolveProvider();
+	const s = settings.sampling;
 	const out: ResolvedSampling = {};
 
 	const tempPreset = config.temperaturePreset;
 	if (tempPreset === "cold") {
-		out.temperature = providerCfg.coldTemperature ?? 0;
+		out.temperature = s.coldTemperature ?? 0;
 	} else if (tempPreset === "hot") {
-		out.temperature = providerCfg.hotTemperature ?? 1;
-	} else if (providerCfg.temperature !== undefined) {
-		out.temperature = providerCfg.temperature;
+		out.temperature = s.hotTemperature ?? 1;
+	} else if (s.temperature !== undefined) {
+		out.temperature = s.temperature;
 	}
 
 	const topPPreset = config.topPPreset;
 	if (topPPreset === "creative") {
-		out.topP = providerCfg.creativeTopP ?? 0.95;
+		out.topP = s.creativeTopP ?? 0.95;
 	} else if (topPPreset === "rigid") {
-		out.topP = providerCfg.rigidTopP ?? 0.1;
-	} else if (providerCfg.topP !== undefined) {
-		out.topP = providerCfg.topP;
+		out.topP = s.rigidTopP ?? 0.1;
+	} else if (s.topP !== undefined) {
+		out.topP = s.topP;
 	}
 
 	if (config.reasoningEffort) {

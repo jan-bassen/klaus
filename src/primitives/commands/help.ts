@@ -1,11 +1,13 @@
-import { settings } from "@/infra/config";
+import { type ModelTier, settings } from "@/infra/config";
 import type { InboundMessage } from "@/infra/whatsapp/receive";
 import { enqueueMessage } from "@/infra/whatsapp/send";
-import { agentRegistry } from "@/pipeline/agents";
+import { agentRegistry, getDefaultAgent } from "@/pipeline/agents";
 import { overrideRegistry } from "@/pipeline/overrides";
 import type { Command } from "@/primitives/commands";
 import { registry } from "@/primitives/commands";
 import { getVariables } from "@/primitives/variables";
+
+const TIERS: ModelTier[] = ["small", "medium", "large"];
 
 function buildCommandsSection(): string {
 	const lines = registry.getAll().map((cmd) => {
@@ -66,6 +68,27 @@ function buildVarsSection(): string {
 	return `*Variables*\n${lines.join("\n")}`;
 }
 
+function buildModelsSection(msg: InboundMessage): string {
+	const agentName = getDefaultAgent(msg.chatId);
+	const def = agentRegistry.get(agentName);
+	const currentProvider = def?.settings.provider ?? settings.defaultProvider;
+	const currentTier =
+		def?.settings.modelTier ?? settings.agentDefaults.modelTier;
+
+	const lines: string[] = [];
+	for (const [name, p] of Object.entries(settings.providers)) {
+		const ep = settings.endpoints[p.endpoint];
+		const via = ep ? ` via ${p.endpoint}` : ` via ?${p.endpoint}`;
+		lines.push(`*${name}*${via}`);
+		for (const tier of TIERS) {
+			const marker =
+				name === currentProvider && tier === currentTier ? " ← current" : "";
+			lines.push(`  ${tier}: ${p[tier]}${marker}`);
+		}
+	}
+	return `*Models*\n${lines.join("\n")}`;
+}
+
 function buildVaultSection(): string {
 	const lines: string[] = [];
 
@@ -80,28 +103,28 @@ function buildVaultSection(): string {
 	return `*Vault*\n${lines.join("\n")}`;
 }
 
-const sections = {
-	commands: buildCommandsSection(),
-	agents: buildAgentsSection(),
-	overrides: buildoverridesSection(),
-	vars: buildVarsSection(),
-	vault: buildVaultSection(),
-};
-
-function build(section?: string): string {
-	if (section && sections[section as keyof typeof sections]) {
-		return sections[section as keyof typeof sections];
-	}
-	return Object.values(sections).join("\n\n");
+function buildSections(msg: InboundMessage): Record<string, string> {
+	return {
+		commands: buildCommandsSection(),
+		agents: buildAgentsSection(),
+		overrides: buildoverridesSection(),
+		vars: buildVarsSection(),
+		models: buildModelsSection(msg),
+		vault: buildVaultSection(),
+	};
 }
 
 export const helpCommand: Command = {
 	name: "help",
 	aliases: ["?"],
-	description: "Show commands, agents, overrides, vars, and vault",
+	description: "Show commands, agents, overrides, vars, models, and vault",
 	execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const section = args[0]?.toLowerCase();
-		const content = build(section);
+		const sections = buildSections(msg);
+		const content =
+			section && sections[section]
+				? sections[section]
+				: Object.values(sections).join("\n\n");
 
 		enqueueMessage({
 			chatId: msg.chatId,

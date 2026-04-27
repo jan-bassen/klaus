@@ -27,6 +27,7 @@ import type { AgentDefinition } from "./agents";
  */
 export interface TurnConfig {
 	// from agent settings + overrides
+	provider?: string;
 	modelTier?: (typeof modelTiers)[number];
 	forceVoice?: boolean;
 	suppressVoice?: boolean;
@@ -57,6 +58,7 @@ export interface TurnConfig {
 /** Schema for a TurnConfig fragment as it appears under an `overrides:` block. */
 export const turnConfigSchema = z
 	.object({
+		provider: z.string().optional(),
 		modelTier: z.enum(modelTiers).optional(),
 		forceVoice: z.boolean().optional(),
 		suppressVoice: z.boolean().optional(),
@@ -203,6 +205,7 @@ function fromFrontmatter(def: AgentDefinition): TurnConfig {
 	const s = def.settings;
 	const out: TurnConfig = {};
 
+	if (s.provider !== undefined) out.provider = s.provider;
 	if (s.modelTier !== undefined) out.modelTier = s.modelTier;
 
 	if (s.voice === "on") out.forceVoice = true;
@@ -242,14 +245,17 @@ export function resolveOverrides(active: Record<string, boolean>): TurnConfig {
 }
 
 /**
- * Read-through of `settings.agentDefaults` into a TurnConfig fragment.
- * Per-agent settings carry their own enum defaults like `voice: "auto"` so
+ * Read-through of global defaults into a TurnConfig fragment. Per-agent
+ * settings carry their own enum defaults like `voice: "auto"` so
  * `fromFrontmatter` always wins for those — globalDefaults here only sets
- * fields the per-agent layer leaves undefined (currently: `modelTier`).
+ * fields the per-agent layer leaves undefined (currently: `provider`,
+ * `modelTier`).
  */
 function fromGlobalDefaults(): TurnConfig {
-	const ad = settings.agentDefaults;
-	return { modelTier: ad.modelTier };
+	return {
+		provider: settings.defaultProvider,
+		modelTier: settings.agentDefaults.modelTier,
+	};
 }
 
 /**

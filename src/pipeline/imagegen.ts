@@ -6,7 +6,7 @@
  */
 
 import { OpenRouter } from "@openrouter/sdk";
-import { resolveProvider, settings } from "@/infra/config";
+import { resolveImageModel } from "@/infra/config";
 import { log } from "@/infra/logger";
 
 export interface GeneratedImage {
@@ -23,20 +23,24 @@ export interface GenerateImageInput {
 export async function generateImage(
 	input: GenerateImageInput,
 ): Promise<GeneratedImage | Error> {
-	const { config: providerCfg, apiKey } = resolveProvider();
-	const model = input.model || settings.media.image.gen.model;
-
-	if (!model) {
-		return new Error(
-			"No image generation model configured. Set media.image.gen.model in settings.yml.",
-		);
+	let baseURL: string;
+	let apiKey: string;
+	let configuredModel: string;
+	try {
+		const resolved = resolveImageModel();
+		baseURL = resolved.baseURL;
+		apiKey = resolved.apiKey;
+		configuredModel = resolved.modelId;
+	} catch (err) {
+		return err instanceof Error ? err : new Error(String(err));
 	}
 
+	const model = input.model || configuredModel;
 	log.info(`[imagegen] generating with ${model}`);
 
 	const client = new OpenRouter({
 		apiKey,
-		serverURL: providerCfg.baseURL,
+		serverURL: baseURL,
 		retryConfig: { strategy: "none" },
 	});
 

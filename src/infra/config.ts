@@ -90,14 +90,28 @@ export type AgentVaultEntry =
 			confirm?: VaultPermission | undefined;
 	  };
 
-export interface ProviderConfig {
+export interface EndpointConfig {
 	/** Base URL of an OpenAI-compatible chat completions API. */
 	baseURL: string;
 	/** Name of the env var holding the API key. */
 	apiKeyEnv: string;
+}
+
+export interface ProviderConfig {
+	/** Endpoint name from `endpoints` to route requests through. */
+	endpoint: string;
+	/**
+	 * Native temperature scale of this provider's models. Global sampling values
+	 * are expressed in 0–1 and multiplied by `tempScale` before being sent.
+	 * Anthropic/Mistral are 0–1 (scale 1); OpenAI/Gemini/DeepSeek/Qwen are 0–2 (scale 2).
+	 */
+	tempScale: number;
 	small: string;
 	medium: string;
 	large: string;
+}
+
+export interface SamplingConfig {
 	temperature?: number | undefined;
 	coldTemperature?: number | undefined;
 	hotTemperature?: number | undefined;
@@ -194,19 +208,39 @@ const AgentDefaultsSchema = z
 	})
 	.strict();
 
-const ProviderSchema = z
+const EndpointSchema = z
 	.object({
 		baseURL: z.string(),
 		apiKeyEnv: z.string(),
+	})
+	.strict();
+
+const ProviderSchema = z
+	.object({
+		endpoint: z.string(),
+		tempScale: z.number(),
 		small: z.string(),
 		medium: z.string(),
 		large: z.string(),
+	})
+	.strict();
+
+const SamplingSchema = z
+	.object({
 		temperature: z.number().optional(),
 		coldTemperature: z.number().optional(),
 		hotTemperature: z.number().optional(),
 		topP: z.number().optional(),
 		creativeTopP: z.number().optional(),
 		rigidTopP: z.number().optional(),
+	})
+	.strict();
+
+const ImageGenSchema = z
+	.object({
+		/** Endpoint name from `endpoints`; empty string disables image gen. */
+		endpoint: z.string(),
+		model: z.string(),
 	})
 	.strict();
 
@@ -236,13 +270,7 @@ const MediaSchema = z
 						maxSize: z.number(),
 					})
 					.strict(),
-				gen: z
-					.object({
-						/** Provider name for image generation; empty string disables. */
-						provider: z.string(),
-						model: z.string(),
-					})
-					.strict(),
+				gen: ImageGenSchema,
 			})
 			.strict(),
 		document: z
@@ -316,7 +344,10 @@ export const SettingsSchema = z
 		basics: BasicsSchema,
 		agent: AgentSchema,
 		agentDefaults: AgentDefaultsSchema,
-		provider: ProviderSchema,
+		defaultProvider: z.string(),
+		endpoints: z.record(z.string(), EndpointSchema),
+		providers: z.record(z.string(), ProviderSchema),
+		sampling: SamplingSchema,
 		media: MediaSchema,
 		whatsapp: WhatsAppSchema,
 		vault: VaultYamlSchema,
@@ -462,23 +493,74 @@ export async function updateAllowedChatId(chatId: string): Promise<void> {
 	log.info("[config] updated allowedChatId");
 }
 
-// ── Provider resolution ────────────────────────────────────────────────────
+// ── Provider / model resolution ────────────────────────────────────────────
+
+export interface ResolvedModel {
+	baseURL: string;
+	apiKey: string;
+	modelId: string;
+	/** Native temperature scale of the provider — multiply 0-1 sampling values before send. */
+	tempScale: number;
+}
 
 /**
- * Return the active provider config and the resolved API key (read from the
- * env var named in `apiKeyEnv`). Throws if the env var is unset — fail-closed
- * is preferable to discovering it mid-turn.
+ * Look up a `(provider, tier)` pair into the concrete bundle needed to issue a
+ * chat completions request. Throws when the provider/endpoint is unknown or
+ * the API key env var is unset — fail-closed beats discovering it mid-turn.
  */
-export function resolveProvider(): {
-	config: ProviderConfig;
-	apiKey: string;
-} {
-	const config = settings.provider;
-	const apiKey = process.env[config.apiKeyEnv];
-	if (!apiKey) {
+export function resolveModel(provider: string, tier: ModelTier): ResolvedModel {
+	const p = settings.providers[provider];
+	if (!p) {
 		throw new Error(
-			`Provider API key missing: env var ${config.apiKeyEnv} is unset`,
+			`Unknown provider "${provider}" — known: ${Object.keys(settings.providers).join(", ")}`,
 		);
 	}
-	return { config, apiKey };
+	const ep = settings.endpoints[p.endpoint];
+	if (!ep) {
+		throw new Error(
+			`Provider "${provider}" references unknown endpoint "${p.endpoint}"`,
+		);
+	}
+	const apiKey = process.env[ep.apiKeyEnv];
+	if (!apiKey) {
+		throw new Error(
+			`API key missing: env var ${ep.apiKeyEnv} is unset (endpoint "${p.endpoint}")`,
+		);
+	}
+	return {
+		baseURL: ep.baseURL,
+		apiKey,
+		modelId: p[tier],
+		tempScale: p.tempScale,
+	};
+}
+
+/**
+ * Resolve the configured image-gen model. Empty `endpoint` disables the
+ * feature — callers get a clear error instead of a silent miscall.
+ */
+export function resolveImageModel(): {
+	baseURL: string;
+	apiKey: string;
+	modelId: string;
+} {
+	const gen = settings.media.image.gen;
+	if (!gen.endpoint || !gen.model) {
+		throw new Error(
+			"Image generation not configured. Set media.image.gen.endpoint and .model in settings.yml.",
+		);
+	}
+	const ep = settings.endpoints[gen.endpoint];
+	if (!ep) {
+		throw new Error(
+			`media.image.gen references unknown endpoint "${gen.endpoint}"`,
+		);
+	}
+	const apiKey = process.env[ep.apiKeyEnv];
+	if (!apiKey) {
+		throw new Error(
+			`API key missing: env var ${ep.apiKeyEnv} is unset (endpoint "${gen.endpoint}")`,
+		);
+	}
+	return { baseURL: ep.baseURL, apiKey, modelId: gen.model };
 }

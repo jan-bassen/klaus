@@ -40,16 +40,55 @@ agentDefaults:
   vault:
     "*": full
 
-# OpenAI-compatible chat completions endpoint. Default is OpenRouter; switch
-# providers by changing baseURL + apiKeyEnv + model IDs (any OpenAI-compatible
-# endpoint works). Model IDs are passed verbatim — for OpenRouter, use the
-# `<vendor>/<model>` form.
-provider:
-  baseURL: https://openrouter.ai/api/v1
-  apiKeyEnv: OPENROUTER_API_KEY
-  small: anthropic/claude-haiku-4-5
-  medium: anthropic/claude-sonnet-4-6
-  large: anthropic/claude-opus-4-7
+# Active provider — name must match a key under `providers:`.
+defaultProvider: claude
+
+# OpenAI-compatible chat completions endpoints. Add direct endpoints here
+# (e.g. anthropic-direct, openai-direct) if you want to bypass OpenRouter for
+# a specific provider — point that provider's `endpoint:` at the new key.
+endpoints:
+  openrouter:
+    baseURL: https://openrouter.ai/api/v1
+    apiKeyEnv: OPENROUTER_API_KEY
+
+# Model sets — small/medium/large per provider, all routable through any
+# endpoint. `tempScale` is the provider's native temperature range; the
+# global 0–1 sampling values are multiplied by it before being sent.
+providers:
+  claude:
+    endpoint: openrouter
+    tempScale: 1
+    small: anthropic/claude-haiku-4-5
+    medium: anthropic/claude-sonnet-4-6
+    large: anthropic/claude-opus-4.7
+  openai:
+    endpoint: openrouter
+    tempScale: 2
+    small: openai/gpt-5.4-mini
+    medium: openai/gpt-5.5
+    large: openai/gpt-5.5-pro
+  gemini:
+    endpoint: openrouter
+    tempScale: 2
+    small: google/gemini-3.1-flash-lite-preview
+    medium: google/gemini-3-flash-preview
+    large: google/gemini-3.1-pro-preview
+  qwen:
+    endpoint: openrouter
+    tempScale: 2
+    small: qwen/qwen3.5-flash-02-23
+    medium: qwen/qwen3.6-plus
+    large: qwen/qwen3.6-plus
+  deepseek:
+    endpoint: openrouter
+    tempScale: 2
+    small: deepseek/deepseek-v4-flash
+    medium: deepseek/deepseek-v4-pro
+    large: deepseek/deepseek-v4-pro
+
+# Sampling presets in normalized 0–1 space. Each provider's `tempScale`
+# translates to its native range at request-build time. top_p is universal 0–1.
+sampling:
   coldTemperature: 0
   hotTemperature: 1
   creativeTopP: 0.95
@@ -74,7 +113,7 @@ media:
     vision:
       maxSize: 2048
     gen:
-      provider: ""
+      endpoint: openrouter
       model: openai/gpt-5.4-image-2
   document:
     ocr: true
