@@ -1,4 +1,4 @@
-import { LlmTimeoutError } from "@/pipeline/agent";
+import { LlmTimeoutError } from "@/pipeline/core";
 import { renderTemplate } from "@/pipeline/prompts";
 
 export type ErrorKind = "timeout" | "rate_limit" | "too_long" | "generic";

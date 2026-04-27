@@ -10,7 +10,7 @@
  * through the tool wrapper — that's covered in the tool-set test.
  *
  * Setup:
- *   - Mock `@/pipeline/agent` so `executeAgent` is a spy (don't actually hit
+ *   - Mock `@/pipeline/core` so `executeAgent` is a spy (don't actually hit
  *     the model). Assert on the partial turn it received.
  *   - Register a minimal agent named "dispatch" (the default) in
  *     `agentRegistry` so `resolveAgent` finds it.

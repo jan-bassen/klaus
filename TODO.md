@@ -8,6 +8,9 @@ Opening this up as "the agent for tinkerers". Polish the codebase and the docs b
 - [ ] pipeline/agent rename -> pipeline/core or pipeline/loop
 - [ ] Remove any unnecessary config/top-level files used for dev
 
+### Remaining cleanup
+- [ ] what happens when a message comes in while running?
+
 ### Docs
 
 - [ ] Update README to be perfect and poignant (short intro + quick setup + architecture pointers to /docs)

@@ -1,7 +1,7 @@
 /**
  * Per-turn report builder + emitter.
  *
- * Called from `pipeline/agent.ts` once per `executeAgent` invocation. Decides
+ * Called from `pipeline/core.ts` once per `executeAgent` invocation. Decides
  * the report level from `turn.config.report`:
  *   - `"none"`  → skip
  *   - `"agent"` → LLM-only fields (model, tokens, steps, tool calls)
@@ -26,9 +26,9 @@ import {
 	writeReport,
 } from "@/infra/store/report";
 import type { InboundMessage } from "@/infra/whatsapp/receive";
-import type { TurnContext } from "@/pipeline/agent";
+import type { TurnContext } from "@/pipeline/core";
 import { renderTemplate } from "@/pipeline/prompts";
-import type { AgentRunResult } from "./agent";
+import type { AgentRunResult } from "./core";
 import type { TurnConfig } from "./overrides";
 
 // ── Public API ─────────────────────────────────────────────────────────────

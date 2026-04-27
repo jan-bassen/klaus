@@ -13,7 +13,7 @@ import {
 	resolveVaultPath,
 	type VaultOp,
 } from "@/infra/vault";
-import type { TurnContext } from "@/pipeline/agent";
+import type { TurnContext } from "@/pipeline/core";
 import type { ToolDefinition, ToolsetDefinition } from "@/primitives/tools";
 
 const vaultRoot = () => settings.vault.root;

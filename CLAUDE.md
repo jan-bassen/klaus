@@ -32,7 +32,7 @@ src/
 │   ├── agents.ts     # Agent schema + registry + default-agent
 │   ├── context.ts    # variables + tools + history assembly
 │   ├── prompts.ts    # system/user message rendering
-│   ├── agent.ts      # core model loop (runAgent, executeAgent, persist) + TurnContext + Trigger
+│   ├── core.ts       # core model loop (runAgent, executeAgent, persist) + TurnContext + Trigger
 │   ├── dispatch.ts   # dispatch() primitive
 │   ├── media.ts      # STT, doc parsing, image prep
 │   └── reports.ts    # per-turn report emitter
@@ -45,7 +45,7 @@ src/
     ├── logger.ts
     ├── simulation.ts # per-turn overlay (WeakMap<TurnContext>) + fakers
     ├── store/        # flat-file stores (history, files, report, schedules, timers)
-    ├── vault/        # path resolution, permissions, markdown helpers, file watcher
+    ├── vault/        # path resolution, permissions, markdown helpers, file watcher, Obsidian sync
     └── whatsapp/     # connection, send queue, receive (+ InboundMessage), presence, login
 ```
 

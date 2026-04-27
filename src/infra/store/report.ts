@@ -2,7 +2,7 @@
  * Per-turn report store.
  *
  * One JSONL line per agent run, day-partitioned under `{dataDir}/logs/`.
- * Written from `pipeline/agent.ts` whenever `turn.config.report !== "none"`.
+ * Written from `pipeline/core.ts` whenever `turn.config.report !== "none"`.
  *
  * Two report levels (decided by `turn.config.report`):
  *   - `"agent"` — only the LLM call: model, tokens, steps, tool calls.
@@ -18,7 +18,7 @@ import path from "node:path";
 import { z } from "zod";
 import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
-import type { Trigger } from "@/pipeline/agent";
+import type { Trigger } from "@/pipeline/core";
 import { localDateString } from ".";
 import { TriggerSchema } from "./history";
 

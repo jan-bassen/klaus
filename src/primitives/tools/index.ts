@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { log } from "@/infra/logger";
-import type { TurnContext } from "@/pipeline/agent";
+import type { TurnContext } from "@/pipeline/core";
 
 // -- Tool types (owned by this domain) --
 

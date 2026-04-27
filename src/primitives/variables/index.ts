@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { log } from "@/infra/logger";
-import type { TurnContext } from "@/pipeline/agent";
+import type { TurnContext } from "@/pipeline/core";
 
 /**
  * A Variable produces one top-level entry in the unified variable namespace.

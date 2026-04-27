@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import { fakeExternal, fakeStateful, getOverlay } from "@/infra/simulation";
-import type { TurnContext } from "@/pipeline/agent";
+import type { TurnContext } from "@/pipeline/core";
 import { makeTurn } from "../helpers/turn";
 
 describe("infra/simulation: overlay isolation", () => {

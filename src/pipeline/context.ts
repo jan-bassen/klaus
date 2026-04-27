@@ -17,7 +17,7 @@ import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
 import { fakeExternal, fakeStateful, getOverlay } from "@/infra/simulation";
 import { getConversation, getTraces } from "@/infra/store/history";
-import type { ModelCallStep, TurnContext } from "@/pipeline/agent";
+import type { ModelCallStep, TurnContext } from "@/pipeline/core";
 import type { AgentDefinition } from "@/pipeline/agents";
 import { renderTemplate } from "@/pipeline/prompts";
 import type { ToolDefinition } from "@/primitives/tools";

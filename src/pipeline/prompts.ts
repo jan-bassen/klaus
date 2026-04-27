@@ -23,7 +23,7 @@ import type {
 import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
 import { hbs, interpolateUserVars } from "@/infra/vault/markdown";
-import type { TurnContext } from "@/pipeline/agent";
+import type { TurnContext } from "@/pipeline/core";
 import { prepareImage } from "@/pipeline/media";
 import type { TurnConfig } from "./overrides";
 

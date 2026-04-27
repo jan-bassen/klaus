@@ -32,7 +32,7 @@ import {
 	setOnTimerFire,
 	stopAllTimers,
 } from "./infra/store/timers";
-import { type SyncHandle, startSync } from "./infra/sync";
+import { type SyncHandle, startSync } from "./infra/vault/sync";
 import { startWatching, stopWatching } from "./infra/vault/watcher";
 import {
 	closeSocket,

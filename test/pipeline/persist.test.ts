@@ -13,9 +13,9 @@
 
 import { afterEach, beforeEach, describe, it } from "vitest";
 
-// import { executeAgent } from "@/pipeline/agent";
+// import { executeAgent } from "@/pipeline/core";
 
-describe("pipeline/agent: dynamic persistence forced tool call", () => {
+describe("pipeline/core: dynamic persistence forced tool call", () => {
 	beforeEach(() => {
 		// vi.mock("@openrouter/sdk", ...)
 		// vi.mock("@/infra/store/timers", ...)

@@ -3,7 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
-import type { Trigger } from "@/pipeline/agent";
+import type { Trigger } from "@/pipeline/core";
 import { localDateString } from ".";
 
 /** Mirrors the `Trigger` discriminated union in `src/types.ts`. */

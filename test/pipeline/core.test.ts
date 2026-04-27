@@ -1,5 +1,5 @@
 /**
- * `pipeline/agent.ts`: `runAgent`, `executeAgent`, `flushPendingSubReplies`,
+ * `pipeline/core.ts`: `runAgent`, `executeAgent`, `flushPendingSubReplies`,
  * dynamic persistence forced tool call.
  *
  * Mocking: `vi.mock("@openrouter/sdk", ...)` so `new OpenRouter(...).chat.send`
@@ -26,10 +26,10 @@
 
 import { afterEach, beforeEach, describe, it } from "vitest";
 
-// import { executeAgent, runAgent, LlmTimeoutError } from "@/pipeline/agent";
+// import { executeAgent, runAgent, LlmTimeoutError } from "@/pipeline/core";
 // import { makeTurn } from "../helpers/turn";
 
-describe("pipeline/agent.runAgent", () => {
+describe("pipeline/core.runAgent", () => {
 	beforeEach(() => {
 		// vi.mock("@openrouter/sdk", ...) — canned chat.send
 	});
@@ -57,7 +57,7 @@ describe("pipeline/agent.runAgent", () => {
 	it.todo("does NOT retry on timeout, rate_limit, or 4xx errors (incl. 429)");
 });
 
-describe("pipeline/agent.executeAgent", () => {
+describe("pipeline/core.executeAgent", () => {
 	it.todo("emits a report at `turn.config.report` level on successful run");
 
 	it.todo(
@@ -69,7 +69,7 @@ describe("pipeline/agent.executeAgent", () => {
 	it.todo("skips trace persistence under !simulate (ghost elevated)");
 });
 
-describe("pipeline/agent.flushPendingSubReplies", () => {
+describe("pipeline/core.flushPendingSubReplies", () => {
 	it.todo(
 		"top-level turn: enqueues each slot entry via enqueueMessage in slot order",
 	);
@@ -89,7 +89,7 @@ describe("pipeline/agent.flushPendingSubReplies", () => {
 	it.todo("clears pendingSubReplies after flush");
 });
 
-describe("pipeline/agent: dynamic persistence", () => {
+describe("pipeline/core: dynamic persistence", () => {
 	it.todo(
 		"after the main loop, forces a `persist` tool call and creates a timer via addTimer",
 	);
@@ -105,7 +105,7 @@ describe("pipeline/agent: dynamic persistence", () => {
 	);
 });
 
-describe("pipeline/agent.computeNextRun", () => {
+describe("pipeline/core.computeNextRun", () => {
 	it.todo("accepts ISO datetime strings");
 
 	it.todo("accepts duration strings: '6h', '30m', '2d', '90s'");

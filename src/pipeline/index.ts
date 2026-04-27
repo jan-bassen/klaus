@@ -37,8 +37,8 @@ import {
 } from "@/pipeline/agents";
 import { registry as commandRegistry } from "@/primitives/commands";
 import { getVariables } from "@/primitives/variables";
-import type { Trigger, TurnContext } from "./agent";
-import { executeAgent } from "./agent";
+import type { Trigger, TurnContext } from "./core";
+import { executeAgent } from "./core";
 import { parseMessage } from "./message";
 import { buildTurnConfig } from "./overrides";
 
