@@ -278,6 +278,10 @@ export const filesDeleteTool: ToolDefinition<typeof filesDeleteSchema> = {
 		overlay.deletedFileIds.add(real.id);
 		return `(sim) Would delete ${path.basename(real.path)} (${real.id})`;
 	},
+	// Files are user-uploaded blobs — deletion is always destructive enough
+	// to warrant a prompt. Bypassed under `autoAccept`, sim, and non-message
+	// triggers via the framework gate.
+	requiresConfirmation: ({ name }) => ({ verb: "delete file", summary: name }),
 	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",

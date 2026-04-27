@@ -58,7 +58,13 @@ export type Trigger =
 	| { kind: "message"; messageId: string }
 	| { kind: "schedule"; scheduleId: string }
 	| { kind: "timer"; timerId: string }
-	| { kind: "dispatch"; parentRunId: string };
+	| { kind: "dispatch"; parentRunId: string }
+	| {
+			kind: "reaction";
+			confirmationId: string;
+			decision: "approve" | "deny";
+			reason?: string | undefined;
+	  };
 
 /**
  * The full per-turn state carried through `executeAgent`. Partial variants
@@ -94,6 +100,12 @@ export interface TurnContext {
 	pendingSubReplies: string[][];
 	/** @internal — collects reply content for inline-dispatched agents instead of sending to WhatsApp */
 	_replyCollector?: string[];
+	/**
+	 * On a reaction-triggered resume, the tool name whose confirmation gate
+	 * should be skipped exactly once. Set by `handleConfirmationResume` and
+	 * consumed by the gate in `invokeTool`.
+	 */
+	bypassConfirmationForTool?: string | undefined;
 }
 
 export class LlmTimeoutError extends Error {

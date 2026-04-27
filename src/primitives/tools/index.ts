@@ -17,6 +17,18 @@ import type { TurnContext } from "@/pipeline/agent";
  */
 export type SideEffect = "external" | "stateful" | "pure";
 
+/**
+ * Returned from `ToolDefinition.requiresConfirmation` when a tool call should
+ * be gated. `verb` + `summary` flow into the confirm-tool template; `summary`
+ * also seeds the resume's user message so the model knows what's in flight.
+ */
+export interface ConfirmationRequest {
+	/** Short verb for the prompt template — "write", "delete", "dispatch". */
+	verb: string;
+	/** Human-readable target — "Private/foo.md", "@coach (sub-agent)". */
+	summary: string;
+}
+
 export interface ToolDefinition<TInput extends z.ZodTypeAny = z.ZodTypeAny> {
 	name: string;
 	description: string;
@@ -32,6 +44,19 @@ export interface ToolDefinition<TInput extends z.ZodTypeAny = z.ZodTypeAny> {
 	sideEffect: SideEffect;
 	kind: "builtin" | "integration";
 	capability: "tool" | "resource";
+	/**
+	 * Optional confirmation gate. When provided and returning a non-false value,
+	 * the framework intercepts the call: persists a pending entry, sends the
+	 * user a templated prompt, and returns `{status: "awaiting_confirmation"}`
+	 * to the model. The user approves via reaction (👍/✅) or denies via
+	 * reaction (👎/❌) or quote-reply (deny + reason). Bypassed under
+	 * `simulate`, `autoAccept`, non-`message` triggers, and the matching
+	 * `reaction`-trigger resume.
+	 */
+	requiresConfirmation?(
+		input: z.infer<TInput>,
+		context: TurnContext,
+	): false | ConfirmationRequest;
 	/** Override for trace-replay truncation of this tool's stringified result. */
 	maxResultChars?: number;
 	/** Override for the first-arg snippet shown in the `[Used X(...)]` line. */

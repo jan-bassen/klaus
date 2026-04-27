@@ -1,15 +1,16 @@
 import path from "node:path";
 import {
+	type AgentVaultEntry,
 	settings,
 	type VaultFolder,
 	type VaultPermission,
 } from "@/infra/config";
 
 export type VaultOp = "read" | "append" | "full";
-export type PermissionCheck = "allowed" | "denied";
+export type PermissionCheck = "allowed" | "needsConfirm" | "denied";
 
-/** Per-agent override map: folder.path → permission. "*" matches any folder. */
-export type AgentVaultMap = Record<string, "none" | "read" | "full">;
+/** Per-agent override map: folder.path → permission entry. "*" matches any folder. */
+export type AgentVaultMap = Record<string, AgentVaultEntry>;
 
 export interface ResolvedPath {
 	/** Absolute filesystem path. */
@@ -27,23 +28,41 @@ const PERM_LEVEL: Record<VaultPermission, number> = {
 	full: 3,
 };
 
+interface EffectivePermission {
+	default: VaultPermission;
+	confirm?: VaultPermission;
+}
+
 /**
  * The agent's vault map override (if any) replaces the folder's default
- * permission. Exact `folder.path` match wins over the `"*"` wildcard.
+ * permission. Exact `folder.path` match wins over the `"*"` wildcard. Bare
+ * string entries (`"read"`) are treated as `{default: "read"}` with no
+ * elevation ceiling.
  */
 function effectivePermission(
 	folder: VaultFolder,
 	agentMap?: AgentVaultMap,
-): VaultPermission {
-	if (!agentMap) return folder.default;
-	const exact = agentMap[folder.path];
-	if (exact !== undefined) return exact;
-	const wildcard = agentMap["*"];
-	if (wildcard !== undefined) return wildcard;
-	return folder.default;
+): EffectivePermission {
+	const fallback: EffectivePermission = {
+		default: folder.default,
+		...(folder.confirm !== undefined ? { confirm: folder.confirm } : {}),
+	};
+	if (!agentMap) return fallback;
+	const entry = agentMap[folder.path] ?? agentMap["*"];
+	if (entry === undefined) return fallback;
+	if (typeof entry === "string") return { default: entry };
+	return {
+		default: entry.default,
+		...(entry.confirm !== undefined ? { confirm: entry.confirm } : {}),
+	};
 }
 
-/** Check whether an operation is allowed on a folder. */
+/**
+ * Check whether an operation is allowed on a folder.
+ *   - `allowed`      — op level ≤ effective default
+ *   - `needsConfirm` — op level > default but ≤ confirm ceiling
+ *   - `denied`       — beyond ceiling, or no ceiling declared
+ */
 export function checkPermission(
 	folder: VaultFolder,
 	op: VaultOp,
@@ -51,7 +70,10 @@ export function checkPermission(
 ): PermissionCheck {
 	const eff = effectivePermission(folder, agentMap);
 	const needed = PERM_LEVEL[op];
-	return needed <= PERM_LEVEL[eff] ? "allowed" : "denied";
+	if (needed <= PERM_LEVEL[eff.default]) return "allowed";
+	if (eff.confirm !== undefined && needed <= PERM_LEVEL[eff.confirm])
+		return "needsConfirm";
+	return "denied";
 }
 
 /**

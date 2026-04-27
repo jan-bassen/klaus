@@ -72,7 +72,23 @@ export interface VaultFolder {
 	path: string;
 	/** Always-on permission level. */
 	default: VaultPermission;
+	/**
+	 * Optional ceiling reachable via user confirmation (👍 reaction). When the
+	 * agent attempts an op above `default` but ≤ `confirm`, the framework
+	 * gates the call instead of denying it. Omit to disallow elevation.
+	 */
+	confirm?: VaultPermission | undefined;
 }
+
+/** Per-agent override entry: bare permission OR a `{default, confirm}` block. */
+export type AgentVaultEntry =
+	| "none"
+	| "read"
+	| "full"
+	| {
+			default: "none" | "read" | "full";
+			confirm?: VaultPermission | undefined;
+	  };
 
 export interface ProviderConfig {
 	/** Base URL of an OpenAI-compatible chat completions API. */
@@ -98,8 +114,23 @@ const VaultFolderSchema = z
 	.object({
 		path: z.string(),
 		default: VaultPermissionSchema,
+		confirm: VaultPermissionSchema.optional(),
 	})
 	.strict();
+
+/**
+ * Per-agent vault override map entry. Either a bare permission string (legacy
+ * shape) or an object with a `default` and optional `confirm` ceiling.
+ */
+const AgentVaultEntrySchema = z.union([
+	z.enum(["none", "read", "full"]),
+	z
+		.object({
+			default: z.enum(["none", "read", "full"]),
+			confirm: VaultPermissionSchema.optional(),
+		})
+		.strict(),
+]);
 
 const RetriesSchema = z
 	.object({
@@ -126,6 +157,23 @@ const AgentSchema = z
 		lookbackDays: z.number(),
 		/** Cap on reasoning text replayed into history per past step. */
 		maxReasoningChars: z.number(),
+		/** Pending tool-confirmation timeout (minutes). Expired entries notify the user if `confirmExpiryNotify`. */
+		confirmTimeoutMinutes: z.number(),
+		/** Emoji classification for confirmation reactions. Anything outside both lists is ignored. */
+		confirmEmojis: z
+			.object({
+				approve: z.array(z.string()),
+				deny: z.array(z.string()),
+			})
+			.strict(),
+		/** When true, send a system message when a pending confirmation expires. */
+		confirmExpiryNotify: z.boolean(),
+		/**
+		 * When true, a non-quoted user message arriving while a confirmation is
+		 * pending supersedes (drops) all pending entries for that chat. The
+		 * agent sees them as cancelled in its next turn.
+		 */
+		confirmSupersedeOnNewTurn: z.boolean(),
 	})
 	.strict();
 
@@ -142,7 +190,7 @@ const AgentDefaultsSchema = z
 		showTrace: z.boolean(),
 		report: z.enum(["full", "agent", "none"]),
 		/** Per-folder overrides applied on top of folder defaults. "*" is the wildcard fallback. */
-		vault: z.record(z.string(), z.enum(["none", "read", "full"])),
+		vault: z.record(z.string(), AgentVaultEntrySchema),
 	})
 	.strict();
 

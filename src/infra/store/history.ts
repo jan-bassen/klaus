@@ -12,6 +12,12 @@ export const TriggerSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("schedule"), scheduleId: z.string() }),
 	z.object({ kind: z.literal("timer"), timerId: z.string() }),
 	z.object({ kind: z.literal("dispatch"), parentRunId: z.string() }),
+	z.object({
+		kind: z.literal("reaction"),
+		confirmationId: z.string(),
+		decision: z.enum(["approve", "deny"]),
+		reason: z.string().optional(),
+	}),
 ]);
 
 /** Common fields on either role of a `kind: "msg"` event. */

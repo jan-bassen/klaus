@@ -15,6 +15,16 @@ agent:
   lookbackDays: 7
   # Cap on reasoning text replayed into history per past step.
   maxReasoningChars: 2000
+  # Pending tool-confirmation timeout. Reactions arrive on real WhatsApp time,
+  # so this is generous by default — the user might react hours later.
+  confirmTimeoutMinutes: 1440
+  confirmEmojis:
+    approve: ["👍", "✅"]
+    deny: ["👎", "❌"]
+  confirmExpiryNotify: true
+  # A new (non-quoted) text turn drops all pending confirmations for that chat.
+  # The user can always re-ask; lingering pendings would be confusing.
+  confirmSupersedeOnNewTurn: true
 
 agentDefaults:
   modelTier: medium

@@ -3,8 +3,8 @@
 ## Last features
 
 - [ ] Envs via dotenvx or varlock
-- [ ] check accept flow
 - [ ] providers -> model sets
+- [ ] sync -> /vault/
 
 ## Repo understandability v0.2.0
 

@@ -37,7 +37,20 @@ export const AgentSettingsSchema = z
 		/** Render the per-turn `[Used X, Y → replied]` summary in history? */
 		showTrace: z.boolean().default(true),
 		report: z.enum(["full", "agent", "none"]).default("agent"),
-		vault: z.record(z.string(), z.enum(["none", "read", "full"])).optional(),
+		vault: z
+			.record(
+				z.string(),
+				z.union([
+					z.enum(["none", "read", "full"]),
+					z
+						.object({
+							default: z.enum(["none", "read", "full"]),
+							confirm: z.enum(["none", "read", "append", "full"]).optional(),
+						})
+						.strict(),
+				]),
+			)
+			.optional(),
 	})
 	.transform((s) => ({
 		...s,

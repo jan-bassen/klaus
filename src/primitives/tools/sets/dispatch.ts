@@ -93,6 +93,18 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 		});
 		return result ?? "(sim) done";
 	},
+	// The `dispatch` agent is built around invoking other agents — gating its
+	// own dispatches would deadlock the whole "let me delegate that" pattern.
+	// Every other agent confirms before spawning sub-runs (which can themselves
+	// take action).
+	requiresConfirmation: (input, context) => {
+		if (context.agent.name === DEFAULT_AGENT) return false;
+		const target = input.agent ?? DEFAULT_AGENT;
+		const summary = input.when
+			? `@${target} (timer: ${input.when})`
+			: `@${target}`;
+		return { verb: "dispatch", summary };
+	},
 	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",

@@ -10,7 +10,7 @@
 
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { modelTiers, settings } from "@/infra/config";
+import { type AgentVaultEntry, modelTiers, settings } from "@/infra/config";
 import { log } from "@/infra/logger";
 import type { AgentDefinition } from "./agents";
 
@@ -39,7 +39,7 @@ export interface TurnConfig {
 	historyScope?: "full" | "agent";
 	showTrace?: boolean;
 	report?: "full" | "agent" | "none";
-	vault?: Record<string, "none" | "read" | "full">;
+	vault?: Record<string, AgentVaultEntry>;
 	// override-only
 	skipHistory?: boolean;
 	ghost?: boolean;
@@ -69,7 +69,20 @@ export const turnConfigSchema = z
 		historyScope: z.enum(["full", "agent"]).optional(),
 		showTrace: z.boolean().optional(),
 		report: z.enum(["full", "agent", "none"]).optional(),
-		vault: z.record(z.string(), z.enum(["none", "read", "full"])).optional(),
+		vault: z
+			.record(
+				z.string(),
+				z.union([
+					z.enum(["none", "read", "full"]),
+					z
+						.object({
+							default: z.enum(["none", "read", "full"]),
+							confirm: z.enum(["none", "read", "append", "full"]).optional(),
+						})
+						.strict(),
+				]),
+			)
+			.optional(),
 		skipHistory: z.boolean().optional(),
 		ghost: z.boolean().optional(),
 		fast: z.boolean().optional(),
@@ -257,10 +270,10 @@ export function buildTurnConfig(
 		...presets,
 	};
 
-	const vaultMap = {
+	const vaultMap: Record<string, AgentVaultEntry> = {
 		...(settings.agentDefaults.vault ?? {}),
 		...(def.settings.vault ?? {}),
-		...((presets.vault as Record<string, "none" | "read" | "full">) ?? {}),
+		...(presets.vault ?? {}),
 	};
 	if (Object.keys(vaultMap).length > 0) merged.vault = vaultMap;
 

@@ -80,33 +80,28 @@ function buildVaultSection(): string {
 	return `*Vault*\n${lines.join("\n")}`;
 }
 
+const sections = {
+	commands: buildCommandsSection(),
+	agents: buildAgentsSection(),
+	overrides: buildoverridesSection(),
+	vars: buildVarsSection(),
+	vault: buildVaultSection(),
+};
+
+function build(section?: string): string {
+	if (section && sections[section as keyof typeof sections]) {
+		return sections[section as keyof typeof sections];
+	}
+	return Object.values(sections).join("\n\n");
+}
+
 export const helpCommand: Command = {
 	name: "help",
 	aliases: ["?"],
 	description: "Show commands, agents, overrides, vars, and vault",
 	execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const section = args[0]?.toLowerCase();
-
-		let content: string;
-		if (section === "commands") {
-			content = buildCommandsSection();
-		} else if (section === "agents") {
-			content = buildAgentsSection();
-		} else if (section === "overrides") {
-			content = buildoverridesSection();
-		} else if (section === "vars") {
-			content = buildVarsSection();
-		} else if (section === "vault") {
-			content = buildVaultSection();
-		} else {
-			content = [
-				buildCommandsSection(),
-				buildAgentsSection(),
-				buildoverridesSection(),
-				buildVarsSection(),
-				buildVaultSection(),
-			].join("\n\n");
-		}
+		const content = build(section);
 
 		enqueueMessage({
 			chatId: msg.chatId,

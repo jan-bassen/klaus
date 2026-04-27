@@ -11,6 +11,12 @@ import { copyFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { loadSettingsFromDisk, settings } from "./infra/config";
 import { log } from "./infra/logger";
+import {
+	initConfirmationsStore,
+	loadConfirmations,
+	setOnConfirmationExpire,
+	stopAllConfirmations,
+} from "./infra/store/confirmations";
 import { initFilesStore, rebuildFileIndex } from "./infra/store/files";
 import {
 	initHistoryStore,
@@ -41,7 +47,7 @@ import {
 } from "./infra/whatsapp/connection";
 import { ensureLoginFolder } from "./infra/whatsapp/login";
 import { attachReceiveHandler } from "./infra/whatsapp/receive";
-import { drainQueue } from "./infra/whatsapp/send";
+import { drainQueue, enqueueMessage } from "./infra/whatsapp/send";
 import { agentRegistry, loadAgents } from "./pipeline/agents";
 import { dispatch } from "./pipeline/dispatch";
 import { loadOverrides } from "./pipeline/overrides";
@@ -77,6 +83,7 @@ async function shutdown(signal: string): Promise<void> {
 	stopWatching();
 	stopAllSchedules();
 	stopAllTimers();
+	stopAllConfirmations();
 
 	log.info("[shutdown] complete");
 	process.exit(0);
@@ -184,6 +191,7 @@ async function main(): Promise<void> {
 		timezone: settings.timezone,
 	});
 	initTimersStore({ dataDir: settings.dataDir });
+	initConfirmationsStore({ dataDir: settings.dataDir });
 
 	log.info("[startup] loading tools, agents, variables, skills, and overrides");
 	await loadAllTools(path.join(import.meta.dir, "primitives", "tools"));
@@ -259,6 +267,17 @@ async function main(): Promise<void> {
 		});
 	});
 	await loadTimers();
+
+	setOnConfirmationExpire(async (entry) => {
+		if (!settings.agent.confirmExpiryNotify) return;
+		enqueueMessage({
+			chatId: entry.chatId,
+			content: `⌛ Pending confirmation for \`${entry.triggerSummary}\` expired without a response.`,
+			dedupKey: `confirm-expired:${entry.id}`,
+			label: settings.whatsapp.systemLabel,
+		});
+	});
+	await loadConfirmations();
 
 	startWatching(agentsDir, settings.vault.skillsDir);
 
