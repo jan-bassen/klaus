@@ -136,7 +136,7 @@ export function attachReceiveHandler(socket: WASocket): void {
  *
  * Returns null for outbound, non-media/text, or unsupported message types.
  */
-export async function normalizeMessage(
+async function normalizeMessage(
 	raw: WAMessage,
 ): Promise<InboundMessage | null> {
 	const m = raw as {

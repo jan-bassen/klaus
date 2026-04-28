@@ -1,11 +1,13 @@
-import { settings } from "@/infra/config";
-
 type Level = "debug" | "info" | "warn" | "error";
+type LogFormat = "text" | "json";
 
 // JSON mode for machine-readable logs (Docker, NAS viewers). Text mode is default.
 // Tests always use JSON so assertions can parse output.
-const JSON_MODE =
-	process.env.NODE_ENV === "test" || settings.log.format === "json";
+let logFormat: LogFormat = process.env.LOG_FORMAT === "json" ? "json" : "text";
+
+export function configureLogger(format: LogFormat): void {
+	logFormat = format;
+}
 
 const RESET = "\x1b[0m";
 const DIM = "\x1b[2m";
@@ -47,7 +49,8 @@ const SILENT = process.env.NODE_ENV === "test";
 
 function emit(level: Level, msg: string, data?: Record<string, unknown>): void {
 	if (SILENT) return;
-	const line = JSON_MODE
+	const jsonMode = process.env.NODE_ENV === "test" || logFormat === "json";
+	const line = jsonMode
 		? JSON.stringify({ ts: new Date().toISOString(), level, msg, ...data })
 		: formatText(level, msg);
 	(level === "error" || level === "warn" ? console.error : console.log)(line);

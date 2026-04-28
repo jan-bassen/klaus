@@ -12,9 +12,9 @@ import { log } from "@/infra/logger";
 
 // -- Send queue types (owned by this domain) --
 
-export type MessageOrdinal = number;
+type MessageOrdinal = number;
 
-export interface OutboundMessage {
+interface OutboundMessage {
 	chatId: string;
 	content: string | Buffer;
 	mimeType?: string;

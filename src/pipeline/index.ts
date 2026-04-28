@@ -42,7 +42,7 @@ import { executeAgent, isAbortError } from "./core";
 import { parseMessage } from "./message";
 import { buildTurnConfig } from "./overrides";
 
-export interface AuthResult {
+interface AuthResult {
 	allowed: boolean;
 	setupMode?: boolean;
 }
@@ -56,7 +56,7 @@ const activeTurns = new Map<string, ActiveTurn>();
 const turnGenerations = new Map<string, number>();
 
 /** Verify the sender's chatId matches the configured allowedChatId. Fail-closed: unset blocks all. */
-export function checkAllowlist(msg: InboundMessage): AuthResult {
+function checkAllowlist(msg: InboundMessage): AuthResult {
 	const allowed = settings.allowedChatId ?? "";
 	if (allowed === "") {
 		log.warn("[auth] no allowed chat configured, entering setup mode");

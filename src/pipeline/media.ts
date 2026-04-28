@@ -176,12 +176,12 @@ export async function parseDocument(
 
 // ── Image generation ──────────────────────────────────────────────────────
 
-export interface GeneratedImage {
+interface GeneratedImage {
 	bytes: Buffer;
 	mimeType: string;
 }
 
-export interface GenerateImageInput {
+interface GenerateImageInput {
 	prompt: string;
 	/** Override the configured image model. */
 	model?: string;

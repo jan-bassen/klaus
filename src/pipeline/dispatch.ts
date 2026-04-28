@@ -21,7 +21,7 @@ import { executeAgent } from "@/pipeline/core";
 import { buildTurnConfig } from "@/pipeline/overrides";
 import { getVariables } from "@/primitives/variables";
 
-export interface DispatchOptions {
+interface DispatchOptions {
 	agent: string;
 	prompt: string;
 	overrides?: string[];

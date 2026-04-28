@@ -7,12 +7,12 @@ import {
 } from "@/infra/config";
 
 export type VaultOp = "read" | "append" | "full";
-export type PermissionCheck = "allowed" | "needsConfirm" | "denied";
+type PermissionCheck = "allowed" | "needsConfirm" | "denied";
 
 /** Per-agent override map: folder.path → permission entry. "*" matches any folder. */
 export type AgentVaultMap = Record<string, AgentVaultEntry>;
 
-export interface ResolvedPath {
+interface ResolvedPath {
 	/** Absolute filesystem path. */
 	absolute: string;
 	/** The folder config this path belongs to. */

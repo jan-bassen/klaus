@@ -3,7 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 import { log } from "@/infra/logger";
 
-export interface FileStore {
+interface FileStore {
 	saveFileMeta(meta: {
 		path: string;
 		mimeType: string;
@@ -30,7 +30,7 @@ export interface FileStore {
 	rebuildIndex(): Promise<void>;
 }
 
-export const FileMetaSchema = z.object({
+const FileMetaSchema = z.object({
 	id: z.string(),
 	path: z.string(),
 	mimeType: z.string(),
@@ -42,11 +42,11 @@ export const FileMetaSchema = z.object({
 
 export type FileMeta = z.infer<typeof FileMetaSchema>;
 
-export interface FileStoreEnv {
+interface FileStoreEnv {
 	dataDir: string;
 }
 
-export interface PersistFileBlobInput {
+interface PersistFileBlobInput {
 	bytes: Buffer | Uint8Array;
 	mimeType: string;
 	name?: string;
@@ -55,7 +55,7 @@ export interface PersistFileBlobInput {
 	externalId?: string;
 }
 
-export interface PersistedFileBlob {
+interface PersistedFileBlob {
 	id: string;
 	path: string;
 	mimeType: string;
@@ -63,7 +63,7 @@ export interface PersistedFileBlob {
 	metadataSaved: boolean;
 }
 
-export function createFileStore(env: FileStoreEnv): FileStore {
+function createFileStore(env: FileStoreEnv): FileStore {
 	const fileIndex = new Map<string, FileMeta>();
 	const messageFileIndex = new Map<string, string>();
 	const externalFileIndex = new Map<string, string>();
@@ -269,7 +269,7 @@ function store(): FileStore {
 	return _store;
 }
 
-export function saveFileMeta(meta: {
+function saveFileMeta(meta: {
 	path: string;
 	mimeType: string;
 	sizeBytes: number;
@@ -320,7 +320,7 @@ export function rebuildFileIndex(): Promise<void> {
 	return store().rebuildIndex();
 }
 
-export function mimeToExt(mime: string): string {
+function mimeToExt(mime: string): string {
 	const normalized = mime.split(";")[0]?.trim().toLowerCase() ?? mime;
 	const known: Record<string, string> = {
 		"image/jpeg": "jpg",

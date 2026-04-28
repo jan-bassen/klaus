@@ -25,7 +25,7 @@ export function localDateString(timezone: string): string {
  * Append a record to a date-partitioned JSONL file.
  * File pattern: {dir}/{prefix}-YYYY-MM-DD.jsonl
  */
-export async function appendJsonl(
+async function appendJsonl(
 	dir: string,
 	prefix: string,
 	record: unknown,
@@ -42,7 +42,7 @@ export async function appendJsonl(
  *
  * @param schema — If omitted, parsed JSON is cast to T without runtime validation.
  */
-export async function readJsonl<T>(
+async function readJsonl<T>(
 	dir: string,
 	prefix: string,
 	days: number,

@@ -32,7 +32,7 @@ export type UserContent = ChatUserMessage["content"];
 
 // ── Template loader ────────────────────────────────────────────────────────
 
-export type TemplateName =
+type TemplateName =
 	| "message-agent"
 	| "message-user"
 	| "error-message"
@@ -194,7 +194,7 @@ export async function buildUserMessage(
 
 // ── Sampling resolution ────────────────────────────────────────────────────
 
-export interface ResolvedSampling {
+interface ResolvedSampling {
 	temperature?: number;
 	topP?: number;
 	reasoning?: { effort: "low" | "high" };

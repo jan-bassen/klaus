@@ -33,7 +33,7 @@ import type { TurnConfig } from "./overrides";
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
-export interface EmitReportInput {
+interface EmitReportInput {
 	turn: TurnContext;
 	startedAt: number;
 	/** Effective `report` level for this turn — already resolved by the caller. */

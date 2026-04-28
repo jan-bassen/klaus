@@ -135,7 +135,7 @@ export interface AgentRunResult {
 	replyContent: string;
 }
 
-export interface RunAgentInput {
+interface RunAgentInput {
 	turn: TurnContext;
 	def: AgentDefinition;
 	system: string;
@@ -145,7 +145,7 @@ export interface RunAgentInput {
 	signal?: AbortSignal;
 }
 
-export interface ExecuteAgentInput {
+interface ExecuteAgentInput {
 	/** Partial turn — vars are assembled inside `executeAgent`. */
 	turn: Omit<TurnContext, "vars">;
 	def: AgentDefinition;
@@ -277,7 +277,7 @@ function resolveReportLevel(
  * drive the chat-completions API to produce an `AgentRunResult`.
  * Most callers want `executeAgent` instead.
  */
-export async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
+async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 	const { turn, def, system, userContent, tools, historyMessages } = input;
 
 	const provider = turn.config?.provider ?? settings.defaultProvider;

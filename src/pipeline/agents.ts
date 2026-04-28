@@ -23,7 +23,7 @@ import { log } from "@/infra/logger";
  * to disambiguate "explicitly default" from "not set" — the resolver in
  * `pipeline/overrides.ts` translates these into the runtime `TurnConfig`.
  */
-export const AgentSettingsSchema = z
+const AgentSettingsSchema = z
 	.object({
 		provider: z.string().optional(),
 		modelTier: z.enum(modelTiers).optional(),
@@ -57,7 +57,7 @@ export const AgentSettingsSchema = z
 		modelTier: s.modelTier as ModelTier | undefined,
 	}));
 
-export type AgentSettings = z.infer<typeof AgentSettingsSchema>;
+type AgentSettings = z.infer<typeof AgentSettingsSchema>;
 
 // ── Persistence ────────────────────────────────────────────────────────────
 
@@ -65,7 +65,7 @@ export type AgentSettings = z.infer<typeof AgentSettingsSchema>;
  * Static = recurring schedule with a fixed prompt + override set.
  * Dynamic = the agent decides its own next run by calling the `persist` tool.
  */
-export const PersistenceSchema = z.discriminatedUnion("mode", [
+const PersistenceSchema = z.discriminatedUnion("mode", [
 	z.object({
 		mode: z.literal("static"),
 		schedule: z.string(),
@@ -78,7 +78,7 @@ export const PersistenceSchema = z.discriminatedUnion("mode", [
 	}),
 ]);
 
-export type Persistence = z.infer<typeof PersistenceSchema>;
+type Persistence = z.infer<typeof PersistenceSchema>;
 
 // ── Agent ──────────────────────────────────────────────────────────────────
 

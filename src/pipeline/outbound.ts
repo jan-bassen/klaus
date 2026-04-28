@@ -2,12 +2,12 @@ import { log } from "@/infra/logger";
 import { appendAck, appendMessage } from "@/infra/store/history";
 import type { TurnContext } from "@/pipeline/core";
 
-export interface OutboundQuote {
+interface OutboundQuote {
 	externalId: string;
 	fromMe: boolean;
 }
 
-export interface PreparedOutbound {
+interface PreparedOutbound {
 	quoted?: OutboundQuote;
 	onSent?: (waId: string) => void;
 	dedupKey: string;

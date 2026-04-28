@@ -26,7 +26,7 @@ let socket: WASocket | null = null;
 let closing = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-export type WhatsAppConnectionState =
+type WhatsAppConnectionState =
 	| "idle"
 	| "connecting"
 	| "pairing"
@@ -184,7 +184,7 @@ export function getConnectionState(): WhatsAppConnectionState {
 	return connectionState;
 }
 
-export function getLatestQr(): string | null {
+function getLatestQr(): string | null {
 	return latestQr;
 }
 

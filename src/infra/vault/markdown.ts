@@ -82,13 +82,13 @@ export function updateFrontmatter(
 
 // -- Markdown structure --
 
-export interface MarkdownSection {
+interface MarkdownSection {
 	headingIdx: number;
 	level: number;
 	endIdx: number;
 }
 
-export interface MarkdownHeading {
+interface MarkdownHeading {
 	text: string;
 	level: number;
 	lineIdx: number;
@@ -201,7 +201,7 @@ const fmPattern = /^---\n[\s\S]*?\n---\n?/;
  * Read a .md prompt file and return the body after stripping YAML frontmatter.
  * Returns empty string on failure.
  */
-export async function readPromptBody(promptPath: string): Promise<string> {
+async function readPromptBody(promptPath: string): Promise<string> {
 	try {
 		const raw = await Bun.file(promptPath).text();
 		return raw.replace(fmPattern, "").trim();

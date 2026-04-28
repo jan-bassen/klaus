@@ -27,7 +27,7 @@ import { parseOverrides, stripOverrides } from "./overrides";
  * - `agent` is the explicit `@name` route if present.
  * - `overrides` is the set of recognized `!preset` names found in the original text.
  */
-export interface ParsedMessage {
+interface ParsedMessage {
 	msg: InboundMessage;
 	cleanText: string;
 	overrides: Record<string, boolean>;

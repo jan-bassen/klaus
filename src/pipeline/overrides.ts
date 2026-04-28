@@ -55,7 +55,7 @@ export interface TurnConfig {
 }
 
 /** Schema for a TurnConfig fragment as it appears under an `overrides:` block. */
-export const turnConfigSchema = z
+const turnConfigSchema = z
 	.object({
 		provider: z.string().optional(),
 		modelTier: z.enum(modelTiers).optional(),
@@ -118,7 +118,7 @@ function register(def: OverrideDef): void {
 	log.debug(`[config] override registered: ${def.name}`);
 }
 
-export function getKnownOverrides(): string[] {
+function getKnownOverrides(): string[] {
 	return [...overrideRegistry.keys()];
 }
 
@@ -229,7 +229,7 @@ function fromFrontmatter(def: AgentDefinition): TurnConfig {
 }
 
 /** Resolve a parsed-overrides map into a TurnConfig by merging recognised presets. */
-export function resolveOverrides(active: Record<string, boolean>): TurnConfig {
+function resolveOverrides(active: Record<string, boolean>): TurnConfig {
 	const out: TurnConfig = {};
 	for (const [name, on] of Object.entries(active)) {
 		if (!on) continue;

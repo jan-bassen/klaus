@@ -101,7 +101,7 @@ const SimulatedActionSchema = z.object({
 	result: z.unknown(),
 });
 
-export const ReportEntrySchema = z.object({
+const ReportEntrySchema = z.object({
 	runId: z.string(),
 	chatId: z.string(),
 	agent: z.string(),
@@ -150,7 +150,7 @@ export async function writeReport(entry: ReportEntry): Promise<void> {
 	await appendFile(fileFor(date), `${JSON.stringify(entry)}\n`);
 }
 
-export interface ReadReportsOptions {
+interface ReadReportsOptions {
 	days?: number;
 	agent?: string;
 	chatId?: string;
@@ -206,4 +206,4 @@ export async function readReports(
 }
 
 /** Convenience: rebuild a `Trigger` for templates without exposing internals. */
-export type ReportTrigger = Trigger;
+type ReportTrigger = Trigger;

@@ -32,7 +32,7 @@ const persistInputSchema = z.object({
 		),
 });
 
-export interface PersistDynamicInput {
+interface PersistDynamicInput {
 	def: AgentDefinition;
 	turn: TurnContext;
 	system: string;
@@ -137,7 +137,7 @@ export async function persistDynamic(
  * failure — the model occasionally hallucinates formats and we'd rather keep
  * the chain alive than throw.
  */
-export function computeNextRun(nextRun: string): string {
+function computeNextRun(nextRun: string): string {
 	const min = settings.persistence.minNextRun;
 	const max = settings.persistence.maxNextRun;
 	const now = Date.now();

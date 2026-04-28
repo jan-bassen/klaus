@@ -3,7 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 import { log } from "@/infra/logger";
 
-export interface TimerStore {
+interface TimerStore {
 	setOnFire(fn: (entry: TimerEntry) => Promise<void>): void;
 	load(): Promise<void>;
 	add(entry: TimerEntry): Promise<void>;
@@ -12,7 +12,7 @@ export interface TimerStore {
 	stopAll(): void;
 }
 
-export const TimerEntrySchema = z.object({
+const TimerEntrySchema = z.object({
 	id: z.string(),
 	agentName: z.string(),
 	chatId: z.string(),
@@ -25,7 +25,7 @@ export const TimerEntrySchema = z.object({
 
 export type TimerEntry = z.infer<typeof TimerEntrySchema>;
 
-export interface TimerStoreEnv {
+interface TimerStoreEnv {
 	dataDir: string;
 }
 

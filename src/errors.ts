@@ -1,16 +1,16 @@
 import { LlmTimeoutError } from "@/pipeline/core";
 import { renderTemplate } from "@/pipeline/prompts";
 
-export type ErrorKind = "timeout" | "rate_limit" | "too_long" | "generic";
+type ErrorKind = "timeout" | "rate_limit" | "too_long" | "generic";
 
-export interface ErrorInfo {
+interface ErrorInfo {
 	kind: ErrorKind;
 	/** First non-empty line of the underlying error, capped to 120 chars. */
 	message: string;
 }
 
 /** Classify an arbitrary thrown value into a kind + cleaned message. */
-export function mapError(err: unknown): ErrorInfo {
+function mapError(err: unknown): ErrorInfo {
 	if (err instanceof LlmTimeoutError) return { kind: "timeout", message: "" };
 
 	const msg = err instanceof Error ? err.message : String(err);

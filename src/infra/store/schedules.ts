@@ -4,7 +4,7 @@ import { Cron } from "croner";
 import { z } from "zod";
 import { log } from "@/infra/logger";
 
-export interface ScheduleStore {
+interface ScheduleStore {
 	setOnFire(fn: (entry: ScheduleEntry) => Promise<void>): void;
 	load(): Promise<void>;
 	add(entry: ScheduleEntry): Promise<void>;
@@ -15,7 +15,7 @@ export interface ScheduleStore {
 	find(agentName: string, label?: string): ScheduleEntry | undefined;
 }
 
-export const ScheduleEntrySchema = z.object({
+const ScheduleEntrySchema = z.object({
 	id: z.string(),
 	agentName: z.string(),
 	pattern: z.string(),
@@ -29,7 +29,7 @@ export const ScheduleEntrySchema = z.object({
 
 export type ScheduleEntry = z.infer<typeof ScheduleEntrySchema>;
 
-export interface ScheduleStoreEnv {
+interface ScheduleStoreEnv {
 	dataDir: string;
 	timezone: string;
 }

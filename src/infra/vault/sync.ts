@@ -18,7 +18,7 @@ import path from "node:path";
 import type { Readable } from "node:stream";
 import { log } from "@/infra/logger";
 
-export interface SyncEnv {
+interface SyncEnv {
 	email: string;
 	password: string;
 	vaultName: string;
@@ -26,7 +26,7 @@ export interface SyncEnv {
 	e2eePassword?: string;
 }
 
-export interface SyncDeps {
+interface SyncDeps {
 	vaultRoot: string;
 	configDir: string;
 	signal: AbortSignal;
@@ -43,7 +43,7 @@ export interface SyncHandle {
 	stop(): Promise<void>;
 }
 
-export type SyncError =
+type SyncError =
 	| { kind: "missing-env"; vars: string[] }
 	| {
 			kind: "setup-failed";

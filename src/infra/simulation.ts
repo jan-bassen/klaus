@@ -21,7 +21,7 @@ import type { SideEffect } from "@/primitives/tools";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export interface SimulatedAction {
+interface SimulatedAction {
 	tool: string;
 	sideEffect: SideEffect;
 	args: unknown;
@@ -50,7 +50,7 @@ export interface SimulationOverlay {
 	deletedFileIds: Set<string>;
 }
 
-export function createOverlay(): SimulationOverlay {
+function createOverlay(): SimulationOverlay {
 	return {
 		actions: [],
 		vaultWrites: new Map(),

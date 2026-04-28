@@ -16,7 +16,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
-import { log } from "@/infra/logger";
+import { configureLogger, log } from "@/infra/logger";
 
 // ── Module anchor (Node-portable, Bun's `import.meta.dir` is optional) ─────
 
@@ -90,14 +90,14 @@ export type AgentVaultEntry =
 			confirm?: VaultPermission | undefined;
 	  };
 
-export interface EndpointConfig {
+interface EndpointConfig {
 	/** Base URL of an OpenAI-compatible chat completions API. */
 	baseURL: string;
 	/** Name of the env var holding the API key. */
 	apiKeyEnv: string;
 }
 
-export interface ProviderConfig {
+interface ProviderConfig {
 	/** Endpoint name from `endpoints` to route requests through. */
 	endpoint: string;
 	/**
@@ -111,7 +111,7 @@ export interface ProviderConfig {
 	large: string;
 }
 
-export interface SamplingConfig {
+interface SamplingConfig {
 	temperature?: number | undefined;
 	coldTemperature?: number | undefined;
 	hotTemperature?: number | undefined;
@@ -321,7 +321,7 @@ const SyncSchema = z
 	})
 	.strict();
 
-export const SettingsSchema = z
+const SettingsSchema = z
 	.object({
 		basics: BasicsSchema,
 		agent: AgentSchema,
@@ -339,7 +339,7 @@ export const SettingsSchema = z
 	})
 	.strict();
 
-export type YamlSettings = z.output<typeof SettingsSchema>;
+type YamlSettings = z.output<typeof SettingsSchema>;
 
 // ── Bundled defaults ───────────────────────────────────────────────────────
 
@@ -414,10 +414,12 @@ function buildSettings(yaml: YamlSettings) {
 }
 
 export const settings = buildSettings(loadBundledDefaults());
+configureLogger(settings.log.format);
 
 function applyYaml(next: YamlSettings): void {
 	const rebuilt = buildSettings(next);
 	Object.assign(settings, rebuilt);
+	configureLogger(settings.log.format);
 }
 
 // ── Disk load / hot reload ─────────────────────────────────────────────────
@@ -477,7 +479,7 @@ export async function updateAllowedChatId(chatId: string): Promise<void> {
 
 // ── Provider / model resolution ────────────────────────────────────────────
 
-export interface ResolvedModel {
+interface ResolvedModel {
 	baseURL: string;
 	apiKey: string;
 	modelId: string;

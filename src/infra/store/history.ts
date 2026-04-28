@@ -26,11 +26,11 @@ interface MessageBase {
 
 /** Assistant rows must carry `agent` and `runId` so history filtering, templates,
  * and trace lookup can all rely on the link. User rows have neither. */
-export type AppendMessageInput =
+type AppendMessageInput =
 	| (MessageBase & { role: "user" })
 	| (MessageBase & { role: "assistant"; agent: string; runId: string });
 
-export interface ConversationStore {
+interface ConversationStore {
 	appendMessage(msg: AppendMessageInput): Promise<string>;
 	appendAck(messageId: string, externalId: string): Promise<void>;
 	appendReaction(reaction: {
@@ -137,7 +137,7 @@ const ConversationBreakEventSchema = z.object({
 	createdAt: z.string(),
 });
 
-export const ConversationEventSchema = z.discriminatedUnion("kind", [
+const ConversationEventSchema = z.discriminatedUnion("kind", [
 	ConversationMessageEventSchema,
 	ConversationAckEventSchema,
 	ConversationReactionEventSchema,
@@ -145,21 +145,21 @@ export const ConversationEventSchema = z.discriminatedUnion("kind", [
 	ConversationBreakEventSchema,
 ]);
 
-export type ConversationMessageEvent = z.infer<
+type ConversationMessageEvent = z.infer<
 	typeof ConversationMessageEventSchema
 >;
-export type ConversationAckEvent = z.infer<typeof ConversationAckEventSchema>;
-export type ConversationReactionEvent = z.infer<
+type ConversationAckEvent = z.infer<typeof ConversationAckEventSchema>;
+type ConversationReactionEvent = z.infer<
 	typeof ConversationReactionEventSchema
 >;
-export type ConversationBreakEvent = z.infer<
+type ConversationBreakEvent = z.infer<
 	typeof ConversationBreakEventSchema
 >;
 type ConversationEvent = z.infer<typeof ConversationEventSchema>;
 
 // -- Merged message type returned by getConversation --
 
-export interface ConversationMessage {
+interface ConversationMessage {
 	id: string;
 	role: "user" | "assistant";
 	content: string | null;
@@ -176,13 +176,13 @@ export interface ConversationMessage {
 	reactions: Array<{ emoji: string; senderId: string; fromMe: boolean }>;
 }
 
-export interface AgentTrace {
+interface AgentTrace {
 	agent: string;
 	trigger: Trigger;
 	steps: TraceStep[];
 }
 
-export interface ConversationStoreEnv {
+interface ConversationStoreEnv {
 	dataDir: string;
 }
 
@@ -638,11 +638,11 @@ export function findByExternalId(
 	return store().findByExternalId(externalId);
 }
 
-export function resolveExternalId(externalId: string): string | null {
+function resolveExternalId(externalId: string): string | null {
 	return store().resolveExternalId(externalId);
 }
 
-export function resolveMessageId(messageId: string): string | null {
+function resolveMessageId(messageId: string): string | null {
 	return store().resolveMessageId(messageId);
 }
 

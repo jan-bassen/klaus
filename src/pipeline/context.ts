@@ -38,7 +38,7 @@ import type { Variable } from "@/primitives/variables";
  * pass that sees the partial namespace via `turn.vars` (used by `snippets`
  * to compile against the full variable set).
  */
-export async function assembleVariables(
+async function assembleVariables(
 	turn: Omit<TurnContext, "vars">,
 	variables: Variable[],
 ): Promise<Record<string, unknown>> {
@@ -84,7 +84,7 @@ async function runVariablePhase(
  * function tool call. The zod `inputSchema` flows out as JSON Schema for the
  * outgoing request; `execute` is a closure that already binds the turn.
  */
-export interface FunctionTool {
+interface FunctionTool {
 	description: string;
 	inputSchema: z.ZodTypeAny;
 	execute(input: unknown): Promise<unknown>;
@@ -165,7 +165,7 @@ async function invokeTool(
  * tools are pre-registered but hidden until `use_<set>` is called. Skills
  * pre-register their tools too; `skill_get` activates them.
  */
-export function assembleTools(
+function assembleTools(
 	def: AgentDefinition,
 	turn: TurnContext,
 ): AssembledTools {
@@ -287,7 +287,7 @@ export interface HistoryOptions {
 	scope?: "full" | "agent";
 }
 
-export interface AssembledHistory {
+interface AssembledHistory {
 	messages: ChatMessage[];
 	messageRefs: Record<string, { externalId: string; role: string }>;
 }
@@ -302,7 +302,7 @@ export interface AssembledHistory {
  * final assistant `content` is the persisted reply text from the conversation
  * log. This keeps existing JSONL files backward-compatible.
  */
-export async function assembleHistory(
+async function assembleHistory(
 	turn: Omit<TurnContext, "vars">,
 	opts: HistoryOptions = {},
 ): Promise<AssembledHistory> {
@@ -405,13 +405,13 @@ export async function assembleHistory(
 
 // ── Orchestrator ───────────────────────────────────────────────────────────
 
-export interface AssembledContext {
+interface AssembledContext {
 	vars: Record<string, unknown>;
 	tools: AssembledTools;
 	history: AssembledHistory;
 }
 
-export interface ContextOptions {
+interface ContextOptions {
 	variables: Variable[];
 	/** Manual override; otherwise derived from `turn.config.history*`. */
 	history?: HistoryOptions;
