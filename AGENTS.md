@@ -17,9 +17,10 @@ bun run publish
 
 A maximally simple, headless personal AI agent: **WhatsApp → TypeScript → Obsidian vault → Docker**.
 
-Stack: Bun, TypeScript strict, Zod, Handlebars, Baileys. Models via a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default OpenRouter); request/response types come from the `openai` npm package (devDep, types-only) with small extensions for OpenRouter-specific bits (`reasoning.effort`, `openrouter:web_search` / `openrouter:web_fetch` server tools). Liteparse for docs, sharp for images. JSONL for conversations/reports, JSON for schedules/timers. No database.
+Stack: Bun, TypeScript strict, Zod, Handlebars, Baileys. Models via a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default only OpenRouter); request/response types come from the `openrouter` sdk. Liteparse for docs, sharp for images. JSONL for conversations/reports, JSON for schedules/timers. No database.
 
 ## Directory layout
+The repo is itentionally flat and opinionated in structure. One glance and a new user should be able to find where to look.
 
 ```
 src/
@@ -176,7 +177,7 @@ Templates are required — `runAgent()` throws if `message-user.md` etc. are mis
 
 ## Code conventions
 
-- No barrel files — import from specific module paths. Path alias `@/` → `src/`.
+- No barrel files (but still index files) — import from specific module paths. Path alias `@/` → `src/`.
 - Errors are values — `return` them; only throw at true system boundaries.
 - No `any`. Explicit return types on exported functions.
 - One concern per file.

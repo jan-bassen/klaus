@@ -57,6 +57,77 @@ function setEnv(vars: Record<string, string | undefined>): void {
 	}
 }
 
+function setValidSyncEnv(
+	overrides: Record<string, string | undefined> = {},
+): void {
+	setEnv({
+		OBSIDIAN_EMAIL: "a@b.c",
+		OBSIDIAN_PASSWORD: "pw",
+		OBSIDIAN_VAULT_NAME: "MyVault",
+		...overrides,
+	});
+}
+
+function markSyncReady(configDir: string): void {
+	mkdirSync(configDir, { recursive: true });
+	writeFileSync(path.join(configDir, ".klaus-sync-ready"), "now");
+}
+
+function startOptions(
+	tmp: string,
+	configDir: string,
+	signal: AbortSignal,
+	shutdownTimeoutMs = 50,
+	backoff = { initialMs: 1, maxMs: 10, resetAfterUpMs: 1000 },
+) {
+	return {
+		vaultRoot: tmp,
+		configDir,
+		signal,
+		shutdownTimeoutMs,
+		backoff,
+	};
+}
+
+function queueFirstRunChildren(): {
+	loginChild: FakeChild;
+	setupChild: FakeChild;
+	continuousChild: FakeChild;
+} {
+	const loginChild = makeFakeChild();
+	const setupChild = makeFakeChild();
+	const continuousChild = makeFakeChild();
+	spawnMock
+		.mockReturnValueOnce(loginChild)
+		.mockReturnValueOnce(setupChild)
+		.mockReturnValueOnce(continuousChild);
+	return { loginChild, setupChild, continuousChild };
+}
+
+async function finishFirstRun(
+	loginChild: FakeChild,
+	setupChild: FakeChild,
+	startPromise: ReturnType<typeof startSync>,
+): Promise<Awaited<ReturnType<typeof startSync>>> {
+	await waitForSpawnCount(1);
+	loginChild.emit("exit", 0);
+	await waitForSpawnCount(2);
+	setupChild.emit("exit", 0);
+	return startPromise;
+}
+
+async function stopStartedSync(
+	result: Awaited<ReturnType<typeof startSync>>,
+	ac: AbortController,
+	child: FakeChild,
+): Promise<void> {
+	if (result.ok) {
+		ac.abort();
+		child.emit("exit", 0);
+		await result.handle.stop();
+	}
+}
+
 async function waitForSpawnCount(n: number, timeoutMs = 1000): Promise<void> {
 	const start = Date.now();
 	while (spawnMock.mock.calls.length < n) {
@@ -162,35 +233,13 @@ describe("startSync: first-time setup + continuous spawn", () => {
 	it("runs login + sync-setup, then spawns continuous child with correct args", async () => {
 		const tmp = makeTmpDir();
 		const configDir = path.join(tmp, "cfg");
-		setEnv({
-			OBSIDIAN_EMAIL: "a@b.c",
-			OBSIDIAN_PASSWORD: "pw",
-			OBSIDIAN_VAULT_NAME: "MyVault",
-		});
+		setValidSyncEnv();
 
-		const loginChild = makeFakeChild();
-		const setupChild = makeFakeChild();
-		const continuousChild = makeFakeChild();
-		spawnMock
-			.mockReturnValueOnce(loginChild)
-			.mockReturnValueOnce(setupChild)
-			.mockReturnValueOnce(continuousChild);
+		const { loginChild, setupChild, continuousChild } = queueFirstRunChildren();
 
 		const ac = new AbortController();
-		const startPromise = startSync({
-			vaultRoot: tmp,
-			configDir,
-			signal: ac.signal,
-			shutdownTimeoutMs: 50,
-			backoff: { initialMs: 1, maxMs: 10, resetAfterUpMs: 1000 },
-		});
-
-		await waitForSpawnCount(1);
-		loginChild.emit("exit", 0);
-		await waitForSpawnCount(2);
-		setupChild.emit("exit", 0);
-
-		const result = await startPromise;
+		const startPromise = startSync(startOptions(tmp, configDir, ac.signal));
+		const result = await finishFirstRun(loginChild, setupChild, startPromise);
 		expect(result.ok).toBe(true);
 
 		// Spawn calls: 0 = login, 1 = sync-setup, 2 = continuous.
@@ -241,34 +290,13 @@ describe("startSync: first-time setup + continuous spawn", () => {
 	it("appends --mfa when OBSIDIAN_MFA is set", async () => {
 		const tmp = makeTmpDir();
 		const configDir = path.join(tmp, "cfg");
-		setEnv({
-			OBSIDIAN_EMAIL: "a@b.c",
-			OBSIDIAN_PASSWORD: "pw",
-			OBSIDIAN_VAULT_NAME: "MyVault",
-			OBSIDIAN_MFA: "123456",
-		});
+		setValidSyncEnv({ OBSIDIAN_MFA: "123456" });
 
-		const loginChild = makeFakeChild();
-		const setupChild = makeFakeChild();
-		const continuousChild = makeFakeChild();
-		spawnMock
-			.mockReturnValueOnce(loginChild)
-			.mockReturnValueOnce(setupChild)
-			.mockReturnValueOnce(continuousChild);
+		const { loginChild, setupChild, continuousChild } = queueFirstRunChildren();
 
 		const ac = new AbortController();
-		const p = startSync({
-			vaultRoot: tmp,
-			configDir,
-			signal: ac.signal,
-			shutdownTimeoutMs: 50,
-			backoff: { initialMs: 1, maxMs: 10, resetAfterUpMs: 1000 },
-		});
-		await waitForSpawnCount(1);
-		loginChild.emit("exit", 0);
-		await waitForSpawnCount(2);
-		setupChild.emit("exit", 0);
-		const result = await p;
+		const p = startSync(startOptions(tmp, configDir, ac.signal));
+		const result = await finishFirstRun(loginChild, setupChild, p);
 		expect(result.ok).toBe(true);
 
 		const firstCall = spawnMock.mock.calls[0] as unknown[];
@@ -284,79 +312,40 @@ describe("startSync: first-time setup + continuous spawn", () => {
 			"123456",
 		]);
 
-		if (result.ok) {
-			ac.abort();
-			continuousChild.emit("exit", 0);
-			await result.handle.stop();
-		}
+		await stopStartedSync(result, ac, continuousChild);
 		rmTmpDir(tmp);
 	});
 
 	it("pipes E2EE password to sync-setup stdin when set", async () => {
 		const tmp = makeTmpDir();
 		const configDir = path.join(tmp, "cfg");
-		setEnv({
-			OBSIDIAN_EMAIL: "a@b.c",
-			OBSIDIAN_PASSWORD: "pw",
-			OBSIDIAN_VAULT_NAME: "MyVault",
-			OBSIDIAN_E2EE_PASSWORD: "encrypted",
-		});
+		setValidSyncEnv({ OBSIDIAN_E2EE_PASSWORD: "encrypted" });
 
-		const loginChild = makeFakeChild();
-		const setupChild = makeFakeChild();
-		const continuousChild = makeFakeChild();
+		const { loginChild, setupChild, continuousChild } = queueFirstRunChildren();
 		const writeSpy = vi.fn();
 		setupChild.stdin.write = writeSpy;
-		spawnMock
-			.mockReturnValueOnce(loginChild)
-			.mockReturnValueOnce(setupChild)
-			.mockReturnValueOnce(continuousChild);
 
 		const ac = new AbortController();
-		const p = startSync({
-			vaultRoot: tmp,
-			configDir,
-			signal: ac.signal,
-			shutdownTimeoutMs: 50,
-			backoff: { initialMs: 1, maxMs: 10, resetAfterUpMs: 1000 },
-		});
-		await waitForSpawnCount(1);
-		loginChild.emit("exit", 0);
-		await waitForSpawnCount(2);
-		setupChild.emit("exit", 0);
-		const result = await p;
+		const p = startSync(startOptions(tmp, configDir, ac.signal));
+		const result = await finishFirstRun(loginChild, setupChild, p);
 		expect(result.ok).toBe(true);
 
 		expect(writeSpy).toHaveBeenCalledWith("encrypted\n");
 
-		if (result.ok) {
-			ac.abort();
-			continuousChild.emit("exit", 0);
-			await result.handle.stop();
-		}
+		await stopStartedSync(result, ac, continuousChild);
 		rmTmpDir(tmp);
 	});
 
 	it("returns setup-failed when login exits non-zero", async () => {
 		const tmp = makeTmpDir();
 		const configDir = path.join(tmp, "cfg");
-		setEnv({
-			OBSIDIAN_EMAIL: "a@b.c",
-			OBSIDIAN_PASSWORD: "pw",
-			OBSIDIAN_VAULT_NAME: "MyVault",
-		});
+		setValidSyncEnv();
 
 		const loginChild = makeFakeChild();
 		spawnMock.mockReturnValueOnce(loginChild);
 
 		const ac = new AbortController();
-		const p = startSync({
-			vaultRoot: tmp,
-			configDir,
-			signal: ac.signal,
-			shutdownTimeoutMs: 50,
-			backoff: { initialMs: 1, maxMs: 10, resetAfterUpMs: 1000 },
-		});
+		const p = startSync(startOptions(tmp, configDir, ac.signal));
 		await waitForSpawnCount(1);
 		loginChild.stderr.emit("data", "bad password");
 		loginChild.emit("exit", 1);
@@ -375,25 +364,14 @@ describe("startSync: first-time setup + continuous spawn", () => {
 	it("skips login + sync-setup when marker file exists", async () => {
 		const tmp = makeTmpDir();
 		const configDir = path.join(tmp, "cfg");
-		mkdirSync(configDir, { recursive: true });
-		writeFileSync(path.join(configDir, ".klaus-sync-ready"), "now");
-		setEnv({
-			OBSIDIAN_EMAIL: "a@b.c",
-			OBSIDIAN_PASSWORD: "pw",
-			OBSIDIAN_VAULT_NAME: "MyVault",
-		});
+		markSyncReady(configDir);
+		setValidSyncEnv();
 
 		const continuousChild = makeFakeChild();
 		spawnMock.mockReturnValueOnce(continuousChild);
 
 		const ac = new AbortController();
-		const result = await startSync({
-			vaultRoot: tmp,
-			configDir,
-			signal: ac.signal,
-			shutdownTimeoutMs: 50,
-			backoff: { initialMs: 1, maxMs: 10, resetAfterUpMs: 1000 },
-		});
+		const result = await startSync(startOptions(tmp, configDir, ac.signal));
 		expect(result.ok).toBe(true);
 		expect(spawnMock).toHaveBeenCalledTimes(1);
 		const onlyCall = spawnMock.mock.calls[0] as unknown[];
@@ -404,11 +382,7 @@ describe("startSync: first-time setup + continuous spawn", () => {
 			"--continuous",
 		]);
 
-		if (result.ok) {
-			ac.abort();
-			continuousChild.emit("exit", 0);
-			await result.handle.stop();
-		}
+		await stopStartedSync(result, ac, continuousChild);
 		rmTmpDir(tmp);
 	});
 });
@@ -417,26 +391,21 @@ describe("startSync: crash + restart with backoff", () => {
 	it("respawns continuous child after crash exit", async () => {
 		const tmp = makeTmpDir();
 		const configDir = path.join(tmp, "cfg");
-		mkdirSync(configDir, { recursive: true });
-		writeFileSync(path.join(configDir, ".klaus-sync-ready"), "now");
-		setEnv({
-			OBSIDIAN_EMAIL: "a@b.c",
-			OBSIDIAN_PASSWORD: "pw",
-			OBSIDIAN_VAULT_NAME: "MyVault",
-		});
+		markSyncReady(configDir);
+		setValidSyncEnv();
 
 		const first = makeFakeChild();
 		const second = makeFakeChild();
 		spawnMock.mockReturnValueOnce(first).mockReturnValueOnce(second);
 
 		const ac = new AbortController();
-		const result = await startSync({
-			vaultRoot: tmp,
-			configDir,
-			signal: ac.signal,
-			shutdownTimeoutMs: 50,
-			backoff: { initialMs: 1, maxMs: 5, resetAfterUpMs: 1000 },
-		});
+		const result = await startSync(
+			startOptions(tmp, configDir, ac.signal, 50, {
+				initialMs: 1,
+				maxMs: 5,
+				resetAfterUpMs: 1000,
+			}),
+		);
 		expect(result.ok).toBe(true);
 
 		// Crash the first child.
@@ -445,11 +414,7 @@ describe("startSync: crash + restart with backoff", () => {
 		await new Promise((r) => setTimeout(r, 20));
 		expect(spawnMock).toHaveBeenCalledTimes(2);
 
-		if (result.ok) {
-			ac.abort();
-			second.emit("exit", 0);
-			await result.handle.stop();
-		}
+		await stopStartedSync(result, ac, second);
 		rmTmpDir(tmp);
 	});
 });
@@ -458,25 +423,20 @@ describe("startSync: shutdown signalling", () => {
 	it("escalates to SIGKILL after shutdownTimeoutMs", async () => {
 		const tmp = makeTmpDir();
 		const configDir = path.join(tmp, "cfg");
-		mkdirSync(configDir, { recursive: true });
-		writeFileSync(path.join(configDir, ".klaus-sync-ready"), "now");
-		setEnv({
-			OBSIDIAN_EMAIL: "a@b.c",
-			OBSIDIAN_PASSWORD: "pw",
-			OBSIDIAN_VAULT_NAME: "MyVault",
-		});
+		markSyncReady(configDir);
+		setValidSyncEnv();
 
 		const child = makeFakeChild();
 		spawnMock.mockReturnValueOnce(child);
 
 		const ac = new AbortController();
-		const result = await startSync({
-			vaultRoot: tmp,
-			configDir,
-			signal: ac.signal,
-			shutdownTimeoutMs: 10,
-			backoff: { initialMs: 1, maxMs: 5, resetAfterUpMs: 1000 },
-		});
+		const result = await startSync(
+			startOptions(tmp, configDir, ac.signal, 10, {
+				initialMs: 1,
+				maxMs: 5,
+				resetAfterUpMs: 1000,
+			}),
+		);
 		expect(result.ok).toBe(true);
 
 		ac.abort();

@@ -20,6 +20,24 @@ export interface SkillMeta {
 /** Registry of loaded skill metadata, keyed by skill name. Populated at startup. */
 export const skillRegistry = new Map<string, SkillMeta>();
 
+export function parseSkillMeta(name: string, raw: string): SkillMeta {
+	const match = raw.match(/^---\n([\s\S]*?)\n---/);
+	let description = name;
+	let tools: string[] = [];
+	let toolsets: string[] = [];
+
+	if (match) {
+		const front = SkillFrontmatterSchema.safeParse(parseYaml(match[1] ?? ""));
+		if (front.success) {
+			if (front.data.description) description = front.data.description;
+			tools = front.data.tools;
+			toolsets = front.data.toolsets;
+		}
+	}
+
+	return { name, description, tools, toolsets };
+}
+
 /**
  * Scan a directory for *.md skill files, parse frontmatter, and populate skillRegistry.
  * Call once at startup from index.ts.
@@ -28,22 +46,9 @@ export async function loadSkills(skillsDir: string): Promise<void> {
 	const glob = new Bun.Glob("*.md");
 	for await (const file of glob.scan({ cwd: skillsDir })) {
 		const raw = await Bun.file(`${skillsDir}/${file}`).text();
-		const match = raw.match(/^---\n([\s\S]*?)\n---/);
 		const name = file.replace(/\.md$/, "");
 
-		let description = name;
-		let tools: string[] = [];
-		let toolsets: string[] = [];
-		if (match) {
-			const front = SkillFrontmatterSchema.safeParse(parseYaml(match[1] ?? ""));
-			if (front.success) {
-				if (front.data.description) description = front.data.description;
-				tools = front.data.tools;
-				toolsets = front.data.toolsets;
-			}
-		}
-
-		skillRegistry.set(name, { name, description, tools, toolsets });
+		skillRegistry.set(name, parseSkillMeta(name, raw));
 		log.debug(`[skill] loaded: ${name}`);
 	}
 }

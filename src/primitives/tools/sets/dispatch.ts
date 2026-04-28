@@ -4,15 +4,43 @@ import {
 	addSchedule,
 	getSchedules,
 	removeSchedule,
+	type ScheduleEntry,
 } from "@/infra/store/schedules";
 import { addTimer, listTimers, removeTimer } from "@/infra/store/timers";
 import { agentRegistry } from "@/pipeline/agents";
+import type { TurnContext } from "@/pipeline/core";
 import { dispatch as dispatchFn } from "@/pipeline/dispatch";
 import type { ToolDefinition, ToolsetDefinition } from "@/primitives/tools";
 
 // ── dispatch ───────────────────────────────────────────────────────────────
 
 const DEFAULT_AGENT = "dispatch";
+
+interface ScheduleInput {
+	agent: string;
+	pattern: string;
+	prompt: string;
+	label: string;
+	overrides?: string[] | undefined;
+}
+
+function scheduleEntry(
+	input: ScheduleInput,
+	context: TurnContext,
+	id: string,
+): ScheduleEntry {
+	return {
+		id,
+		agentName: input.agent,
+		pattern: input.pattern,
+		chatId: context.chatId,
+		objective: input.prompt,
+		label: input.label,
+		createdBy: context.agent.name,
+		createdAt: new Date().toISOString(),
+		...(input.overrides?.length ? { overrides: input.overrides } : {}),
+	};
+}
 
 const dispatchSchema = z.object({
 	agent: z
@@ -118,32 +146,14 @@ const dispatchScheduleTool: ToolDefinition<typeof dispatchScheduleSchema> = {
 	inputSchema: dispatchScheduleSchema,
 	execute: async (input, context) => {
 		const id = crypto.randomUUID();
-		await addSchedule({
-			id,
-			agentName: input.agent,
-			pattern: input.pattern,
-			chatId: context.chatId,
-			objective: input.prompt,
-			label: input.label,
-			createdBy: context.agent.name,
-			createdAt: new Date().toISOString(),
-			...(input.overrides?.length ? { overrides: input.overrides } : {}),
-		});
+		await addSchedule(scheduleEntry(input, context, id));
 		return `Scheduled @${input.agent} with pattern "${input.pattern}" (${input.label}) [${id}]`;
 	},
 	simulate: async (input, context) => {
 		const id = crypto.randomUUID();
-		getOverlay(context).pendingSchedules.push({
-			id,
-			agentName: input.agent,
-			pattern: input.pattern,
-			chatId: context.chatId,
-			objective: input.prompt,
-			label: input.label,
-			createdBy: context.agent.name,
-			createdAt: new Date().toISOString(),
-			...(input.overrides?.length ? { overrides: input.overrides } : {}),
-		});
+		getOverlay(context).pendingSchedules.push(
+			scheduleEntry(input, context, id),
+		);
 		return `(sim) Scheduled @${input.agent} with pattern "${input.pattern}" (${input.label}) [${id}]`;
 	},
 	sideEffect: "stateful",

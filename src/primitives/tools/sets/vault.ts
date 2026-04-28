@@ -3,7 +3,11 @@ import path from "node:path";
 import { z } from "zod";
 import { settings } from "@/infra/config";
 import { getOverlay } from "@/infra/simulation";
-import { checkPermission, getReadableFolders } from "@/infra/vault";
+import {
+	checkPermission,
+	getReadableFolders,
+	type VaultOp,
+} from "@/infra/vault";
 import {
 	extractFrontmatterTags,
 	extractWikilinks,
@@ -18,7 +22,80 @@ import {
 	vaultRoot,
 	walkVaultDir,
 } from "@/infra/vault/tools";
+import type { TurnContext } from "@/pipeline/core";
 import type { ToolDefinition, ToolsetDefinition } from "@/primitives/tools";
+
+interface AppendUpdate {
+	content: string;
+	message: string;
+	simMessage: string;
+}
+
+function formatHeadingList(lines: string[]): string {
+	const available = listHeadings(lines);
+	return available.length > 0
+		? available.map((h) => `${"#".repeat(h.level)} ${h.text}`).join("\n")
+		: "(no headings)";
+}
+
+function buildAppendUpdate(
+	existing: string,
+	content: string,
+	heading: string | undefined,
+	rel: string,
+): AppendUpdate | string {
+	if (heading === undefined) {
+		return {
+			content: existing ? `${existing}\n${content}` : content,
+			message: `Appended to: ${rel}`,
+			simMessage: `(sim) Appended to: ${rel}`,
+		};
+	}
+
+	if (!existing) {
+		return {
+			content,
+			message: `Appended to: ${rel}`,
+			simMessage: `(sim) Appended to: ${rel}`,
+		};
+	}
+
+	const lines = existing.split("\n");
+	const section = findSection(lines, heading);
+
+	if (!section) {
+		return `Heading "${heading}" not found in ${rel}. Available headings:\n${formatHeadingList(
+			lines,
+		)}`;
+	}
+
+	const before = lines.slice(0, section.endIdx);
+	const after = lines.slice(section.endIdx);
+	const sectionName = heading === "" ? "(top-level)" : `"${heading}"`;
+	return {
+		content: [...before, content, ...after].join("\n"),
+		message: `Appended to section ${sectionName} in: ${rel}`,
+		simMessage: `(sim) Appended to section ${sectionName} in: ${rel}`,
+	};
+}
+
+async function readVaultNote(
+	rel: string,
+	op: VaultOp,
+	context: TurnContext,
+): Promise<{ absolutePath: string; text: string } | string> {
+	const result = await gateVaultTool(rel, op, context);
+	if (typeof result === "object") return result.error;
+
+	try {
+		return {
+			absolutePath: result,
+			text: await Bun.file(result).text(),
+		};
+	} catch {
+		return `Note not found: ${rel}`;
+	}
+}
 
 // ─── read ────────────────────────────────────────────────────────────────────
 
@@ -312,34 +389,10 @@ export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
 			await mkdir(path.dirname(result), { recursive: true });
 		}
 
-		if (heading === undefined) {
-			const newContent = existing ? `${existing}\n${content}` : content;
-			await Bun.write(result, newContent);
-			return `Appended to: ${rel}`;
-		}
-
-		if (!existing) {
-			await Bun.write(result, content);
-			return `Appended to: ${rel}`;
-		}
-
-		const lines = existing.split("\n");
-		const section = findSection(lines, heading);
-
-		if (!section) {
-			const available = listHeadings(lines);
-			const headingList =
-				available.length > 0
-					? available.map((h) => `${"#".repeat(h.level)} ${h.text}`).join("\n")
-					: "(no headings)";
-			return `Heading "${heading}" not found in ${rel}. Available headings:\n${headingList}`;
-		}
-
-		const before = lines.slice(0, section.endIdx);
-		const after = lines.slice(section.endIdx);
-		const updated = [...before, content, ...after].join("\n");
-		await Bun.write(result, updated);
-		return `Appended to section ${heading === "" ? "(top-level)" : `"${heading}"`} in: ${rel}`;
+		const updated = buildAppendUpdate(existing, content, heading, rel);
+		if (typeof updated === "string") return updated;
+		await Bun.write(result, updated.content);
+		return updated.message;
 	},
 	simulate: async ({ path: rel, content, heading }, context) => {
 		const gated = await gateVaultTool(rel, "append", context);
@@ -347,36 +400,11 @@ export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
 		const overlay = getOverlay(context);
 		const existing = (await readSimulatedVaultContent(gated, overlay)) ?? "";
 
-		if (heading === undefined) {
-			overlay.vaultWrites.set(
-				gated,
-				existing ? `${existing}\n${content}` : content,
-			);
-			overlay.vaultDeletes.delete(gated);
-			return `(sim) Appended to: ${rel}`;
-		}
-
-		if (!existing) {
-			overlay.vaultWrites.set(gated, content);
-			overlay.vaultDeletes.delete(gated);
-			return `(sim) Appended to: ${rel}`;
-		}
-
-		const lines = existing.split("\n");
-		const section = findSection(lines, heading);
-		if (!section) {
-			const available = listHeadings(lines);
-			const headingList =
-				available.length > 0
-					? available.map((h) => `${"#".repeat(h.level)} ${h.text}`).join("\n")
-					: "(no headings)";
-			return `Heading "${heading}" not found in ${rel}. Available headings:\n${headingList}`;
-		}
-		const before = lines.slice(0, section.endIdx);
-		const after = lines.slice(section.endIdx);
-		overlay.vaultWrites.set(gated, [...before, content, ...after].join("\n"));
+		const updated = buildAppendUpdate(existing, content, heading, rel);
+		if (typeof updated === "string") return updated;
+		overlay.vaultWrites.set(gated, updated.content);
 		overlay.vaultDeletes.delete(gated);
-		return `(sim) Appended to section ${heading === "" ? "(top-level)" : `"${heading}"`} in: ${rel}`;
+		return updated.simMessage;
 	},
 	sideEffect: "stateful",
 	kind: "builtin",
@@ -588,17 +616,10 @@ export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
 		"Replace the body of a specific section in a note by heading. The heading line is kept; everything beneath it until the next same-or-higher-level heading (or EOF) is replaced. Read the note first with vault_read to see current content before replacing.",
 	inputSchema: vaultPatchSchema,
 	execute: async ({ path: rel, heading, newContent }, context) => {
-		const result = await gateVaultTool(rel, "full", context);
-		if (typeof result === "object") return result.error;
+		const note = await readVaultNote(rel, "full", context);
+		if (typeof note === "string") return note;
 
-		let text: string;
-		try {
-			text = await Bun.file(result).text();
-		} catch {
-			return `Note not found: ${rel}`;
-		}
-
-		const lines = text.split("\n");
+		const lines = note.text.split("\n");
 		const section = findSection(lines, heading);
 		if (!section) return `Heading "${heading}" not found in ${rel}.`;
 
@@ -607,7 +628,7 @@ export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
 			newContent,
 			...lines.slice(section.endIdx),
 		].join("\n");
-		await Bun.write(result, updated);
+		await Bun.write(note.absolutePath, updated);
 		return `Patched section "${heading}" in ${rel}.`;
 	},
 	simulate: async ({ path: rel, heading, newContent }, context) => {
@@ -719,17 +740,10 @@ export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
 		"Extract all outgoing [[wikilinks]] from a note. Complements vault_backlinks for graph traversal.",
 	inputSchema: vaultLinksSchema,
 	execute: async ({ path: rel }, context) => {
-		const result = await gateVaultTool(rel, "read", context);
-		if (typeof result === "object") return result.error;
+		const note = await readVaultNote(rel, "read", context);
+		if (typeof note === "string") return note;
 
-		let text: string;
-		try {
-			text = await Bun.file(result).text();
-		} catch {
-			return `Note not found: ${rel}`;
-		}
-
-		const targets = extractWikilinks(text);
+		const targets = extractWikilinks(note.text);
 
 		return targets.length > 0
 			? targets.join("\n")
@@ -752,17 +766,10 @@ export const vaultOutlineTool: ToolDefinition<typeof vaultOutlineSchema> = {
 		"Return the heading structure of a note with item counts per section. Use before vault_append or vault_patch to see available sections without reading the full note.",
 	inputSchema: vaultOutlineSchema,
 	execute: async ({ path: rel }, context) => {
-		const result = await gateVaultTool(rel, "read", context);
-		if (typeof result === "object") return result.error;
+		const note = await readVaultNote(rel, "read", context);
+		if (typeof note === "string") return note;
 
-		let text: string;
-		try {
-			text = await Bun.file(result).text();
-		} catch {
-			return `Note not found: ${rel}`;
-		}
-
-		const lines = text.split("\n");
+		const lines = note.text.split("\n");
 		const headings = listHeadings(lines);
 
 		if (headings.length === 0) {

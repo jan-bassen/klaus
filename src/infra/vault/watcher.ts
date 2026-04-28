@@ -1,6 +1,5 @@
 import type { FSWatcher } from "node:fs";
 import { existsSync, watch } from "node:fs";
-import { parse as parseYaml } from "yaml";
 import { loadSettingsFromDisk, settings } from "@/infra/config";
 import { log } from "@/infra/logger";
 import {
@@ -12,11 +11,7 @@ import { enqueueMessage } from "@/infra/whatsapp/send";
 import { agentRegistry, loadAgentDefinition } from "@/pipeline/agents";
 import { loadOverrides } from "@/pipeline/overrides";
 import { invalidateTemplate } from "@/pipeline/prompts";
-import {
-	SkillFrontmatterSchema,
-	type SkillMeta,
-	skillRegistry,
-} from "@/primitives/tools/skill";
+import { parseSkillMeta, skillRegistry } from "@/primitives/tools/skill";
 
 const watchers: FSWatcher[] = [];
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -149,24 +144,8 @@ async function handleSkillChange(
 
 	try {
 		const raw = await Bun.file(filePath).text();
-		const match = raw.match(/^---\n([\s\S]*?)\n---/);
-		let description = name;
-		let tools: string[] = [];
-		let toolsets: string[] = [];
-		if (match) {
-			const front = SkillFrontmatterSchema.safeParse(parseYaml(match[1] ?? ""));
-			if (front.success) {
-				if (front.data.description) description = front.data.description;
-				tools = front.data.tools;
-				toolsets = front.data.toolsets;
-			}
-		}
-		skillRegistry.set(name, {
-			name,
-			description,
-			tools,
-			toolsets,
-		} satisfies SkillMeta);
+
+		skillRegistry.set(name, parseSkillMeta(name, raw));
 		log.info(`[watcher] skill reloaded: ${name}`);
 	} catch (err) {
 		log.warn(`[watcher] failed to reload skill: ${filename}`, {

@@ -11,8 +11,49 @@ import {
 	listFiles,
 	persistFileBlob,
 } from "@/infra/store/files";
+import type { TurnContext } from "@/pipeline/core";
 import { isParseableDocument, parseDocument } from "@/pipeline/media";
 import type { ToolDefinition, ToolsetDefinition } from "@/primitives/tools";
+
+const fileIdPattern = /^[0-9a-f-]{36}$/i;
+
+function findRequestedFile(name: string): FileMeta | null {
+	return fileIdPattern.test(name)
+		? findFile(name)
+		: (listFiles(name)[0] ?? null);
+}
+
+function matchesFileRequest(file: FileMeta, name: string): boolean {
+	return fileIdPattern.test(name)
+		? file.id === name
+		: path.basename(file.path).includes(name);
+}
+
+function findUploadedFile(
+	files: FileMeta[],
+	name: string,
+): FileMeta | undefined {
+	return files.find((f) => matchesFileRequest(f, name));
+}
+
+function simulatedReadBlocker(
+	name: string,
+	context: TurnContext,
+): string | null {
+	const overlay = getOverlay(context);
+	const simHit = findUploadedFile(overlay.uploadedFiles, name);
+	if (simHit) {
+		return `(sim) File was sim-uploaded this turn — content not materialized to disk.`;
+	}
+
+	const realHit = findRequestedFile(name);
+	if (!realHit) return `No file found for: ${name}`;
+	if (overlay.deletedFileIds.has(realHit.id)) {
+		return `(sim) File ${name} was sim-deleted earlier this turn.`;
+	}
+
+	return null;
+}
 
 // ─── upload ───────────────────────────────────────────────────────────────────
 
@@ -77,8 +118,7 @@ export const filesDownloadTool: ToolDefinition<typeof filesDownloadSchema> = {
 		"Download a file by UUID or partial filename. Returns base64-encoded content.",
 	inputSchema: filesDownloadSchema,
 	execute: async ({ name }, _context) => {
-		const isUuid = /^[0-9a-f-]{36}$/i.test(name);
-		const meta = isUuid ? findFile(name) : (listFiles(name)[0] ?? null);
+		const meta = findRequestedFile(name);
 
 		if (!meta) return `No file found for: ${name}`;
 
@@ -95,19 +135,8 @@ export const filesDownloadTool: ToolDefinition<typeof filesDownloadSchema> = {
 		}
 	},
 	simulate: async ({ name }, context) => {
-		const overlay = getOverlay(context);
-		const isUuid = /^[0-9a-f-]{36}$/i.test(name);
-		const simHit = overlay.uploadedFiles.find((f) =>
-			isUuid ? f.id === name : path.basename(f.path).includes(name),
-		);
-		if (simHit) {
-			return `(sim) File was sim-uploaded this turn — content not materialized to disk.`;
-		}
-		const realHit = isUuid ? findFile(name) : (listFiles(name)[0] ?? null);
-		if (!realHit) return `No file found for: ${name}`;
-		if (overlay.deletedFileIds.has(realHit.id)) {
-			return `(sim) File ${name} was sim-deleted earlier this turn.`;
-		}
+		const blocker = simulatedReadBlocker(name, context);
+		if (blocker) return blocker;
 		return filesDownloadTool.execute({ name }, context);
 	},
 	sideEffect: "pure",
@@ -127,8 +156,7 @@ export const filesReadTool: ToolDefinition<typeof filesReadSchema> = {
 		"Read a file's text content. Parses PDFs, docx, xlsx, pptx to plain text; returns text files directly. For images, use files_download.",
 	inputSchema: filesReadSchema,
 	execute: async ({ name }, _context) => {
-		const isUuid = /^[0-9a-f-]{36}$/i.test(name);
-		const meta = isUuid ? findFile(name) : (listFiles(name)[0] ?? null);
+		const meta = findRequestedFile(name);
 
 		if (!meta) return `No file found for: ${name}`;
 
@@ -153,19 +181,8 @@ export const filesReadTool: ToolDefinition<typeof filesReadSchema> = {
 		return `Cannot read ${path.basename(meta.path)} — unsupported mime type ${meta.mimeType}. Use files_download for binary content.`;
 	},
 	simulate: async ({ name }, context) => {
-		const overlay = getOverlay(context);
-		const isUuid = /^[0-9a-f-]{36}$/i.test(name);
-		const simHit = overlay.uploadedFiles.find((f) =>
-			isUuid ? f.id === name : path.basename(f.path).includes(name),
-		);
-		if (simHit) {
-			return `(sim) File was sim-uploaded this turn — content not materialized to disk.`;
-		}
-		const realHit = isUuid ? findFile(name) : (listFiles(name)[0] ?? null);
-		if (!realHit) return `No file found for: ${name}`;
-		if (overlay.deletedFileIds.has(realHit.id)) {
-			return `(sim) File ${name} was sim-deleted earlier this turn.`;
-		}
+		const blocker = simulatedReadBlocker(name, context);
+		if (blocker) return blocker;
 		return filesReadTool.execute({ name }, context);
 	},
 	sideEffect: "pure",
@@ -237,8 +254,7 @@ export const filesDeleteTool: ToolDefinition<typeof filesDeleteSchema> = {
 	description: "Delete a file — removes both the blob and its metadata.",
 	inputSchema: filesDeleteSchema,
 	execute: async ({ name }, _context) => {
-		const isUuid = /^[0-9a-f-]{36}$/i.test(name);
-		const meta = isUuid ? findFile(name) : (listFiles(name)[0] ?? null);
+		const meta = findRequestedFile(name);
 
 		if (!meta) return `No file found for: ${name}`;
 
@@ -255,9 +271,8 @@ export const filesDeleteTool: ToolDefinition<typeof filesDeleteSchema> = {
 	},
 	simulate: async ({ name }, context) => {
 		const overlay = getOverlay(context);
-		const isUuid = /^[0-9a-f-]{36}$/i.test(name);
 		const simIdx = overlay.uploadedFiles.findIndex((f) =>
-			isUuid ? f.id === name : path.basename(f.path).includes(name),
+			matchesFileRequest(f, name),
 		);
 		if (simIdx >= 0) {
 			const removed = overlay.uploadedFiles.splice(simIdx, 1)[0];
@@ -265,7 +280,7 @@ export const filesDeleteTool: ToolDefinition<typeof filesDeleteSchema> = {
 				return `(sim) Deleted sim-uploaded file ${path.basename(removed.path)} (${removed.id})`;
 			}
 		}
-		const real = isUuid ? findFile(name) : (listFiles(name)[0] ?? null);
+		const real = findRequestedFile(name);
 		if (!real) return `No file found for: ${name}`;
 		overlay.deletedFileIds.add(real.id);
 		return `(sim) Would delete ${path.basename(real.path)} (${real.id})`;

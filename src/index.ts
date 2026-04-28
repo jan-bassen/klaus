@@ -22,6 +22,7 @@ import {
 	addSchedule,
 	initSchedulesStore,
 	loadSchedules,
+	type ScheduleEntry,
 	setOnCronFire,
 	startAllSchedules,
 	stopAllSchedules,
@@ -31,6 +32,7 @@ import {
 	loadTimers,
 	setOnTimerFire,
 	stopAllTimers,
+	type TimerEntry,
 } from "./infra/store/timers";
 import { type SyncHandle, startSync } from "./infra/vault/sync";
 import { startWatching, stopWatching } from "./infra/vault/watcher";
@@ -44,6 +46,7 @@ import { ensureLoginFolder } from "./infra/whatsapp/login";
 import { attachReceiveHandler } from "./infra/whatsapp/receive";
 import { drainQueue, enqueueMessage } from "./infra/whatsapp/send";
 import { agentRegistry, loadAgents } from "./pipeline/agents";
+import type { Trigger } from "./pipeline/core";
 import { dispatch } from "./pipeline/dispatch";
 import { loadOverrides } from "./pipeline/overrides";
 import { loadTemplates } from "./pipeline/prompts";
@@ -113,6 +116,33 @@ async function ensureDefaults(targetDir: string): Promise<void> {
 	}
 
 	await copyDir(defaultsDir, targetDir);
+}
+
+async function runScheduledDispatch(
+	source: "cron" | "timer",
+	entry: ScheduleEntry | TimerEntry,
+	trigger: Trigger,
+): Promise<void> {
+	try {
+		await dispatch({
+			agent: entry.agentName,
+			prompt: entry.objective,
+			...(entry.overrides ? { overrides: entry.overrides } : {}),
+			chatId: entry.chatId,
+			trigger,
+		});
+	} catch (err) {
+		log.error(`[${source}] dispatch failed`, {
+			[`${source === "cron" ? "schedule" : "timer"}Id`]: entry.id,
+			error: err,
+		});
+		enqueueMessage({
+			chatId: entry.chatId,
+			content: `⚠️ Scheduled @${entry.agentName} run failed:\n${formatUserError(err)}`,
+			dedupKey: `${source}-error:${entry.id}:${Date.now()}`,
+			label: settings.whatsapp.systemLabel,
+		});
+	}
 }
 
 async function main(): Promise<void> {
@@ -240,44 +270,18 @@ async function main(): Promise<void> {
 	}
 
 	setOnCronFire(async (entry) => {
-		try {
-			await dispatch({
-				agent: entry.agentName,
-				prompt: entry.objective,
-				...(entry.overrides ? { overrides: entry.overrides } : {}),
-				chatId: entry.chatId,
-				trigger: { kind: "schedule", scheduleId: entry.id },
-			});
-		} catch (err) {
-			log.error("[cron] dispatch failed", { scheduleId: entry.id, error: err });
-			enqueueMessage({
-				chatId: entry.chatId,
-				content: `⚠️ Scheduled @${entry.agentName} run failed:\n${formatUserError(err)}`,
-				dedupKey: `cron-error:${entry.id}:${Date.now()}`,
-				label: settings.whatsapp.systemLabel,
-			});
-		}
+		await runScheduledDispatch("cron", entry, {
+			kind: "schedule",
+			scheduleId: entry.id,
+		});
 	});
 	startAllSchedules();
 
 	setOnTimerFire(async (entry) => {
-		try {
-			await dispatch({
-				agent: entry.agentName,
-				prompt: entry.objective,
-				...(entry.overrides ? { overrides: entry.overrides } : {}),
-				chatId: entry.chatId,
-				trigger: { kind: "timer", timerId: entry.id },
-			});
-		} catch (err) {
-			log.error("[timer] dispatch failed", { timerId: entry.id, error: err });
-			enqueueMessage({
-				chatId: entry.chatId,
-				content: `⚠️ Scheduled @${entry.agentName} run failed:\n${formatUserError(err)}`,
-				dedupKey: `timer-error:${entry.id}:${Date.now()}`,
-				label: settings.whatsapp.systemLabel,
-			});
-		}
+		await runScheduledDispatch("timer", entry, {
+			kind: "timer",
+			timerId: entry.id,
+		});
 	});
 	await loadTimers();
 
