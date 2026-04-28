@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { log } from "@/infra/logger";
-import { appendAck, appendMessage } from "@/infra/store/history";
 import { enqueueMessage } from "@/infra/whatsapp/send";
 import { getDefaultAgent } from "@/pipeline/agents";
 import type { TurnContext } from "@/pipeline/core";
 import { textToSpeech } from "@/pipeline/media";
+import { makeDedupKey, prepareAssistantOutbound } from "@/pipeline/outbound";
 import { renderTemplate } from "@/pipeline/prompts";
 import type { ToolDefinition } from "@/primitives/tools";
 
@@ -41,55 +41,16 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 
 		log.info("[reply] enqueuing message");
 
-		// Resolve the quoted message reference if provided.
-		let quoted: { externalId: string; fromMe: boolean } | undefined;
-		if (messageRef) {
-			let ref: { externalId: string; role: string } | undefined;
-			if (messageRef === "current") {
-				if (!context.message) {
-					return {
-						error: 'messageRef "current" requires an inbound message context',
-					};
-				}
-				ref = { externalId: context.message.id, role: "user" };
-			} else {
-				ref = context.messageRefs?.[messageRef];
-			}
-			if (!ref) return { error: `Unknown message reference: #${messageRef}` };
-			quoted = { externalId: ref.externalId, fromMe: ref.role !== "user" };
-		}
+		const outbound = await prepareAssistantOutbound({
+			context,
+			content,
+			kind: "reply",
+			logPrefix: "[reply]",
+			...(messageRef ? { messageRef } : {}),
+		});
+		if ("error" in outbound) return outbound;
 
-		// Persist assistant message to conversation (skip for ghost mode)
-		let rowId: string | undefined;
-		if (!context.config?.ghost) {
-			try {
-				rowId = await appendMessage({
-					role: "assistant",
-					content,
-					agent: context.agent.name,
-					runId: context.runId,
-				});
-			} catch (err) {
-				log.warn("[reply] failed to persist assistant message", {
-					error: err instanceof Error ? err.message : String(err),
-				});
-			}
-		}
-
-		const onSent = rowId
-			? (waId: string) => {
-					appendAck(rowId, waId).catch((err: unknown) => {
-						log.warn("[reply] failed to backfill externalId", {
-							error: err instanceof Error ? err.message : String(err),
-						});
-					});
-				}
-			: undefined;
-
-		const dedupBase = context.message
-			? `${context.message.id}:reply:${crypto.randomUUID()}`
-			: `${context.chatId}:reply:${crypto.randomUUID()}`;
-		const quotedPart = quoted ? { quoted } : {};
+		const quotedPart = outbound.quoted ? { quoted: outbound.quoted } : {};
 		const userFacingContent = formatUserFacingAgentMessage(content, context);
 		const useVoice =
 			!context.config?.suppressVoice && (voice || context.config?.forceVoice);
@@ -103,11 +64,11 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 					{
 						chatId: context.chatId,
 						content: userFacingContent,
-						dedupKey: dedupBase,
+						dedupKey: outbound.dedupKey,
 						label: context.agent.name,
 						...quotedPart,
 					},
-					onSent,
+					outbound.onSent,
 				);
 			} else {
 				enqueueMessage(
@@ -115,13 +76,11 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 						chatId: context.chatId,
 						content: audio,
 						mimeType: "audio/mpeg",
-						dedupKey: context.message
-							? `${context.message.id}:reply-voice:${crypto.randomUUID()}`
-							: `${context.chatId}:reply-voice:${crypto.randomUUID()}`,
+						dedupKey: makeDedupKey(context, "reply-voice"),
 						label: context.agent.name,
 						...quotedPart,
 					},
-					onSent,
+					outbound.onSent,
 				);
 			}
 		} else {
@@ -129,11 +88,11 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 				{
 					chatId: context.chatId,
 					content: userFacingContent,
-					dedupKey: dedupBase,
+					dedupKey: outbound.dedupKey,
 					label: context.agent.name,
 					...quotedPart,
 				},
-				onSent,
+				outbound.onSent,
 			);
 		}
 

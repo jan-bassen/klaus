@@ -1,64 +1,24 @@
-import type { Dirent } from "node:fs";
-import { mkdir, readdir, rename, unlink } from "node:fs/promises";
+import { mkdir, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { settings } from "@/infra/config";
-import { getOverlay, type SimulationOverlay } from "@/infra/simulation";
+import { getOverlay } from "@/infra/simulation";
+import { checkPermission, getReadableFolders } from "@/infra/vault";
 import {
-	type AgentVaultMap,
-	accessError,
-	checkPermission,
-	getReadableFolders,
-	permissionError,
-	resolveVaultPath,
-	type VaultOp,
-} from "@/infra/vault";
-import type { TurnContext } from "@/pipeline/core";
+	extractFrontmatterTags,
+	extractWikilinks,
+	findSection,
+	listHeadings,
+	wikilinkTargetPattern,
+} from "@/infra/vault/markdown";
+import {
+	gateVaultTool,
+	readSimulatedVaultContent,
+	vaultMap,
+	vaultRoot,
+	walkVaultDir,
+} from "@/infra/vault/tools";
 import type { ToolDefinition, ToolsetDefinition } from "@/primitives/tools";
-
-const vaultRoot = () => settings.vault.root;
-
-function vaultMap(context: TurnContext): AgentVaultMap | undefined {
-	return context.config?.vault as AgentVaultMap | undefined;
-}
-
-/**
- * Gate a vault operation: resolve path + check permission.
- * Returns the absolute path on success, or a user-facing error string on failure.
- */
-async function gate(
-	rel: string,
-	op: VaultOp,
-	context: TurnContext,
-): Promise<string | { error: string }> {
-	const resolved = resolveVaultPath(rel);
-	if (!resolved) return { error: accessError() };
-
-	if (checkPermission(resolved.folder, op, vaultMap(context)) === "denied")
-		return { error: permissionError(resolved.folder.path, op) };
-
-	return resolved.absolute;
-}
-
-/**
- * Read `absPath`'s content as the sim sees it:
- *   - `null` if it's been deleted in the overlay
- *   - overlay-pending content if there's a queued write
- *   - else the real file on disk (or `null` if missing)
- */
-async function simReadContent(
-	absPath: string,
-	overlay: SimulationOverlay,
-): Promise<string | null> {
-	if (overlay.vaultDeletes.has(absPath)) return null;
-	const pending = overlay.vaultWrites.get(absPath);
-	if (pending !== undefined) return pending;
-	try {
-		return await Bun.file(absPath).text();
-	} catch {
-		return null;
-	}
-}
 
 // ─── read ────────────────────────────────────────────────────────────────────
 
@@ -74,7 +34,7 @@ export const vaultReadTool: ToolDefinition<typeof vaultReadSchema> = {
 		"Read a note from the vault by its relative path. Returns the full markdown content including frontmatter.",
 	inputSchema: vaultReadSchema,
 	execute: async ({ path: rel }, context) => {
-		const result = await gate(rel, "read", context);
+		const result = await gateVaultTool(rel, "read", context);
 		if (typeof result === "object") return result.error;
 
 		try {
@@ -84,9 +44,9 @@ export const vaultReadTool: ToolDefinition<typeof vaultReadSchema> = {
 		}
 	},
 	simulate: async ({ path: rel }, context) => {
-		const gated = await gate(rel, "read", context);
+		const gated = await gateVaultTool(rel, "read", context);
 		if (typeof gated === "object") return gated.error;
-		const content = await simReadContent(gated, getOverlay(context));
+		const content = await readSimulatedVaultContent(gated, getOverlay(context));
 		return content ?? `Note not found: ${rel}`;
 	},
 	sideEffect: "pure",
@@ -230,7 +190,7 @@ export const vaultListTool: ToolDefinition<typeof vaultListSchema> = {
 				}
 				const remaining = MAX_ENTRIES - lines.length;
 				if (remaining <= 0) break;
-				await walkDir(
+				await walkVaultDir(
 					absolutePath,
 					depth,
 					remaining,
@@ -244,12 +204,12 @@ export const vaultListTool: ToolDefinition<typeof vaultListSchema> = {
 
 		// Specific directory requested
 		const effectiveDir = directory || "";
-		const result = await gate(effectiveDir, "read", context);
+		const result = await gateVaultTool(effectiveDir, "read", context);
 		if (typeof result === "object") return result.error;
 
 		const MAX_ENTRIES = settings.vault.maxList;
 		const lines: string[] = [];
-		await walkDir(result, depth, MAX_ENTRIES, lines, 0);
+		await walkVaultDir(result, depth, MAX_ENTRIES, lines, 0);
 		return lines.length > 0 ? lines.join("\n") : "Empty directory.";
 	},
 	simulate: async (input, context) => {
@@ -282,120 +242,6 @@ export const vaultListTool: ToolDefinition<typeof vaultListSchema> = {
 	capability: "resource",
 };
 
-async function walkDir(
-	dir: string,
-	maxDepth: number,
-	maxEntries: number,
-	lines: string[],
-	indent: number,
-): Promise<number> {
-	if (indent >= maxDepth || maxEntries <= 0) return maxEntries;
-
-	let entries: Dirent[];
-	try {
-		entries = await readdir(dir, { withFileTypes: true });
-	} catch {
-		return maxEntries;
-	}
-
-	entries.sort((a, b) => {
-		if (a.isDirectory() !== b.isDirectory()) return a.isDirectory() ? -1 : 1;
-		return a.name.localeCompare(b.name);
-	});
-
-	let remaining = maxEntries;
-	for (const entry of entries) {
-		if (remaining <= 0) break;
-		if (entry.name.startsWith(".")) continue;
-
-		const prefix = "  ".repeat(indent);
-		if (entry.isDirectory()) {
-			lines.push(`${prefix}${entry.name}/`);
-			remaining--;
-			remaining = await walkDir(
-				path.join(dir, entry.name),
-				maxDepth,
-				remaining,
-				lines,
-				indent + 1,
-			);
-		} else if (entry.name.endsWith(".md")) {
-			lines.push(`${prefix}${entry.name}`);
-			remaining--;
-		}
-	}
-	return remaining;
-}
-
-// ─── findSection helper ──────────────────────────────────────────────────────
-
-/**
- * Locate a heading section in a markdown document.
- * - Named heading (non-empty): finds the heading line and its content range.
- * - Top-level section (empty string): returns the range before the first heading (after frontmatter).
- */
-export function findSection(
-	lines: string[],
-	heading: string,
-): { headingIdx: number; level: number; endIdx: number } | null {
-	if (heading === "") {
-		let startIdx = 0;
-		if (lines[0]?.trimEnd() === "---") {
-			for (let i = 1; i < lines.length; i++) {
-				if ((lines[i] ?? "").trimEnd() === "---") {
-					startIdx = i + 1;
-					break;
-				}
-			}
-		}
-		let firstHeading = lines.length;
-		for (let i = startIdx; i < lines.length; i++) {
-			if (/^#{1,6}\s/.test(lines[i] ?? "")) {
-				firstHeading = i;
-				break;
-			}
-		}
-		return { headingIdx: -1, level: 0, endIdx: firstHeading };
-	}
-
-	const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	const headingPattern = new RegExp(`^(#{1,6})\\s+${escaped}\\s*$`, "i");
-
-	const headingIdx = lines.findIndex((l) => headingPattern.test(l));
-	if (headingIdx === -1) return null;
-
-	const headingLine = lines[headingIdx] ?? "";
-	const level = ((headingLine.match(/^(#+)/) ?? ["", ""])[1] ?? "").length;
-	const sameOrHigher = new RegExp(`^#{1,${level}}\\s`);
-	let endIdx = lines.length;
-	for (let i = headingIdx + 1; i < lines.length; i++) {
-		if (sameOrHigher.test(lines[i] ?? "")) {
-			endIdx = i;
-			break;
-		}
-	}
-
-	return { headingIdx, level, endIdx };
-}
-
-/** List all headings in a document (for error messages and outline). */
-export function listHeadings(
-	lines: string[],
-): Array<{ text: string; level: number; lineIdx: number }> {
-	const headings: Array<{ text: string; level: number; lineIdx: number }> = [];
-	for (let i = 0; i < lines.length; i++) {
-		const match = (lines[i] ?? "").match(/^(#{1,6})\s+(.+?)\s*$/);
-		if (match) {
-			headings.push({
-				text: match[2] ?? "",
-				level: (match[1] ?? "").length,
-				lineIdx: i,
-			});
-		}
-	}
-	return headings;
-}
-
 // ─── write ───────────────────────────────────────────────────────────────────
 
 const vaultWriteSchema = z.object({
@@ -417,7 +263,7 @@ export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
 		"Create or override a note in the vault. Parent directories are created automatically. overrideS the entire file — read first with vault_read if you need to preserve existing content.",
 	inputSchema: vaultWriteSchema,
 	execute: async ({ path: rel, content }, context) => {
-		const result = await gate(rel, "full", context);
+		const result = await gateVaultTool(rel, "full", context);
 		if (typeof result === "object") return result.error;
 
 		await mkdir(path.dirname(result), { recursive: true });
@@ -425,7 +271,7 @@ export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
 		return `Written: ${rel}`;
 	},
 	simulate: async ({ path: rel, content }, context) => {
-		const gated = await gate(rel, "full", context);
+		const gated = await gateVaultTool(rel, "full", context);
 		if (typeof gated === "object") return gated.error;
 		const overlay = getOverlay(context);
 		overlay.vaultWrites.set(gated, content);
@@ -456,7 +302,7 @@ export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
 		"Append content to an existing note (useful for daily notes, logs, inboxes). Creates the file if it does not exist. For structured notes with sections, set the heading parameter to append inside a specific section — use vault_outline first to see available sections.",
 	inputSchema: vaultAppendSchema,
 	execute: async ({ path: rel, content, heading }, context) => {
-		const result = await gate(rel, "append", context);
+		const result = await gateVaultTool(rel, "append", context);
 		if (typeof result === "object") return result.error;
 
 		let existing = "";
@@ -496,10 +342,10 @@ export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
 		return `Appended to section ${heading === "" ? "(top-level)" : `"${heading}"`} in: ${rel}`;
 	},
 	simulate: async ({ path: rel, content, heading }, context) => {
-		const gated = await gate(rel, "append", context);
+		const gated = await gateVaultTool(rel, "append", context);
 		if (typeof gated === "object") return gated.error;
 		const overlay = getOverlay(context);
-		const existing = (await simReadContent(gated, overlay)) ?? "";
+		const existing = (await readSimulatedVaultContent(gated, overlay)) ?? "";
 
 		if (heading === undefined) {
 			overlay.vaultWrites.set(
@@ -552,10 +398,7 @@ export const vaultBacklinksTool: ToolDefinition<typeof vaultBacklinksSchema> = {
 	inputSchema: vaultBacklinksSchema,
 	execute: async ({ noteName }, context) => {
 		const glob = new Bun.Glob("**/*.md");
-		const pattern = new RegExp(
-			`\\[\\[${noteName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\|[^\\]]*)?\\]\\]`,
-			"i",
-		);
+		const pattern = wikilinkTargetPattern(noteName);
 		const readable = getReadableFolders(vaultMap(context));
 		const results: string[] = [];
 
@@ -612,9 +455,9 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 	inputSchema: vaultMoveSchema,
 	execute: async ({ from, to, updateBacklinks }, context) => {
 		// Both source (delete) and destination (create) need full permission
-		const srcResult = await gate(from, "full", context);
+		const srcResult = await gateVaultTool(from, "full", context);
 		if (typeof srcResult === "object") return srcResult.error;
-		const dstResult = await gate(to, "full", context);
+		const dstResult = await gateVaultTool(to, "full", context);
 		if (typeof dstResult === "object") return dstResult.error;
 
 		try {
@@ -629,10 +472,7 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 		const oldName = path.basename(from, ".md");
 		const newName = path.basename(to, ".md");
 		const glob = new Bun.Glob("**/*.md");
-		const pattern = new RegExp(
-			`\\[\\[${oldName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\|[^\\]]*)?\\]\\]`,
-			"gi",
-		);
+		const pattern = wikilinkTargetPattern(oldName, "gi");
 
 		let updatedCount = 0;
 		const skipped: string[] = [];
@@ -670,12 +510,12 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 		return msg;
 	},
 	simulate: async ({ from, to, updateBacklinks }, context) => {
-		const srcGated = await gate(from, "full", context);
+		const srcGated = await gateVaultTool(from, "full", context);
 		if (typeof srcGated === "object") return srcGated.error;
-		const dstGated = await gate(to, "full", context);
+		const dstGated = await gateVaultTool(to, "full", context);
 		if (typeof dstGated === "object") return dstGated.error;
 		const overlay = getOverlay(context);
-		const content = await simReadContent(srcGated, overlay);
+		const content = await readSimulatedVaultContent(srcGated, overlay);
 		if (content === null) {
 			return `Failed to move "${from}" — file not found.`;
 		}
@@ -705,7 +545,7 @@ export const vaultDeleteTool: ToolDefinition<typeof vaultDeleteSchema> = {
 		"Permanently delete a note from the vault. The framework asks the user to confirm before this runs (unless the agent has auto-accept on or the folder permission allows full access without confirmation).",
 	inputSchema: vaultDeleteSchema,
 	execute: async ({ path: rel }, context) => {
-		const result = await gate(rel, "full", context);
+		const result = await gateVaultTool(rel, "full", context);
 		if (typeof result === "object") return result.error;
 
 		try {
@@ -716,7 +556,7 @@ export const vaultDeleteTool: ToolDefinition<typeof vaultDeleteSchema> = {
 		}
 	},
 	simulate: async ({ path: rel }, context) => {
-		const gated = await gate(rel, "full", context);
+		const gated = await gateVaultTool(rel, "full", context);
 		if (typeof gated === "object") return gated.error;
 		const overlay = getOverlay(context);
 		overlay.vaultDeletes.add(gated);
@@ -748,7 +588,7 @@ export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
 		"Replace the body of a specific section in a note by heading. The heading line is kept; everything beneath it until the next same-or-higher-level heading (or EOF) is replaced. Read the note first with vault_read to see current content before replacing.",
 	inputSchema: vaultPatchSchema,
 	execute: async ({ path: rel, heading, newContent }, context) => {
-		const result = await gate(rel, "full", context);
+		const result = await gateVaultTool(rel, "full", context);
 		if (typeof result === "object") return result.error;
 
 		let text: string;
@@ -771,10 +611,10 @@ export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
 		return `Patched section "${heading}" in ${rel}.`;
 	},
 	simulate: async ({ path: rel, heading, newContent }, context) => {
-		const gated = await gate(rel, "full", context);
+		const gated = await gateVaultTool(rel, "full", context);
 		if (typeof gated === "object") return gated.error;
 		const overlay = getOverlay(context);
-		const existing = await simReadContent(gated, overlay);
+		const existing = await readSimulatedVaultContent(gated, overlay);
 		if (existing === null) return `Note not found: ${rel}`;
 		const lines = existing.split("\n");
 		const section = findSection(lines, heading);
@@ -815,25 +655,6 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 	execute: async ({ tags, list }, context) => {
 		const glob = new Bun.Glob("**/*.md");
 		const readable = getReadableFolders(vaultMap(context));
-		const fmPattern = /^---\n([\s\S]*?)\n---/;
-
-		function extractTags(text: string): string[] {
-			const fm = text.match(fmPattern)?.[1] ?? "";
-			const inline = fm.match(/^tags:\s*\[([^\]]*)\]/m)?.[1];
-			if (inline)
-				return inline
-					.split(",")
-					.map((t) => t.trim().replace(/^['"]|['"]$/g, ""))
-					.filter(Boolean);
-			const block = [...fm.matchAll(/^tags:\s*\n((?:\s+-\s+.+\n?)*)/gm)];
-			if (block.length) {
-				const blockBody = block[0]?.[1] ?? "";
-				return [...blockBody.matchAll(/^\s+-\s+(.+)/gm)].map((m) =>
-					(m[1] ?? "").trim(),
-				);
-			}
-			return [];
-		}
 
 		if (list) {
 			const allTags = new Set<string>();
@@ -841,7 +662,7 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 				for await (const file of glob.scan({ cwd: absolutePath })) {
 					try {
 						const text = await Bun.file(path.join(absolutePath, file)).text();
-						for (const t of extractTags(text)) allTags.add(t);
+						for (const t of extractFrontmatterTags(text)) allTags.add(t);
 					} catch {
 						// Skip unreadable files
 					}
@@ -861,7 +682,9 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 			for await (const file of glob.scan({ cwd: absolutePath })) {
 				try {
 					const text = await Bun.file(path.join(absolutePath, file)).text();
-					const noteTags = extractTags(text).map((t) => t.toLowerCase());
+					const noteTags = extractFrontmatterTags(text).map((t) =>
+						t.toLowerCase(),
+					);
 					if (noteTags.some((t) => searchTags.has(t))) {
 						const vaultRel = path.relative(
 							vaultRoot(),
@@ -896,7 +719,7 @@ export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
 		"Extract all outgoing [[wikilinks]] from a note. Complements vault_backlinks for graph traversal.",
 	inputSchema: vaultLinksSchema,
 	execute: async ({ path: rel }, context) => {
-		const result = await gate(rel, "read", context);
+		const result = await gateVaultTool(rel, "read", context);
 		if (typeof result === "object") return result.error;
 
 		let text: string;
@@ -906,14 +729,10 @@ export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
 			return `Note not found: ${rel}`;
 		}
 
-		const pattern = /\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
-		const targets = new Set<string>();
-		for (const match of text.matchAll(pattern)) {
-			if (match[1]) targets.add(match[1].trim());
-		}
+		const targets = extractWikilinks(text);
 
-		return targets.size > 0
-			? [...targets].sort().join("\n")
+		return targets.length > 0
+			? targets.join("\n")
 			: `No outgoing links in "${rel}".`;
 	},
 	sideEffect: "pure",
@@ -933,7 +752,7 @@ export const vaultOutlineTool: ToolDefinition<typeof vaultOutlineSchema> = {
 		"Return the heading structure of a note with item counts per section. Use before vault_append or vault_patch to see available sections without reading the full note.",
 	inputSchema: vaultOutlineSchema,
 	execute: async ({ path: rel }, context) => {
-		const result = await gate(rel, "read", context);
+		const result = await gateVaultTool(rel, "read", context);
 		if (typeof result === "object") return result.error;
 
 		let text: string;

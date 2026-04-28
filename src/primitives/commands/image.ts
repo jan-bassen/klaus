@@ -1,8 +1,6 @@
-import { mkdir } from "node:fs/promises";
-import path from "node:path";
 import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
-import { saveFileMeta } from "@/infra/store/files";
+import { persistFileBlob } from "@/infra/store/files";
 import type { InboundMessage } from "@/infra/whatsapp/receive";
 import { enqueueMessage } from "@/infra/whatsapp/send";
 import { generateImage } from "@/pipeline/media";
@@ -36,21 +34,15 @@ export const imageCommand: Command = {
 			return;
 		}
 
-		const ext = mimeToExt(result.mimeType);
-		const id = crypto.randomUUID();
-		const date = new Date().toISOString().slice(0, 10);
-		const dir = path.join(settings.dataDir, "files", date);
-		const filePath = path.join(dir, `${id}.${ext}`);
-		await mkdir(dir, { recursive: true });
-		await Bun.write(filePath, result.bytes);
-
-		const saved = await saveFileMeta({
-			path: filePath,
+		const saved = await persistFileBlob({
+			bytes: result.bytes,
 			mimeType: result.mimeType,
-			sizeBytes: result.bytes.byteLength,
 		});
-		if (saved instanceof Error) {
-			log.warn("[/image] failed to save metadata", { error: saved.message });
+		if (saved instanceof Error || !saved.metadataSaved) {
+			log.warn("[/image] failed to save metadata", {
+				error: saved instanceof Error ? saved.message : undefined,
+				path: saved instanceof Error ? undefined : saved.path,
+			});
 		}
 
 		enqueueMessage({
@@ -63,11 +55,3 @@ export const imageCommand: Command = {
 		});
 	},
 };
-
-function mimeToExt(mime: string): string {
-	if (mime === "image/png") return "png";
-	if (mime === "image/jpeg" || mime === "image/jpg") return "jpg";
-	if (mime === "image/webp") return "webp";
-	if (mime === "image/gif") return "gif";
-	return "bin";
-}

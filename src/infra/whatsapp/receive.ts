@@ -1,5 +1,3 @@
-import { mkdir } from "node:fs/promises";
-import path from "node:path";
 import type { WAMessage, WASocket } from "@whiskeysockets/baileys";
 import {
 	downloadMediaMessage,
@@ -8,7 +6,7 @@ import {
 import { formatUserError } from "@/errors";
 import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
-import { saveFileMeta } from "@/infra/store/files";
+import { persistFileBlob } from "@/infra/store/files";
 import { appendReaction } from "@/infra/store/history";
 import { handleTurn } from "@/pipeline";
 import { enqueueMessage, setSocket, wasSentByUs } from "./send";
@@ -54,23 +52,6 @@ export interface InboundMessage {
 const MAX_DOWNLOAD_BYTES = settings.whatsapp.maxDownload;
 const STARTUP_AT = Date.now();
 const OFFLINE_WINDOW_MS = settings.whatsapp.offlineWindow;
-
-const MIME_TO_EXT: Record<string, string> = {
-	"image/jpeg": "jpg",
-	"image/png": "png",
-	"image/gif": "gif",
-	"image/webp": "webp",
-	"audio/ogg": "ogg",
-	"audio/mpeg": "mp3",
-	"audio/mp4": "m4a",
-	"audio/wav": "wav",
-	"video/mp4": "mp4",
-	"application/pdf": "pdf",
-};
-
-function mimeToExt(mime: string): string {
-	return MIME_TO_EXT[mime] ?? mime.split("/")[1] ?? "bin";
-}
 
 /**
  * Attach the message event handler to the Baileys socket.
@@ -281,25 +262,14 @@ export async function normalizeMessage(
 					),
 				]);
 
-				const date = new Date().toISOString().slice(0, 10);
-				const id = crypto.randomUUID();
-				const ext = mimeToExt(mimeType);
-				const dir = path.join(settings.dataDir, "files", date);
-				const filePath = path.join(dir, `${id}.${ext}`);
-
-				await mkdir(dir, { recursive: true });
 				if (!Buffer.isBuffer(buffer)) {
 					log.warn(
 						"[receive] media download returned unexpected type, skipping",
 					);
 				} else {
-					await Bun.write(filePath, buffer);
-
-					const sizeBytes = buffer.byteLength;
-					const saved = await saveFileMeta({
-						path: filePath,
+					const saved = await persistFileBlob({
+						bytes: buffer,
 						mimeType,
-						sizeBytes,
 						...(m.key.id ? { externalId: m.key.id } : {}),
 					});
 
@@ -308,16 +278,15 @@ export async function normalizeMessage(
 						log.warn("[receive] failed to save file metadata", {
 							error: saved.message,
 						});
-						media = {
-							fileId: crypto.randomUUID(),
-							path: filePath,
-							mimeType,
-							...(fileName ? { fileName } : {}),
-						};
 					} else {
+						if (!saved.metadataSaved) {
+							log.warn("[receive] failed to save file metadata", {
+								path: saved.path,
+							});
+						}
 						media = {
 							fileId: saved.id,
-							path: filePath,
+							path: saved.path,
 							mimeType,
 							...(fileName ? { fileName } : {}),
 						};

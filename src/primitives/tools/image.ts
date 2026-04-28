@@ -1,13 +1,10 @@
-import { mkdir } from "node:fs/promises";
-import path from "node:path";
 import { z } from "zod";
-import { settings } from "@/infra/config";
 import { log } from "@/infra/logger";
 import { getOverlay } from "@/infra/simulation";
-import { saveFileMeta } from "@/infra/store/files";
-import { appendAck, appendMessage } from "@/infra/store/history";
+import { persistFileBlob } from "@/infra/store/files";
 import { enqueueMessage } from "@/infra/whatsapp/send";
 import { generateImage } from "@/pipeline/media";
+import { prepareAssistantOutbound } from "@/pipeline/outbound";
 import type { ToolDefinition } from "@/primitives/tools";
 
 const imageGenerateSchema = z.object({
@@ -38,84 +35,38 @@ export const imageGenerateTool: ToolDefinition<typeof imageGenerateSchema> = {
 			return { error: result.message };
 		}
 
-		// Persist bytes
-		const ext = mimeToExt(result.mimeType);
-		const id = crypto.randomUUID();
-		const date = new Date().toISOString().slice(0, 10);
-		const dir = path.join(settings.dataDir, "files", date);
-		const filePath = path.join(dir, `${id}.${ext}`);
-		await mkdir(dir, { recursive: true });
-		await Bun.write(filePath, result.bytes);
-
-		const saved = await saveFileMeta({
-			path: filePath,
+		const saved = await persistFileBlob({
+			bytes: result.bytes,
 			mimeType: result.mimeType,
-			sizeBytes: result.bytes.byteLength,
 		});
 		if (saved instanceof Error) {
 			return { error: `Failed to save image: ${saved.message}` };
 		}
-
-		// Resolve quote target
-		let quoted: { externalId: string; fromMe: boolean } | undefined;
-		if (messageRef) {
-			let ref: { externalId: string; role: string } | undefined;
-			if (messageRef === "current") {
-				if (!context.message) {
-					return {
-						error: 'messageRef "current" requires an inbound message context',
-					};
-				}
-				ref = { externalId: context.message.id, role: "user" };
-			} else {
-				ref = context.messageRefs?.[messageRef];
-			}
-			if (!ref) return { error: `Unknown message reference: #${messageRef}` };
-			quoted = { externalId: ref.externalId, fromMe: ref.role !== "user" };
+		if (!saved.metadataSaved) {
+			log.warn("[image_generate] failed to save metadata", {
+				path: saved.path,
+			});
 		}
 
-		// Persist as text-only assistant row so it shows up in history transcripts
-		// without auto-loading the bytes into the next turn's multimodal context.
-		let rowId: string | undefined;
-		if (!context.config?.ghost) {
-			try {
-				rowId = await appendMessage({
-					role: "assistant",
-					content: `[image: ${prompt}]`,
-					agent: context.agent.name,
-					runId: context.runId,
-				});
-			} catch (err) {
-				log.warn("[image_generate] failed to persist assistant message", {
-					error: err instanceof Error ? err.message : String(err),
-				});
-			}
-		}
-
-		const onSent = rowId
-			? (waId: string) => {
-					appendAck(rowId, waId).catch((err: unknown) => {
-						log.warn("[image_generate] failed to backfill externalId", {
-							error: err instanceof Error ? err.message : String(err),
-						});
-					});
-				}
-			: undefined;
-
-		const dedupBase = context.message
-			? `${context.message.id}:image:${crypto.randomUUID()}`
-			: `${context.chatId}:image:${crypto.randomUUID()}`;
+		const outbound = await prepareAssistantOutbound({
+			context,
+			content: `[image: ${prompt}]`,
+			kind: "image",
+			logPrefix: "[image_generate]",
+			...(messageRef ? { messageRef } : {}),
+		});
+		if ("error" in outbound) return outbound;
 
 		enqueueMessage(
 			{
 				chatId: context.chatId,
 				content: result.bytes,
 				mimeType: result.mimeType,
-				dedupKey: dedupBase,
+				dedupKey: outbound.dedupKey,
 				label: context.agent.name,
-				...(quoted ? { quoted } : {}),
+				...(outbound.quoted ? { quoted: outbound.quoted } : {}),
 			},
-			onSent,
+			outbound.onSent,
 		);
 
 		return { sent: true, fileId: saved.id };
@@ -140,11 +91,3 @@ export const imageGenerateTool: ToolDefinition<typeof imageGenerateSchema> = {
 	kind: "builtin",
 	capability: "tool",
 };
-
-function mimeToExt(mime: string): string {
-	if (mime === "image/png") return "png";
-	if (mime === "image/jpeg" || mime === "image/jpg") return "jpg";
-	if (mime === "image/webp") return "webp";
-	if (mime === "image/gif") return "gif";
-	return "bin";
-}

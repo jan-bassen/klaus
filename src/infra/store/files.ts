@@ -11,6 +11,9 @@ export interface FileStore {
 		messageId?: string;
 		externalId?: string;
 	}): Promise<{ id: string; path: string } | Error>;
+	persistFileBlob(
+		input: PersistFileBlobInput,
+	): Promise<PersistedFileBlob | Error>;
 	updateFileMessageId(
 		fileId: string,
 		messageId: string,
@@ -41,6 +44,23 @@ export type FileMeta = z.infer<typeof FileMetaSchema>;
 
 export interface FileStoreEnv {
 	dataDir: string;
+}
+
+export interface PersistFileBlobInput {
+	bytes: Buffer | Uint8Array;
+	mimeType: string;
+	name?: string;
+	extension?: string;
+	messageId?: string;
+	externalId?: string;
+}
+
+export interface PersistedFileBlob {
+	id: string;
+	path: string;
+	mimeType: string;
+	sizeBytes: number;
+	metadataSaved: boolean;
 }
 
 export function createFileStore(env: FileStoreEnv): FileStore {
@@ -75,6 +95,53 @@ export function createFileStore(env: FileStoreEnv): FileStore {
 			if (meta.messageId) messageFileIndex.set(meta.messageId, id);
 			if (meta.externalId) externalFileIndex.set(meta.externalId, id);
 			return { id, path: meta.path };
+		} catch (err) {
+			return err instanceof Error ? err : new Error(String(err));
+		}
+	}
+
+	async function persistFileBlob(
+		input: PersistFileBlobInput,
+	): Promise<PersistedFileBlob | Error> {
+		try {
+			const bytes = Buffer.from(input.bytes);
+			const date = new Date().toISOString().slice(0, 10);
+			const id = crypto.randomUUID();
+			const ext =
+				input.extension ??
+				extensionFromName(input.name) ??
+				mimeToExt(input.mimeType);
+			const dir = path.join(filesDir(), date);
+			const filePath = path.join(dir, `${id}.${ext}`);
+
+			await mkdir(dir, { recursive: true });
+			await Bun.write(filePath, bytes);
+
+			const saved = await saveFileMeta({
+				path: filePath,
+				mimeType: input.mimeType,
+				sizeBytes: bytes.byteLength,
+				...(input.messageId ? { messageId: input.messageId } : {}),
+				...(input.externalId ? { externalId: input.externalId } : {}),
+			});
+
+			if (saved instanceof Error) {
+				return {
+					id,
+					path: filePath,
+					mimeType: input.mimeType,
+					sizeBytes: bytes.byteLength,
+					metadataSaved: false,
+				};
+			}
+
+			return {
+				id: saved.id,
+				path: saved.path,
+				mimeType: input.mimeType,
+				sizeBytes: bytes.byteLength,
+				metadataSaved: true,
+			};
 		} catch (err) {
 			return err instanceof Error ? err : new Error(String(err));
 		}
@@ -178,6 +245,7 @@ export function createFileStore(env: FileStoreEnv): FileStore {
 
 	return {
 		saveFileMeta,
+		persistFileBlob,
 		updateFileMessageId,
 		findFile,
 		findFileByMessageId,
@@ -209,6 +277,12 @@ export function saveFileMeta(meta: {
 	externalId?: string;
 }): Promise<{ id: string; path: string } | Error> {
 	return store().saveFileMeta(meta);
+}
+
+export function persistFileBlob(
+	input: PersistFileBlobInput,
+): Promise<PersistedFileBlob | Error> {
+	return store().persistFileBlob(input);
 }
 
 export function updateFileMessageId(
@@ -244,4 +318,27 @@ export function deleteFile(fileId: string): boolean {
 
 export function rebuildFileIndex(): Promise<void> {
 	return store().rebuildIndex();
+}
+
+export function mimeToExt(mime: string): string {
+	const normalized = mime.split(";")[0]?.trim().toLowerCase() ?? mime;
+	const known: Record<string, string> = {
+		"image/jpeg": "jpg",
+		"image/jpg": "jpg",
+		"image/png": "png",
+		"image/gif": "gif",
+		"image/webp": "webp",
+		"audio/ogg": "ogg",
+		"audio/mpeg": "mp3",
+		"audio/mp4": "m4a",
+		"audio/wav": "wav",
+		"video/mp4": "mp4",
+		"application/pdf": "pdf",
+	};
+	return known[normalized] ?? normalized.split("/")[1] ?? "bin";
+}
+
+function extensionFromName(name: string | undefined): string | undefined {
+	if (!name?.includes(".")) return undefined;
+	return name.split(".").pop() || undefined;
 }

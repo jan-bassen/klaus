@@ -80,6 +80,119 @@ export function updateFrontmatter(
 	return raw.replace(fmEnvelope, `---\n${serialized}\n---`);
 }
 
+// -- Markdown structure --
+
+export interface MarkdownSection {
+	headingIdx: number;
+	level: number;
+	endIdx: number;
+}
+
+export interface MarkdownHeading {
+	text: string;
+	level: number;
+	lineIdx: number;
+}
+
+/**
+ * Locate a heading section in a markdown document.
+ * - Named heading: finds the heading line and its content range.
+ * - Empty heading: returns the top-level range before the first heading.
+ */
+export function findSection(
+	lines: string[],
+	heading: string,
+): MarkdownSection | null {
+	if (heading === "") {
+		let startIdx = 0;
+		if (lines[0]?.trimEnd() === "---") {
+			for (let i = 1; i < lines.length; i++) {
+				if ((lines[i] ?? "").trimEnd() === "---") {
+					startIdx = i + 1;
+					break;
+				}
+			}
+		}
+		let firstHeading = lines.length;
+		for (let i = startIdx; i < lines.length; i++) {
+			if (/^#{1,6}\s/.test(lines[i] ?? "")) {
+				firstHeading = i;
+				break;
+			}
+		}
+		return { headingIdx: -1, level: 0, endIdx: firstHeading };
+	}
+
+	const escaped = escapeRegExp(heading);
+	const headingPattern = new RegExp(`^(#{1,6})\\s+${escaped}\\s*$`, "i");
+
+	const headingIdx = lines.findIndex((l) => headingPattern.test(l));
+	if (headingIdx === -1) return null;
+
+	const headingLine = lines[headingIdx] ?? "";
+	const level = ((headingLine.match(/^(#+)/) ?? ["", ""])[1] ?? "").length;
+	const sameOrHigher = new RegExp(`^#{1,${level}}\\s`);
+	let endIdx = lines.length;
+	for (let i = headingIdx + 1; i < lines.length; i++) {
+		if (sameOrHigher.test(lines[i] ?? "")) {
+			endIdx = i;
+			break;
+		}
+	}
+
+	return { headingIdx, level, endIdx };
+}
+
+export function listHeadings(lines: string[]): MarkdownHeading[] {
+	const headings: MarkdownHeading[] = [];
+	for (let i = 0; i < lines.length; i++) {
+		const match = (lines[i] ?? "").match(/^(#{1,6})\s+(.+?)\s*$/);
+		if (match) {
+			headings.push({
+				text: match[2] ?? "",
+				level: (match[1] ?? "").length,
+				lineIdx: i,
+			});
+		}
+	}
+	return headings;
+}
+
+export function extractFrontmatterTags(text: string): string[] {
+	const fm = text.match(fmEnvelope)?.[1];
+	if (!fm) return [];
+	const parsed = (parseYaml(fm) as Record<string, unknown> | null) ?? {};
+	const tags = parsed.tags;
+	if (Array.isArray(tags)) return tags.map(String).filter(Boolean);
+	if (typeof tags === "string") {
+		return tags
+			.split(/[,\s]+/)
+			.map((tag) => tag.trim())
+			.filter(Boolean);
+	}
+	return [];
+}
+
+export function extractWikilinks(text: string): string[] {
+	const pattern = /\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
+	const targets = new Set<string>();
+	for (const match of text.matchAll(pattern)) {
+		if (match[1]) targets.add(match[1].trim());
+	}
+	return [...targets].sort();
+}
+
+export function wikilinkTargetPattern(noteName: string, flags = "i"): RegExp {
+	return new RegExp(
+		`\\[\\[${escapeRegExp(noteName)}(\\|[^\\]]*)?\\]\\]`,
+		flags,
+	);
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // -- Interpolation --
 
 const fmPattern = /^---\n[\s\S]*?\n---\n?/;

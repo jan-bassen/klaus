@@ -1,4 +1,4 @@
-import { mkdir, unlink } from "node:fs/promises";
+import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { settings } from "@/infra/config";
@@ -9,7 +9,7 @@ import {
 	type FileMeta,
 	findFile,
 	listFiles,
-	saveFileMeta,
+	persistFileBlob,
 } from "@/infra/store/files";
 import { isParseableDocument, parseDocument } from "@/pipeline/media";
 import type { ToolDefinition, ToolsetDefinition } from "@/primitives/tools";
@@ -29,22 +29,14 @@ export const filesUploadTool: ToolDefinition<typeof filesUploadSchema> = {
 	inputSchema: filesUploadSchema,
 	execute: async ({ name, content, mimeType }, _context) => {
 		const bytes = Buffer.from(content, "base64");
-		const date = new Date().toISOString().slice(0, 10);
-		const ext = name.includes(".") ? (name.split(".").pop() ?? "bin") : "bin";
-		const id = crypto.randomUUID();
-		const dir = path.join(settings.dataDir, "files", date);
-		const filePath = path.join(dir, `${id}.${ext}`);
-
-		await mkdir(dir, { recursive: true });
-		await Bun.write(filePath, bytes);
-
-		const saved = await saveFileMeta({
-			path: filePath,
+		const saved = await persistFileBlob({
+			bytes,
 			mimeType,
-			sizeBytes: bytes.byteLength,
+			name,
 		});
 
 		if (saved instanceof Error) return `Upload failed: ${saved.message}`;
+		if (!saved.metadataSaved) return `Upload metadata failed for ${name}`;
 		return `Uploaded ${name} — fileId: ${saved.id}`;
 	},
 	simulate: async ({ name, content, mimeType }, context) => {
