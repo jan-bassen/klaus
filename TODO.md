@@ -9,7 +9,6 @@ We'll be opening this up as "the agent for tinkerers". Polish the codebase and t
 
 ## Config
 
-- [ ] move to node for industry default (clean up deps - currently 3x types)
 - [ ] pin dependency versions? (or simpler fix for protection against supply chain attacks)
 - [ ] remove and cleanup after fallow
 - [ ] remove and cleanup after claude tooling + 
