@@ -1,7 +1,9 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { log } from "@/infra/logger";
+import { log } from "../logger.ts";
+
+import { readText, writeData } from "../runtime.ts";
 
 interface FileStore {
 	saveFileMeta(meta: {
@@ -115,7 +117,7 @@ function createFileStore(env: FileStoreEnv): FileStore {
 			const filePath = path.join(dir, `${id}.${ext}`);
 
 			await mkdir(dir, { recursive: true });
-			await Bun.write(filePath, bytes);
+			await writeData(filePath, bytes);
 
 			const saved = await saveFileMeta({
 				path: filePath,
@@ -210,7 +212,7 @@ function createFileStore(env: FileStoreEnv): FileStore {
 		externalFileIndex.clear();
 
 		try {
-			const text = await Bun.file(indexPath()).text();
+			const text = await readText(indexPath());
 			for (const line of text.split("\n")) {
 				if (!line.trim()) continue;
 				try {

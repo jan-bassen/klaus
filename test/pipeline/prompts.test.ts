@@ -5,15 +5,15 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { settings } from "@/infra/config";
+import { settings } from "../../src/infra/config.ts";
 import {
 	buildSystemPrompt,
 	invalidateTemplate,
 	loadTemplates,
 	renderTemplate,
 	resolveSampling,
-} from "@/pipeline/prompts";
-import { makeTmpDir, rmTmpDir } from "../helpers/tmp";
+} from "../../src/pipeline/prompts.ts";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 
 function writeTemplate(dir: string, name: string, content: string): void {
 	writeFileSync(path.join(dir, `${name}.md`), content);
@@ -38,7 +38,9 @@ describe("pipeline/prompts: resolveSampling", () => {
 
 	it("cold preset → coldTemperature from settings", () => {
 		settings.sampling = { coldTemperature: 0.1 };
-		expect(resolveSampling({ temperaturePreset: "cold" }).temperature).toBe(0.1);
+		expect(resolveSampling({ temperaturePreset: "cold" }).temperature).toBe(
+			0.1,
+		);
 	});
 
 	it("hot preset → hotTemperature (falls back to 1 when unset)", () => {
@@ -129,7 +131,9 @@ describe("pipeline/prompts: renderTemplate", () => {
 	});
 
 	it("throws a descriptive error when template file is missing", () => {
-		expect(() => renderTemplate("message-user", {})).toThrow("Missing template");
+		expect(() => renderTemplate("message-user", {})).toThrow(
+			"Missing template",
+		);
 	});
 
 	it("noEscape passes raw angle brackets / markdown without escaping", () => {
@@ -161,7 +165,11 @@ describe("pipeline/prompts: renderTemplate", () => {
 
 	it("template registered as Handlebars partial can be used via {{> name}}", () => {
 		writeTemplate(tmpDir, "message-user", "inner {{val}}");
-		writeTemplate(tmpDir, "error-message", "outer: {{> message-user val=kind}}");
+		writeTemplate(
+			tmpDir,
+			"error-message",
+			"outer: {{> message-user val=kind}}",
+		);
 		loadTemplates();
 		const out = renderTemplate("error-message", { kind: "timeout" });
 		expect(out).toBe("outer: inner timeout");

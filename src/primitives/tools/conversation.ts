@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { settings } from "@/infra/config";
-import { searchConversation } from "@/infra/store/history";
-import type { ToolDefinition } from "@/primitives/tools";
+import { settings } from "../../infra/config.ts";
+import { searchConversation } from "../../infra/store/history.ts";
+import type { ToolDefinition } from "./index.ts";
 
 function formatMessageTimestamp(date: Date): string {
 	const day = date.toLocaleDateString(settings.locale, {

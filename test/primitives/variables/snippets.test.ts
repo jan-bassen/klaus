@@ -9,11 +9,11 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { settings } from "@/infra/config";
-import type { TurnContext } from "@/pipeline/core";
-import { snippetsVariable } from "@/primitives/variables/snippets";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
-import { makeTurn } from "../../helpers/turn";
+import { settings } from "../../../src/infra/config.ts";
+import type { TurnContext } from "../../../src/pipeline/core.ts";
+import { snippetsVariable } from "../../../src/primitives/variables/snippets.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
+import { makeTurn } from "../../helpers/turn.ts";
 
 function writeSnippet(dir: string, name: string, body: string): void {
 	writeFileSync(path.join(dir, `${name}.md`), body);

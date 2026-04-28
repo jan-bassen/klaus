@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { log } from "@/infra/logger";
-import { appendReaction } from "@/infra/store/history";
-import { getSocket } from "@/infra/whatsapp/connection";
-import { type MessageKey, sendReaction } from "@/infra/whatsapp/send";
-import type { ToolDefinition } from "@/primitives/tools";
+import { log } from "../../infra/logger.ts";
+import { appendReaction } from "../../infra/store/history.ts";
+import { getSocket } from "../../infra/whatsapp/connection.ts";
+import { type MessageKey, sendReaction } from "../../infra/whatsapp/send.ts";
+import type { ToolDefinition } from "./index.ts";
 
 const reactSchema = z.object({
 	emoji: z

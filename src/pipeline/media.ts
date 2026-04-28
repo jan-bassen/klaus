@@ -11,8 +11,10 @@ import path from "node:path";
 import { LiteParse } from "@llamaindex/liteparse";
 import { OpenRouter } from "@openrouter/sdk";
 import sharp from "sharp";
-import { resolveImageModel, settings } from "@/infra/config";
-import { log } from "@/infra/logger";
+import { resolveImageModel, settings } from "../infra/config.ts";
+import { log } from "../infra/logger.ts";
+
+import { readArrayBuffer, readText, writeData } from "../infra/runtime.ts";
 
 // ── Speech-to-Text ─────────────────────────────────────────────────────────
 
@@ -27,13 +29,11 @@ export async function transcribe(
 	if (!apiKey) return new Error("transcribe: ELEVENLABS_API_KEY not set");
 
 	const fileName = path.basename(filePath);
-	const blob = Bun.file(filePath);
-
 	const form = new FormData();
 	form.append("model_id", settings.media.voice.stt.model);
 	form.append(
 		"file",
-		new Blob([await blob.arrayBuffer()], { type: mimeType }),
+		new Blob([await readArrayBuffer(filePath)], { type: mimeType }),
 		fileName,
 	);
 
@@ -100,7 +100,7 @@ export async function textToSpeech(text: string): Promise<Buffer | Error> {
  * — keeps token cost bounded (Anthropic tiles at 512×512 ≈ 1500 tokens/tile).
  */
 export async function prepareImage(filePath: string): Promise<Buffer> {
-	const raw = await Bun.file(filePath).arrayBuffer();
+	const raw = await readArrayBuffer(filePath);
 	const max = settings.media.image.vision.maxSize;
 	return sharp(Buffer.from(raw))
 		.resize(max, max, { fit: "inside", withoutEnlargement: true })
@@ -149,7 +149,7 @@ export async function parseDocument(
 	const cachePath = `${filePath}.parsed.txt`;
 	if (existsSync(cachePath)) {
 		try {
-			return await Bun.file(cachePath).text();
+			return await readText(cachePath);
 		} catch (err) {
 			log.warn("[media] sidecar read failed, reparsing", {
 				cachePath,
@@ -161,7 +161,7 @@ export async function parseDocument(
 	try {
 		const result = await parser().parse(filePath);
 		const text = trunc(result.text.trim(), settings.media.document.maxChars);
-		await Bun.write(cachePath, text);
+		await writeData(cachePath, text);
 		return text;
 	} catch (err) {
 		const error = err instanceof Error ? err : new Error(String(err));

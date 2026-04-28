@@ -16,11 +16,12 @@
 import { appendFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { settings } from "@/infra/config";
-import { log } from "@/infra/logger";
-import type { Trigger } from "@/pipeline/core";
-import { localDateString } from ".";
-import { TriggerSchema } from "./history";
+import type { Trigger } from "../../pipeline/core.ts";
+import { settings } from "../config.ts";
+import { log } from "../logger.ts";
+import { readText } from "../runtime.ts";
+import { TriggerSchema } from "./history.ts";
+import { localDateString } from "./index.ts";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -181,7 +182,7 @@ export async function readReports(
 	for (const filePath of files) {
 		let text: string;
 		try {
-			text = await Bun.file(filePath).text();
+			text = await readText(filePath);
 		} catch {
 			continue;
 		}

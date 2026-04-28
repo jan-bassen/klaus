@@ -1,14 +1,15 @@
 import path from "node:path";
-import { settings } from "@/infra/config";
-import { log } from "@/infra/logger";
-import { hbs } from "@/infra/vault/markdown";
-import type { Variable } from "@/primitives/variables";
+import { settings } from "../../infra/config.ts";
+import { log } from "../../infra/logger.ts";
+import { readText, scanFiles } from "../../infra/runtime.ts";
+import { hbs } from "../../infra/vault/markdown.ts";
+import type { Variable } from "./index.ts";
 
 const fmPattern = /^---\n[\s\S]*?\n---\n?/;
 
 async function readSnippet(filePath: string): Promise<string> {
 	try {
-		const raw = await Bun.file(filePath).text();
+		const raw = await readText(filePath);
 		return raw.replace(fmPattern, "").trim();
 	} catch {
 		return "";
@@ -47,8 +48,7 @@ export const snippetsVariable: Variable = {
 		const vars = turn.vars ?? {};
 		const raw: Record<string, string> = {};
 
-		const glob = new Bun.Glob("*.md");
-		for await (const file of glob.scan({ cwd: snippetsDir })) {
+		for await (const file of scanFiles(snippetsDir, "*.md")) {
 			const stem = path.basename(file, ".md");
 			if (stem === "user") continue; // owned by user variable
 			raw[stem] = await readSnippet(path.join(snippetsDir, file));

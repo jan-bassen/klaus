@@ -6,13 +6,16 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { settings } from "@/infra/config";
-import { agentRegistry, getDefaultAgent } from "@/pipeline/agents";
-import { defaultCommand } from "@/primitives/commands/default";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+import { settings } from "../../../src/infra/config.ts";
+import {
+	agentRegistry,
+	getDefaultAgent,
+} from "../../../src/pipeline/agents.ts";
+import { defaultCommand } from "../../../src/primitives/commands/default.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 
 const enqueueMock = vi.hoisted(() => vi.fn());
-vi.mock("@/infra/whatsapp/send", () => ({
+vi.mock("../../../src/infra/whatsapp/send.ts", () => ({
 	enqueueMessage: enqueueMock,
 }));
 

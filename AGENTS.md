@@ -5,19 +5,19 @@ Guidance for Codex when working in this repository.
 ## Commands
 
 ```bash
-bun run typecheck
-bun run test
-bun run test:watch
-bunx biome check --write .
-bun run build
-bun run publish
+npm run typecheck
+npm run test
+npm run test:watch
+npx biome check --write .
+npm run build
+npm run publish
 ```
 
 ## What Klaus is
 
 A maximally simple, headless personal AI agent: **WhatsApp → TypeScript → Obsidian vault → Docker**.
 
-Stack: Bun, TypeScript strict, Zod, Handlebars, Baileys. Models via a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default only OpenRouter); request/response types come from the `openrouter` sdk. Liteparse for docs, sharp for images. JSONL for conversations/reports, JSON for schedules/timers. No database.
+Stack: Node 25, native TypeScript, strict TypeScript, Zod, Handlebars, Baileys. Models via a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default only OpenRouter); request/response types come from the `openrouter` sdk. Liteparse for docs, sharp for images. JSONL for conversations/reports, JSON for schedules/timers. No database.
 
 ## Directory layout
 The repo is itentionally flat and opinionated in structure. One glance and a new user should be able to find where to look.
@@ -172,16 +172,16 @@ Templates are required — `runAgent()` throws if `message-user.md` etc. are mis
 - Tests live in `test/` mirroring `src/`.
 - Keep the implementation clean of test seams. Confirm with the user if absolutely needed.
 - Optimize for critical paths (pipeline, tool execution, store round-trip). No coverage targets.
-- `test/setup.ts` preloads `@/infra/config` before anything else (logger reads settings eagerly) and clears registries in `afterEach`.
+- `test/setup.ts` preloads `src/infra/config.ts` before anything else (logger reads settings eagerly) and clears registries in `afterEach`.
 - `test/helpers/{tmp,stores,turn}.ts` for tmp dirs, store init, minimal TurnContext.
-- Module mocking: `vi.hoisted()` + `vi.mock("@/path", ...)`. For settings overrides, mutate the live `settings` object directly in `beforeEach`.
+- Module mocking: `vi.hoisted()` + `vi.mock("../relative/path.ts", ...)`. For settings overrides, mutate the live `settings` object directly in `beforeEach`.
 
 ## Code conventions
 
-- No barrel imports. Use specific module paths. Path alias `@/` → `src/`.
+- No barrel imports. Use specific relative module paths with explicit `.ts` extensions.
 - Errors are values — `return` them; only throw at true system boundaries.
 - Fully typesafe. No `any`. No `as`.
 - `vault/settings.yml` (repo) is the single source of truth for tunable settings; at runtime it's overlaid with the user's `{vault}/Klaus/settings.yml`. Zod validates only — no `.default()` fallbacks. Add new fields here + in `src/infra/config.ts`'s schema.
 - No inline magic numbers — route through `settings.*`.
 - Comments explain *why*, never *what*. Prefer good naming.
-- Keep the dependency list short; `bun add` only when genuinely needed.
+- Keep the dependency list short; `npm install` only when genuinely needed.

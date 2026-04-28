@@ -1,16 +1,20 @@
 import { z } from "zod";
-import { getOverlay } from "@/infra/simulation";
+import { getOverlay } from "../../../infra/simulation.ts";
 import {
 	addSchedule,
 	getSchedules,
 	removeSchedule,
 	type ScheduleEntry,
-} from "@/infra/store/schedules";
-import { addTimer, listTimers, removeTimer } from "@/infra/store/timers";
-import { agentRegistry } from "@/pipeline/agents";
-import type { TurnContext } from "@/pipeline/core";
-import { dispatch as dispatchFn } from "@/pipeline/dispatch";
-import type { ToolDefinition, ToolsetDefinition } from "@/primitives/tools";
+} from "../../../infra/store/schedules.ts";
+import {
+	addTimer,
+	listTimers,
+	removeTimer,
+} from "../../../infra/store/timers.ts";
+import { agentRegistry } from "../../../pipeline/agents.ts";
+import type { TurnContext } from "../../../pipeline/core.ts";
+import { dispatch as dispatchFn } from "../../../pipeline/dispatch.ts";
+import type { ToolDefinition, ToolsetDefinition } from "../index.ts";
 
 // ── dispatch ───────────────────────────────────────────────────────────────
 

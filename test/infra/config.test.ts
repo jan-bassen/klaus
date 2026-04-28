@@ -13,7 +13,7 @@ import {
 	resolveImageModel,
 	resolveModel,
 	settings,
-} from "@/infra/config";
+} from "../../src/infra/config.ts";
 
 describe("infra/config.resolveModel", () => {
 	const origProviders = settings.providers;

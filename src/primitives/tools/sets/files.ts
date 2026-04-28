@@ -1,19 +1,20 @@
 import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { settings } from "@/infra/config";
-import { log } from "@/infra/logger";
-import { getOverlay } from "@/infra/simulation";
+import { settings } from "../../../infra/config.ts";
+import { log } from "../../../infra/logger.ts";
+import { readArrayBuffer, readText } from "../../../infra/runtime.ts";
+import { getOverlay } from "../../../infra/simulation.ts";
 import {
 	deleteFile,
 	type FileMeta,
 	findFile,
 	listFiles,
 	persistFileBlob,
-} from "@/infra/store/files";
-import type { TurnContext } from "@/pipeline/core";
-import { isParseableDocument, parseDocument } from "@/pipeline/media";
-import type { ToolDefinition, ToolsetDefinition } from "@/primitives/tools";
+} from "../../../infra/store/files.ts";
+import type { TurnContext } from "../../../pipeline/core.ts";
+import { isParseableDocument, parseDocument } from "../../../pipeline/media.ts";
+import type { ToolDefinition, ToolsetDefinition } from "../index.ts";
 
 const fileIdPattern = /^[0-9a-f-]{36}$/i;
 
@@ -123,7 +124,7 @@ export const filesDownloadTool: ToolDefinition<typeof filesDownloadSchema> = {
 		if (!meta) return `No file found for: ${name}`;
 
 		try {
-			const bytes = await Bun.file(meta.path).arrayBuffer();
+			const bytes = await readArrayBuffer(meta.path);
 			return {
 				fileId: meta.id,
 				mimeType: meta.mimeType,
@@ -168,7 +169,7 @@ export const filesReadTool: ToolDefinition<typeof filesReadSchema> = {
 
 		if (meta.mimeType.startsWith("text/")) {
 			try {
-				return await Bun.file(meta.path).text();
+				return await readText(meta.path);
 			} catch (err) {
 				return `Failed to read file: ${err instanceof Error ? err.message : String(err)}`;
 			}

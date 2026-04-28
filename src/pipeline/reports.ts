@@ -15,21 +15,20 @@
 
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { settings } from "@/infra/config";
-import { log } from "@/infra/logger";
-import { getOverlay } from "@/infra/simulation";
-import { localDateString } from "@/infra/store";
+import { settings } from "../infra/config.ts";
+import { log } from "../infra/logger.ts";
+import { getOverlay } from "../infra/simulation.ts";
+import { localDateString } from "../infra/store/index.ts";
 import {
 	type ReportEntry,
 	type ReportLlm,
 	type ReportStep,
 	writeReport,
-} from "@/infra/store/report";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import type { TurnContext } from "@/pipeline/core";
-import { renderTemplate } from "@/pipeline/prompts";
-import type { AgentRunResult } from "./core";
-import type { TurnConfig } from "./overrides";
+} from "../infra/store/report.ts";
+import type { InboundMessage } from "../infra/whatsapp/receive.ts";
+import type { AgentRunResult, TurnContext } from "./core.ts";
+import type { TurnConfig } from "./overrides.ts";
+import { renderTemplate } from "./prompts.ts";
 
 // ── Public API ─────────────────────────────────────────────────────────────
 

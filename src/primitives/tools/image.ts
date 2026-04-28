@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { log } from "@/infra/logger";
-import { getOverlay } from "@/infra/simulation";
-import { persistFileBlob } from "@/infra/store/files";
-import { enqueueMessage } from "@/infra/whatsapp/send";
-import { generateImage } from "@/pipeline/media";
-import { prepareAssistantOutbound } from "@/pipeline/outbound";
-import type { ToolDefinition } from "@/primitives/tools";
+import { log } from "../../infra/logger.ts";
+import { getOverlay } from "../../infra/simulation.ts";
+import { persistFileBlob } from "../../infra/store/files.ts";
+import { enqueueMessage } from "../../infra/whatsapp/send.ts";
+import { generateImage } from "../../pipeline/media.ts";
+import { prepareAssistantOutbound } from "../../pipeline/outbound.ts";
+import type { ToolDefinition } from "./index.ts";
 
 const imageGenerateSchema = z.object({
 	prompt: z.string().describe("Description of the image to generate."),

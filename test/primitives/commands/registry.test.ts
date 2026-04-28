@@ -6,12 +6,12 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
+import type { InboundMessage } from "../../../src/infra/whatsapp/receive.ts";
 import {
 	type Command,
 	CommandRegistry,
 	parseCommand,
-} from "@/primitives/commands";
+} from "../../../src/primitives/commands/index.ts";
 
 function msg(text: string | undefined): InboundMessage {
 	return {

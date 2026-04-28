@@ -1,4 +1,4 @@
-import type { Variable } from "@/primitives/variables";
+import type { Variable } from "./index.ts";
 
 /**
  * The prompt the dispatcher handed to this agent. Null when the run isn't a

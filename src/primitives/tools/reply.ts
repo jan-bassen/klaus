@@ -1,12 +1,15 @@
 import { z } from "zod";
-import { log } from "@/infra/logger";
-import { enqueueMessage } from "@/infra/whatsapp/send";
-import { getDefaultAgent } from "@/pipeline/agents";
-import type { TurnContext } from "@/pipeline/core";
-import { textToSpeech } from "@/pipeline/media";
-import { makeDedupKey, prepareAssistantOutbound } from "@/pipeline/outbound";
-import { renderTemplate } from "@/pipeline/prompts";
-import type { ToolDefinition } from "@/primitives/tools";
+import { log } from "../../infra/logger.ts";
+import { enqueueMessage } from "../../infra/whatsapp/send.ts";
+import { getDefaultAgent } from "../../pipeline/agents.ts";
+import type { TurnContext } from "../../pipeline/core.ts";
+import { textToSpeech } from "../../pipeline/media.ts";
+import {
+	makeDedupKey,
+	prepareAssistantOutbound,
+} from "../../pipeline/outbound.ts";
+import { renderTemplate } from "../../pipeline/prompts.ts";
+import type { ToolDefinition } from "./index.ts";
 
 /** The canonical name of the output tool. Referenced by runner/messages to filter reply calls from traces. */
 export const REPLY_TOOL_NAME = "reply";

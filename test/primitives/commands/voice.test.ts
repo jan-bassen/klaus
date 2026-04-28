@@ -9,17 +9,18 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readText } from "../../../src/infra/runtime.ts";
 import {
 	type AgentDefinition,
 	agentRegistry,
 	loadAgentDefinition,
 	setDefaultAgent,
-} from "@/pipeline/agents";
-import { voiceCommand } from "@/primitives/commands/voice";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+} from "../../../src/pipeline/agents.ts";
+import { voiceCommand } from "../../../src/primitives/commands/voice.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 
 const enqueueMock = vi.hoisted(() => vi.fn());
-vi.mock("@/infra/whatsapp/send", () => ({
+vi.mock("../../../src/infra/whatsapp/send.ts", () => ({
 	enqueueMessage: enqueueMock,
 }));
 
@@ -72,7 +73,7 @@ describe("primitives/commands/voice", () => {
 		expect(enqueueMock.mock.calls[0]?.[0].content).toMatch(/Unknown voice/);
 		expect(def.settings.voice).toBe("off");
 		// File on disk unchanged.
-		const onDisk = await Bun.file(def.promptPath).text();
+		const onDisk = await readText(def.promptPath);
 		expect(onDisk).toContain("voice: off");
 	});
 
@@ -92,7 +93,7 @@ describe("primitives/commands/voice", () => {
 		// In-memory registry mutated
 		expect(def.settings.voice).toBe("on");
 		// Disk written through updateFrontmatter
-		const onDisk = await Bun.file(def.promptPath).text();
+		const onDisk = await readText(def.promptPath);
 		expect(onDisk).toContain("voice: on");
 		// Body preserved
 		expect(onDisk).toContain("You are coach.");

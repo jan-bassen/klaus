@@ -1,5 +1,5 @@
-import { settings } from "@/infra/config";
-import type { Variable } from "@/primitives/variables";
+import { settings } from "../../infra/config.ts";
+import type { Variable } from "./index.ts";
 
 /** Current date, time, and weekday. */
 export const timeVariable: Variable = {

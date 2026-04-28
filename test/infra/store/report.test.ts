@@ -8,8 +8,8 @@ import {
 	type ReportEntry,
 	readReports,
 	writeReport,
-} from "@/infra/store/report";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+} from "../../../src/infra/store/report.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 
 function makeEntry(overrides: Partial<ReportEntry> = {}): ReportEntry {
 	const base: ReportEntry = {

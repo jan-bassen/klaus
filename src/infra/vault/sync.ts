@@ -16,7 +16,7 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Readable } from "node:stream";
-import { log } from "@/infra/logger";
+import { log } from "../logger.ts";
 
 interface SyncEnv {
 	email: string;

@@ -1,7 +1,7 @@
 import path from "node:path";
-import { settings } from "@/infra/config";
-import type { Variable } from "@/primitives/variables";
-
+import { settings } from "../../infra/config.ts";
+import { readText } from "../../infra/runtime.ts";
+import type { Variable } from "./index.ts";
 /** User profile loaded from {vault}/Klaus/snippets/user.md (or user.md at vault internal root). */
 export const userVariable: Variable = {
 	key: "user",
@@ -15,7 +15,7 @@ export const userVariable: Variable = {
 		];
 		for (const p of candidates) {
 			try {
-				const raw = await Bun.file(p).text();
+				const raw = await readText(p);
 				const profile = raw.replace(/^---\n[\s\S]*?\n---\n?/, "").trim();
 				if (profile) return { profile };
 			} catch {

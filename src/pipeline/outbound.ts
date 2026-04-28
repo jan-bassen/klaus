@@ -1,6 +1,6 @@
-import { log } from "@/infra/logger";
-import { appendAck, appendMessage } from "@/infra/store/history";
-import type { TurnContext } from "@/pipeline/core";
+import { log } from "../infra/logger.ts";
+import { appendAck, appendMessage } from "../infra/store/history.ts";
+import type { TurnContext } from "./core.ts";
 
 interface OutboundQuote {
 	externalId: string;

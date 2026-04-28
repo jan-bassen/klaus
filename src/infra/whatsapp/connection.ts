@@ -1,14 +1,15 @@
 import path from "node:path";
-import makeWASocket, {
+import {
 	DisconnectReason,
 	fetchLatestBaileysVersion,
 	jidNormalizedUser,
+	makeWASocket,
 	useMultiFileAuthState,
 	type WASocket,
-} from "@whiskeysockets/baileys";
-import type { ILogger } from "@whiskeysockets/baileys/lib/Utils/logger";
-import { log } from "@/infra/logger";
-import { writeQrToVault } from "@/infra/whatsapp/login";
+} from "baileys";
+import type { ILogger } from "baileys/lib/Utils/logger.js";
+import { log } from "../logger.ts";
+import { writeQrToVault } from "./login.ts";
 
 const baileysLogger: ILogger = {
 	level: "warn",

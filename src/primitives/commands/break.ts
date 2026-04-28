@@ -1,8 +1,8 @@
-import { settings } from "@/infra/config";
-import { appendBreak } from "@/infra/store/history";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { enqueueMessage } from "@/infra/whatsapp/send";
-import type { Command } from "@/primitives/commands";
+import { settings } from "../../infra/config.ts";
+import { appendBreak } from "../../infra/store/history.ts";
+import type { InboundMessage } from "../../infra/whatsapp/receive.ts";
+import { enqueueMessage } from "../../infra/whatsapp/send.ts";
+import type { Command } from "./index.ts";
 
 export const breakCommand: Command = {
 	name: "break",

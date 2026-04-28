@@ -2,7 +2,7 @@
  * `pipeline/message.ts` — `parseMessage`: STT apply, `@agent` extract,
  * `!overrides` strip, command parse, voice transcript rewriting.
  *
- * Mocks `@/pipeline/media` so transcribe / parseDocument are spies and no
+ * Mocks `src/pipeline/media.ts` so transcribe / parseDocument are spies and no
  * real network or disk work happens. Override registry is populated manually
  * via `loadOverrides` against the bundled vault yaml.
  */
@@ -12,15 +12,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const transcribeMock = vi.hoisted(() => vi.fn());
 const parseDocumentMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/pipeline/media", () => ({
+vi.mock("../../src/pipeline/media.ts", () => ({
 	transcribe: transcribeMock,
 	parseDocument: parseDocumentMock,
 	isParseableDocument: (mime: string) => mime === "application/pdf",
 }));
 
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { parseMessage } from "@/pipeline/message";
-import { type OverrideDef, overrideRegistry } from "@/pipeline/overrides";
+import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
+import { parseMessage } from "../../src/pipeline/message.ts";
+import {
+	type OverrideDef,
+	overrideRegistry,
+} from "../../src/pipeline/overrides.ts";
 
 function regOv(def: OverrideDef): void {
 	overrideRegistry.set(def.name, def);

@@ -13,7 +13,7 @@ import {
 	type ToolDefinition,
 	type ToolsetDefinition,
 	toolRegistry,
-} from "@/primitives/tools";
+} from "../../../src/primitives/tools/index.ts";
 
 function pureTool(name: string): ToolDefinition<z.ZodTypeAny> {
 	return {

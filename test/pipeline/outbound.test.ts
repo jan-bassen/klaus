@@ -3,12 +3,15 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getConversation } from "@/infra/store/history";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { makeDedupKey, prepareAssistantOutbound } from "@/pipeline/outbound";
-import { initAllStores } from "../helpers/stores";
-import { makeTmpDir, rmTmpDir } from "../helpers/tmp";
-import { makeTurn } from "../helpers/turn";
+import { getConversation } from "../../src/infra/store/history.ts";
+import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
+import {
+	makeDedupKey,
+	prepareAssistantOutbound,
+} from "../../src/pipeline/outbound.ts";
+import { initAllStores } from "../helpers/stores.ts";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
+import { makeTurn } from "../helpers/turn.ts";
 
 function inbound(id: string): InboundMessage {
 	return {
@@ -30,7 +33,8 @@ describe("pipeline/outbound: makeDedupKey", () => {
 	});
 
 	it("includes chatId and kind when no inbound message", () => {
-		const turn = makeTurn({ message: undefined });
+		const turn = makeTurn();
+		delete turn.message;
 		const key = makeDedupKey(turn, "dispatch");
 		expect(key).toMatch(/^c1:dispatch:/);
 	});
@@ -114,7 +118,8 @@ describe("pipeline/outbound: prepareAssistantOutbound — message persistence", 
 	});
 
 	it("returns error for messageRef=current with no inbound message", async () => {
-		const turn = makeTurn({ message: undefined });
+		const turn = makeTurn();
+		delete turn.message;
 		const result = await prepareAssistantOutbound({
 			context: turn,
 			content: "reply",

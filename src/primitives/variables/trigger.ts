@@ -1,4 +1,4 @@
-import type { Variable } from "@/primitives/variables";
+import type { Variable } from "./index.ts";
 
 /**
  * What kicked off this agent run. Templates branch on `kind`:

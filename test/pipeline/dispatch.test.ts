@@ -1,24 +1,28 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { settings } from "@/infra/config";
-import { log } from "@/infra/logger";
+import { settings } from "../../src/infra/config.ts";
+import { log } from "../../src/infra/logger.ts";
 import {
 	type AgentDefinition,
 	AgentSchema,
 	agentRegistry,
-} from "@/pipeline/agents";
-import type { TurnContext } from "@/pipeline/core";
-import { executeAgent } from "@/pipeline/core";
-import { dispatch } from "@/pipeline/dispatch";
-import { overrideRegistry } from "@/pipeline/overrides";
-import { setVariables, type Variable } from "@/primitives/variables";
-import { makeTmpDir, rmTmpDir } from "../helpers/tmp";
+} from "../../src/pipeline/agents.ts";
+import type { TurnContext } from "../../src/pipeline/core.ts";
+import { executeAgent } from "../../src/pipeline/core.ts";
+import { dispatch } from "../../src/pipeline/dispatch.ts";
+import { overrideRegistry } from "../../src/pipeline/overrides.ts";
+import {
+	setVariables,
+	type Variable,
+} from "../../src/primitives/variables/index.ts";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 
 const executeMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/pipeline/core", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("@/pipeline/core")>();
+vi.mock("../../src/pipeline/core.ts", async (importOriginal) => {
+	const actual =
+		await importOriginal<typeof import("../../src/pipeline/core.ts")>();
 	return {
 		...actual,
 		executeAgent: executeMock,

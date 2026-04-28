@@ -15,8 +15,8 @@ import {
 	initHistoryStore,
 	readAllMessages,
 	rebuildIndexes,
-} from "@/infra/store/history";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+} from "../../../src/infra/store/history.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 
 describe("infra/store/history: round-trip", () => {
 	let tmpDir: string;

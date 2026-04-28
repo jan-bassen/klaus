@@ -16,7 +16,7 @@ import {
 	listHeadings,
 	updateFrontmatter,
 	wikilinkTargetPattern,
-} from "@/infra/vault/markdown";
+} from "../../../src/infra/vault/markdown.ts";
 
 describe("infra/vault/markdown: hbs helpers", () => {
 	it("trunc shortens long strings and keeps short ones", () => {
@@ -43,9 +43,9 @@ describe("infra/vault/markdown: hbs helpers", () => {
 	});
 
 	it("eq / and / or / not / default", () => {
-		expect(hbs.compile("{{#if (eq a b)}}y{{else}}n{{/if}}")({ a: 1, b: 1 })).toBe(
-			"y",
-		);
+		expect(
+			hbs.compile("{{#if (eq a b)}}y{{else}}n{{/if}}")({ a: 1, b: 1 }),
+		).toBe("y");
 		expect(hbs.compile("{{default v 'fb'}}")({ v: "" })).toBe("fb");
 		expect(hbs.compile("{{default v 'fb'}}")({ v: "real" })).toBe("real");
 	});
@@ -187,7 +187,9 @@ describe("infra/vault/markdown: interpolateUserVars", () => {
 	});
 
 	it("passes through unknown names unchanged", () => {
-		expect(interpolateUserVars("price=$cost.usd", vars)).toBe("price=$cost.usd");
+		expect(interpolateUserVars("price=$cost.usd", vars)).toBe(
+			"price=$cost.usd",
+		);
 	});
 
 	it("renders empty string for empty/null values, but stringifies 0", () => {

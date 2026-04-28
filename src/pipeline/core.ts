@@ -18,30 +18,30 @@ import type {
 } from "@openrouter/sdk/models";
 import { OpenRouterError } from "@openrouter/sdk/models/errors";
 import { toJSONSchema } from "zod/v4";
-import { type ModelTier, resolveModel, settings } from "@/infra/config";
-import { log } from "@/infra/logger";
-import { appendTrace, type TraceStep } from "@/infra/store/history";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { enqueueMessage } from "@/infra/whatsapp/send";
+import { type ModelTier, resolveModel, settings } from "../infra/config.ts";
+import { log } from "../infra/logger.ts";
+import { readText } from "../infra/runtime.ts";
+import { appendTrace, type TraceStep } from "../infra/store/history.ts";
+import type { InboundMessage } from "../infra/whatsapp/receive.ts";
+import { enqueueMessage } from "../infra/whatsapp/send.ts";
+import { REPLY_TOOL_NAME } from "../primitives/tools/reply.ts";
+import type { Variable } from "../primitives/variables/index.ts";
+import type { AgentDefinition } from "./agents.ts";
 import {
 	type AssembledTools,
 	assembleContext,
 	type FunctionToolSet,
 	type HistoryOptions,
-} from "@/pipeline/context";
-import { persistDynamic } from "@/pipeline/persistence";
+} from "./context.ts";
+import type { TurnConfig } from "./overrides.ts";
+import { persistDynamic } from "./persistence.ts";
 import {
 	buildSystemPrompt,
 	buildUserMessage,
 	resolveSampling,
 	type UserContent,
-} from "@/pipeline/prompts";
-import { emitReport } from "@/pipeline/reports";
-import { REPLY_TOOL_NAME } from "@/primitives/tools/reply";
-import type { Variable } from "@/primitives/variables";
-import type { AgentDefinition } from "./agents";
-import type { TurnConfig } from "./overrides";
-
+} from "./prompts.ts";
+import { emitReport } from "./reports.ts";
 // ── Public types ───────────────────────────────────────────────────────────
 
 /**
@@ -180,7 +180,7 @@ export async function executeAgent(
 		});
 		fullTurn = input.turn as TurnContext;
 
-		const promptRaw = await Bun.file(input.def.promptPath).text();
+		const promptRaw = await readText(input.def.promptPath);
 		const promptBody = promptRaw.replace(/^---\n[\s\S]*?\n---\n?/, "");
 		const system = buildSystemPrompt(promptBody, ctx.vars);
 		const userContent = await buildUserMessage(fullTurn);

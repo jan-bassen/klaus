@@ -16,13 +16,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
-import { configureLogger, log } from "@/infra/logger";
+import { configureLogger, log } from "./logger.ts";
 
-// ── Module anchor (Node-portable, Bun's `import.meta.dir` is optional) ─────
+import { readText, writeData } from "./runtime.ts";
 
-const MODULE_DIR =
-	(import.meta as ImportMeta & { dir?: string }).dir ??
-	path.dirname(fileURLToPath(import.meta.url));
+// ── Module anchor ─────────────────────────────────────────────────────────
+
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 // ── Env-derived paths (resolved once at startup) ───────────────────────────
 
@@ -412,7 +412,7 @@ export async function loadSettingsFromDisk(): Promise<
 	}
 
 	try {
-		const raw = await Bun.file(filePath).text();
+		const raw = await readText(filePath);
 		const parsed = parseYaml(raw);
 		const result = SettingsSchema.safeParse(parsed ?? {});
 
@@ -439,7 +439,7 @@ export async function updateAllowedChatId(chatId: string): Promise<void> {
 	let parsed: Record<string, unknown> = {};
 
 	if (existsSync(filePath)) {
-		const raw = await Bun.file(filePath).text();
+		const raw = await readText(filePath);
 		parsed = (parseYaml(raw) as Record<string, unknown>) ?? {};
 	}
 
@@ -448,7 +448,7 @@ export async function updateAllowedChatId(chatId: string): Promise<void> {
 	parsed.basics = basics;
 
 	const yaml = stringifyYaml(parsed, { lineWidth: 120 });
-	await Bun.write(filePath, yaml);
+	await writeData(filePath, yaml);
 
 	await loadSettingsFromDisk();
 	log.info("[config] updated allowedChatId");

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { settings } from "@/infra/config";
-import { loadTemplates, renderTemplate } from "@/pipeline/prompts";
+import { settings } from "../../src/infra/config.ts";
+import { loadTemplates, renderTemplate } from "../../src/pipeline/prompts.ts";
 
 describe("template goldens", () => {
 	let originalTemplatesDir: string;

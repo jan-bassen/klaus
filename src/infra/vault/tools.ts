@@ -1,8 +1,10 @@
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import { settings } from "@/infra/config";
-import type { SimulationOverlay } from "@/infra/simulation";
+import type { TurnContext } from "../../pipeline/core.ts";
+import { settings } from "../config.ts";
+import { readText } from "../runtime.ts";
+import type { SimulationOverlay } from "../simulation.ts";
 import {
 	type AgentVaultMap,
 	accessError,
@@ -10,9 +12,7 @@ import {
 	permissionError,
 	resolveVaultPath,
 	type VaultOp,
-} from "@/infra/vault";
-import type { TurnContext } from "@/pipeline/core";
-
+} from "./index.ts";
 export const vaultRoot = (): string => settings.vault.root;
 
 export function vaultMap(context: TurnContext): AgentVaultMap | undefined {
@@ -42,7 +42,7 @@ export async function readSimulatedVaultContent(
 	const pending = overlay.vaultWrites.get(absPath);
 	if (pending !== undefined) return pending;
 	try {
-		return await Bun.file(absPath).text();
+		return await readText(absPath);
 	} catch {
 		return null;
 	}

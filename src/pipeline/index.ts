@@ -8,39 +8,35 @@
  *   5. Execute agent (assemble context, prompts, run loop)
  */
 
-import { formatUserError } from "@/errors";
-import { settings, updateAllowedChatId } from "@/infra/config";
-import { log } from "@/infra/logger";
+import { formatUserError } from "../errors.ts";
+import { settings, updateAllowedChatId } from "../infra/config.ts";
+import { log } from "../infra/logger.ts";
 import {
 	findFileByExternalId,
 	findFileByMessageId,
 	updateFileMessageId,
-} from "@/infra/store/files";
+} from "../infra/store/files.ts";
 import {
 	appendMessage,
 	appendReaction,
 	findByExternalId,
-} from "@/infra/store/history";
-import { getSocket, normalizeJid } from "@/infra/whatsapp/connection";
+} from "../infra/store/history.ts";
+import { getSocket, normalizeJid } from "../infra/whatsapp/connection.ts";
 import {
 	clearLoginFolder,
 	clearSetupCode,
 	getSetupCode,
-} from "@/infra/whatsapp/login";
-import { startTyping, stopTyping } from "@/infra/whatsapp/presence";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { enqueueMessage, sendReaction } from "@/infra/whatsapp/send";
-import {
-	agentRegistry,
-	getDefaultAgent,
-	getOrLoadAgent,
-} from "@/pipeline/agents";
-import { registry as commandRegistry } from "@/primitives/commands";
-import { getVariables } from "@/primitives/variables";
-import type { Trigger, TurnContext } from "./core";
-import { executeAgent, isAbortError } from "./core";
-import { parseMessage } from "./message";
-import { buildTurnConfig } from "./overrides";
+} from "../infra/whatsapp/login.ts";
+import { startTyping, stopTyping } from "../infra/whatsapp/presence.ts";
+import type { InboundMessage } from "../infra/whatsapp/receive.ts";
+import { enqueueMessage, sendReaction } from "../infra/whatsapp/send.ts";
+import { registry as commandRegistry } from "../primitives/commands/index.ts";
+import { getVariables } from "../primitives/variables/index.ts";
+import { agentRegistry, getDefaultAgent, getOrLoadAgent } from "./agents.ts";
+import type { Trigger, TurnContext } from "./core.ts";
+import { executeAgent, isAbortError } from "./core.ts";
+import { parseMessage } from "./message.ts";
+import { buildTurnConfig } from "./overrides.ts";
 
 interface AuthResult {
 	allowed: boolean;

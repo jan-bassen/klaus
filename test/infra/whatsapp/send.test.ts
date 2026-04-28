@@ -6,8 +6,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { settings } from "@/infra/config";
-import * as send from "@/infra/whatsapp/send";
+import { settings } from "../../../src/infra/config.ts";
+import * as send from "../../../src/infra/whatsapp/send.ts";
 
 interface MockSocket {
 	sendMessage: ReturnType<typeof vi.fn>;
@@ -106,7 +106,9 @@ describe("infra/whatsapp/send", () => {
 		});
 		await mod.drainQueue();
 
-		expect(sock.sendMessage.mock.calls[0]?.[1]).toEqual({ text: "[coach]: hi" });
+		expect(sock.sendMessage.mock.calls[0]?.[1]).toEqual({
+			text: "[coach]: hi",
+		});
 	});
 
 	it("self-mode falls back to [Klaus] when no label", async () => {
@@ -121,7 +123,9 @@ describe("infra/whatsapp/send", () => {
 		});
 		await mod.drainQueue();
 
-		expect(sock.sendMessage.mock.calls[0]?.[1]).toEqual({ text: "[Klaus]: hi" });
+		expect(sock.sendMessage.mock.calls[0]?.[1]).toEqual({
+			text: "[Klaus]: hi",
+		});
 	});
 
 	it("does NOT prefix when self-mode is off", async () => {

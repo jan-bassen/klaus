@@ -10,7 +10,7 @@ A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Obsidian va
 
 | Layer | Tech |
 |---|---|
-| Runtime | Bun + TypeScript (strict) |
+| Runtime | Node 25 + native TypeScript (strict) |
 | LLM | Custom loop · any OpenAI-compatible endpoint (default: OpenRouter) |
 | STT / TTS | ElevenLabs |
 | WhatsApp | Baileys (unofficial multi-device) |
@@ -182,7 +182,7 @@ docker pull janbassen1/klaus:latest && docker restart <container>
 # Publish (maintainer)
 docker login
 docker buildx create --name klaus-builder --driver docker-container --use
-bun run publish   # builds linux/amd64, pushes :<version> + :latest
+npm run publish   # builds linux/amd64, pushes :<version> + :latest
 
 # Health
 curl http://localhost:3000/healthz

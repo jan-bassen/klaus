@@ -17,8 +17,8 @@ import {
 	isParseableDocument,
 	parseDocument,
 	prepareImage,
-} from "@/pipeline/media";
-import { makeTmpDir, rmTmpDir } from "../helpers/tmp";
+} from "../../src/pipeline/media.ts";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 
 describe("pipeline/media: isParseableDocument", () => {
 	it("accepts the allowlisted office formats", () => {

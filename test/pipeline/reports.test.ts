@@ -9,14 +9,14 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { settings } from "@/infra/config";
-import { getOverlay } from "@/infra/simulation";
-import { initReportStore, readReports } from "@/infra/store/report";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import type { AgentRunResult, TurnContext } from "@/pipeline/core";
-import { emitReport } from "@/pipeline/reports";
-import { makeTmpDir, rmTmpDir } from "../helpers/tmp";
-import { makeTurn } from "../helpers/turn";
+import { settings } from "../../src/infra/config.ts";
+import { getOverlay } from "../../src/infra/simulation.ts";
+import { initReportStore, readReports } from "../../src/infra/store/report.ts";
+import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
+import type { AgentRunResult, TurnContext } from "../../src/pipeline/core.ts";
+import { emitReport } from "../../src/pipeline/reports.ts";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
+import { makeTurn } from "../helpers/turn.ts";
 
 function makeResult(patch: Partial<AgentRunResult> = {}): AgentRunResult {
 	return {

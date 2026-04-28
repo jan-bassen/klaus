@@ -14,14 +14,14 @@ import {
 	registerToolset,
 	type ToolDefinition,
 	toolsetRegistry,
-} from "@/primitives/tools";
+} from "../../../src/primitives/tools/index.ts";
 import {
 	buildSkillTool,
 	parseSkillMeta,
 	skillRegistry,
-} from "@/primitives/tools/skill";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
-import { makeTurn } from "../../helpers/turn";
+} from "../../../src/primitives/tools/skill.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
+import { makeTurn } from "../../helpers/turn.ts";
 
 function dummyTool(name: string): ToolDefinition {
 	return {

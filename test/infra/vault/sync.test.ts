@@ -10,7 +10,7 @@ import { EventEmitter } from "node:events";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 
 interface FakeChild extends EventEmitter {
 	stdout: EventEmitter & { setEncoding: (e: string) => void };
@@ -46,7 +46,7 @@ vi.mock("node:child_process", () => ({
 }));
 
 // Re-import after the mock is registered.
-import { readSyncEnv, startSync } from "@/infra/vault/sync";
+import { readSyncEnv, startSync } from "../../../src/infra/vault/sync.ts";
 
 const ORIGINAL_ENV = { ...process.env };
 

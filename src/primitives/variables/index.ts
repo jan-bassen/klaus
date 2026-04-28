@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { log } from "@/infra/logger";
-import type { TurnContext } from "@/pipeline/core";
-
+import { log } from "../../infra/logger.ts";
+import { scanFiles } from "../../infra/runtime.ts";
+import type { TurnContext } from "../../pipeline/core.ts";
 /**
  * A Variable produces one top-level entry in the unified variable namespace.
  * Its `key` is the namespace root (e.g. `media`, `tasks`, `time`) and `run()`
@@ -41,8 +41,7 @@ export function getVariables(): Variable[] {
 /** Scans a directory for .ts files and collects every exported Variable. */
 export async function loadVariables(dir: string): Promise<Variable[]> {
 	const variables: Variable[] = [];
-	const glob = new Bun.Glob("*.ts");
-	for await (const file of glob.scan({ cwd: dir })) {
+	for await (const file of scanFiles(dir, "*.ts")) {
 		try {
 			const mod = (await import(`${dir}/${file}`)) as Record<string, unknown>;
 			for (const exported of Object.values(mod)) {

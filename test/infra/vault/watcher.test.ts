@@ -7,10 +7,10 @@ import {
 	getSchedules,
 	initSchedulesStore,
 	stopAllSchedules,
-} from "@/infra/store/schedules";
-import { handleAgentChange } from "@/infra/vault/watcher";
-import { agentRegistry } from "@/pipeline/agents";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+} from "../../../src/infra/store/schedules.ts";
+import { handleAgentChange } from "../../../src/infra/vault/watcher.ts";
+import { agentRegistry } from "../../../src/pipeline/agents.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 
 function writeAgent(
 	agentsDir: string,

@@ -9,8 +9,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import type { VaultFolder } from "@/infra/config";
-import { checkPermission } from "@/infra/vault";
+import type { VaultFolder } from "../../../src/infra/config.ts";
+import { checkPermission } from "../../../src/infra/vault/index.ts";
 
 const FOLDER_PRIVATE: VaultFolder = {
 	path: "Private",

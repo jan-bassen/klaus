@@ -4,7 +4,7 @@ import {
 	settings,
 	type VaultFolder,
 	type VaultPermission,
-} from "@/infra/config";
+} from "../config.ts";
 
 export type VaultOp = "read" | "append" | "full";
 type PermissionCheck = "allowed" | "needsConfirm" | "denied";

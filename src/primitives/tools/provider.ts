@@ -10,7 +10,7 @@
  */
 
 import type { ChatFunctionTool as ChatTool } from "@openrouter/sdk/models";
-import { log } from "@/infra/logger";
+import { log } from "../../infra/logger.ts";
 
 const SERVER_TOOLS: Record<string, ChatTool> = {
 	web_search: { type: "openrouter:web_search" },

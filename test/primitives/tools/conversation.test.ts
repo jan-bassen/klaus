@@ -3,22 +3,31 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { appendMessage, initHistoryStore } from "@/infra/store/history";
-import { conversationTool } from "@/primitives/tools/conversation";
-import { initAllStores } from "../../helpers/stores";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
-import { makeTurn } from "../../helpers/turn";
+import { appendMessage } from "../../../src/infra/store/history.ts";
+import { conversationTool } from "../../../src/primitives/tools/conversation.ts";
+import { initAllStores } from "../../helpers/stores.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
+import { makeTurn } from "../../helpers/turn.ts";
 
 async function addMsg(
 	role: "user" | "assistant",
 	content: string,
 	externalId?: string,
 ): Promise<string> {
+	if (role === "assistant") {
+		return appendMessage({
+			role,
+			content,
+			...(externalId ? { externalId } : {}),
+			agent: "coach",
+			runId: crypto.randomUUID(),
+		});
+	}
+
 	return appendMessage({
 		role,
 		content,
 		...(externalId ? { externalId } : {}),
-		...(role === "assistant" ? { agent: "coach", runId: crypto.randomUUID() } : {}),
 	});
 }
 
@@ -40,10 +49,7 @@ describe("conversationTool: text search", () => {
 		await addMsg("user", "What should I eat for lunch?");
 
 		const ctx = makeTurn();
-		const result = await conversationTool.execute(
-			{ query: "run" },
-			ctx,
-		);
+		const result = await conversationTool.execute({ query: "run" }, ctx);
 
 		expect(result).toMatchObject({
 			count: 2,
@@ -60,7 +66,10 @@ describe("conversationTool: text search", () => {
 			ctx,
 		);
 
-		expect(result).toMatchObject({ results: [], message: "No messages found." });
+		expect(result).toMatchObject({
+			results: [],
+			message: "No messages found.",
+		});
 	});
 
 	it("respects the limit parameter", async () => {
@@ -110,7 +119,10 @@ describe("conversationTool: around_message_id", () => {
 			ctx,
 		);
 
-		expect(result).toMatchObject({ results: [], message: "No messages found." });
+		expect(result).toMatchObject({
+			results: [],
+			message: "No messages found.",
+		});
 	});
 });
 
@@ -136,7 +148,10 @@ describe("conversationTool: time filters", () => {
 			ctx,
 		);
 
-		expect(result).toMatchObject({ results: [], message: "No messages found." });
+		expect(result).toMatchObject({
+			results: [],
+			message: "No messages found.",
+		});
 	});
 
 	it("before filter excludes messages after the timestamp", async () => {
@@ -149,7 +164,10 @@ describe("conversationTool: time filters", () => {
 			ctx,
 		);
 
-		expect(result).toMatchObject({ results: [], message: "No messages found." });
+		expect(result).toMatchObject({
+			results: [],
+			message: "No messages found.",
+		});
 	});
 });
 
@@ -173,7 +191,7 @@ describe("conversationTool: message formatting", () => {
 		const result = await conversationTool.execute({}, ctx);
 
 		expect(result).toMatchObject({ count: 2 });
-		if (typeof result === "object" && "messages" in result) {
+		if (result && typeof result === "object" && "messages" in result) {
 			expect(result.messages as string).toContain("fitness");
 		}
 	});

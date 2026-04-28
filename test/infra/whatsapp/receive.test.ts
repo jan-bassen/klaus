@@ -1,9 +1,9 @@
-import type { WAMessage } from "@whiskeysockets/baileys";
+import type { WAMessage } from "baileys";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { settings } from "@/infra/config";
-import { initFilesStore } from "@/infra/store/files";
-import { normalizeMessage } from "@/infra/whatsapp/receive";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+import { settings } from "../../../src/infra/config.ts";
+import { initFilesStore } from "../../../src/infra/store/files.ts";
+import { normalizeMessage } from "../../../src/infra/whatsapp/receive.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 
 const baileysMocks = vi.hoisted(() => ({
 	downloadMediaMessage: vi.fn(),
@@ -14,13 +14,13 @@ const sendMocks = vi.hoisted(() => ({
 	wasSentByUs: vi.fn(),
 }));
 
-vi.mock("@whiskeysockets/baileys", () => baileysMocks);
+vi.mock("baileys", () => baileysMocks);
 
-vi.mock("@/pipeline", () => ({
+vi.mock("../../../src/pipeline/index.ts", () => ({
 	handleTurn: vi.fn(),
 }));
 
-vi.mock("@/infra/whatsapp/send", () => ({
+vi.mock("../../../src/infra/whatsapp/send.ts", () => ({
 	enqueueMessage: vi.fn(),
 	setSocket: vi.fn(),
 	wasSentByUs: sendMocks.wasSentByUs,

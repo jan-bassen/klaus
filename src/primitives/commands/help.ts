@@ -1,11 +1,11 @@
-import { type ModelTier, settings } from "@/infra/config";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { enqueueMessage } from "@/infra/whatsapp/send";
-import { agentRegistry, getDefaultAgent } from "@/pipeline/agents";
-import { overrideRegistry } from "@/pipeline/overrides";
-import type { Command } from "@/primitives/commands";
-import { registry } from "@/primitives/commands";
-import { getVariables } from "@/primitives/variables";
+import { type ModelTier, settings } from "../../infra/config.ts";
+import type { InboundMessage } from "../../infra/whatsapp/receive.ts";
+import { enqueueMessage } from "../../infra/whatsapp/send.ts";
+import { agentRegistry, getDefaultAgent } from "../../pipeline/agents.ts";
+import { overrideRegistry } from "../../pipeline/overrides.ts";
+import { getVariables } from "../variables/index.ts";
+import type { Command } from "./index.ts";
+import { registry } from "./index.ts";
 
 const TIERS: ModelTier[] = ["small", "medium", "large"];
 

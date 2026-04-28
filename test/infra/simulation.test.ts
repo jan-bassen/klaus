@@ -7,9 +7,13 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { fakeExternal, fakeStateful, getOverlay } from "@/infra/simulation";
-import type { TurnContext } from "@/pipeline/core";
-import { makeTurn } from "../helpers/turn";
+import {
+	fakeExternal,
+	fakeStateful,
+	getOverlay,
+} from "../../src/infra/simulation.ts";
+import type { TurnContext } from "../../src/pipeline/core.ts";
+import { makeTurn } from "../helpers/turn.ts";
 
 describe("infra/simulation: overlay isolation", () => {
 	it("different TurnContext objects get different overlays (WeakMap identity)", () => {

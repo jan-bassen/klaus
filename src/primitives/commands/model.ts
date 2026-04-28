@@ -1,13 +1,14 @@
-import { type ModelTier, settings } from "@/infra/config";
-import { updateFrontmatter } from "@/infra/vault/markdown";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { enqueueMessage } from "@/infra/whatsapp/send";
+import { type ModelTier, settings } from "../../infra/config.ts";
+import { readText, writeData } from "../../infra/runtime.ts";
+import { updateFrontmatter } from "../../infra/vault/markdown.ts";
+import type { InboundMessage } from "../../infra/whatsapp/receive.ts";
+import { enqueueMessage } from "../../infra/whatsapp/send.ts";
 import {
 	type AgentDefinition,
 	agentRegistry,
 	getDefaultAgent,
-} from "@/pipeline/agents";
-import type { Command } from "@/primitives/commands";
+} from "../../pipeline/agents.ts";
+import type { Command } from "./index.ts";
 
 const VALID_TIERS = new Set<ModelTier>(["small", "medium", "large"]);
 
@@ -34,14 +35,14 @@ async function writeFrontmatter(
 	def: AgentDefinition,
 	patch: { provider?: string; modelTier?: ModelTier },
 ): Promise<void> {
-	const raw = await Bun.file(def.promptPath).text();
+	const raw = await readText(def.promptPath);
 	const updated = updateFrontmatter(raw, (fm) => {
 		const s = (fm.settings as Record<string, unknown>) ?? {};
 		if (patch.provider !== undefined) s.provider = patch.provider;
 		if (patch.modelTier !== undefined) s.modelTier = patch.modelTier;
 		fm.settings = s;
 	});
-	await Bun.write(def.promptPath, updated);
+	await writeData(def.promptPath, updated);
 	if (patch.provider !== undefined) def.settings.provider = patch.provider;
 	if (patch.modelTier !== undefined) def.settings.modelTier = patch.modelTier;
 }

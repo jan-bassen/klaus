@@ -1,7 +1,9 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { log } from "@/infra/logger";
+import { log } from "../logger.ts";
+
+import { readText, writeData } from "../runtime.ts";
 
 interface TimerStore {
 	setOnFire(fn: (entry: TimerEntry) => Promise<void>): void;
@@ -38,7 +40,7 @@ export function createTimerStore(env: TimerStoreEnv): TimerStore {
 
 	async function persist(): Promise<void> {
 		await mkdir(env.dataDir, { recursive: true });
-		await Bun.write(
+		await writeData(
 			timersPath(),
 			JSON.stringify([...timers.values()], null, 2),
 		);
@@ -73,7 +75,7 @@ export function createTimerStore(env: TimerStoreEnv): TimerStore {
 
 	async function load(): Promise<void> {
 		try {
-			const text = await Bun.file(timersPath()).text();
+			const text = await readText(timersPath());
 			const entries = z.array(TimerEntrySchema).parse(JSON.parse(text));
 			for (const entry of entries) {
 				timers.set(entry.id, entry);

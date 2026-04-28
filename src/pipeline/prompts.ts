@@ -20,12 +20,12 @@ import type {
 	ChatContentText,
 	ChatUserMessage,
 } from "@openrouter/sdk/models";
-import { settings } from "@/infra/config";
-import { log } from "@/infra/logger";
-import { hbs, interpolateUserVars } from "@/infra/vault/markdown";
-import type { TurnContext } from "@/pipeline/core";
-import { prepareImage } from "@/pipeline/media";
-import type { TurnConfig } from "./overrides";
+import { settings } from "../infra/config.ts";
+import { log } from "../infra/logger.ts";
+import { hbs, interpolateUserVars } from "../infra/vault/markdown.ts";
+import type { TurnContext } from "./core.ts";
+import { prepareImage } from "./media.ts";
+import type { TurnConfig } from "./overrides.ts";
 
 /** User-message content as accepted by the chat completions API. */
 export type UserContent = ChatUserMessage["content"];

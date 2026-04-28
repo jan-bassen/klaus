@@ -13,11 +13,11 @@
  * immediately reads it back sees its own simulated write.
  */
 
-import type { FileMeta } from "@/infra/store/files";
-import type { ScheduleEntry } from "@/infra/store/schedules";
-import type { TimerEntry } from "@/infra/store/timers";
-import type { TurnContext } from "@/pipeline/core";
-import type { SideEffect } from "@/primitives/tools";
+import type { TurnContext } from "../pipeline/core.ts";
+import type { SideEffect } from "../primitives/tools/index.ts";
+import type { FileMeta } from "./store/files.ts";
+import type { ScheduleEntry } from "./store/schedules.ts";
+import type { TimerEntry } from "./store/timers.ts";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

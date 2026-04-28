@@ -1,9 +1,10 @@
-import { settings } from "@/infra/config";
-import { updateFrontmatter } from "@/infra/vault/markdown";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { enqueueMessage } from "@/infra/whatsapp/send";
-import { agentRegistry, getDefaultAgent } from "@/pipeline/agents";
-import type { Command } from "@/primitives/commands";
+import { settings } from "../../infra/config.ts";
+import { readText, writeData } from "../../infra/runtime.ts";
+import { updateFrontmatter } from "../../infra/vault/markdown.ts";
+import type { InboundMessage } from "../../infra/whatsapp/receive.ts";
+import { enqueueMessage } from "../../infra/whatsapp/send.ts";
+import { agentRegistry, getDefaultAgent } from "../../pipeline/agents.ts";
+import type { Command } from "./index.ts";
 
 const VALID = new Set(["on", "off", "auto"] as const);
 type VoiceMode = "on" | "off" | "auto";
@@ -60,13 +61,13 @@ export const voiceCommand: Command = {
 		}
 
 		try {
-			const raw = await Bun.file(def.promptPath).text();
+			const raw = await readText(def.promptPath);
 			const updated = updateFrontmatter(raw, (fm) => {
 				const s = (fm.settings as Record<string, unknown>) ?? {};
 				s.voice = input;
 				fm.settings = s;
 			});
-			await Bun.write(def.promptPath, updated);
+			await writeData(def.promptPath, updated);
 			def.settings.voice = input;
 
 			enqueueMessage({

@@ -7,8 +7,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { formatUserError } from "@/errors";
-import { LlmTimeoutError } from "@/pipeline/core";
+import { formatUserError } from "../src/errors.ts";
+import { LlmTimeoutError } from "../src/pipeline/core.ts";
 
 describe("errors: formatUserError", () => {
 	it("returns timeout message for LlmTimeoutError", () => {

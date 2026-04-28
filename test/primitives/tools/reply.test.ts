@@ -8,10 +8,10 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { replyTool } from "@/primitives/tools/reply";
-import { makeTurn } from "../../helpers/turn";
+import { replyTool } from "../../../src/primitives/tools/reply.ts";
+import { makeTurn } from "../../helpers/turn.ts";
 
-vi.mock("@/infra/whatsapp/send", () => ({
+vi.mock("../../../src/infra/whatsapp/send.ts", () => ({
 	enqueueMessage: vi.fn(),
 }));
 
@@ -27,10 +27,7 @@ describe("primitives/tools/reply: collector branch", () => {
 	it("pushes content into the parent's _replyCollector and short-circuits", async () => {
 		const collector: string[] = [];
 		const turn = makeTurn({ _replyCollector: collector });
-		const result = await replyTool.execute(
-			{ content: "child reply" },
-			turn,
-		);
+		const result = await replyTool.execute({ content: "child reply" }, turn);
 		expect(result).toBe("sent");
 		expect(collector).toEqual(["child reply"]);
 	});
@@ -47,10 +44,7 @@ describe("primitives/tools/reply: collector branch", () => {
 describe("primitives/tools/reply: simulate handler", () => {
 	it("returns a sim-only marker when no collector is present", async () => {
 		const turn = makeTurn();
-		const result = await replyTool.simulate?.(
-			{ content: "would send" },
-			turn,
-		);
+		const result = await replyTool.simulate?.({ content: "would send" }, turn);
 		expect(result).toBe("(sim) reply not sent");
 	});
 

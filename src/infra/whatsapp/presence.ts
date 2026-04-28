@@ -1,5 +1,5 @@
-import { log } from "@/infra/logger";
-import { getSocket } from "./connection";
+import { log } from "../logger.ts";
+import { getSocket } from "./connection.ts";
 
 /**
  * Send a "composing" (typing...) presence update for the given chat.

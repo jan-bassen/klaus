@@ -1,13 +1,14 @@
 import type { FSWatcher } from "node:fs";
 import { existsSync, watch } from "node:fs";
-import { loadSettingsFromDisk, settings } from "@/infra/config";
-import { log } from "@/infra/logger";
-import { addSchedule, removeSchedule } from "@/infra/store/schedules";
-import { enqueueMessage } from "@/infra/whatsapp/send";
-import { agentRegistry, loadAgentDefinition } from "@/pipeline/agents";
-import { loadOverrides } from "@/pipeline/overrides";
-import { invalidateTemplate } from "@/pipeline/prompts";
-import { parseSkillMeta, skillRegistry } from "@/primitives/tools/skill";
+import { agentRegistry, loadAgentDefinition } from "../../pipeline/agents.ts";
+import { loadOverrides } from "../../pipeline/overrides.ts";
+import { invalidateTemplate } from "../../pipeline/prompts.ts";
+import { parseSkillMeta, skillRegistry } from "../../primitives/tools/skill.ts";
+import { loadSettingsFromDisk, settings } from "../config.ts";
+import { log } from "../logger.ts";
+import { readText } from "../runtime.ts";
+import { addSchedule, removeSchedule } from "../store/schedules.ts";
+import { enqueueMessage } from "../whatsapp/send.ts";
 
 const watchers: FSWatcher[] = [];
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -149,7 +150,7 @@ async function handleSkillChange(
 	}
 
 	try {
-		const raw = await Bun.file(filePath).text();
+		const raw = await readText(filePath);
 
 		skillRegistry.set(name, parseSkillMeta(name, raw));
 		log.info(`[watcher] skill reloaded: ${name}`);

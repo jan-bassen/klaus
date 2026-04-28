@@ -13,8 +13,8 @@ import {
 	persistFileBlob,
 	rebuildFileIndex,
 	updateFileMessageId,
-} from "@/infra/store/files";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+} from "../../../src/infra/store/files.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 
 describe("infra/store/files: persistFileBlob", () => {
 	let tmpDir: string;

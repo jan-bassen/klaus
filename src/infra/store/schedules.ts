@@ -2,7 +2,9 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { Cron } from "croner";
 import { z } from "zod";
-import { log } from "@/infra/logger";
+import { log } from "../logger.ts";
+
+import { readText, writeData } from "../runtime.ts";
 
 interface ScheduleStore {
 	setOnFire(fn: (entry: ScheduleEntry) => Promise<void>): void;
@@ -43,7 +45,7 @@ export function createScheduleStore(env: ScheduleStoreEnv): ScheduleStore {
 
 	async function persist(): Promise<void> {
 		await mkdir(env.dataDir, { recursive: true });
-		await Bun.write(
+		await writeData(
 			schedulesPath(),
 			JSON.stringify([...schedules.values()], null, 2),
 		);
@@ -68,7 +70,7 @@ export function createScheduleStore(env: ScheduleStoreEnv): ScheduleStore {
 
 	async function load(): Promise<void> {
 		try {
-			const text = await Bun.file(schedulesPath()).text();
+			const text = await readText(schedulesPath());
 			const entries = z.array(ScheduleEntrySchema).parse(JSON.parse(text));
 			for (const entry of entries) {
 				schedules.set(entry.id, entry);

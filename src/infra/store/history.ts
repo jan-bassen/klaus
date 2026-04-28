@@ -1,11 +1,11 @@
 import { appendFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { settings } from "@/infra/config";
-import { log } from "@/infra/logger";
-import type { Trigger } from "@/pipeline/core";
-import { localDateString } from ".";
-
+import type { Trigger } from "../../pipeline/core.ts";
+import { settings } from "../config.ts";
+import { log } from "../logger.ts";
+import { readText } from "../runtime.ts";
+import { localDateString } from "./index.ts";
 /** Mirrors the `Trigger` discriminated union in `src/types.ts`. */
 export const TriggerSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("message"), messageId: z.string() }),
@@ -145,16 +145,12 @@ const ConversationEventSchema = z.discriminatedUnion("kind", [
 	ConversationBreakEventSchema,
 ]);
 
-type ConversationMessageEvent = z.infer<
-	typeof ConversationMessageEventSchema
->;
+type ConversationMessageEvent = z.infer<typeof ConversationMessageEventSchema>;
 type ConversationAckEvent = z.infer<typeof ConversationAckEventSchema>;
 type ConversationReactionEvent = z.infer<
 	typeof ConversationReactionEventSchema
 >;
-type ConversationBreakEvent = z.infer<
-	typeof ConversationBreakEventSchema
->;
+type ConversationBreakEvent = z.infer<typeof ConversationBreakEventSchema>;
 type ConversationEvent = z.infer<typeof ConversationEventSchema>;
 
 // -- Merged message type returned by getConversation --
@@ -375,7 +371,7 @@ export function createConversationStore(
 		const allLines: string[] = [];
 		for (const filePath of relevantFiles) {
 			try {
-				const text = await Bun.file(filePath).text();
+				const text = await readText(filePath);
 				for (const line of text.split("\n")) {
 					if (line.trim()) allLines.push(line);
 				}
@@ -408,7 +404,7 @@ export function createConversationStore(
 
 		for (const filePath of allFiles) {
 			try {
-				const text = await Bun.file(filePath).text();
+				const text = await readText(filePath);
 				for (const line of text.split("\n")) {
 					if (line.trim()) allLines.push(line);
 				}
@@ -485,7 +481,7 @@ export function createConversationStore(
 		for (const filePath of relevantFiles) {
 			let text: string;
 			try {
-				text = await Bun.file(filePath).text();
+				text = await readText(filePath);
 			} catch {
 				continue;
 			}
@@ -520,7 +516,7 @@ export function createConversationStore(
 		for (const filePath of allFiles) {
 			let text: string;
 			try {
-				text = await Bun.file(filePath).text();
+				text = await readText(filePath);
 			} catch {
 				continue;
 			}

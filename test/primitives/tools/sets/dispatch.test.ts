@@ -2,14 +2,14 @@
  * `primitives/tools/sets/dispatch.ts` — `parseRunAt` (the only piece worth
  * unit-testing without dragging in the dispatch + executeAgent stack).
  *
- * The dispatch tool execute paths involve mocks of `@/pipeline/dispatch` +
- * `@/infra/store/timers` + `@/infra/store/schedules` and don't pay for
+ * The dispatch tool execute paths involve mocks of `src/pipeline/dispatch.ts` +
+ * `src/infra/store/timers.ts` + `src/infra/store/schedules.ts` and don't pay for
  * themselves as sanity checks for tinkering — the tool's logic is mostly
  * forwarding. We cover end-to-end behaviour separately via the store tests.
  */
 
 import { describe, expect, it } from "vitest";
-import { parseRunAt } from "@/primitives/tools/sets/dispatch";
+import { parseRunAt } from "../../../../src/primitives/tools/sets/dispatch.ts";
 
 describe("parseRunAt", () => {
 	it("'30m' → now + 30*60*1000 (±tolerance)", () => {

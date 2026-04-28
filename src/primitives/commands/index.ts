@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { log } from "@/infra/logger";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-
+import { log } from "../../infra/logger.ts";
+import { scanFiles } from "../../infra/runtime.ts";
+import type { InboundMessage } from "../../infra/whatsapp/receive.ts";
 export interface Command {
 	name: string;
 	aliases?: string[];
@@ -72,8 +72,7 @@ function isCommand(x: unknown): x is Command {
  * Follows the same auto-discovery pattern as loadAllTools() and loadContextVariables().
  */
 export async function loadCommands(commandsDir: string): Promise<void> {
-	const glob = new Bun.Glob("*.ts");
-	for await (const file of glob.scan({ cwd: commandsDir })) {
+	for await (const file of scanFiles(commandsDir, "*.ts")) {
 		if (file === "index.ts") continue;
 		try {
 			const mod = (await import(`${commandsDir}/${file}`)) as Record<

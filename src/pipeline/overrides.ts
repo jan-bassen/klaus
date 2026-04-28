@@ -10,10 +10,10 @@
 
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { type AgentVaultEntry, modelTiers, settings } from "@/infra/config";
-import { log } from "@/infra/logger";
-import type { AgentDefinition } from "./agents";
-
+import { type AgentVaultEntry, modelTiers, settings } from "../infra/config.ts";
+import { log } from "../infra/logger.ts";
+import { readText } from "../infra/runtime.ts";
+import type { AgentDefinition } from "./agents.ts";
 // ── TurnConfig ─────────────────────────────────────────────────────────────
 
 /**
@@ -129,7 +129,7 @@ export async function loadOverrides(yamlPath?: string): Promise<void> {
 
 	let raw: string;
 	try {
-		raw = await Bun.file(filePath).text();
+		raw = await readText(filePath);
 	} catch {
 		log.warn("[config] overrides.yml not found, no presets loaded");
 		return;

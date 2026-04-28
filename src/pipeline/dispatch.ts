@@ -13,13 +13,13 @@
  * pass no collector, so their reply tools fall through to WhatsApp directly.
  */
 
-import { settings } from "@/infra/config";
-import { log } from "@/infra/logger";
-import { agentRegistry, getOrLoadAgent } from "@/pipeline/agents";
-import type { Trigger, TurnContext } from "@/pipeline/core";
-import { executeAgent } from "@/pipeline/core";
-import { buildTurnConfig } from "@/pipeline/overrides";
-import { getVariables } from "@/primitives/variables";
+import { settings } from "../infra/config.ts";
+import { log } from "../infra/logger.ts";
+import { getVariables } from "../primitives/variables/index.ts";
+import { agentRegistry, getOrLoadAgent } from "./agents.ts";
+import type { Trigger, TurnContext } from "./core.ts";
+import { executeAgent } from "./core.ts";
+import { buildTurnConfig } from "./overrides.ts";
 
 interface DispatchOptions {
 	agent: string;

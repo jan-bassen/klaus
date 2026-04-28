@@ -1,29 +1,30 @@
 import { mkdir, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { settings } from "@/infra/config";
-import { getOverlay } from "@/infra/simulation";
+import { settings } from "../../../infra/config.ts";
+import { readText, scanFiles, writeData } from "../../../infra/runtime.ts";
+import { getOverlay } from "../../../infra/simulation.ts";
 import {
 	checkPermission,
 	getReadableFolders,
 	type VaultOp,
-} from "@/infra/vault";
+} from "../../../infra/vault/index.ts";
 import {
 	extractFrontmatterTags,
 	extractWikilinks,
 	findSection,
 	listHeadings,
 	wikilinkTargetPattern,
-} from "@/infra/vault/markdown";
+} from "../../../infra/vault/markdown.ts";
 import {
 	gateVaultTool,
 	readSimulatedVaultContent,
 	vaultMap,
 	vaultRoot,
 	walkVaultDir,
-} from "@/infra/vault/tools";
-import type { TurnContext } from "@/pipeline/core";
-import type { ToolDefinition, ToolsetDefinition } from "@/primitives/tools";
+} from "../../../infra/vault/tools.ts";
+import type { TurnContext } from "../../../pipeline/core.ts";
+import type { ToolDefinition, ToolsetDefinition } from "../index.ts";
 
 interface AppendUpdate {
 	content: string;
@@ -90,7 +91,7 @@ async function readVaultNote(
 	try {
 		return {
 			absolutePath: result,
-			text: await Bun.file(result).text(),
+			text: await readText(result),
 		};
 	} catch {
 		return `Note not found: ${rel}`;
@@ -115,7 +116,7 @@ export const vaultReadTool: ToolDefinition<typeof vaultReadSchema> = {
 		if (typeof result === "object") return result.error;
 
 		try {
-			return await Bun.file(result).text();
+			return await readText(result);
 		} catch {
 			return `Note not found: ${rel}`;
 		}
@@ -148,7 +149,6 @@ export const vaultSearchTool: ToolDefinition<typeof vaultSearchSchema> = {
 		"Full-text search across all markdown notes in the vault. Returns matching file paths with context lines.",
 	inputSchema: vaultSearchSchema,
 	execute: async ({ query, limit }, context) => {
-		const glob = new Bun.Glob("**/*.md");
 		const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
 		if (terms.length === 0) return "Empty query.";
 
@@ -158,11 +158,11 @@ export const vaultSearchTool: ToolDefinition<typeof vaultSearchSchema> = {
 		for (const { absolutePath } of readable) {
 			if (results.length >= limit) break;
 
-			for await (const file of glob.scan({ cwd: absolutePath })) {
+			for await (const file of scanFiles(absolutePath, "**/*.md")) {
 				if (results.length >= limit) break;
 
 				try {
-					const text = await Bun.file(path.join(absolutePath, file)).text();
+					const text = await readText(path.join(absolutePath, file));
 					const lower = text.toLowerCase();
 					if (terms.every((t) => lower.includes(t))) {
 						const lines = text.split("\n");
@@ -344,7 +344,7 @@ export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
 		if (typeof result === "object") return result.error;
 
 		await mkdir(path.dirname(result), { recursive: true });
-		await Bun.write(result, content);
+		await writeData(result, content);
 		return `Written: ${rel}`;
 	},
 	simulate: async ({ path: rel, content }, context) => {
@@ -384,14 +384,14 @@ export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
 
 		let existing = "";
 		try {
-			existing = await Bun.file(result).text();
+			existing = await readText(result);
 		} catch {
 			await mkdir(path.dirname(result), { recursive: true });
 		}
 
 		const updated = buildAppendUpdate(existing, content, heading, rel);
 		if (typeof updated === "string") return updated;
-		await Bun.write(result, updated.content);
+		await writeData(result, updated.content);
 		return updated.message;
 	},
 	simulate: async ({ path: rel, content, heading }, context) => {
@@ -425,15 +425,14 @@ export const vaultBacklinksTool: ToolDefinition<typeof vaultBacklinksSchema> = {
 		"Find all notes that link to a given note via [[wikilinks]]. Returns file paths with the linking line.",
 	inputSchema: vaultBacklinksSchema,
 	execute: async ({ noteName }, context) => {
-		const glob = new Bun.Glob("**/*.md");
 		const pattern = wikilinkTargetPattern(noteName);
 		const readable = getReadableFolders(vaultMap(context));
 		const results: string[] = [];
 
 		for (const { absolutePath } of readable) {
-			for await (const file of glob.scan({ cwd: absolutePath })) {
+			for await (const file of scanFiles(absolutePath, "**/*.md")) {
 				try {
-					const text = await Bun.file(path.join(absolutePath, file)).text();
+					const text = await readText(path.join(absolutePath, file));
 					const lines = text.split("\n");
 					const match = lines.find((l) => pattern.test(l));
 					if (match) {
@@ -499,7 +498,6 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 
 		const oldName = path.basename(from, ".md");
 		const newName = path.basename(to, ".md");
-		const glob = new Bun.Glob("**/*.md");
 		const pattern = wikilinkTargetPattern(oldName, "gi");
 
 		let updatedCount = 0;
@@ -511,14 +509,14 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 			const canWrite =
 				checkPermission(folder, "full", vaultMap(context)) === "allowed";
 
-			for await (const file of glob.scan({ cwd: absolutePath })) {
+			for await (const file of scanFiles(absolutePath, "**/*.md")) {
 				const filePath = path.join(absolutePath, file);
 				try {
-					const text = await Bun.file(filePath).text();
+					const text = await readText(filePath);
 					const updated = text.replace(pattern, `[[${newName}$1]]`);
 					if (updated !== text) {
 						if (canWrite) {
-							await Bun.write(filePath, updated);
+							await writeData(filePath, updated);
 							updatedCount++;
 						} else {
 							const vaultRel = path.relative(vaultRoot(), filePath);
@@ -628,7 +626,7 @@ export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
 			newContent,
 			...lines.slice(section.endIdx),
 		].join("\n");
-		await Bun.write(note.absolutePath, updated);
+		await writeData(note.absolutePath, updated);
 		return `Patched section "${heading}" in ${rel}.`;
 	},
 	simulate: async ({ path: rel, heading, newContent }, context) => {
@@ -674,15 +672,14 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 		"Find notes by frontmatter tag, or list all tags used across the vault. Use list: true to discover available tags.",
 	inputSchema: vaultTagsSchema,
 	execute: async ({ tags, list }, context) => {
-		const glob = new Bun.Glob("**/*.md");
 		const readable = getReadableFolders(vaultMap(context));
 
 		if (list) {
 			const allTags = new Set<string>();
 			for (const { absolutePath } of readable) {
-				for await (const file of glob.scan({ cwd: absolutePath })) {
+				for await (const file of scanFiles(absolutePath, "**/*.md")) {
 					try {
-						const text = await Bun.file(path.join(absolutePath, file)).text();
+						const text = await readText(path.join(absolutePath, file));
 						for (const t of extractFrontmatterTags(text)) allTags.add(t);
 					} catch {
 						// Skip unreadable files
@@ -700,9 +697,9 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 		const searchTags = new Set(tags.map((t) => t.toLowerCase()));
 		const results: string[] = [];
 		for (const { absolutePath } of readable) {
-			for await (const file of glob.scan({ cwd: absolutePath })) {
+			for await (const file of scanFiles(absolutePath, "**/*.md")) {
 				try {
-					const text = await Bun.file(path.join(absolutePath, file)).text();
+					const text = await readText(path.join(absolutePath, file));
 					const noteTags = extractFrontmatterTags(text).map((t) =>
 						t.toLowerCase(),
 					);

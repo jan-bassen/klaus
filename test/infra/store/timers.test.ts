@@ -2,12 +2,13 @@
  * `infra/store/timers.ts` — one-shot persistence + firing.
  *
  * Real fs I/O into `makeTmpDir`. Real `setTimeout` with short delays so we
- * don't fight Bun's timer semantics under `vi.useFakeTimers()`.
+ * don't fight runtime timer semantics under `vi.useFakeTimers()`.
  */
 
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { readText, writeData } from "../../../src/infra/runtime.ts";
 import {
 	addTimer,
 	createTimerStore,
@@ -16,8 +17,8 @@ import {
 	removeTimer,
 	stopAllTimers,
 	type TimerEntry,
-} from "@/infra/store/timers";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+} from "../../../src/infra/store/timers.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 
 function makeEntry(overrides: Partial<TimerEntry> = {}): TimerEntry {
 	return {
@@ -58,7 +59,7 @@ describe("infra/store/timers: add/list/remove", () => {
 		expect(removed).toBe(true);
 		expect(listTimers()).toEqual([]);
 
-		const text = await Bun.file(path.join(tmpDir, "timers.json")).text();
+		const text = await readText(path.join(tmpDir, "timers.json"));
 		expect(JSON.parse(text)).toEqual([]);
 	});
 
@@ -98,7 +99,7 @@ describe("infra/store/timers: firing", () => {
 		expect(fired).toEqual([e]);
 		expect(store.list()).toEqual([]);
 
-		const text = await Bun.file(path.join(tmpDir, "timers.json")).text();
+		const text = await readText(path.join(tmpDir, "timers.json"));
 		expect(JSON.parse(text)).toEqual([]);
 	});
 
@@ -152,7 +153,7 @@ describe("infra/store/timers: persistence + reload", () => {
 
 		const file = path.join(tmpDir, "timers.json");
 		expect(existsSync(file)).toBe(true);
-		const parsed = JSON.parse(await Bun.file(file).text());
+		const parsed = JSON.parse(await readText(file));
 		expect(parsed).toEqual([e]);
 	});
 
@@ -178,7 +179,7 @@ describe("infra/store/timers: persistence + reload", () => {
 	});
 
 	it("missing/corrupt timers.json: load swallows and starts empty", async () => {
-		await Bun.write(path.join(tmpDir, "timers.json"), "{not json");
+		await writeData(path.join(tmpDir, "timers.json"), "{not json");
 		const store = createTimerStore({ dataDir: tmpDir });
 		await store.load();
 		expect(store.list()).toEqual([]);

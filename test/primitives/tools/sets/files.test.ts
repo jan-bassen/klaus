@@ -9,21 +9,22 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getOverlay } from "@/infra/simulation";
+import { readText } from "../../../../src/infra/runtime.ts";
+import { getOverlay } from "../../../../src/infra/simulation.ts";
 import {
 	type FileMeta,
 	initFilesStore,
 	persistFileBlob,
-} from "@/infra/store/files";
+} from "../../../../src/infra/store/files.ts";
 import {
 	filesDeleteTool,
 	filesDownloadTool,
 	filesListTool,
 	filesReadTool,
 	filesUploadTool,
-} from "@/primitives/tools/sets/files";
-import { makeTmpDir, rmTmpDir } from "../../../helpers/tmp";
-import { makeTurn } from "../../../helpers/turn";
+} from "../../../../src/primitives/tools/sets/files.ts";
+import { makeTmpDir, rmTmpDir } from "../../../helpers/tmp.ts";
+import { makeTurn } from "../../../helpers/turn.ts";
 
 async function seed(
 	name: string,
@@ -37,7 +38,7 @@ async function seed(
 		path: out.path,
 		mimeType: out.mimeType,
 		sizeBytes: out.sizeBytes,
-		createdAt: out.createdAt,
+		createdAt: new Date().toISOString(),
 	};
 }
 
@@ -76,10 +77,7 @@ describe("primitives/tools/sets/files: real execute paths", () => {
 	});
 
 	it("download missing → not-found message", async () => {
-		const out = await filesDownloadTool.execute(
-			{ name: "nope" },
-			makeTurn(),
-		);
+		const out = await filesDownloadTool.execute({ name: "nope" }, makeTurn());
 		expect(out).toBe("No file found for: nope");
 	});
 
@@ -125,9 +123,9 @@ describe("primitives/tools/sets/files: real execute paths", () => {
 		)) as string;
 		expect(out).toMatch(new RegExp(`\\(${meta.id}\\)$`));
 		expect(out).toMatch(/^Deleted [0-9a-f-]{36}\.\w+ /);
-		expect(
-			await filesDownloadTool.execute({ name: meta.id }, makeTurn()),
-		).toBe(`No file found for: ${meta.id}`);
+		expect(await filesDownloadTool.execute({ name: meta.id }, makeTurn())).toBe(
+			`No file found for: ${meta.id}`,
+		);
 	});
 });
 
@@ -184,7 +182,7 @@ describe("primitives/tools/sets/files: simulate overlay coherence", () => {
 		const out = await filesReadTool.simulate?.({ name: meta.id }, turn);
 		expect(out).toMatch(/sim-deleted earlier this turn/);
 		// Real file still on disk.
-		expect(await Bun.file(meta.path).text()).toBe("hi");
+		expect(await readText(meta.path)).toBe("hi");
 	});
 
 	it("list (sim) merges real rows with overlay sim-uploaded entries and tags them", async () => {

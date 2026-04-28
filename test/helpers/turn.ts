@@ -3,9 +3,9 @@
  * without going through `handleTurn`. Override any field via `patch`.
  */
 
-import type { AgentDefinition } from "@/pipeline/agents";
-import type { TurnContext } from "@/pipeline/core";
-import type { TurnConfig } from "@/pipeline/overrides";
+import type { AgentDefinition } from "../../src/pipeline/agents.ts";
+import type { TurnContext } from "../../src/pipeline/core.ts";
+import type { TurnConfig } from "../../src/pipeline/overrides.ts";
 
 export function makeTurn(patch: Partial<TurnContext> = {}): TurnContext {
 	const agent: AgentDefinition =

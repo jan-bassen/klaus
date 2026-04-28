@@ -60,6 +60,7 @@ export { hbs };
 // -- Frontmatter --
 
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import { readText } from "../runtime.ts";
 
 const fmEnvelope = /^---\n([\s\S]*?)\n---/;
 
@@ -203,7 +204,7 @@ const fmPattern = /^---\n[\s\S]*?\n---\n?/;
  */
 async function readPromptBody(promptPath: string): Promise<string> {
 	try {
-		const raw = await Bun.file(promptPath).text();
+		const raw = await readText(promptPath);
 		return raw.replace(fmPattern, "").trim();
 	} catch {
 		return "";

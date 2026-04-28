@@ -2,36 +2,43 @@
  * End-to-end happy path through `handleTurn`.
  *
  * Setup strategy:
- *   - Mock `@/infra/whatsapp/send` so `enqueueMessage` becomes a spy.
+ *   - Mock `src/infra/whatsapp/send.ts` so `enqueueMessage` becomes a spy.
  *   - Mock `@openrouter/sdk` so `new OpenRouter(...).chat.send` returns
  *     canned `ChatResult` payloads with a single `reply` tool call.
  *   - `initAllStores(tmpDir)` in beforeEach; point `settings.basics.allowedChatId`
- *     at a known chatId (mutate the live `settings` object from `@/infra/config`
+ *     at a known chatId (mutate the live `settings` object from `src/infra/config.ts`
  *     directly in beforeEach, or use `vi.resetModules` + dynamic import).
  *   - Register the `reply` tool and a minimal agent manually (bypass glob load).
  *
- * Universal gotcha: `@/infra/logger` eagerly reads settings — `test/setup.ts`
- * preloads `@/infra/config` to avoid the crash. Don't reorder.
+ * Universal gotcha: `src/infra/logger.ts` eagerly reads settings — `test/setup.ts`
+ * preloads `src/infra/config.ts` to avoid the crash. Don't reorder.
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { settings } from "@/infra/config";
-import { getConversation, getTraces } from "@/infra/store/history";
-import { readReports } from "@/infra/store/report";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { enqueueMessage, sendReaction } from "@/infra/whatsapp/send";
-import type { AgentDefinition } from "@/pipeline/agents";
-import { AgentSchema, agentRegistry, setDefaultAgent } from "@/pipeline/agents";
-import { handleTurn } from "@/pipeline/index";
-import { overrideRegistry } from "@/pipeline/overrides";
-import { registry as commandRegistry } from "@/primitives/commands";
-import { registerTool, type ToolDefinition } from "@/primitives/tools";
-import { replyTool } from "@/primitives/tools/reply";
-import { initAllStores } from "../helpers/stores";
-import { makeTmpDir, rmTmpDir } from "../helpers/tmp";
+import { settings } from "../../src/infra/config.ts";
+import { getConversation, getTraces } from "../../src/infra/store/history.ts";
+import { readReports } from "../../src/infra/store/report.ts";
+import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
+import { enqueueMessage, sendReaction } from "../../src/infra/whatsapp/send.ts";
+import type { AgentDefinition } from "../../src/pipeline/agents.ts";
+import {
+	AgentSchema,
+	agentRegistry,
+	setDefaultAgent,
+} from "../../src/pipeline/agents.ts";
+import { handleTurn } from "../../src/pipeline/index.ts";
+import { overrideRegistry } from "../../src/pipeline/overrides.ts";
+import { registry as commandRegistry } from "../../src/primitives/commands/index.ts";
+import {
+	registerTool,
+	type ToolDefinition,
+} from "../../src/primitives/tools/index.ts";
+import { replyTool } from "../../src/primitives/tools/reply.ts";
+import { initAllStores } from "../helpers/stores.ts";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 
 const sendMock = vi.hoisted(() => vi.fn());
 const probeSchema = z.object({ value: z.number() });
@@ -46,19 +53,21 @@ const probeTool: ToolDefinition<typeof probeSchema> = {
 };
 
 vi.mock("@openrouter/sdk", () => ({
-	OpenRouter: vi.fn(() => ({
-		chat: {
-			send: sendMock,
-		},
-	})),
+	OpenRouter: vi.fn(function OpenRouter() {
+		return {
+			chat: {
+				send: sendMock,
+			},
+		};
+	}),
 }));
 
-vi.mock("@/infra/whatsapp/send", () => ({
+vi.mock("../../src/infra/whatsapp/send.ts", () => ({
 	enqueueMessage: vi.fn(),
 	sendReaction: vi.fn(),
 }));
 
-vi.mock("@/infra/whatsapp/presence", () => ({
+vi.mock("../../src/infra/whatsapp/presence.ts", () => ({
 	startTyping: vi.fn(),
 	stopTyping: vi.fn(),
 }));

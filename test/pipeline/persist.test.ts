@@ -1,21 +1,26 @@
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { settings } from "@/infra/config";
-import { listTimers, stopAllTimers } from "@/infra/store/timers";
-import { type AgentDefinition, AgentSchema } from "@/pipeline/agents";
-import { persistDynamic } from "@/pipeline/persistence";
-import { initAllStores } from "../helpers/stores";
-import { makeTmpDir, rmTmpDir } from "../helpers/tmp";
-import { makeTurn } from "../helpers/turn";
+import { settings } from "../../src/infra/config.ts";
+import { listTimers, stopAllTimers } from "../../src/infra/store/timers.ts";
+import {
+	type AgentDefinition,
+	AgentSchema,
+} from "../../src/pipeline/agents.ts";
+import { persistDynamic } from "../../src/pipeline/persistence.ts";
+import { initAllStores } from "../helpers/stores.ts";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
+import { makeTurn } from "../helpers/turn.ts";
 
 const sendMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@openrouter/sdk", () => ({
-	OpenRouter: vi.fn(() => ({
-		chat: {
-			send: sendMock,
-		},
-	})),
+	OpenRouter: vi.fn(function OpenRouter() {
+		return {
+			chat: {
+				send: sendMock,
+			},
+		};
+	}),
 }));
 
 describe("pipeline/persistence.persistDynamic", () => {

@@ -1,9 +1,9 @@
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { log } from "@/infra/logger";
-import type { ToolDefinition } from "@/primitives/tools";
-import { toolsetRegistry } from "@/primitives/tools";
-
+import { log } from "../../infra/logger.ts";
+import { readText, scanFiles } from "../../infra/runtime.ts";
+import type { ToolDefinition } from "./index.ts";
+import { toolsetRegistry } from "./index.ts";
 export const SkillFrontmatterSchema = z.object({
 	description: z.string().min(1).optional(),
 	tools: z.array(z.string()).default([]),
@@ -43,9 +43,8 @@ export function parseSkillMeta(name: string, raw: string): SkillMeta {
  * Call once at startup from index.ts.
  */
 export async function loadSkills(skillsDir: string): Promise<void> {
-	const glob = new Bun.Glob("*.md");
-	for await (const file of glob.scan({ cwd: skillsDir })) {
-		const raw = await Bun.file(`${skillsDir}/${file}`).text();
+	for await (const file of scanFiles(skillsDir, "*.md")) {
+		const raw = await readText(`${skillsDir}/${file}`);
 		const name = file.replace(/\.md$/, "");
 
 		skillRegistry.set(name, parseSkillMeta(name, raw));
@@ -80,7 +79,7 @@ export function buildSkillTool(
 		execute: async ({ name }) => {
 			const filePath = `${skillsDir}/${name}.md`;
 			try {
-				const raw = await Bun.file(filePath).text();
+				const raw = await readText(filePath);
 				// Strip frontmatter — return only the content body
 				const content = raw.replace(/^---\n[\s\S]*?\n---\n?/, "");
 

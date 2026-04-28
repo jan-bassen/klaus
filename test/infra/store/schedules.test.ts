@@ -39,6 +39,7 @@ vi.mock("croner", () => ({
 	},
 }));
 
+import { readText, writeData } from "../../../src/infra/runtime.ts";
 import {
 	addSchedule,
 	createScheduleStore,
@@ -49,8 +50,8 @@ import {
 	type ScheduleEntry,
 	setOnCronFire,
 	stopAllSchedules,
-} from "@/infra/store/schedules";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+} from "../../../src/infra/store/schedules.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 
 function makeEntry(overrides: Partial<ScheduleEntry> = {}): ScheduleEntry {
 	return {
@@ -93,7 +94,7 @@ describe("infra/store/schedules: add/list/remove", () => {
 		await addSchedule(e);
 		expect(await removeSchedule(e.id)).toBe(true);
 		expect(getSchedules()).toEqual([]);
-		const text = await Bun.file(path.join(tmpDir, "schedules.json")).text();
+		const text = await readText(path.join(tmpDir, "schedules.json"));
 		expect(JSON.parse(text)).toEqual([]);
 	});
 
@@ -140,7 +141,7 @@ describe("infra/store/schedules: persistence", () => {
 		await addSchedule(e);
 		const file = path.join(tmpDir, "schedules.json");
 		expect(existsSync(file)).toBe(true);
-		expect(JSON.parse(await Bun.file(file).text())).toEqual([e]);
+		expect(JSON.parse(await readText(file))).toEqual([e]);
 	});
 
 	it("load reads file into memory across store reinit", async () => {
@@ -156,7 +157,7 @@ describe("infra/store/schedules: persistence", () => {
 	});
 
 	it("corrupt schedules.json: load swallows + starts empty", async () => {
-		await Bun.write(path.join(tmpDir, "schedules.json"), "{not json");
+		await writeData(path.join(tmpDir, "schedules.json"), "{not json");
 		const store = createScheduleStore({ dataDir: tmpDir, timezone: "UTC" });
 		await store.load();
 		expect(store.list()).toEqual([]);

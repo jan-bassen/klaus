@@ -1,12 +1,12 @@
-import { settings } from "@/infra/config";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { enqueueMessage } from "@/infra/whatsapp/send";
+import { settings } from "../../infra/config.ts";
+import type { InboundMessage } from "../../infra/whatsapp/receive.ts";
+import { enqueueMessage } from "../../infra/whatsapp/send.ts";
 import {
 	agentRegistry,
 	loadAgentDefinition,
 	setDefaultAgent,
-} from "@/pipeline/agents";
-import type { Command } from "@/primitives/commands";
+} from "../../pipeline/agents.ts";
+import type { Command } from "./index.ts";
 
 export const defaultCommand: Command = {
 	name: "default",

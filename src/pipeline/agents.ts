@@ -10,8 +10,10 @@
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { type ModelTier, modelTiers, settings } from "@/infra/config";
-import { log } from "@/infra/logger";
+import { type ModelTier, modelTiers, settings } from "../infra/config.ts";
+import { log } from "../infra/logger.ts";
+
+import { readText, scanFiles } from "../infra/runtime.ts";
 
 // ── Settings ───────────────────────────────────────────────────────────────
 
@@ -102,7 +104,7 @@ export type AgentDefinition = z.infer<typeof AgentSchema> & {
 export async function loadAgentDefinition(
 	promptPath: string,
 ): Promise<AgentDefinition> {
-	const raw = await Bun.file(promptPath).text();
+	const raw = await readText(promptPath);
 
 	const match = raw.match(/^---\n([\s\S]*?)\n---/);
 	if (!match) throw new Error(`No YAML frontmatter found in: ${promptPath}`);
@@ -122,8 +124,7 @@ export const agentRegistry = new Map<string, AgentDefinition>();
 
 /** Scan a directory of `.md` agent files into `agentRegistry`. */
 export async function loadAgents(agentsDir: string): Promise<void> {
-	const glob = new Bun.Glob("*.md");
-	for await (const file of glob.scan({ cwd: agentsDir })) {
+	for await (const file of scanFiles(agentsDir, "*.md")) {
 		try {
 			const def = await loadAgentDefinition(`${agentsDir}/${file}`);
 			agentRegistry.set(def.name, def);

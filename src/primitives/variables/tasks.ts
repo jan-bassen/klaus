@@ -1,5 +1,5 @@
-import { listTimers } from "@/infra/store/timers";
-import type { Variable } from "@/primitives/variables";
+import { listTimers } from "../../infra/store/timers.ts";
+import type { Variable } from "./index.ts";
 
 interface TaskEntry {
 	kind: "timer";

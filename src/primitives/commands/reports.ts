@@ -1,9 +1,9 @@
-import { settings } from "@/infra/config";
-import { readReports } from "@/infra/store/report";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { enqueueMessage } from "@/infra/whatsapp/send";
-import { renderTemplate } from "@/pipeline/prompts";
-import type { Command } from "@/primitives/commands";
+import { settings } from "../../infra/config.ts";
+import { readReports } from "../../infra/store/report.ts";
+import type { InboundMessage } from "../../infra/whatsapp/receive.ts";
+import { enqueueMessage } from "../../infra/whatsapp/send.ts";
+import { renderTemplate } from "../../pipeline/prompts.ts";
+import type { Command } from "./index.ts";
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;

@@ -2,20 +2,27 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { settings } from "@/infra/config";
-import { getOverlay } from "@/infra/simulation";
-import { appendMessage, appendTrace } from "@/infra/store/history";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { type AgentDefinition, AgentSchema } from "@/pipeline/agents";
-import { assembleContext } from "@/pipeline/context";
-import type { TurnContext } from "@/pipeline/core";
-import { registerTool, type ToolDefinition } from "@/primitives/tools";
-import type { Variable } from "@/primitives/variables";
-import { initAllStores } from "../helpers/stores";
-import { makeTmpDir, rmTmpDir } from "../helpers/tmp";
-import { makeTurn } from "../helpers/turn";
+import { settings } from "../../src/infra/config.ts";
+import { getOverlay } from "../../src/infra/simulation.ts";
+import { appendMessage, appendTrace } from "../../src/infra/store/history.ts";
+import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
+import {
+	type AgentDefinition,
+	AgentSchema,
+} from "../../src/pipeline/agents.ts";
+import { assembleContext } from "../../src/pipeline/context.ts";
+import type { TurnContext } from "../../src/pipeline/core.ts";
+import {
+	registerTool,
+	type ToolDefinition,
+} from "../../src/primitives/tools/index.ts";
+import type { Variable } from "../../src/primitives/variables/index.ts";
+import { initAllStores } from "../helpers/stores.ts";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
+import { makeTurn } from "../helpers/turn.ts";
 
 const valueSchema = z.object({ value: z.string().optional() });
+type ValueTool = ToolDefinition<typeof valueSchema>;
 
 describe("pipeline/context.assembleVariables", () => {
 	let tmpDir: string;
@@ -255,11 +262,11 @@ describe("pipeline/context.assembleHistory", () => {
 describe("pipeline/context.invokeTool simulation wrapper", () => {
 	let tmpDir: string;
 	let originalTemplatesDir: string;
-	let pureExecute: ReturnType<typeof vi.fn>;
-	let externalExecute: ReturnType<typeof vi.fn>;
-	let statefulExecute: ReturnType<typeof vi.fn>;
-	let simulatedExecute: ReturnType<typeof vi.fn>;
-	let simulateHandler: ReturnType<typeof vi.fn>;
+	let pureExecute: ValueTool["execute"];
+	let externalExecute: ValueTool["execute"];
+	let statefulExecute: ValueTool["execute"];
+	let simulatedExecute: ValueTool["execute"];
+	let simulateHandler: NonNullable<ValueTool["simulate"]>;
 
 	beforeEach(() => {
 		tmpDir = makeTmpDir();
@@ -267,11 +274,22 @@ describe("pipeline/context.invokeTool simulation wrapper", () => {
 		originalTemplatesDir = settings.vault.templatesDir;
 		writeTemplates(tmpDir);
 
-		pureExecute = vi.fn(async (input) => ({ real: "pure", input }));
-		externalExecute = vi.fn(async () => ({ real: "external" }));
-		statefulExecute = vi.fn(async () => ({ real: "stateful" }));
-		simulatedExecute = vi.fn(async () => ({ real: "simulated" }));
-		simulateHandler = vi.fn(async (input) => ({ simulated: true, input }));
+		pureExecute = vi.fn<ValueTool["execute"]>(async (input) => ({
+			real: "pure",
+			input,
+		}));
+		externalExecute = vi.fn<ValueTool["execute"]>(async () => ({
+			real: "external",
+		}));
+		statefulExecute = vi.fn<ValueTool["execute"]>(async () => ({
+			real: "stateful",
+		}));
+		simulatedExecute = vi.fn<ValueTool["execute"]>(async () => ({
+			real: "simulated",
+		}));
+		simulateHandler = vi.fn<NonNullable<ValueTool["simulate"]>>(
+			async (input) => ({ simulated: true, input }),
+		);
 
 		registerTool(makeTool("pure_echo", "pure", pureExecute));
 		registerTool(makeTool("external_send", "external", externalExecute));
@@ -491,8 +509,8 @@ function traceStep(toolName: string, result: unknown) {
 function makeTool(
 	name: string,
 	sideEffect: ToolDefinition["sideEffect"],
-	execute: ReturnType<typeof vi.fn>,
-	simulate?: ReturnType<typeof vi.fn>,
+	execute: ToolDefinition<typeof valueSchema>["execute"],
+	simulate?: ToolDefinition<typeof valueSchema>["simulate"],
 ): ToolDefinition<typeof valueSchema> {
 	return {
 		name,

@@ -1,27 +1,21 @@
-// Suppress Bun's compat warnings for ws npm package event listeners
-const _emitWarning = process.emitWarning.bind(process);
-process.emitWarning = (warning, ...args) => {
-	if (typeof warning === "string" && warning.includes("ws.WebSocket")) return;
-	// biome-ignore lint/suspicious/noExplicitAny: spread required for overloaded signature
-	_emitWarning(warning, ...(args as any[]));
-};
-
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readdir } from "node:fs/promises";
+import { createServer, type Server } from "node:http";
 import path from "node:path";
-import { formatUserError } from "./errors";
+import { fileURLToPath } from "node:url";
+import { formatUserError } from "./errors.ts";
 import {
 	loadSettingsFromDisk,
 	requiredStartupApiKeyEnvVars,
 	settings,
-} from "./infra/config";
-import { log } from "./infra/logger";
-import { initFilesStore, rebuildFileIndex } from "./infra/store/files";
+} from "./infra/config.ts";
+import { log } from "./infra/logger.ts";
+import { initFilesStore, rebuildFileIndex } from "./infra/store/files.ts";
 import {
 	initHistoryStore,
 	rebuildIndexes as rebuildConversationIndexes,
-} from "./infra/store/history";
-import { initReportStore } from "./infra/store/report";
+} from "./infra/store/history.ts";
+import { initReportStore } from "./infra/store/report.ts";
 import {
 	addSchedule,
 	initSchedulesStore,
@@ -30,33 +24,33 @@ import {
 	setOnCronFire,
 	startAllSchedules,
 	stopAllSchedules,
-} from "./infra/store/schedules";
+} from "./infra/store/schedules.ts";
 import {
 	initTimersStore,
 	loadTimers,
 	setOnTimerFire,
 	stopAllTimers,
 	type TimerEntry,
-} from "./infra/store/timers";
-import { type SyncHandle, startSync } from "./infra/vault/sync";
-import { startWatching, stopWatching } from "./infra/vault/watcher";
+} from "./infra/store/timers.ts";
+import { type SyncHandle, startSync } from "./infra/vault/sync.ts";
+import { startWatching, stopWatching } from "./infra/vault/watcher.ts";
 import {
 	closeSocket,
 	getConnectionState,
 	isConnected,
 	startConnection,
-} from "./infra/whatsapp/connection";
-import { ensureLoginFolder, startSoloWatcher } from "./infra/whatsapp/login";
-import { attachReceiveHandler } from "./infra/whatsapp/receive";
-import { drainQueue, enqueueMessage } from "./infra/whatsapp/send";
-import { agentRegistry, loadAgents } from "./pipeline/agents";
-import type { Trigger } from "./pipeline/core";
-import { dispatch } from "./pipeline/dispatch";
-import { loadOverrides } from "./pipeline/overrides";
-import { loadTemplates } from "./pipeline/prompts";
-import { loadAllTools } from "./primitives/tools";
-import { loadSkills, skillRegistry } from "./primitives/tools/skill";
-import { loadVariables, setVariables } from "./primitives/variables";
+} from "./infra/whatsapp/connection.ts";
+import { ensureLoginFolder, startSoloWatcher } from "./infra/whatsapp/login.ts";
+import { attachReceiveHandler } from "./infra/whatsapp/receive.ts";
+import { drainQueue, enqueueMessage } from "./infra/whatsapp/send.ts";
+import { agentRegistry, loadAgents } from "./pipeline/agents.ts";
+import type { Trigger } from "./pipeline/core.ts";
+import { dispatch } from "./pipeline/dispatch.ts";
+import { loadOverrides } from "./pipeline/overrides.ts";
+import { loadTemplates } from "./pipeline/prompts.ts";
+import { loadAllTools } from "./primitives/tools/index.ts";
+import { loadSkills, skillRegistry } from "./primitives/tools/skill.ts";
+import { loadVariables, setVariables } from "./primitives/variables/index.ts";
 
 const PORT = Number(process.env.PORT ?? 3000);
 if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
@@ -65,9 +59,12 @@ if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
 	);
 }
 
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+
 let shuttingDown = false;
 const shutdownController = new AbortController();
 let syncHandle: SyncHandle | null = null;
+let healthServer: Server | null = null;
 async function shutdown(signal: string): Promise<void> {
 	if (shuttingDown) return;
 	shuttingDown = true;
@@ -81,6 +78,7 @@ async function shutdown(signal: string): Promise<void> {
 	]);
 
 	closeSocket();
+	await closeHealthServer();
 
 	stopWatching();
 	stopAllSchedules();
@@ -101,7 +99,7 @@ process.on("SIGINT", () => {
  * Only copies files that don't already exist — never overwrites user customizations.
  */
 async function ensureDefaults(targetDir: string): Promise<void> {
-	const defaultsDir = path.join(import.meta.dir, "..", "vault");
+	const defaultsDir = path.join(MODULE_DIR, "..", "vault");
 	if (!existsSync(defaultsDir)) return;
 
 	async function copyDir(src: string, dest: string): Promise<void> {
@@ -147,6 +145,44 @@ async function runScheduledDispatch(
 			label: settings.whatsapp.systemLabel,
 		});
 	}
+}
+
+function startHealthServer(port: number): Server {
+	const server = createServer((req, res) => {
+		const url = new URL(
+			req.url ?? "/",
+			`http://${req.headers.host ?? "localhost"}`,
+		);
+		if (url.pathname === "/healthz") {
+			const whatsapp = getConnectionState();
+			const status = isConnected() ? "ok" : "degraded";
+			const version = process.env.VERSION ?? "dev";
+			const body = JSON.stringify({
+				status,
+				ts: new Date().toISOString(),
+				whatsapp,
+				version,
+			});
+			res.writeHead(200, { "Content-Type": "application/json" });
+			res.end(body);
+			return;
+		}
+
+		res.writeHead(404, { "Content-Type": "text/plain" });
+		res.end("Not Found");
+	});
+
+	server.listen(port);
+	return server;
+}
+
+async function closeHealthServer(): Promise<void> {
+	if (!healthServer) return;
+	const server = healthServer;
+	healthServer = null;
+	await new Promise<void>((resolve) => {
+		server.close(() => resolve());
+	});
 }
 
 async function main(): Promise<void> {
@@ -222,7 +258,7 @@ async function main(): Promise<void> {
 	initTimersStore({ dataDir: settings.dataDir });
 
 	log.info("[startup] loading tools, agents, variables, skills, and overrides");
-	await loadAllTools(path.join(import.meta.dir, "primitives", "tools"));
+	await loadAllTools(path.join(MODULE_DIR, "primitives", "tools"));
 	await loadOverrides();
 	loadTemplates();
 
@@ -230,14 +266,14 @@ async function main(): Promise<void> {
 	await loadAgents(agentsDir);
 
 	const variables = await loadVariables(
-		path.join(import.meta.dir, "primitives", "variables"),
+		path.join(MODULE_DIR, "primitives", "variables"),
 	);
 	setVariables(variables);
 
 	await loadSkills(settings.vault.skillsDir);
 
-	const { loadCommands } = await import("./primitives/commands");
-	await loadCommands(path.join(import.meta.dir, "primitives", "commands"));
+	const { loadCommands } = await import("./primitives/commands/index.ts");
+	await loadCommands(path.join(MODULE_DIR, "primitives", "commands"));
 
 	for (const def of agentRegistry.values()) {
 		for (const skill of def.skills ?? []) {
@@ -292,24 +328,7 @@ async function main(): Promise<void> {
 
 	startWatching(agentsDir, settings.vault.skillsDir);
 
-	Bun.serve({
-		port: PORT,
-		async fetch(req) {
-			const url = new URL(req.url);
-			if (url.pathname === "/healthz") {
-				const whatsapp = getConnectionState();
-				const status = isConnected() ? "ok" : "degraded";
-				const version = process.env.VERSION ?? "dev";
-				return Response.json({
-					status,
-					ts: new Date().toISOString(),
-					whatsapp,
-					version,
-				});
-			}
-			return new Response("Not Found", { status: 404 });
-		},
-	});
+	healthServer = startHealthServer(PORT);
 
 	log.info(`[startup] ready on port ${PORT}`);
 

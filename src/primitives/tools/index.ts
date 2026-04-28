@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { log } from "@/infra/logger";
-import type { TurnContext } from "@/pipeline/core";
-
+import { log } from "../../infra/logger.ts";
+import { scanFiles } from "../../infra/runtime.ts";
+import type { TurnContext } from "../../pipeline/core.ts";
 // -- Tool types (owned by this domain) --
 
 /**
@@ -103,13 +103,11 @@ const emptySchema = z.object({});
  * Any exported ToolsetDefinition, ToolDefinition, or ToolDefinition[] is registered automatically.
  */
 export async function loadAllTools(toolsDir: string): Promise<void> {
-	const standalone = new Bun.Glob("*.ts");
-	for await (const file of standalone.scan({ cwd: toolsDir })) {
+	for await (const file of scanFiles(toolsDir, "*.ts")) {
 		await loadToolModule(`${toolsDir}/${file}`);
 	}
 
-	const toolsets = new Bun.Glob("sets/*.ts");
-	for await (const file of toolsets.scan({ cwd: toolsDir })) {
+	for await (const file of scanFiles(toolsDir, "sets/*.ts")) {
 		await loadToolModule(`${toolsDir}/${file}`);
 	}
 }

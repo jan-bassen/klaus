@@ -1,14 +1,10 @@
-import type {
-	AnyMessageContent,
-	WAMessageKey,
-	WASocket,
-} from "@whiskeysockets/baileys";
+import type { AnyMessageContent, WAMessageKey, WASocket } from "baileys";
 
 /** Re-export so consumers import from whatsapp/, not from baileys directly. */
 export type { WAMessageKey as MessageKey };
 
-import { settings } from "@/infra/config";
-import { log } from "@/infra/logger";
+import { settings } from "../config.ts";
+import { log } from "../logger.ts";
 
 // -- Send queue types (owned by this domain) --
 
@@ -26,7 +22,7 @@ interface OutboundMessage {
 	label?: string;
 }
 
-import { getSocket } from "./connection";
+import { getSocket } from "./connection.ts";
 
 // Module-level socket reference set by attachReceiveHandler at startup.
 let _socket: WASocket | null = null;

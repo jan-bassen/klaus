@@ -5,7 +5,7 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { settings } from "@/infra/config";
+import { settings } from "../../src/infra/config.ts";
 import {
 	agentRegistry,
 	getDefaultAgent,
@@ -13,8 +13,8 @@ import {
 	loadAgentDefinition,
 	loadAgents,
 	setDefaultAgent,
-} from "@/pipeline/agents";
-import { makeTmpDir, rmTmpDir } from "../helpers/tmp";
+} from "../../src/pipeline/agents.ts";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 
 function writeAgent(dir: string, name: string, extra = ""): void {
 	writeFileSync(

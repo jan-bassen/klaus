@@ -2,31 +2,39 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { settings } from "@/infra/config";
-import { getTraces } from "@/infra/store/history";
-import { readReports } from "@/infra/store/report";
-import { listTimers, stopAllTimers } from "@/infra/store/timers";
-import { enqueueMessage } from "@/infra/whatsapp/send";
-import { type AgentDefinition, AgentSchema } from "@/pipeline/agents";
-import { executeAgent, LlmTimeoutError } from "@/pipeline/core";
-import { registerTool, type ToolDefinition } from "@/primitives/tools";
-import { initAllStores } from "../helpers/stores";
-import { makeTmpDir, rmTmpDir } from "../helpers/tmp";
-import { makeTurn } from "../helpers/turn";
+import { settings } from "../../src/infra/config.ts";
+import { getTraces } from "../../src/infra/store/history.ts";
+import { readReports } from "../../src/infra/store/report.ts";
+import { listTimers, stopAllTimers } from "../../src/infra/store/timers.ts";
+import { enqueueMessage } from "../../src/infra/whatsapp/send.ts";
+import {
+	type AgentDefinition,
+	AgentSchema,
+} from "../../src/pipeline/agents.ts";
+import { executeAgent, LlmTimeoutError } from "../../src/pipeline/core.ts";
+import {
+	registerTool,
+	type ToolDefinition,
+} from "../../src/primitives/tools/index.ts";
+import { initAllStores } from "../helpers/stores.ts";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
+import { makeTurn } from "../helpers/turn.ts";
 
 const sendMock = vi.hoisted(() => vi.fn());
 const replySchema = z.object({ content: z.string() });
 const probeSchema = z.object({ value: z.string().optional() });
 
 vi.mock("@openrouter/sdk", () => ({
-	OpenRouter: vi.fn(() => ({
-		chat: {
-			send: sendMock,
-		},
-	})),
+	OpenRouter: vi.fn(function OpenRouter() {
+		return {
+			chat: {
+				send: sendMock,
+			},
+		};
+	}),
 }));
 
-vi.mock("@/infra/whatsapp/send", () => ({
+vi.mock("../../src/infra/whatsapp/send.ts", () => ({
 	enqueueMessage: vi.fn(),
 }));
 

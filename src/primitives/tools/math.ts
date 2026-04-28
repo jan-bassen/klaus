@@ -1,6 +1,6 @@
 import { evaluate } from "mathjs";
 import { z } from "zod";
-import type { ToolDefinition } from "@/primitives/tools";
+import type { ToolDefinition } from "./index.ts";
 
 const schema = z.object({
 	expression: z

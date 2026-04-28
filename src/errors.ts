@@ -1,5 +1,5 @@
-import { LlmTimeoutError } from "@/pipeline/core";
-import { renderTemplate } from "@/pipeline/prompts";
+import { LlmTimeoutError } from "./pipeline/core.ts";
+import { renderTemplate } from "./pipeline/prompts.ts";
 
 type ErrorKind = "timeout" | "rate_limit" | "too_long" | "generic";
 

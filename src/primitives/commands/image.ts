@@ -1,10 +1,10 @@
-import { settings } from "@/infra/config";
-import { log } from "@/infra/logger";
-import { persistFileBlob } from "@/infra/store/files";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { enqueueMessage } from "@/infra/whatsapp/send";
-import { generateImage } from "@/pipeline/media";
-import type { Command } from "@/primitives/commands";
+import { settings } from "../../infra/config.ts";
+import { log } from "../../infra/logger.ts";
+import { persistFileBlob } from "../../infra/store/files.ts";
+import type { InboundMessage } from "../../infra/whatsapp/receive.ts";
+import { enqueueMessage } from "../../infra/whatsapp/send.ts";
+import { generateImage } from "../../pipeline/media.ts";
+import type { Command } from "./index.ts";
 
 export const imageCommand: Command = {
 	name: "image",

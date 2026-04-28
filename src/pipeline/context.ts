@@ -13,23 +13,23 @@ import type {
 	ChatFunctionTool as ChatTool,
 } from "@openrouter/sdk/models";
 import type { z } from "zod";
-import { settings } from "@/infra/config";
-import { log } from "@/infra/logger";
-import { fakeExternal, fakeStateful, getOverlay } from "@/infra/simulation";
-import { getConversation, getTraces } from "@/infra/store/history";
-import type { AgentDefinition } from "@/pipeline/agents";
-import type { ModelCallStep, TurnContext } from "@/pipeline/core";
-import { renderTemplate } from "@/pipeline/prompts";
-import type { ToolDefinition } from "@/primitives/tools";
+import { settings } from "../infra/config.ts";
+import { log } from "../infra/logger.ts";
+import { fakeExternal, fakeStateful, getOverlay } from "../infra/simulation.ts";
+import { getConversation, getTraces } from "../infra/store/history.ts";
+import type { ToolDefinition } from "../primitives/tools/index.ts";
 import {
 	generateMetaTool,
 	toolRegistry,
 	toolsetRegistry,
-} from "@/primitives/tools";
-import { getProviderTool } from "@/primitives/tools/provider";
-import { REPLY_TOOL_NAME } from "@/primitives/tools/reply";
-import { buildSkillTool, skillRegistry } from "@/primitives/tools/skill";
-import type { Variable } from "@/primitives/variables";
+} from "../primitives/tools/index.ts";
+import { getProviderTool } from "../primitives/tools/provider.ts";
+import { REPLY_TOOL_NAME } from "../primitives/tools/reply.ts";
+import { buildSkillTool, skillRegistry } from "../primitives/tools/skill.ts";
+import type { Variable } from "../primitives/variables/index.ts";
+import type { AgentDefinition } from "./agents.ts";
+import type { ModelCallStep, TurnContext } from "./core.ts";
+import { renderTemplate } from "./prompts.ts";
 
 // ── Variables ──────────────────────────────────────────────────────────────
 

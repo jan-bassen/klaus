@@ -8,12 +8,12 @@
 
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { settings, type VaultFolder } from "@/infra/config";
+import { settings, type VaultFolder } from "../../../../src/infra/config.ts";
 import {
 	type AgentVaultMap,
 	checkPermission,
 	resolveVaultPath,
-} from "@/infra/vault";
+} from "../../../../src/infra/vault/index.ts";
 
 describe("infra/vault.checkPermission", () => {
 	const folder: VaultFolder = { path: "Notes", default: "read" };

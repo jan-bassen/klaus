@@ -8,9 +8,12 @@
 
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { settings } from "@/infra/config";
-import { getReadableFolders, resolveVaultPath } from "@/infra/vault";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+import { settings } from "../../../src/infra/config.ts";
+import {
+	getReadableFolders,
+	resolveVaultPath,
+} from "../../../src/infra/vault/index.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 
 describe("infra/vault: resolveVaultPath", () => {
 	let tmp: string;

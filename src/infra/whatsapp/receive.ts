@@ -1,15 +1,12 @@
-import type { WAMessage, WASocket } from "@whiskeysockets/baileys";
-import {
-	downloadMediaMessage,
-	normalizeMessageContent,
-} from "@whiskeysockets/baileys";
-import { formatUserError } from "@/errors";
-import { settings } from "@/infra/config";
-import { log } from "@/infra/logger";
-import { persistFileBlob } from "@/infra/store/files";
-import { appendReaction } from "@/infra/store/history";
-import { handleTurn } from "@/pipeline";
-import { enqueueMessage, setSocket, wasSentByUs } from "./send";
+import type { WAMessage, WASocket } from "baileys";
+import { downloadMediaMessage, normalizeMessageContent } from "baileys";
+import { formatUserError } from "../../errors.ts";
+import { handleTurn } from "../../pipeline/index.ts";
+import { settings } from "../config.ts";
+import { log } from "../logger.ts";
+import { persistFileBlob } from "../store/files.ts";
+import { appendReaction } from "../store/history.ts";
+import { enqueueMessage, setSocket, wasSentByUs } from "./send.ts";
 
 /**
  * Enriched inbound WhatsApp message. Built in this module from a raw

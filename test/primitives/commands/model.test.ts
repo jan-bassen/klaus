@@ -6,17 +6,21 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readText } from "../../../src/infra/runtime.ts";
 import {
 	type AgentDefinition,
 	agentRegistry,
 	loadAgentDefinition,
 	setDefaultAgent,
-} from "@/pipeline/agents";
-import { modelCommand, providerCommand } from "@/primitives/commands/model";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
+} from "../../../src/pipeline/agents.ts";
+import {
+	modelCommand,
+	providerCommand,
+} from "../../../src/primitives/commands/model.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 
 const enqueueMock = vi.hoisted(() => vi.fn());
-vi.mock("@/infra/whatsapp/send", () => ({
+vi.mock("../../../src/infra/whatsapp/send.ts", () => ({
 	enqueueMessage: enqueueMock,
 }));
 
@@ -80,7 +84,7 @@ describe("primitives/commands/model + provider", () => {
 	it("/model writes new tier to frontmatter and updates the registry", async () => {
 		await modelCommand.execute(inbound("m4"), ["large"]);
 		expect(def.settings.modelTier).toBe("large");
-		const onDisk = await Bun.file(def.promptPath).text();
+		const onDisk = await readText(def.promptPath);
 		expect(onDisk).toContain("modelTier: large");
 		expect(onDisk).toContain("body");
 	});
@@ -101,7 +105,7 @@ describe("primitives/commands/model + provider", () => {
 	it("/provider switches provider and persists frontmatter", async () => {
 		await providerCommand.execute(inbound("m7"), ["openai"]);
 		expect(def.settings.provider).toBe("openai");
-		const onDisk = await Bun.file(def.promptPath).text();
+		const onDisk = await readText(def.promptPath);
 		expect(onDisk).toContain("provider: openai");
 		// modelTier untouched
 		expect(onDisk).toContain("modelTier: medium");

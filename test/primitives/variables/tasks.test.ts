@@ -7,11 +7,11 @@ import {
 	addTimer,
 	initTimersStore,
 	stopAllTimers,
-} from "@/infra/store/timers";
-import type { TurnContext } from "@/pipeline/core";
-import { tasksVariable } from "@/primitives/variables/tasks";
-import { makeTmpDir, rmTmpDir } from "../../helpers/tmp";
-import { makeTurn } from "../../helpers/turn";
+} from "../../../src/infra/store/timers.ts";
+import type { TurnContext } from "../../../src/pipeline/core.ts";
+import { tasksVariable } from "../../../src/primitives/variables/tasks.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
+import { makeTurn } from "../../helpers/turn.ts";
 
 interface RunArg extends Omit<TurnContext, "vars"> {
 	vars?: Record<string, unknown>;

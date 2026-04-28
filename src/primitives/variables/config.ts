@@ -1,4 +1,4 @@
-import type { Variable } from "@/primitives/variables";
+import type { Variable } from "./index.ts";
 
 /**
  * Effective configuration for this turn — agent frontmatter defaults merged

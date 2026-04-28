@@ -1,10 +1,11 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, watch as fsWatch } from "node:fs/promises";
+import { watch as fsWatch, mkdir, readFile, rm } from "node:fs/promises";
 import QRCode from "qrcode";
-import { settings, updateAllowedChatId } from "@/infra/config";
-import { log } from "@/infra/logger";
-import { getSocket, normalizeJid } from "@/infra/whatsapp/connection";
-import { enqueueMessage } from "@/infra/whatsapp/send";
+import { settings, updateAllowedChatId } from "../config.ts";
+import { log } from "../logger.ts";
+import { readText, writeData } from "../runtime.ts";
+import { getSocket, normalizeJid } from "./connection.ts";
+import { enqueueMessage } from "./send.ts";
 
 const FALLBACK_INSTRUCTIONS = `# Klaus Login
 
@@ -40,7 +41,7 @@ export async function ensureLoginFolder(): Promise<void> {
 	const path = `${dir}/instructions.md`;
 	let content: string;
 	if (existsSync(path)) {
-		content = await Bun.file(path).text();
+		content = await readText(path);
 		content = content.replace(/`\d{6}`/g, `\`${_setupCode}\``);
 		content = content.replace(/\{\{code\}\}/g, _setupCode);
 	} else {
@@ -53,7 +54,7 @@ export async function ensureLoginFolder(): Promise<void> {
 		content = content.replace(/^- \[ \] (.*solo.*)$/im, "- [x] $1");
 	}
 
-	await Bun.write(path, content);
+	await writeData(path, content);
 	log.info("[login] wrote instructions.md", {
 		selfMode: settings.whatsapp.selfMode,
 	});
@@ -66,7 +67,7 @@ export async function writeQrToVault(qrData: string): Promise<void> {
 		margin: 2,
 		errorCorrectionLevel: "M",
 	});
-	await Bun.write(settings.vault.loginQrPath, svg);
+	await writeData(settings.vault.loginQrPath, svg);
 	log.info("[login] QR code written to vault");
 }
 

@@ -12,11 +12,11 @@
  * orchestrates and handles the message-level text munging.
  */
 
-import { log } from "@/infra/logger";
-import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { parseCommand } from "@/primitives/commands";
-import { isParseableDocument, parseDocument, transcribe } from "./media";
-import { parseOverrides, stripOverrides } from "./overrides";
+import { log } from "../infra/logger.ts";
+import type { InboundMessage } from "../infra/whatsapp/receive.ts";
+import { parseCommand } from "../primitives/commands/index.ts";
+import { isParseableDocument, parseDocument, transcribe } from "./media.ts";
+import { parseOverrides, stripOverrides } from "./overrides.ts";
 
 /**
  * Result of normalizing + parsing a single inbound message.

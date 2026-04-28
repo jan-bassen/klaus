@@ -6,15 +6,15 @@
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { settings } from "@/infra/config";
-import type { AgentDefinition } from "@/pipeline/agents";
+import { settings } from "../../src/infra/config.ts";
+import type { AgentDefinition } from "../../src/pipeline/agents.ts";
 import {
 	buildTurnConfig,
 	type OverrideDef,
 	overrideRegistry,
 	parseOverrides,
 	stripOverrides,
-} from "@/pipeline/overrides";
+} from "../../src/pipeline/overrides.ts";
 
 function register(def: OverrideDef): void {
 	overrideRegistry.set(def.name, def);

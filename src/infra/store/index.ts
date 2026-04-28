@@ -1,8 +1,9 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { z } from "zod";
-import { log } from "@/infra/logger";
+import { log } from "../logger.ts";
 
+import { readText } from "../runtime.ts";
 // -- Date utilities --
 
 /**
@@ -54,7 +55,7 @@ async function readJsonl<T>(
 		const date = new Date(now - d * 86_400_000).toISOString().slice(0, 10);
 		const filePath = path.join(dir, `${prefix}-${date}.jsonl`);
 		try {
-			const text = await Bun.file(filePath).text();
+			const text = await readText(filePath);
 			for (const line of text.split("\n")) {
 				if (!line.trim()) continue;
 				try {
