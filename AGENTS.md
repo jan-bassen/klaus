@@ -170,22 +170,18 @@ Templates are required — `runAgent()` throws if `message-user.md` etc. are mis
 
 - Vitest, `pool: forks` for module isolation.
 - Tests live in `test/` mirroring `src/`.
+- Keep the implementation clean of test seams. Confirm with the user if absolutely needed.
+- Optimize for critical paths (pipeline, tool execution, store round-trip). No coverage targets.
 - `test/setup.ts` preloads `@/infra/config` before anything else (logger reads settings eagerly) and clears registries in `afterEach`.
 - `test/helpers/{tmp,stores,turn}.ts` for tmp dirs, store init, minimal TurnContext.
 - Module mocking: `vi.hoisted()` + `vi.mock("@/path", ...)`. For settings overrides, mutate the live `settings` object directly in `beforeEach`.
-- Optimize for critical paths (pipeline, tool execution, store round-trip). No coverage targets.
 
 ## Code conventions
 
-- No barrel files (but still index files) — import from specific module paths. Path alias `@/` → `src/`.
+- No barrel imports. Use specific module paths. Path alias `@/` → `src/`.
 - Errors are values — `return` them; only throw at true system boundaries.
-- No `any`. Explicit return types on exported functions.
-- One concern per file.
+- Fully typesafe. No `any`. No `as`.
 - `vault/settings.yml` (repo) is the single source of truth for tunable settings; at runtime it's overlaid with the user's `{vault}/Klaus/settings.yml`. Zod validates only — no `.default()` fallbacks. Add new fields here + in `src/infra/config.ts`'s schema.
 - No inline magic numbers — route through `settings.*`.
 - Comments explain *why*, never *what*. Prefer good naming.
 - Keep the dependency list short; `bun add` only when genuinely needed.
-
-## Live vault
-
-The user's live vault is at `/Users/janbassen/Vaults/Jan/Klaus`. Code changes never touch it directly — it syncs via `ensureDefaults()` copy or the user's manual Obsidian sync.

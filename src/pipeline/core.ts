@@ -178,7 +178,7 @@ export async function executeAgent(
 			variables: input.variables,
 			...(input.history ? { history: input.history } : {}),
 		});
-		fullTurn = { ...input.turn, vars: ctx.vars };
+		fullTurn = input.turn as TurnContext;
 
 		const promptRaw = await Bun.file(input.def.promptPath).text();
 		const promptBody = promptRaw.replace(/^---\n[\s\S]*?\n---\n?/, "");

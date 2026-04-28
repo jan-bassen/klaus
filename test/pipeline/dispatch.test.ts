@@ -1,93 +1,244 @@
-/**
- * `pipeline/dispatch.ts` — the `dispatch()` primitive.
- *
- * Three call sites hit this:
- *   1. The `dispatch` tool (parent agent invokes inline)
- *   2. Cron firings (`src/index.ts` schedule handler)
- *   3. Timer firings (`src/index.ts` timer handler)
- *
- * Exercise the primitive directly with a partial `DispatchOptions`. Don't go
- * through the tool wrapper — that's covered in the tool-set test.
- *
- * Setup:
- *   - Mock `@/pipeline/core` so `executeAgent` is a spy (don't actually hit
- *     the model). Assert on the partial turn it received.
- *   - Register a minimal agent named "dispatch" (the default) in
- *     `agentRegistry` so `resolveAgent` finds it.
- *   - For chain-depth tests: mock `executeAgent` to synchronously call
- *     `dispatch()` again, incrementing depth until the guard trips.
- */
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { settings } from "@/infra/config";
+import { log } from "@/infra/logger";
+import {
+	type AgentDefinition,
+	AgentSchema,
+	agentRegistry,
+} from "@/pipeline/agents";
+import type { TurnContext } from "@/pipeline/core";
+import { executeAgent } from "@/pipeline/core";
+import { dispatch } from "@/pipeline/dispatch";
+import { overrideRegistry } from "@/pipeline/overrides";
+import { setVariables, type Variable } from "@/primitives/variables";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp";
 
-import { afterEach, beforeEach, describe, it } from "vitest";
+const executeMock = vi.hoisted(() => vi.fn());
 
-// import { dispatch } from "@/pipeline/dispatch";
+vi.mock("@/pipeline/core", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/pipeline/core")>();
+	return {
+		...actual,
+		executeAgent: executeMock,
+	};
+});
 
-describe("pipeline/dispatch.dispatch: basic invocation", () => {
+describe("pipeline/dispatch.dispatch", () => {
+	let tmpDir: string;
+	let originalAgentsDir: string;
+	let originalMaxChainDepth: number;
+
 	beforeEach(() => {
-		// register minimal "dispatch" + "custom" agents; spy on executeAgent
+		tmpDir = makeTmpDir();
+		originalAgentsDir = settings.vault.agentsDir;
+		originalMaxChainDepth = settings.agent.maxChainDepth;
+
+		settings.vault.agentsDir = path.join(tmpDir, "agents");
+		mkdirSync(settings.vault.agentsDir, { recursive: true });
+		settings.agent.maxChainDepth = 10;
+
+		executeMock.mockImplementation(async ({ turn }) => {
+			turn._replyCollector?.push("child reply");
+		});
+		agentRegistry.set("default", makeAgent("default"));
+		agentRegistry.set("custom", makeAgent("custom", { tools: ["reply"] }));
+		setVariables([testVariable]);
+		overrideRegistry.set("simulate", {
+			name: "simulate",
+			description: "Dry run",
+			overrides: { simulate: true },
+		});
 	});
 
 	afterEach(() => {
-		// vi.restoreAllMocks()
+		settings.vault.agentsDir = originalAgentsDir;
+		settings.agent.maxChainDepth = originalMaxChainDepth;
+		setVariables([]);
+		executeMock.mockReset();
+		rmTmpDir(tmpDir);
 	});
 
-	it.todo("passes agent, prompt, chatId, trigger through to executeAgent");
+	it("passes the resolved agent, prompt, chatId, trigger, and variables to executeAgent", async () => {
+		const trigger = { kind: "schedule" as const, scheduleId: "schedule-1" };
 
-	it.todo(
-		"defaults to the explicitly-named agent — no implicit 'dispatch' fallback at primitive layer (the tool layer sets the default)",
-	);
+		await dispatch({
+			agent: "custom",
+			prompt: "run the check",
+			chatId: "chat-1",
+			trigger,
+		});
 
-	it.todo(
-		"resolves agent from agentRegistry; lazy-loads from disk on miss via getOrLoadAgent",
-	);
+		expect(executeAgent).toHaveBeenCalledOnce();
+		const call = executeMock.mock.calls[0]?.[0];
+		expect(call?.def).toMatchObject({ name: "custom", tools: ["reply"] });
+		expect(call?.variables).toEqual([testVariable]);
+		expect(call?.turn).toMatchObject({
+			chatId: "chat-1",
+			agent: expect.objectContaining({ name: "custom" }),
+			trigger,
+			dispatchContext: { prompt: "run the check" },
+			messageRefs: {},
+			pendingSubReplies: [],
+		});
+		expect(call?.turn.runId).toEqual(expect.any(String));
+	});
+
+	it("uses the explicitly named agent without falling back to a default dispatch agent", async () => {
+		await dispatch({
+			agent: "custom",
+			prompt: "objective",
+			chatId: "chat-1",
+			trigger: { kind: "timer", timerId: "timer-1" },
+		});
+
+		expect(executedTurn().agent.name).toBe("custom");
+	});
+
+	it("lazy-loads an agent from disk when it is missing from the registry", async () => {
+		writeAgentFile(settings.vault.agentsDir, "lazy");
+
+		await dispatch({
+			agent: "lazy",
+			prompt: "objective",
+			chatId: "chat-1",
+			trigger: { kind: "timer", timerId: "timer-1" },
+		});
+
+		expect(executedTurn().agent.name).toBe("lazy");
+		expect(agentRegistry.get("lazy")?.name).toBe("lazy");
+	});
+
+	it("runs normally below the max chain depth", async () => {
+		settings.agent.maxChainDepth = 2;
+
+		await dispatch({
+			agent: "custom",
+			prompt: "objective",
+			chatId: "chat-1",
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+			depth: 1,
+		});
+
+		expect(executeAgent).toHaveBeenCalledOnce();
+	});
+
+	it("stops at the max chain depth and logs the guard trip", async () => {
+		settings.agent.maxChainDepth = 2;
+		const warnSpy = vi.spyOn(log, "warn");
+
+		const result = await dispatch({
+			agent: "custom",
+			prompt: "objective",
+			chatId: "chat-1",
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+			depth: 2,
+		});
+
+		expect(result).toBeUndefined();
+		expect(executeAgent).not.toHaveBeenCalled();
+		expect(warnSpy).toHaveBeenCalledWith(
+			"[dispatch] max chain depth (2) reached for @custom, stopping",
+		);
+	});
+
+	it("wires an inline reply collector onto the child turn and returns joined replies", async () => {
+		const collector: string[] = ["first"];
+		executeMock.mockImplementationOnce(async ({ turn }) => {
+			turn._replyCollector?.push("second", "third");
+		});
+
+		const result = await dispatch({
+			agent: "custom",
+			prompt: "objective",
+			chatId: "chat-1",
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+			replyCollector: collector,
+		});
+
+		expect(executedTurn()._replyCollector).toBe(collector);
+		expect(result).toBe("first\n\nsecond\n\nthird");
+	});
+
+	it("omits the reply collector for top-level dispatches and returns undefined", async () => {
+		executeMock.mockResolvedValueOnce(undefined);
+
+		const result = await dispatch({
+			agent: "custom",
+			prompt: "objective",
+			chatId: "chat-1",
+			trigger: { kind: "schedule", scheduleId: "schedule-1" },
+		});
+
+		expect(executedTurn()._replyCollector).toBeUndefined();
+		expect(result).toBeUndefined();
+	});
+
+	it("feeds override names into buildTurnConfig", async () => {
+		await dispatch({
+			agent: "custom",
+			prompt: "objective",
+			chatId: "chat-1",
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+			overrides: ["simulate"],
+		});
+
+		expect(executedTurn().config).toMatchObject({
+			simulate: true,
+			ghost: true,
+			skipHistory: true,
+		});
+	});
+
+	it("preserves schedule, timer, and dispatch triggers unchanged", async () => {
+		const triggers = [
+			{ kind: "schedule" as const, scheduleId: "schedule-1" },
+			{ kind: "timer" as const, timerId: "timer-1" },
+			{ kind: "dispatch" as const, parentRunId: "parent-1" },
+		];
+
+		for (const trigger of triggers) {
+			await dispatch({
+				agent: "custom",
+				prompt: "objective",
+				chatId: "chat-1",
+				trigger,
+			});
+		}
+
+		expect(executeMock.mock.calls.map((call) => call[0].turn.trigger)).toEqual(
+			triggers,
+		);
+	});
 });
 
-describe("pipeline/dispatch.dispatch: chain depth guard", () => {
-	it.todo("depth below settings.agent.maxChainDepth: runs normally");
+const testVariable: Variable = {
+	key: "test",
+	run: async () => "value",
+};
 
-	it.todo(
-		"depth === maxChainDepth: returns undefined without invoking executeAgent",
+function makeAgent(
+	name: string,
+	patch: { tools?: string[] } = {},
+): AgentDefinition {
+	const parsed = AgentSchema.parse({
+		name,
+		tools: patch.tools ?? [],
+		settings: { report: "none" },
+	});
+	return { ...parsed, promptPath: path.join("/tmp", `${name}.md`) };
+}
+
+function writeAgentFile(dir: string, name: string): void {
+	writeFileSync(
+		path.join(dir, `${name}.md`),
+		`---\nname: ${name}\ntools: [reply]\nsettings:\n  report: none\n---\nYou are ${name}.`,
 	);
+}
 
-	it.todo("warn logged when depth cap trips");
-});
-
-describe("pipeline/dispatch.dispatch: reply collector wiring", () => {
-	it.todo(
-		"replyCollector passed: turn._replyCollector is set — sub replies bubble",
-	);
-
-	it.todo(
-		"replyCollector omitted: turn._replyCollector is undefined — replies fall through to WhatsApp",
-	);
-
-	it.todo("return value: joins collector entries with '\\n\\n' when populated");
-
-	it.todo("return value: undefined when collector is absent OR empty");
-});
-
-describe("pipeline/dispatch.dispatch: overrides + config", () => {
-	it.todo(
-		"overrides list feeds buildTurnConfig (e.g. ['simulate'] yields config.simulate === true)",
-	);
-
-	it.todo(
-		"dispatchContext.prompt === opts.prompt (available to the child's prompt template)",
-	);
-
-	it.todo("pendingSubReplies initialised as [] on the partial turn");
-});
-
-describe("pipeline/dispatch.dispatch: trigger propagation", () => {
-	it.todo(
-		"trigger.kind === 'schedule' from cron handler reaches executeAgent unchanged",
-	);
-
-	it.todo(
-		"trigger.kind === 'timer' from timer handler reaches executeAgent unchanged",
-	);
-
-	it.todo(
-		"trigger.kind === 'dispatch' with parentRunId from the dispatch tool reaches child",
-	);
-});
+function executedTurn(): Omit<TurnContext, "vars"> {
+	const turn = executeMock.mock.calls.at(-1)?.[0]?.turn;
+	if (!turn) throw new Error("executeAgent was not called");
+	return turn;
+}

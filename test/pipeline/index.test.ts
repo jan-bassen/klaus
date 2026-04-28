@@ -17,18 +17,33 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { settings } from "@/infra/config";
+import { getConversation, getTraces } from "@/infra/store/history";
+import { readReports } from "@/infra/store/report";
 import type { InboundMessage } from "@/infra/whatsapp/receive";
-import { enqueueMessage } from "@/infra/whatsapp/send";
+import { enqueueMessage, sendReaction } from "@/infra/whatsapp/send";
 import type { AgentDefinition } from "@/pipeline/agents";
 import { AgentSchema, agentRegistry, setDefaultAgent } from "@/pipeline/agents";
 import { handleTurn } from "@/pipeline/index";
-import { registerTool } from "@/primitives/tools";
+import { overrideRegistry } from "@/pipeline/overrides";
+import { registry as commandRegistry } from "@/primitives/commands";
+import { registerTool, type ToolDefinition } from "@/primitives/tools";
 import { replyTool } from "@/primitives/tools/reply";
 import { initAllStores } from "../helpers/stores";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp";
 
 const sendMock = vi.hoisted(() => vi.fn());
+const probeSchema = z.object({ value: z.number() });
+const probeTool: ToolDefinition<typeof probeSchema> = {
+	name: "probe",
+	description: "Probe tool for index tests",
+	inputSchema: probeSchema,
+	execute: async ({ value }) => ({ value }),
+	sideEffect: "pure",
+	kind: "builtin",
+	capability: "tool",
+};
 
 vi.mock("@openrouter/sdk", () => ({
 	OpenRouter: vi.fn(() => ({
@@ -77,9 +92,16 @@ describe("pipeline/index.handleTurn", () => {
 		);
 
 		registerTool(replyTool);
+		registerTool(probeTool);
 		agentRegistry.set("default", makeAgent("default", tmpDir));
 		agentRegistry.set("researcher", makeAgent("researcher", tmpDir));
+		agentRegistry.set("reporter", makeAgent("reporter", tmpDir, "agent"));
 		setDefaultAgent("chat1", "default");
+		overrideRegistry.set("large", {
+			name: "large",
+			description: "Use the large model",
+			overrides: { modelTier: "large" },
+		});
 	});
 
 	afterEach(() => {
@@ -97,52 +119,175 @@ describe("pipeline/index.handleTurn", () => {
 		}
 		sendMock.mockReset();
 		vi.mocked(enqueueMessage).mockReset();
+		vi.mocked(sendReaction).mockReset();
 		rmTmpDir(tmpDir);
 	});
 
-	it.todo(
-		"routes a text message to the agent and enqueues the assistant reply",
-	);
+	it("routes a text message to the default agent and enqueues the assistant reply", async () => {
+		sendMock.mockResolvedValueOnce(replyResponse("hello back"));
 
-	it.todo(
-		"persists both user and assistant rows to the conversation JSONL (assistant carries agent + runId)",
-	);
+		await handleTurn(makeMsg("chat1", "", "hello"));
 
-	it.todo(
-		"persists a trace row with matching runId + trigger.kind === 'message'",
-	);
+		expect(sendMock).toHaveBeenCalledOnce();
+		expect(enqueueMessage).toHaveBeenCalledOnce();
+		expect(vi.mocked(enqueueMessage).mock.calls[0]?.[0]).toMatchObject({
+			chatId: "chat1",
+			content: "hello back",
+			label: "default",
+		});
+	});
 
-	it.todo(
-		"writes a report entry to {dataDir}/logs/*.jsonl at the default level ('agent')",
-	);
+	it("persists user, assistant, and trace rows for a normal turn", async () => {
+		sendMock
+			.mockResolvedValueOnce(mixedResponse("remembered", "probe", { value: 2 }))
+			.mockResolvedValueOnce(stopResponse());
+		const msg = makeMsg("chat1", "", "remember this");
 
-	it.todo(
-		"rejects messages from non-allowlisted chatIds (no enqueue, warn logged)",
-	);
+		await handleTurn(msg);
 
-	it.todo(
-		"enters setup mode when allowedChatId is unset (replies with setup instructions)",
-	);
+		const rows = await getConversation();
+		expect(rows).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					role: "user",
+					content: "remember this",
+					externalId: msg.id,
+				}),
+				expect.objectContaining({
+					role: "assistant",
+					content: "remembered",
+					agent: "default",
+					runId: expect.any(String),
+				}),
+			]),
+		);
+		const assistant = rows.find((row) => row.role === "assistant");
+		expect(assistant?.runId).toEqual(expect.any(String));
 
-	it.todo(
-		"dispatches /commands without invoking the model (command.execute is called)",
-	);
+		const trace = await waitForTrace(assistant?.runId ?? "");
+		expect(trace).toMatchObject({
+			agent: "default",
+			trigger: { kind: "message", messageId: msg.id },
+			steps: [
+				expect.objectContaining({
+					toolCalls: [expect.objectContaining({ toolName: "probe" })],
+				}),
+			],
+		});
+	});
 
-	it.todo(
-		"parses !overrides from text (!large → turn.config.modelTier === 'large')",
-	);
+	it("writes an agent-level report when the routed agent requests reports", async () => {
+		sendMock.mockResolvedValueOnce(replyResponse("reported"));
+		const msg = makeMsg("chat1", "reporter", "please report");
 
-	it.todo(
-		"routes to @agent prefix when present (overrides the per-chat default)",
-	);
+		await handleTurn(msg);
 
-	it.todo(
-		"resolves quoted media: reply to a message with an image carries the image through",
-	);
+		const report = await waitForReport("reporter");
+		expect(report).toMatchObject({
+			agent: "reporter",
+			chatId: "chat1",
+			trigger: { kind: "message", messageId: msg.id },
+			level: "agent",
+			outcome: { kind: "ok" },
+			llm: expect.objectContaining({
+				model: "anthropic/claude-sonnet-4-6",
+				steps: [
+					expect.objectContaining({
+						toolCalls: [expect.objectContaining({ tool: "reply" })],
+					}),
+				],
+			}),
+		});
+	});
 
-	it.todo(
-		"on unhandled error: enqueues the formatted error message + applies ❌ reaction",
-	);
+	it("rejects messages from non-allowlisted chatIds", async () => {
+		await handleTurn(makeMsg("other-chat", "", "hello"));
+
+		expect(sendMock).not.toHaveBeenCalled();
+		expect(enqueueMessage).not.toHaveBeenCalled();
+		expect(await getConversation()).toEqual([]);
+	});
+
+	it("enters setup mode when allowedChatId is unset", async () => {
+		delete settings.basics.allowedChatId;
+
+		await handleTurn(makeMsg("new-chat", "", "hello"));
+
+		expect(sendMock).not.toHaveBeenCalled();
+		expect(vi.mocked(enqueueMessage).mock.calls[0]?.[0]).toMatchObject({
+			chatId: "new-chat",
+			label: settings.whatsapp.systemLabel,
+			content: expect.stringContaining("*Klaus setup*"),
+		});
+	});
+
+	it("dispatches /commands without invoking the model", async () => {
+		const commandExecute = vi.fn(async () => {});
+		commandRegistry.register({
+			name: "unitcmd",
+			description: "test command",
+			execute: commandExecute,
+		});
+		const msg = makeMsg("chat1", "", "/unitcmd one two");
+
+		await handleTurn(msg);
+
+		expect(commandExecute).toHaveBeenCalledWith(
+			expect.objectContaining({ id: msg.id, text: "/unitcmd one two" }),
+			["one", "two"],
+		);
+		expect(sendMock).not.toHaveBeenCalled();
+		expect((await getConversation())[0]).toMatchObject({
+			role: "user",
+			command: "unitcmd",
+			externalId: msg.id,
+		});
+	});
+
+	it("parses !overrides before routing to the model", async () => {
+		sendMock.mockResolvedValueOnce(replyResponse("large reply"));
+
+		await handleTurn(makeMsg("chat1", "", "!large hello"));
+
+		expect(firstChatRequest()).toMatchObject({
+			model: "anthropic/claude-opus-4.7",
+		});
+		expect((await getConversation())[0]).toMatchObject({
+			content: "hello",
+			overrides: ["large"],
+		});
+	});
+
+	it("routes an @agent prefix instead of the per-chat default", async () => {
+		sendMock.mockResolvedValueOnce(replyResponse("research done"));
+
+		await handleTurn(makeMsg("chat1", "researcher", "look this up"));
+
+		expect(enqueueMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				chatId: "chat1",
+				content: "[researcher] research done",
+				label: "researcher",
+			}),
+			expect.any(Function),
+		);
+	});
+
+	it("on unhandled error: enqueues the formatted error message and applies an error reaction", async () => {
+		sendMock.mockRejectedValueOnce(new Error("rate limit exceeded"));
+		const msg = makeMsg("chat1", "", "please fail");
+
+		await handleTurn(msg);
+
+		expect(enqueueMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				chatId: "chat1",
+				label: settings.whatsapp.systemLabel,
+				content: expect.stringMatching(/too many requests/i),
+			}),
+		);
+		expect(sendReaction).toHaveBeenCalledWith("chat1", msg.messageKey, "❌");
+	});
 
 	describe("per-agent turn interruption", () => {
 		it("second handleTurn for same chatId+agent aborts the first", async () => {
@@ -221,16 +366,20 @@ describe("pipeline/index.handleTurn", () => {
 	});
 });
 
-function makeAgent(name: string, dir: string): AgentDefinition {
+function makeAgent(
+	name: string,
+	dir: string,
+	report: "none" | "agent" = "none",
+): AgentDefinition {
 	const promptPath = path.join(dir, `${name}.md`);
 	writeFileSync(
 		promptPath,
-		`---\nname: ${name}\ntools: [reply]\nsettings:\n  report: none\n  stepLimit: 1\n---\nYou are ${name}.`,
+		`---\nname: ${name}\ntools: [reply, probe]\nsettings:\n  report: ${report}\n  stepLimit: 1\n---\nYou are ${name}.`,
 	);
 	const parsed = AgentSchema.parse({
 		name,
-		tools: ["reply"],
-		settings: { report: "none", stepLimit: 1 },
+		tools: ["reply", "probe"],
+		settings: { report, stepLimit: 1 },
 	});
 	return { ...parsed, promptPath };
 }
@@ -273,6 +422,84 @@ function replyResponse(content: string) {
 		],
 		usage: { promptTokens: 1, completionTokens: 1 },
 	};
+}
+
+function mixedResponse(
+	content: string,
+	toolName: string,
+	args: Record<string, unknown>,
+) {
+	return {
+		choices: [
+			{
+				finishReason: "tool_calls",
+				message: {
+					content: "",
+					toolCalls: [
+						{
+							id: "reply-call",
+							type: "function",
+							function: {
+								name: "reply",
+								arguments: JSON.stringify({ content }),
+							},
+						},
+						{
+							id: `${toolName}-call`,
+							type: "function",
+							function: {
+								name: toolName,
+								arguments: JSON.stringify(args),
+							},
+						},
+					],
+				},
+			},
+		],
+		usage: { promptTokens: 1, completionTokens: 1 },
+	};
+}
+
+function stopResponse() {
+	return {
+		choices: [
+			{
+				finishReason: "stop",
+				message: {
+					content: "done",
+					toolCalls: [],
+				},
+			},
+		],
+		usage: { promptTokens: 1, completionTokens: 1 },
+	};
+}
+
+function firstChatRequest(): Record<string, unknown> {
+	const call = sendMock.mock.calls[0]?.[0] as
+		| { chatRequest?: Record<string, unknown> }
+		| undefined;
+	const request = call?.chatRequest;
+	if (!request) throw new Error("Missing first chat request");
+	return request;
+}
+
+async function waitForReport(agent: string) {
+	for (let i = 0; i < 50; i++) {
+		const report = (await readReports({ agent, days: 1 }))[0];
+		if (report) return report;
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	}
+	throw new Error(`Timed out waiting for report for ${agent}`);
+}
+
+async function waitForTrace(runId: string) {
+	for (let i = 0; i < 50; i++) {
+		const trace = (await getTraces()).get(runId);
+		if (trace) return trace;
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	}
+	throw new Error(`Timed out waiting for trace ${runId}`);
 }
 
 function rejectOnAbort(signal?: AbortSignal): Promise<never> {

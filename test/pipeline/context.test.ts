@@ -1,75 +1,511 @@
-/**
- * `pipeline/context.ts`: variable assembly, history reconstruction, and the
- * `invokeTool` sim wrapper (accessible via `assembleTools(def, turn)` →
- * `allTools[name].execute(args)`).
- *
- * No model mocking needed — these exercise pre-model assembly only.
- *
- * Key edge cases:
- *   - `historyScope: "agent"` keeps user messages only when their NEXT
- *     assistant message matches the agent (tighter than role filter).
- *   - Traces replay by `row.runId`, not positional — validate with a row
- *     whose runId doesn't match the next-in-sequence trace.
- *   - invokeTool routes by `simulate` handler presence FIRST, then by
- *     sideEffect. Pure tools without handlers pass through under sim.
- */
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
+import { settings } from "@/infra/config";
+import { getOverlay } from "@/infra/simulation";
+import { appendMessage, appendTrace } from "@/infra/store/history";
+import type { InboundMessage } from "@/infra/whatsapp/receive";
+import { type AgentDefinition, AgentSchema } from "@/pipeline/agents";
+import { assembleContext } from "@/pipeline/context";
+import type { TurnContext } from "@/pipeline/core";
+import { registerTool, type ToolDefinition } from "@/primitives/tools";
+import type { Variable } from "@/primitives/variables";
+import { initAllStores } from "../helpers/stores";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp";
+import { makeTurn } from "../helpers/turn";
 
-import { afterEach, beforeEach, describe, it } from "vitest";
-
-// import { assembleVariables, assembleTools, assembleHistory, invokeTool } from "@/pipeline/context";
-// import { makeTurn } from "../helpers/turn";
+const valueSchema = z.object({ value: z.string().optional() });
 
 describe("pipeline/context.assembleVariables", () => {
-	it.todo(
-		"runs first-phase variables in parallel, then after-phase with partial vars",
-	);
+	let tmpDir: string;
+	let originalTemplatesDir: string;
 
-	it.todo(
-		"after-phase variables see partial `turn.vars` from first-phase results",
-	);
+	beforeEach(() => {
+		tmpDir = makeTmpDir();
+		initAllStores(tmpDir);
+		originalTemplatesDir = settings.vault.templatesDir;
+		writeTemplates(tmpDir);
+	});
 
-	it.todo("a failing variable is logged but doesn't crash the phase");
+	afterEach(() => {
+		settings.vault.templatesDir = originalTemplatesDir;
+		rmTmpDir(tmpDir);
+	});
+
+	it("runs first-phase variables before after-phase variables", async () => {
+		const seen: string[] = [];
+		const variables: Variable[] = [
+			{
+				key: "slow",
+				run: async () => {
+					await pause(5);
+					seen.push("slow");
+					return "ready";
+				},
+			},
+			{
+				key: "fast",
+				run: async () => {
+					seen.push("fast");
+					return "ready";
+				},
+			},
+			{
+				key: "after",
+				after: true,
+				run: async (turn) => {
+					seen.push(
+						`after:${String(turn.vars?.slow)}:${String(turn.vars?.fast)}`,
+					);
+					return "done";
+				},
+			},
+		];
+
+		const ctx = await assembleContext(baseTurn(tmpDir), makeAgent(tmpDir), {
+			variables,
+		});
+
+		expect(ctx.vars).toEqual({ slow: "ready", fast: "ready", after: "done" });
+		expect(seen.at(-1)).toBe("after:ready:ready");
+	});
+
+	it("keeps successful variables when another variable fails", async () => {
+		const variables: Variable[] = [
+			{ key: "ok", run: async () => ({ value: 1 }) },
+			{
+				key: "bad",
+				run: async () => {
+					throw new Error("variable exploded");
+				},
+			},
+			{
+				key: "after",
+				after: true,
+				run: async (turn) => Object.keys(turn.vars ?? {}).sort(),
+			},
+		];
+
+		const ctx = await assembleContext(baseTurn(tmpDir), makeAgent(tmpDir), {
+			variables,
+		});
+
+		expect(ctx.vars).toEqual({ ok: { value: 1 }, after: ["ok"] });
+	});
 });
 
 describe("pipeline/context.assembleHistory", () => {
-	it.todo("renders past assistant rows through message-agent.md template");
+	let tmpDir: string;
+	let originalTemplatesDir: string;
 
-	it.todo(
-		"historyScope: 'agent' keeps only user messages whose NEXT assistant is the target agent",
-	);
-
-	it.todo("historyLimit caps the window to the last N message pairs");
-
-	it.todo("skipHistory yields an empty transcript");
-
-	it.todo(
-		"trace replay uses row.runId — not positional — to find the matching trace",
-	);
-
-	it.todo("showTrace: false suppresses the '[@X used Y → replied]' header");
-});
-
-describe("pipeline/context.invokeTool (sim wrapper)", () => {
 	beforeEach(() => {
-		// register a minimal pure, stateful, and external tool
+		tmpDir = makeTmpDir();
+		initAllStores(tmpDir);
+		originalTemplatesDir = settings.vault.templatesDir;
+		writeTemplates(tmpDir);
 	});
+
 	afterEach(() => {
-		/* registries cleared in setup.ts */
+		settings.vault.templatesDir = originalTemplatesDir;
+		rmTmpDir(tmpDir);
 	});
 
-	it.todo("no sim → passes through to tool.execute (real invocation)");
+	it("replays assistant traces by runId as assistant tool calls, tool results, then final content", async () => {
+		await appendUser("u1", "First question");
+		await appendTrace(
+			"wrong-run",
+			"alpha",
+			{ kind: "message", messageId: "u1" },
+			[traceStep("wrong-tool", "wrong-result")],
+		);
+		await appendTrace(
+			"actual-run",
+			"alpha",
+			{ kind: "message", messageId: "u1" },
+			[traceStep("probe", { ok: true })],
+		);
+		await appendAssistant("Alpha answer", "alpha", "actual-run");
 
-	it.todo("sim + pure tool without handler → passes through");
+		const def = makeAgent(tmpDir, "alpha");
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			message: inbound("current", "Current question"),
+			config: { historyLimit: 10 },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
 
-	it.todo(
-		"sim + external tool without handler → fakeExternal result, overlay action logged",
-	);
+		expect(ctx.history.messages).toEqual([
+			{ role: "user", content: "1:First question" },
+			{
+				role: "assistant",
+				content: "",
+				toolCalls: [
+					{
+						id: "probe-call",
+						type: "function",
+						function: {
+							name: "probe",
+							arguments: JSON.stringify({ value: "probe" }),
+						},
+					},
+				],
+			},
+			{
+				role: "tool",
+				toolCallId: "probe-call",
+				content: JSON.stringify({ ok: true }),
+			},
+			{ role: "assistant", content: "Alpha answer" },
+		]);
+	});
 
-	it.todo(
-		"sim + stateful tool without handler → fakeStateful result, overlay action logged",
-	);
+	it("filters agent-scoped history to user turns followed by that agent's reply", async () => {
+		await appendUser("u-alpha", "Ask alpha");
+		await appendAssistant("Alpha answer", "alpha", "run-alpha");
+		await appendUser("u-beta", "Ask beta");
+		await appendAssistant("Beta answer", "beta", "run-beta");
 
-	it.todo(
-		"sim + ANY tool with `simulate` handler → handler wins (regardless of sideEffect)",
-	);
+		const def = makeAgent(tmpDir, "alpha");
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			message: inbound("current", "Current question"),
+			config: { historyLimit: 10, historyScope: "agent" },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.history.messages).toEqual([
+			{ role: "user", content: "1:Ask alpha" },
+			{ role: "assistant", content: "Alpha answer" },
+		]);
+	});
+
+	it("applies historyLimit after excluding the current inbound message", async () => {
+		await appendUser("u1", "Old question");
+		await appendAssistant("Old answer", "alpha", "run-old");
+		await appendUser("u2", "Recent question");
+		await appendAssistant("Recent answer", "alpha", "run-recent");
+		await appendUser("current", "Current question");
+
+		const def = makeAgent(tmpDir, "alpha");
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			message: inbound("current", "Current question"),
+			config: { historyLimit: 2 },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.history.messages).toEqual([
+			{ role: "user", content: "1:Recent question" },
+			{ role: "assistant", content: "Recent answer" },
+		]);
+	});
+
+	it("skipHistory returns no transcript and no message references", async () => {
+		await appendUser("u1", "Past question");
+		await appendAssistant("Past answer", "alpha", "run-alpha");
+
+		const def = makeAgent(tmpDir, "alpha");
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			message: inbound("current", "Current question"),
+			config: { skipHistory: true },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.history).toEqual({ messages: [], messageRefs: {} });
+		expect(turn.messageRefs).toEqual({});
+	});
+
+	it("skips malformed trace steps whose tool calls have no matching result", async () => {
+		await appendUser("u1", "Question");
+		await appendTrace(
+			"orphan-run",
+			"alpha",
+			{ kind: "message", messageId: "u1" },
+			[
+				{
+					toolCalls: [
+						{
+							toolCallId: "orphan-call",
+							toolName: "probe",
+							args: JSON.stringify({ value: "orphan" }),
+						},
+					],
+					toolResults: [],
+				},
+			],
+		);
+		await appendAssistant("Answer survives", "alpha", "orphan-run");
+
+		const def = makeAgent(tmpDir, "alpha");
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			message: inbound("current", "Current question"),
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.history.messages).toEqual([
+			{ role: "user", content: "1:Question" },
+			{ role: "assistant", content: "Answer survives" },
+		]);
+	});
 });
+
+describe("pipeline/context.invokeTool simulation wrapper", () => {
+	let tmpDir: string;
+	let originalTemplatesDir: string;
+	let pureExecute: ReturnType<typeof vi.fn>;
+	let externalExecute: ReturnType<typeof vi.fn>;
+	let statefulExecute: ReturnType<typeof vi.fn>;
+	let simulatedExecute: ReturnType<typeof vi.fn>;
+	let simulateHandler: ReturnType<typeof vi.fn>;
+
+	beforeEach(() => {
+		tmpDir = makeTmpDir();
+		initAllStores(tmpDir);
+		originalTemplatesDir = settings.vault.templatesDir;
+		writeTemplates(tmpDir);
+
+		pureExecute = vi.fn(async (input) => ({ real: "pure", input }));
+		externalExecute = vi.fn(async () => ({ real: "external" }));
+		statefulExecute = vi.fn(async () => ({ real: "stateful" }));
+		simulatedExecute = vi.fn(async () => ({ real: "simulated" }));
+		simulateHandler = vi.fn(async (input) => ({ simulated: true, input }));
+
+		registerTool(makeTool("pure_echo", "pure", pureExecute));
+		registerTool(makeTool("external_send", "external", externalExecute));
+		registerTool(makeTool("stateful_write", "stateful", statefulExecute));
+		registerTool(
+			makeTool("custom_sim", "external", simulatedExecute, simulateHandler),
+		);
+	});
+
+	afterEach(() => {
+		settings.vault.templatesDir = originalTemplatesDir;
+		rmTmpDir(tmpDir);
+	});
+
+	it("passes through to real tool execution outside simulation", async () => {
+		const def = makeAgent(tmpDir, "alpha", ["pure_echo", "external_send"]);
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			config: { skipHistory: true },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		await expect(
+			ctx.tools.functionTools.pure_echo?.execute({ value: "p" }),
+		).resolves.toEqual({
+			real: "pure",
+			input: { value: "p" },
+		});
+		await expect(
+			ctx.tools.functionTools.external_send?.execute({ value: "e" }),
+		).resolves.toEqual({
+			real: "external",
+		});
+
+		expect(pureExecute).toHaveBeenCalledOnce();
+		expect(externalExecute).toHaveBeenCalledOnce();
+	});
+
+	it("passes pure tools through during simulation", async () => {
+		const def = makeAgent(tmpDir, "alpha", ["pure_echo"]);
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			config: { simulate: true, skipHistory: true },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		const result = await ctx.tools.functionTools.pure_echo?.execute({
+			value: "p",
+		});
+
+		expect(result).toEqual({ real: "pure", input: { value: "p" } });
+		expect(pureExecute).toHaveBeenCalledOnce();
+		expect(getOverlay(turn as TurnContext).actions).toEqual([]);
+	});
+
+	it("fakes external tools during simulation and records the intended action", async () => {
+		const def = makeAgent(tmpDir, "alpha", ["external_send"]);
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			config: { simulate: true, skipHistory: true },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		const result = await ctx.tools.functionTools.external_send?.execute({
+			value: "payload",
+		});
+
+		expect(result).toBe("ok");
+		expect(externalExecute).not.toHaveBeenCalled();
+		expect(getOverlay(turn as TurnContext).actions).toEqual([
+			expect.objectContaining({
+				tool: "external_send",
+				sideEffect: "external",
+				args: { value: "payload" },
+				intent: "Would invoke external tool external_send",
+				result: "ok",
+			}),
+		]);
+	});
+
+	it("fakes stateful tools during simulation and records the intended action", async () => {
+		const def = makeAgent(tmpDir, "alpha", ["stateful_write"]);
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			config: { simulate: true, skipHistory: true },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		const result = await ctx.tools.functionTools.stateful_write?.execute({
+			value: "payload",
+		});
+
+		expect(result).toBe("(sim) stateful_write acknowledged");
+		expect(statefulExecute).not.toHaveBeenCalled();
+		expect(getOverlay(turn as TurnContext).actions).toEqual([
+			expect.objectContaining({
+				tool: "stateful_write",
+				sideEffect: "stateful",
+				args: { value: "payload" },
+				intent: "Would stateful_write value=payload",
+				result: "(sim) stateful_write acknowledged",
+			}),
+		]);
+	});
+
+	it("uses a tool's custom simulate handler before side-effect category routing", async () => {
+		const def = makeAgent(tmpDir, "alpha", ["custom_sim"]);
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			config: { simulate: true, skipHistory: true },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		const result = await ctx.tools.functionTools.custom_sim?.execute({
+			value: "payload",
+		});
+
+		expect(result).toEqual({ simulated: true, input: { value: "payload" } });
+		expect(simulatedExecute).not.toHaveBeenCalled();
+		expect(simulateHandler).toHaveBeenCalledOnce();
+		expect(getOverlay(turn as TurnContext).actions).toEqual([
+			expect.objectContaining({
+				tool: "custom_sim",
+				sideEffect: "external",
+				args: { value: "payload" },
+				intent: "Custom simulate handler",
+				result: { simulated: true, input: { value: "payload" } },
+			}),
+		]);
+	});
+});
+
+function writeTemplates(tmpDir: string): void {
+	settings.vault.templatesDir = path.join(tmpDir, "templates");
+	mkdirSync(settings.vault.templatesDir, { recursive: true });
+	writeFileSync(
+		path.join(settings.vault.templatesDir, "message-user.md"),
+		"{{label}}:{{messageText}}",
+	);
+	writeFileSync(
+		path.join(settings.vault.templatesDir, "message-agent.md"),
+		"{{message}}",
+	);
+}
+
+function makeAgent(
+	dir: string,
+	name = "alpha",
+	tools: string[] = [],
+): AgentDefinition {
+	const promptPath = path.join(dir, `${name}.md`);
+	writeFileSync(promptPath, `---\nname: ${name}\n---\nYou are ${name}.`);
+	const parsed = AgentSchema.parse({
+		name,
+		tools,
+		settings: { report: "none" },
+	});
+	return { ...parsed, promptPath };
+}
+
+function baseTurn(
+	tmpDir: string,
+	patch: Partial<TurnContext> = {},
+): TurnContext {
+	const agent = patch.agent ?? makeAgent(tmpDir);
+	return makeTurn({
+		agent,
+		config: { report: "none", ...patch.config },
+		message: patch.message ?? inbound("current", "Current question"),
+		...patch,
+	});
+}
+
+function inbound(id: string, text: string): InboundMessage {
+	return {
+		kind: "whatsapp",
+		id,
+		chatId: "c1",
+		senderId: "sender",
+		text,
+		timestamp: new Date(),
+		messageKey: {},
+	};
+}
+
+async function appendUser(externalId: string, content: string): Promise<void> {
+	await appendMessage({ role: "user", externalId, content });
+}
+
+async function appendAssistant(
+	content: string,
+	agent: string,
+	runId: string,
+): Promise<void> {
+	await appendMessage({ role: "assistant", agent, runId, content });
+}
+
+function traceStep(toolName: string, result: unknown) {
+	return {
+		toolCalls: [
+			{
+				toolCallId: `${toolName}-call`,
+				toolName,
+				args: JSON.stringify({ value: toolName }),
+			},
+		],
+		toolResults: [
+			{
+				toolCallId: `${toolName}-call`,
+				toolName,
+				result: typeof result === "string" ? result : JSON.stringify(result),
+			},
+		],
+	};
+}
+
+function makeTool(
+	name: string,
+	sideEffect: ToolDefinition["sideEffect"],
+	execute: ReturnType<typeof vi.fn>,
+	simulate?: ReturnType<typeof vi.fn>,
+): ToolDefinition<typeof valueSchema> {
+	return {
+		name,
+		description: name,
+		inputSchema: valueSchema,
+		execute,
+		...(simulate ? { simulate } : {}),
+		sideEffect,
+		kind: "builtin",
+		capability: "tool",
+	};
+}
+
+function pause(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}

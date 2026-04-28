@@ -445,11 +445,11 @@ export async function assembleContext(
 			: assembleHistory(turn, historyOpts),
 	]);
 
-	// Mutate refs into the caller's messageRefs object — tools close over `turn`
-	// and need to see history-derived refs at execute time.
+	// Mutate turn state into the caller-owned object. Tool closures, reports, and
+	// simulation overlays must all share the same TurnContext identity.
 	Object.assign(turn.messageRefs, history.messageRefs);
+	const fullTurn = Object.assign(turn, { vars }) as TurnContext;
 
-	const fullTurn: TurnContext = { ...turn, vars };
 	const tools = assembleTools(def, fullTurn);
 
 	return { vars, tools, history };
