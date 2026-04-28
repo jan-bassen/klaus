@@ -90,36 +90,6 @@ export type AgentVaultEntry =
 			confirm?: VaultPermission | undefined;
 	  };
 
-interface EndpointConfig {
-	/** Base URL of an OpenAI-compatible chat completions API. */
-	baseURL: string;
-	/** Name of the env var holding the API key. */
-	apiKeyEnv: string;
-}
-
-interface ProviderConfig {
-	/** Endpoint name from `endpoints` to route requests through. */
-	endpoint: string;
-	/**
-	 * Native temperature scale of this provider's models. Global sampling values
-	 * are expressed in 0–1 and multiplied by `tempScale` before being sent.
-	 * Anthropic/Mistral are 0–1 (scale 1); OpenAI/Gemini/DeepSeek/Qwen are 0–2 (scale 2).
-	 */
-	tempScale: number;
-	small: string;
-	medium: string;
-	large: string;
-}
-
-interface SamplingConfig {
-	temperature?: number | undefined;
-	coldTemperature?: number | undefined;
-	hotTemperature?: number | undefined;
-	topP?: number | undefined;
-	creativeTopP?: number | undefined;
-	rigidTopP?: number | undefined;
-}
-
 // ── Zod schema (validates YAML from settings.yml) ──────────────────────────
 
 const VaultPermissionSchema = z.enum(["none", "read", "append", "full"]);
@@ -517,6 +487,22 @@ export function resolveModel(provider: string, tier: ModelTier): ResolvedModel {
 		modelId: p[tier],
 		tempScale: p.tempScale,
 	};
+}
+
+export function requiredStartupApiKeyEnvVars(): string[] {
+	const provider = settings.providers[settings.defaultProvider];
+	if (!provider) {
+		throw new Error(
+			`Unknown defaultProvider "${settings.defaultProvider}" — known: ${Object.keys(settings.providers).join(", ")}`,
+		);
+	}
+	const endpoint = settings.endpoints[provider.endpoint];
+	if (!endpoint) {
+		throw new Error(
+			`Default provider "${settings.defaultProvider}" references unknown endpoint "${provider.endpoint}"`,
+		);
+	}
+	return [endpoint.apiKeyEnv];
 }
 
 /**

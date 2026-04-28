@@ -2,11 +2,7 @@ import type { FSWatcher } from "node:fs";
 import { existsSync, watch } from "node:fs";
 import { loadSettingsFromDisk, settings } from "@/infra/config";
 import { log } from "@/infra/logger";
-import {
-	addSchedule,
-	findSchedule,
-	removeSchedule,
-} from "@/infra/store/schedules";
+import { addSchedule, removeSchedule } from "@/infra/store/schedules";
 import { enqueueMessage } from "@/infra/whatsapp/send";
 import { agentRegistry, loadAgentDefinition } from "@/pipeline/agents";
 import { loadOverrides } from "@/pipeline/overrides";
@@ -35,7 +31,11 @@ function findAgentByPath(promptPath: string): { name: string } | undefined {
 	return undefined;
 }
 
-async function handleAgentChange(
+function frontmatterScheduleId(agentName: string): string {
+	return `frontmatter:${agentName}`;
+}
+
+export async function handleAgentChange(
 	agentsDir: string,
 	filename: string,
 ): Promise<void> {
@@ -51,8 +51,7 @@ async function handleAgentChange(
 			if (oldDef) {
 				for (const alias of oldDef.aliases) agentRegistry.delete(alias);
 			}
-			const schedule = findSchedule(old.name);
-			if (schedule) await removeSchedule(schedule.id);
+			await removeSchedule(frontmatterScheduleId(old.name));
 			log.info(`[watcher] agent removed: @${old.name}`);
 		}
 		return;
@@ -86,23 +85,30 @@ async function handleAgentChange(
 			oldDef?.persistence?.mode === "static" ? oldDef.persistence : null;
 		const newStatic =
 			newDef.persistence?.mode === "static" ? newDef.persistence : null;
+		const nameChanged = old !== undefined && old.name !== newDef.name;
 
 		const scheduleChanged =
+			nameChanged ||
 			oldStatic?.schedule !== newStatic?.schedule ||
 			oldStatic?.prompt !== newStatic?.prompt ||
 			JSON.stringify(oldStatic?.overrides ?? []) !==
 				JSON.stringify(newStatic?.overrides ?? []);
 
 		if (scheduleChanged) {
-			const existing = findSchedule(old?.name ?? newDef.name);
-			if (existing) {
-				await removeSchedule(existing.id);
+			const removedOld = old
+				? await removeSchedule(frontmatterScheduleId(old.name))
+				: false;
+			const removedNew =
+				old?.name !== newDef.name
+					? await removeSchedule(frontmatterScheduleId(newDef.name))
+					: false;
+			if (removedOld || removedNew) {
 				log.info(`[watcher] schedule removed for @${old?.name ?? newDef.name}`);
 			}
 
 			if (newStatic) {
 				await addSchedule({
-					id: `frontmatter:${newDef.name}`,
+					id: frontmatterScheduleId(newDef.name),
 					agentName: newDef.name,
 					pattern: newStatic.schedule,
 					chatId: "system",

@@ -8,7 +8,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resolveImageModel, resolveModel, settings } from "@/infra/config";
+import {
+	requiredStartupApiKeyEnvVars,
+	resolveImageModel,
+	resolveModel,
+	settings,
+} from "@/infra/config";
 
 describe("infra/config.resolveModel", () => {
 	const origProviders = settings.providers;
@@ -126,5 +131,69 @@ describe("infra/config.resolveImageModel", () => {
 	it("throws when apiKeyEnv is unset", () => {
 		delete process.env.TEST_OR_KEY;
 		expect(() => resolveImageModel()).toThrow(/API key missing/);
+	});
+});
+
+describe("infra/config.requiredStartupApiKeyEnvVars", () => {
+	const origProviders = settings.providers;
+	const origEndpoints = settings.endpoints;
+	const origDefaultProvider = settings.defaultProvider;
+
+	beforeEach(() => {
+		settings.endpoints = {
+			or: { baseURL: "https://x.example/v1", apiKeyEnv: "TEST_OR_KEY" },
+			direct: {
+				baseURL: "https://direct.example/v1",
+				apiKeyEnv: "TEST_DIRECT_KEY",
+			},
+		};
+		settings.providers = {
+			claude: {
+				endpoint: "or",
+				tempScale: 1,
+				small: "anthropic/h",
+				medium: "anthropic/s",
+				large: "anthropic/o",
+			},
+			openai: {
+				endpoint: "direct",
+				tempScale: 2,
+				small: "openai/m",
+				medium: "openai/g",
+				large: "openai/p",
+			},
+			ghost: {
+				endpoint: "missing-endpoint",
+				tempScale: 1,
+				small: "x",
+				medium: "x",
+				large: "x",
+			},
+		};
+		settings.defaultProvider = "claude";
+	});
+
+	afterEach(() => {
+		settings.providers = origProviders;
+		settings.endpoints = origEndpoints;
+		settings.defaultProvider = origDefaultProvider;
+	});
+
+	it("returns the apiKeyEnv for the configured default provider endpoint", () => {
+		expect(requiredStartupApiKeyEnvVars()).toEqual(["TEST_OR_KEY"]);
+		settings.defaultProvider = "openai";
+		expect(requiredStartupApiKeyEnvVars()).toEqual(["TEST_DIRECT_KEY"]);
+	});
+
+	it("throws when defaultProvider is unknown", () => {
+		settings.defaultProvider = "nonsense";
+		expect(() => requiredStartupApiKeyEnvVars()).toThrow(
+			/Unknown defaultProvider/,
+		);
+	});
+
+	it("throws when the default provider references an unknown endpoint", () => {
+		settings.defaultProvider = "ghost";
+		expect(() => requiredStartupApiKeyEnvVars()).toThrow(/unknown endpoint/);
 	});
 });

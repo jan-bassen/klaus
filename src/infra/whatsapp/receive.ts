@@ -53,6 +53,71 @@ const MAX_DOWNLOAD_BYTES = settings.whatsapp.maxDownload;
 const STARTUP_AT = Date.now();
 const OFFLINE_WINDOW_MS = settings.whatsapp.offlineWindow;
 
+type RawInboundMessage = {
+	key?: {
+		remoteJid?: string | null;
+		fromMe?: boolean | null;
+		id?: string | null;
+		participant?: string | null;
+	};
+	message?: WhatsAppMessageContent;
+	messageTimestamp?: number | bigint;
+};
+
+type WhatsAppMessageContent = {
+	conversation?: string | null;
+	extendedTextMessage?: {
+		text?: string | null;
+		contextInfo?: {
+			stanzaId?: string | null;
+			quotedMessage?: {
+				conversation?: string | null;
+				extendedTextMessage?: { text?: string | null };
+			};
+		};
+	};
+	imageMessage?: {
+		mimetype?: string | null;
+		caption?: string | null;
+		fileLength?: number | bigint | null;
+	};
+	audioMessage?: {
+		mimetype?: string | null;
+		ptt?: boolean | null;
+		fileLength?: number | bigint | null;
+	};
+	documentMessage?: {
+		mimetype?: string | null;
+		fileName?: string | null;
+		caption?: string | null;
+		fileLength?: number | bigint | null;
+	};
+};
+
+interface AcceptedMessage {
+	key: {
+		remoteJid: string;
+		fromMe?: boolean | null;
+		id?: string | null;
+		participant?: string | null;
+	};
+	message: WhatsAppMessageContent;
+	messageTimestamp?: number | bigint;
+}
+
+interface MessageParts {
+	text?: string;
+	effectiveText?: string;
+	media?: MediaDescriptor;
+}
+
+interface MediaDescriptor {
+	mimeType: string;
+	fileLength: number;
+	fileName?: string;
+	isVoiceNote: boolean;
+}
+
 /**
  * Attach the message event handler to the Baileys socket.
  * For each incoming message: normalizes it to InboundMessage (including media
@@ -136,188 +201,230 @@ export function attachReceiveHandler(socket: WASocket): void {
  *
  * Returns null for outbound, non-media/text, or unsupported message types.
  */
-async function normalizeMessage(
+export async function normalizeMessage(
 	raw: WAMessage,
 ): Promise<InboundMessage | null> {
-	const m = raw as {
-		key?: {
-			remoteJid?: string;
-			fromMe?: boolean;
-			id?: string;
-			participant?: string;
-		};
-		message?: {
-			conversation?: string;
-			extendedTextMessage?: {
-				text?: string;
-				contextInfo?: {
-					stanzaId?: string;
-					quotedMessage?: {
-						conversation?: string;
-						extendedTextMessage?: { text?: string };
-					};
-				};
-			};
-			imageMessage?: {
-				mimetype?: string;
-				caption?: string;
-				fileLength?: number | bigint;
-			};
-			audioMessage?: {
-				mimetype?: string;
-				ptt?: boolean;
-				fileLength?: number | bigint;
-			};
-			documentMessage?: {
-				mimetype?: string;
-				fileName?: string;
-				caption?: string;
-				fileLength?: number | bigint;
-			};
-		};
-		messageTimestamp?: number | bigint;
+	const m = raw as RawInboundMessage;
+	if (!shouldAcceptMessage(m)) return null;
+	if (!m.message || !m.key?.remoteJid) return null;
+	const accepted: AcceptedMessage = {
+		key: { ...m.key, remoteJid: m.key.remoteJid },
+		message: m.message,
+		...(m.messageTimestamp !== undefined
+			? { messageTimestamp: m.messageTimestamp }
+			: {}),
 	};
 
-	// Skip messages without a remote JID
-	if (!m?.key?.remoteJid) return null;
-	// Skip messages we sent — in self-mode, only skip our own replies (not user self-messages)
+	const normalized = (normalizeMessageContent(raw.message) ??
+		accepted.message) as WhatsAppMessageContent;
+	const quotedMessage = extractQuotedMessage(normalized);
+	const parts = extractMessageParts(normalized);
+
+	if (!parts.text && !parts.media && !quotedMessage) {
+		log.debug("[receive] ignoring message with no text or media");
+		return null;
+	}
+
+	const media = parts.media
+		? await downloadAndPersistMedia(
+				raw,
+				parts.media,
+				accepted.key.id ?? undefined,
+			)
+		: undefined;
+	const fallbackText = buildFallbackText(parts.media, media);
+
+	if (!parts.effectiveText && !fallbackText && !media && !quotedMessage) {
+		log.debug("[receive] ignoring message with no usable content");
+		return null;
+	}
+
+	return buildInboundMessage(
+		accepted,
+		parts,
+		media,
+		fallbackText,
+		quotedMessage,
+	);
+}
+
+function shouldAcceptMessage(m: RawInboundMessage): boolean {
+	if (!m?.key?.remoteJid) return false;
 	if (m.key.fromMe) {
 		if (!settings.whatsapp.selfMode) {
 			log.debug("[receive] ignoring outbound message");
-			return null;
+			return false;
 		}
 		if (m.key.id && wasSentByUs(m.key.id)) {
 			log.debug("[receive] ignoring own reply in self-mode");
-			return null;
+			return false;
 		}
 		log.debug("[receive] processing self-message");
 	}
 	if (!m.message) {
 		log.debug("[receive] ignoring empty message");
-		return null;
+		return false;
 	}
+	return true;
+}
 
-	const normalized = normalizeMessageContent(raw.message) ?? m.message;
+function extractQuotedMessage(
+	message: WhatsAppMessageContent,
+): InboundMessage["quotedMessage"] | undefined {
+	const contextInfo = message.extendedTextMessage?.contextInfo;
+	if (!contextInfo?.quotedMessage || !contextInfo.stanzaId) return undefined;
 
-	const text =
-		normalized.conversation ||
-		normalized.extendedTextMessage?.text ||
-		undefined;
+	const quoted = contextInfo.quotedMessage;
+	const quotedText =
+		quoted.conversation || quoted.extendedTextMessage?.text || undefined;
+	return {
+		externalId: contextInfo.stanzaId,
+		...(quotedText ? { text: quotedText } : {}),
+	};
+}
 
-	// Extract quoted message context when this message is a reply
-	const contextInfo = normalized.extendedTextMessage?.contextInfo;
-	let quotedMessage: InboundMessage["quotedMessage"] | undefined;
-	if (contextInfo?.quotedMessage && contextInfo.stanzaId) {
-		const qm = contextInfo.quotedMessage;
-		const quotedText =
-			qm.conversation || qm.extendedTextMessage?.text || undefined;
-		quotedMessage = {
-			externalId: contextInfo.stanzaId,
-			...(quotedText ? { text: quotedText } : {}),
+function extractMessageParts(message: WhatsAppMessageContent): MessageParts {
+	const text = message.conversation || message.extendedTextMessage?.text;
+	const effectiveText =
+		text || message.imageMessage?.caption || message.documentMessage?.caption;
+	const media = extractMediaDescriptor(message);
+
+	return {
+		...(text ? { text } : {}),
+		...(effectiveText ? { effectiveText } : {}),
+		...(media ? { media } : {}),
+	};
+}
+
+function extractMediaDescriptor(
+	message: WhatsAppMessageContent,
+): MediaDescriptor | undefined {
+	if (message.imageMessage) {
+		return {
+			mimeType: cleanMimeType(message.imageMessage.mimetype),
+			fileLength: fileLength(message.imageMessage.fileLength),
+			isVoiceNote: false,
 		};
 	}
 
-	const imgMsg = normalized.imageMessage;
-	const audioMsg = normalized.audioMessage;
-	const docMsg = normalized.documentMessage;
-	const mediaMsg = imgMsg ?? audioMsg ?? docMsg ?? null;
-
-	if (!text && !mediaMsg && !quotedMessage) {
-		log.debug("[receive] ignoring message with no text or media");
-		return null;
+	if (message.audioMessage) {
+		return {
+			mimeType: cleanMimeType(message.audioMessage.mimetype),
+			fileLength: fileLength(message.audioMessage.fileLength),
+			isVoiceNote: message.audioMessage.ptt === true,
+		};
 	}
 
+	if (message.documentMessage) {
+		return {
+			mimeType: cleanMimeType(message.documentMessage.mimetype),
+			fileLength: fileLength(message.documentMessage.fileLength),
+			...(message.documentMessage.fileName
+				? { fileName: message.documentMessage.fileName }
+				: {}),
+			isVoiceNote: false,
+		};
+	}
+
+	return undefined;
+}
+
+function cleanMimeType(rawMime: string | null | undefined): string {
+	const mime = rawMime ?? "application/octet-stream";
+	return mime.split(";")[0]?.trim() ?? mime;
+}
+
+function fileLength(value: number | bigint | null | undefined): number {
+	return Number(value ?? 0);
+}
+
+async function downloadAndPersistMedia(
+	raw: WAMessage,
+	media: MediaDescriptor,
+	externalId: string | undefined,
+): Promise<InboundMessage["media"] | undefined> {
+	if (media.fileLength > MAX_DOWNLOAD_BYTES) {
+		log.warn(
+			`[receive] media too large (${media.fileLength} bytes), skipping download`,
+		);
+		return undefined;
+	}
+
+	try {
+		const buffer = await Promise.race([
+			downloadMediaMessage(raw, "buffer", {}),
+			new Promise<never>((_, reject) =>
+				setTimeout(
+					() => reject(new Error("media download timed out")),
+					settings.whatsapp.mediaDownloadTimeout,
+				),
+			),
+		]);
+
+		if (!Buffer.isBuffer(buffer)) {
+			log.warn("[receive] media download returned unexpected type, skipping");
+			return undefined;
+		}
+
+		const saved = await persistFileBlob({
+			bytes: buffer,
+			mimeType: media.mimeType,
+			...(externalId ? { externalId } : {}),
+		});
+
+		if (saved instanceof Error) {
+			log.warn("[receive] failed to save file metadata", {
+				error: saved.message,
+			});
+			return undefined;
+		}
+
+		if (!saved.metadataSaved) {
+			log.warn("[receive] failed to save file metadata", {
+				path: saved.path,
+			});
+		}
+		return {
+			fileId: saved.id,
+			path: saved.path,
+			mimeType: media.mimeType,
+			...(media.fileName ? { fileName: media.fileName } : {}),
+		};
+	} catch (err) {
+		log.warn("[receive] media download failed, continuing as text-only", {
+			error: err instanceof Error ? err.message : String(err),
+		});
+		return undefined;
+	}
+}
+
+function buildFallbackText(
+	descriptor: MediaDescriptor | undefined,
+	media: InboundMessage["media"] | undefined,
+): string | undefined {
+	return !media && descriptor?.isVoiceNote
+		? "(voice note — could not be downloaded)"
+		: undefined;
+}
+
+function buildInboundMessage(
+	m: AcceptedMessage,
+	parts: MessageParts,
+	media: InboundMessage["media"] | undefined,
+	fallbackText: string | undefined,
+	quotedMessage: InboundMessage["quotedMessage"] | undefined,
+): InboundMessage {
 	const rawTs = m.messageTimestamp;
 	const tsSeconds =
 		typeof rawTs === "bigint" ? Number(rawTs) : (rawTs ?? Date.now() / 1000);
-
-	const effectiveText = text ?? imgMsg?.caption ?? docMsg?.caption ?? undefined;
-
-	let media: InboundMessage["media"] | undefined;
-
-	if (mediaMsg) {
-		const rawMime =
-			imgMsg?.mimetype ??
-			audioMsg?.mimetype ??
-			docMsg?.mimetype ??
-			"application/octet-stream";
-		const mimeType = rawMime.split(";")[0]?.trim() ?? rawMime;
-
-		const fileLength = Number(
-			imgMsg?.fileLength ?? audioMsg?.fileLength ?? docMsg?.fileLength ?? 0,
-		);
-		if (fileLength > MAX_DOWNLOAD_BYTES) {
-			log.warn(
-				`[receive] media too large (${fileLength} bytes), skipping download`,
-			);
-		} else
-			try {
-				const buffer = await Promise.race([
-					downloadMediaMessage(raw, "buffer", {}),
-					new Promise<never>((_, reject) =>
-						setTimeout(
-							() => reject(new Error("media download timed out")),
-							settings.whatsapp.mediaDownloadTimeout,
-						),
-					),
-				]);
-
-				if (!Buffer.isBuffer(buffer)) {
-					log.warn(
-						"[receive] media download returned unexpected type, skipping",
-					);
-				} else {
-					const saved = await persistFileBlob({
-						bytes: buffer,
-						mimeType,
-						...(m.key.id ? { externalId: m.key.id } : {}),
-					});
-
-					const fileName = docMsg?.fileName;
-					if (saved instanceof Error) {
-						log.warn("[receive] failed to save file metadata", {
-							error: saved.message,
-						});
-					} else {
-						if (!saved.metadataSaved) {
-							log.warn("[receive] failed to save file metadata", {
-								path: saved.path,
-							});
-						}
-						media = {
-							fileId: saved.id,
-							path: saved.path,
-							mimeType,
-							...(fileName ? { fileName } : {}),
-						};
-					}
-				}
-			} catch (err) {
-				log.warn("[receive] media download failed, continuing as text-only", {
-					error: err instanceof Error ? err.message : String(err),
-				});
-			}
-	}
-
-	// If media download failed for a voice note, inject a fallback so the pipeline
-	// can still acknowledge the message instead of silently dropping it.
-	const fallbackText =
-		!media && audioMsg?.ptt
-			? "(voice note — could not be downloaded)"
-			: undefined;
-
-	if (!effectiveText && !fallbackText && !media && !quotedMessage) {
-		log.debug("[receive] ignoring message with no usable content");
-		return null;
-	}
 
 	return {
 		kind: "whatsapp",
 		id: m.key.id ?? crypto.randomUUID(),
 		chatId: m.key.remoteJid,
 		senderId: m.key.participant ?? m.key.remoteJid,
-		...(effectiveText
-			? { text: effectiveText }
+		...(parts.effectiveText
+			? { text: parts.effectiveText }
 			: fallbackText
 				? { text: fallbackText }
 				: {}),

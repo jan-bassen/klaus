@@ -10,7 +10,11 @@ import { existsSync } from "node:fs";
 import { copyFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { formatUserError } from "./errors";
-import { loadSettingsFromDisk, settings } from "./infra/config";
+import {
+	loadSettingsFromDisk,
+	requiredStartupApiKeyEnvVars,
+	settings,
+} from "./infra/config";
 import { log } from "./infra/logger";
 import { initFilesStore, rebuildFileIndex } from "./infra/store/files";
 import {
@@ -152,7 +156,7 @@ async function main(): Promise<void> {
 		log.warn("[startup] settings.yml invalid or missing, using defaults");
 	}
 
-	const required = ["ANTHROPIC_API_KEY"] as const;
+	const required = requiredStartupApiKeyEnvVars();
 	const missing = required.filter((k) => !process.env[k]);
 	if (missing.length > 0) {
 		throw new Error(

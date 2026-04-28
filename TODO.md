@@ -1,6 +1,18 @@
-# Repo understandability v0.2.0
+# Repo cleanup
 
-Opening this up as "the agent for tinkerers". Polish the codebase and the docs before that.
+We'll be opening this up as "the agent for tinkerers". Polish the codebase and the docs before that.
+
+## Config
+
+- [ ] move to node for industry default (clean up deps - currently 3x types)
+- [ ] pin dependency versions? (or simpler fix for protection against supply chain attacks)
+- [ ] remove and cleanup after fallow
+- [ ] remove and cleanup after claude tooling + 
+- [ ] remove .agent skills with simple docs guide in agents.md
+
+## Code 
+
+- [ ] 
 
 ## Docs
 
@@ -12,7 +24,7 @@ Opening this up as "the agent for tinkerers". Polish the codebase and the docs b
   - [ ] iterate-in-obsidian — most useful patterns with examples
   - [ ] iterate-in-code — adding a command / variable / tool
 
-## Comments cleanup
+## Comments
 
 - [ ] Remove redundant comments (good naming > explanations; comments are for the non-obvious)
 - [ ] Shorten comments where possible
