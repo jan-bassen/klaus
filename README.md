@@ -28,7 +28,6 @@ cp .env.example .env    # fill in OPENROUTER_API_KEY, OBSIDIAN_*, etc.
 
 docker run -d --restart unless-stopped \
   --env-file .env \
-  -v klaus-config:/app/config \
   -v klaus-vault:/app/vault \
   -v klaus-data:/app/data \
   -p 3000:3000 \
@@ -170,8 +169,11 @@ Hot-reload covers agent files, skills, snippets, templates, `overrides.yml`, and
 | `PORT` | `3000` | HTTP port for `/healthz` |
 | `DATA_DIR` | `~/.klaus/data` | Conversations, reports, files, timers, sync state |
 | `VAULT_DIR` | `./vault` | Obsidian vault root |
+| `BAILEYS_AUTH_FOLDER` | `./.baileys-auth` | WhatsApp pairing credentials |
 
 `{vault}/Klaus/settings.yml` — everything tunable (providers, model tiers, media, whatsapp, vault folders + permissions, persistence bounds, reports). Hot-reloaded with Zod validation.
+
+The Docker image sets `VAULT_DIR=/app/vault`, `DATA_DIR=/app/data`, and `BAILEYS_AUTH_FOLDER=/app/data/baileys-auth`. Keep two volumes: `klaus-vault` for Obsidian-facing notes and agent config, `klaus-data` for operational state.
 
 ## Deploy + operate
 
@@ -191,7 +193,7 @@ curl http://localhost:3000/healthz
 docker logs -f <container>
 
 # Wipe (destructive)
-docker rm -f <container> && docker volume rm klaus-config klaus-vault klaus-data
+docker rm -f <container> && docker volume rm klaus-vault klaus-data
 ```
 
 ---
