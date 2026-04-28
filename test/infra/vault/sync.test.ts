@@ -86,6 +86,7 @@ function startOptions(
 		signal,
 		shutdownTimeoutMs,
 		backoff,
+		firstSync: { quietMs: 5, timeoutMs: 200 },
 	};
 }
 
@@ -221,6 +222,7 @@ describe("startSync: env validation", () => {
 			signal: new AbortController().signal,
 			shutdownTimeoutMs: 100,
 			backoff: { initialMs: 1, maxMs: 10, resetAfterUpMs: 1000 },
+			firstSync: { quietMs: 5, timeoutMs: 200 },
 		});
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.error.kind).toBe("missing-env");

@@ -155,3 +155,9 @@ sync:
     # — covers the "long-running but eventually crashes" case without locking
     # a hot crash-loop into the 30s ceiling.
     resetAfterUpMs: 60000
+  # Block startup until the initial sync settles so agent/skill loaders see a
+  # fully-hydrated vault. We resolve when stdout has been quiet for `quietMs`
+  # after at least one output line, or hard-cap at `timeoutMs` (warn + proceed).
+  firstSync:
+    quietMs: 3000
+    timeoutMs: 120000

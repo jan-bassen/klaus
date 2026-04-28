@@ -288,6 +288,13 @@ const SyncSchema = z
 				resetAfterUpMs: z.number(),
 			})
 			.strict(),
+		/** Initial-sync gate: block startup until the vault is hydrated. */
+		firstSync: z
+			.object({
+				quietMs: z.number(),
+				timeoutMs: z.number(),
+			})
+			.strict(),
 	})
 	.strict();
 

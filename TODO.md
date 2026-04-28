@@ -1,8 +1,3 @@
-# Code Walkthrough (Verify everything is implemented as intended)
-
-- [ ] Init Flow
-  - [ ] 
-
 # Repo cleanup
 
 We'll be opening this up as "the agent for tinkerers". Polish the codebase and the docs before that.

@@ -36,6 +36,10 @@ interface SyncDeps {
 		maxMs: number;
 		resetAfterUpMs: number;
 	};
+	firstSync: {
+		quietMs: number;
+		timeoutMs: number;
+	};
 }
 
 export interface SyncHandle {
@@ -230,7 +234,13 @@ export async function startSync(
 	let current: ChildProcess | null = null;
 	let backoffMs = deps.backoff.initialMs;
 
+	let firstSyncResolve: (() => void) | null = null;
+	const firstSyncReady = new Promise<void>((resolve) => {
+		firstSyncResolve = resolve;
+	});
+
 	const loop = (async (): Promise<void> => {
+		let firstIteration = true;
 		while (!stopped) {
 			const startedAt = Date.now();
 			const child = spawn(
@@ -244,6 +254,14 @@ export async function startSync(
 			current = child;
 			if (child.stdout) pipeWithPrefix(child.stdout, "out");
 			if (child.stderr) pipeWithPrefix(child.stderr, "err");
+
+			if (firstIteration) {
+				firstIteration = false;
+				attachFirstSyncGate(child, deps.firstSync, () => {
+					firstSyncResolve?.();
+					firstSyncResolve = null;
+				});
+			}
 
 			const code = await new Promise<number | null>((resolve) => {
 				child.on("error", (err) => {
@@ -282,6 +300,23 @@ export async function startSync(
 	if (deps.signal.aborted) onAbort();
 	else deps.signal.addEventListener("abort", onAbort, { once: true });
 
+	const timeoutPromise = new Promise<"timeout">((resolve) => {
+		const t = setTimeout(() => resolve("timeout"), deps.firstSync.timeoutMs);
+		t.unref();
+	});
+	const outcome = await Promise.race([
+		firstSyncReady.then(() => "ready" as const),
+		timeoutPromise,
+	]);
+	if (outcome === "timeout") {
+		log.warn(
+			"[sync] first-sync gate timed out, proceeding with possibly-stale vault",
+			{ timeoutMs: deps.firstSync.timeoutMs },
+		);
+	} else {
+		log.info("[sync] initial sync settled");
+	}
+
 	return {
 		ok: true,
 		handle: {
@@ -291,4 +326,43 @@ export async function startSync(
 			},
 		},
 	};
+}
+
+/**
+ * Resolve once the child has been quiet for `quietMs` after at least one line
+ * of output — heuristic for "initial sync settled, now just watching". The
+ * obsidian-headless CLI doesn't expose a structured ready signal, so we
+ * inactivity-detect on stdout/stderr instead.
+ */
+function attachFirstSyncGate(
+	child: ChildProcess,
+	opts: { quietMs: number },
+	onReady: () => void,
+): void {
+	let sawOutput = false;
+	let timer: ReturnType<typeof setTimeout> | null = null;
+	let done = false;
+
+	const fire = (): void => {
+		if (done) return;
+		done = true;
+		if (timer) clearTimeout(timer);
+		onReady();
+	};
+
+	const bump = (): void => {
+		if (done) return;
+		sawOutput = true;
+		if (timer) clearTimeout(timer);
+		timer = setTimeout(fire, opts.quietMs);
+	};
+
+	child.stdout?.on("data", bump);
+	child.stderr?.on("data", bump);
+	child.on("exit", () => {
+		// If the first child exits before settling, unblock startup so the loop
+		// can restart it under backoff — better than hanging the whole boot.
+		if (!sawOutput) fire();
+		else if (!done) fire();
+	});
 }

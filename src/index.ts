@@ -46,7 +46,7 @@ import {
 	isConnected,
 	startConnection,
 } from "./infra/whatsapp/connection";
-import { ensureLoginFolder } from "./infra/whatsapp/login";
+import { ensureLoginFolder, startSoloWatcher } from "./infra/whatsapp/login";
 import { attachReceiveHandler } from "./infra/whatsapp/receive";
 import { drainQueue, enqueueMessage } from "./infra/whatsapp/send";
 import { agentRegistry, loadAgents } from "./pipeline/agents";
@@ -193,6 +193,7 @@ async function main(): Promise<void> {
 		signal: shutdownController.signal,
 		shutdownTimeoutMs: settings.sync.shutdownTimeoutMs,
 		backoff: settings.sync.restartBackoff,
+		firstSync: settings.sync.firstSync,
 	});
 	if (!syncResult.ok) {
 		const err = syncResult.error;
@@ -328,6 +329,7 @@ async function main(): Promise<void> {
 		clearTimeout(connectionWarnTimer);
 		attachReceiveHandler(socket);
 		log.info("[startup] WhatsApp receive handler attached");
+		if (!settings.allowedChatId) startSoloWatcher();
 	}).catch((err: unknown) => {
 		clearTimeout(connectionWarnTimer);
 		log.error("[startup] WhatsApp connection failed", {

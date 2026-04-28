@@ -8,7 +8,7 @@ import makeWASocket, {
 } from "@whiskeysockets/baileys";
 import type { ILogger } from "@whiskeysockets/baileys/lib/Utils/logger";
 import { log } from "@/infra/logger";
-import { clearLoginFolder, writeQrToVault } from "@/infra/whatsapp/login";
+import { writeQrToVault } from "@/infra/whatsapp/login";
 
 const baileysLogger: ILogger = {
 	level: "warn",
@@ -98,7 +98,6 @@ export async function startConnection(
 						connectionState = "connected";
 						latestQr = null;
 						retryCount = 0;
-						clearLoginFolder().catch(() => {});
 						if (onOpen) {
 							try {
 								await onOpen(sock);
