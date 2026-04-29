@@ -49,7 +49,7 @@ type SyncError =
 	| { kind: "missing-env"; vars: string[] }
 	| {
 			kind: "setup-failed";
-			step: "login" | "sync-setup";
+			step: "login" | "sync-setup" | "sync-config" | "initial-pull";
 			exitCode: number | null;
 			stderr: string;
 	  };
@@ -148,6 +148,33 @@ function obEnv(deps: SyncDeps): NodeJS.ProcessEnv {
 	};
 }
 
+async function setSyncMode(
+	mode: "bidirectional" | "mirror-remote",
+	deps: SyncDeps,
+	commandEnv: NodeJS.ProcessEnv,
+): Promise<{ ok: true } | { ok: false; error: SyncError }> {
+	log.info("[sync] setting sync mode", { mode });
+	const result = await runOnce(
+		["sync-config", "--path", deps.vaultRoot, "--mode", mode],
+		{
+			cwd: deps.vaultRoot,
+			env: commandEnv,
+		},
+	);
+	if (result.exitCode !== 0) {
+		return {
+			ok: false,
+			error: {
+				kind: "setup-failed",
+				step: "sync-config",
+				exitCode: result.exitCode,
+				stderr: result.stderr,
+			},
+		};
+	}
+	return { ok: true };
+}
+
 async function ensureLoggedInAndLinked(
 	env: SyncEnv,
 	deps: SyncDeps,
@@ -159,13 +186,7 @@ async function ensureLoggedInAndLinked(
 	const commandEnv = obEnv(deps);
 
 	log.info("[sync] running first-time login");
-	const loginArgs = [
-		"login",
-		"--email",
-		env.email,
-		"--password",
-		env.password,
-	];
+	const loginArgs = ["login", "--email", env.email, "--password", env.password];
 	if (env.mfa) loginArgs.push("--mfa", env.mfa);
 	const loginResult = await runOnce(loginArgs, { env: commandEnv });
 	if (loginResult.exitCode !== 0) {
@@ -237,6 +258,9 @@ export async function startSync(
 
 	const setup = await ensureLoggedInAndLinked(env, deps);
 	if (!setup.ok) return { ok: false, error: setup.error };
+
+	const mode = await setSyncMode("bidirectional", deps, commandEnv);
+	if (!mode.ok) return { ok: false, error: mode.error };
 
 	let stopped = false;
 	let current: ChildProcess | null = null;
@@ -335,6 +359,39 @@ export async function startSync(
 			},
 		},
 	};
+}
+
+export async function hydrateInitialVault(
+	deps: SyncDeps,
+): Promise<{ ok: true } | { ok: false; error: SyncError }> {
+	const envResult = readSyncEnv();
+	if (!envResult.ok) return { ok: false, error: envResult.error };
+	const env = envResult.value;
+	const commandEnv = obEnv(deps);
+
+	const setup = await ensureLoggedInAndLinked(env, deps);
+	if (!setup.ok) return { ok: false, error: setup.error };
+
+	const mode = await setSyncMode("mirror-remote", deps, commandEnv);
+	if (!mode.ok) return { ok: false, error: mode.error };
+
+	log.info("[sync] mirroring remote vault before startup writes");
+	const pullResult = await runOnce(["sync", "--path", deps.vaultRoot], {
+		cwd: deps.vaultRoot,
+		env: commandEnv,
+	});
+	if (pullResult.exitCode !== 0) {
+		return {
+			ok: false,
+			error: {
+				kind: "setup-failed",
+				step: "initial-pull",
+				exitCode: pullResult.exitCode,
+				stderr: pullResult.stderr,
+			},
+		};
+	}
+	return { ok: true };
 }
 
 /**

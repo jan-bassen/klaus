@@ -1,10 +1,8 @@
-import { existsSync } from "node:fs";
-import { copyFile, mkdir, readdir } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { formatUserError } from "./errors.ts";
 import {
-	bundledVaultDir,
 	loadSettingsFromDisk,
 	requiredStartupApiKeyEnvVars,
 	settings,
@@ -32,7 +30,12 @@ import {
 	stopAllTimers,
 	type TimerEntry,
 } from "./infra/store/timers.ts";
-import { type SyncHandle, startSync } from "./infra/vault/sync.ts";
+import { ensureVaultDefaults } from "./infra/vault/defaults.ts";
+import {
+	hydrateInitialVault,
+	type SyncHandle,
+	startSync,
+} from "./infra/vault/sync.ts";
 import { startWatching, stopWatching } from "./infra/vault/watcher.ts";
 import {
 	closeSocket,
@@ -44,7 +47,11 @@ import {
 	prepareLoginFolderForStartup,
 } from "./infra/whatsapp/login.ts";
 import { attachReceiveHandler } from "./infra/whatsapp/receive.ts";
-import { drainQueue, enqueueMessage, setSocket } from "./infra/whatsapp/send.ts";
+import {
+	drainQueue,
+	enqueueMessage,
+	setSocket,
+} from "./infra/whatsapp/send.ts";
 import { agentRegistry, loadAgents } from "./pipeline/agents.ts";
 import type { Trigger } from "./pipeline/core.ts";
 import { dispatch } from "./pipeline/dispatch.ts";
@@ -87,32 +94,6 @@ process.on("SIGINT", () => {
 	shutdown("SIGINT").catch(() => process.exit(1));
 });
 
-/**
- * Copy default vault files from the repo's vault/ folder to the vault's internal path.
- * Only copies files that don't already exist — never overwrites user customizations.
- */
-async function ensureDefaults(targetDir: string): Promise<void> {
-	const defaultsDir = bundledVaultDir;
-	if (!existsSync(defaultsDir)) return;
-
-	async function copyDir(src: string, dest: string): Promise<void> {
-		await mkdir(dest, { recursive: true });
-		const entries = await readdir(src, { withFileTypes: true });
-		for (const entry of entries) {
-			const srcPath = path.join(src, entry.name);
-			const destPath = path.join(dest, entry.name);
-			if (entry.isDirectory()) {
-				await copyDir(srcPath, destPath);
-			} else if (!existsSync(destPath)) {
-				await copyFile(srcPath, destPath);
-				log.info(`[startup] copied default file: ${destPath}`);
-			}
-		}
-	}
-
-	await copyDir(defaultsDir, targetDir);
-}
-
 async function runScheduledDispatch(
 	source: "cron" | "timer",
 	entry: ScheduleEntry | TimerEntry,
@@ -141,7 +122,37 @@ async function runScheduledDispatch(
 }
 
 async function main(): Promise<void> {
-	await ensureDefaults(settings.vault.internalPath);
+	await mkdir(settings.vault.root, { recursive: true });
+	const defaultSyncDeps = {
+		vaultRoot: settings.vault.root,
+		configDir: path.join(settings.dataDir, "obsidian-headless"),
+		signal: shutdownController.signal,
+		shutdownTimeoutMs: settings.sync.shutdownTimeoutMs,
+		backoff: settings.sync.restartBackoff,
+		firstSync: settings.sync.firstSync,
+	};
+
+	log.info(
+		"[startup] hydrating vault via obsidian-headless in mirror-remote mode",
+	);
+	const pullResult = await hydrateInitialVault(defaultSyncDeps);
+	if (!pullResult.ok) {
+		const err = pullResult.error;
+		if (err.kind === "missing-env") {
+			log.error("[startup] obsidian sync env vars missing", {
+				missing: err.vars,
+			});
+		} else {
+			log.error("[startup] obsidian initial pull failed", {
+				step: err.step,
+				exitCode: err.exitCode,
+				stderr: err.stderr,
+			});
+		}
+		process.exit(1);
+	}
+
+	await ensureVaultDefaults(settings.vault.internalPath);
 	const settingsResult = await loadSettingsFromDisk();
 	if (!settingsResult.ok) {
 		log.warn("[startup] settings.yml invalid or missing, using defaults");

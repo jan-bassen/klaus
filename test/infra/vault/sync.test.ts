@@ -46,7 +46,11 @@ vi.mock("node:child_process", () => ({
 }));
 
 // Re-import after the mock is registered.
-import { readSyncEnv, startSync } from "../../../src/infra/vault/sync.ts";
+import {
+	hydrateInitialVault,
+	readSyncEnv,
+	startSync,
+} from "../../../src/infra/vault/sync.ts";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -93,27 +97,41 @@ function startOptions(
 function queueFirstRunChildren(): {
 	loginChild: FakeChild;
 	setupChild: FakeChild;
+	modeChild: FakeChild;
 	continuousChild: FakeChild;
 } {
 	const loginChild = makeFakeChild();
 	const setupChild = makeFakeChild();
+	const modeChild = makeFakeChild();
 	const continuousChild = makeFakeChild();
 	spawnMock
 		.mockReturnValueOnce(loginChild)
 		.mockReturnValueOnce(setupChild)
+		.mockReturnValueOnce(modeChild)
 		.mockReturnValueOnce(continuousChild);
-	return { loginChild, setupChild, continuousChild };
+	return {
+		loginChild,
+		setupChild,
+		modeChild,
+		continuousChild,
+	};
 }
 
 async function finishFirstRun(
 	loginChild: FakeChild,
 	setupChild: FakeChild,
+	modeChild: FakeChild,
+	continuousChild: FakeChild,
 	startPromise: ReturnType<typeof startSync>,
 ): Promise<Awaited<ReturnType<typeof startSync>>> {
 	await waitForSpawnCount(1);
 	loginChild.emit("exit", 0);
 	await waitForSpawnCount(2);
 	setupChild.emit("exit", 0);
+	await waitForSpawnCount(3);
+	modeChild.emit("exit", 0);
+	await waitForSpawnCount(4);
+	continuousChild.stdout.emit("data", "watching\n");
 	return startPromise;
 }
 
@@ -231,21 +249,66 @@ describe("startSync: env validation", () => {
 	});
 });
 
+describe("hydrateInitialVault", () => {
+	it("sets mirror-remote mode and runs a one-shot sync before startup writes", async () => {
+		const tmp = makeTmpDir();
+		const configDir = path.join(tmp, "cfg");
+		markSyncReady(configDir);
+		setValidSyncEnv();
+
+		const modeChild = makeFakeChild();
+		const syncChild = makeFakeChild();
+		spawnMock.mockReturnValueOnce(modeChild).mockReturnValueOnce(syncChild);
+
+		const p = hydrateInitialVault(
+			startOptions(tmp, configDir, new AbortController().signal),
+		);
+		await waitForSpawnCount(1);
+		modeChild.emit("exit", 0);
+		await waitForSpawnCount(2);
+		syncChild.emit("exit", 0);
+
+		const result = await p;
+		expect(result.ok).toBe(true);
+		expect(spawnMock).toHaveBeenCalledTimes(2);
+
+		const modeCall = spawnMock.mock.calls[0] as unknown[];
+		expect(modeCall[1]).toEqual([
+			"sync-config",
+			"--path",
+			tmp,
+			"--mode",
+			"mirror-remote",
+		]);
+		const syncCall = spawnMock.mock.calls[1] as unknown[];
+		expect(syncCall[1]).toEqual(["sync", "--path", tmp]);
+
+		rmTmpDir(tmp);
+	});
+});
+
 describe("startSync: first-time setup + continuous spawn", () => {
 	it("runs login + sync-setup, then spawns continuous child with correct args", async () => {
 		const tmp = makeTmpDir();
 		const configDir = path.join(tmp, "cfg");
 		setValidSyncEnv();
 
-		const { loginChild, setupChild, continuousChild } = queueFirstRunChildren();
+		const { loginChild, setupChild, modeChild, continuousChild } =
+			queueFirstRunChildren();
 
 		const ac = new AbortController();
 		const startPromise = startSync(startOptions(tmp, configDir, ac.signal));
-		const result = await finishFirstRun(loginChild, setupChild, startPromise);
+		const result = await finishFirstRun(
+			loginChild,
+			setupChild,
+			modeChild,
+			continuousChild,
+			startPromise,
+		);
 		expect(result.ok).toBe(true);
 
-		// Spawn calls: 0 = login, 1 = sync-setup, 2 = continuous.
-		expect(spawnMock).toHaveBeenCalledTimes(3);
+		// Spawn calls: 0 = login, 1 = sync-setup, 2 = sync-config, 3 = continuous.
+		expect(spawnMock).toHaveBeenCalledTimes(4);
 		const calls = spawnMock.mock.calls as unknown[][];
 		const loginCall = calls[0] ?? [];
 		expect(loginCall[0]).toBe("ob");
@@ -267,13 +330,16 @@ describe("startSync: first-time setup + continuous spawn", () => {
 			"--path",
 			tmp,
 		]);
-		const continuousCall = calls[2] ?? [];
-		expect(continuousCall[1]).toEqual([
-			"sync",
+		const modeCall = calls[2] ?? [];
+		expect(modeCall[1]).toEqual([
+			"sync-config",
 			"--path",
 			tmp,
-			"--continuous",
+			"--mode",
+			"bidirectional",
 		]);
+		const continuousCall = calls[3] ?? [];
+		expect(continuousCall[1]).toEqual(["sync", "--path", tmp, "--continuous"]);
 		expect(continuousCall[2]).toMatchObject({
 			cwd: tmp,
 			env: expect.objectContaining({ HOME: configDir }),
@@ -298,11 +364,18 @@ describe("startSync: first-time setup + continuous spawn", () => {
 		const configDir = path.join(tmp, "cfg");
 		setValidSyncEnv({ OBSIDIAN_MFA: "123456" });
 
-		const { loginChild, setupChild, continuousChild } = queueFirstRunChildren();
+		const { loginChild, setupChild, modeChild, continuousChild } =
+			queueFirstRunChildren();
 
 		const ac = new AbortController();
 		const p = startSync(startOptions(tmp, configDir, ac.signal));
-		const result = await finishFirstRun(loginChild, setupChild, p);
+		const result = await finishFirstRun(
+			loginChild,
+			setupChild,
+			modeChild,
+			continuousChild,
+			p,
+		);
 		expect(result.ok).toBe(true);
 
 		const firstCall = spawnMock.mock.calls[0] as unknown[];
@@ -325,11 +398,18 @@ describe("startSync: first-time setup + continuous spawn", () => {
 		const configDir = path.join(tmp, "cfg");
 		setValidSyncEnv({ OBSIDIAN_E2EE_PASSWORD: "encrypted" });
 
-		const { loginChild, setupChild, continuousChild } = queueFirstRunChildren();
+		const { loginChild, setupChild, modeChild, continuousChild } =
+			queueFirstRunChildren();
 
 		const ac = new AbortController();
 		const p = startSync(startOptions(tmp, configDir, ac.signal));
-		const result = await finishFirstRun(loginChild, setupChild, p);
+		const result = await finishFirstRun(
+			loginChild,
+			setupChild,
+			modeChild,
+			continuousChild,
+			p,
+		);
 		expect(result.ok).toBe(true);
 
 		const setupCall = spawnMock.mock.calls[1] as unknown[];
@@ -378,20 +458,31 @@ describe("startSync: first-time setup + continuous spawn", () => {
 		markSyncReady(configDir);
 		setValidSyncEnv();
 
+		const modeChild = makeFakeChild();
 		const continuousChild = makeFakeChild();
-		spawnMock.mockReturnValueOnce(continuousChild);
+		spawnMock
+			.mockReturnValueOnce(modeChild)
+			.mockReturnValueOnce(continuousChild);
 
 		const ac = new AbortController();
-		const result = await startSync(startOptions(tmp, configDir, ac.signal));
+		const p = startSync(startOptions(tmp, configDir, ac.signal));
+		await waitForSpawnCount(1);
+		modeChild.emit("exit", 0);
+		await waitForSpawnCount(2);
+		continuousChild.stdout.emit("data", "watching\n");
+		const result = await p;
 		expect(result.ok).toBe(true);
-		expect(spawnMock).toHaveBeenCalledTimes(1);
-		const onlyCall = spawnMock.mock.calls[0] as unknown[];
-		expect(onlyCall[1]).toEqual([
-			"sync",
+		expect(spawnMock).toHaveBeenCalledTimes(2);
+		const modeCall = spawnMock.mock.calls[0] as unknown[];
+		expect(modeCall[1]).toEqual([
+			"sync-config",
 			"--path",
 			tmp,
-			"--continuous",
+			"--mode",
+			"bidirectional",
 		]);
+		const continuousCall = spawnMock.mock.calls[1] as unknown[];
+		expect(continuousCall[1]).toEqual(["sync", "--path", tmp, "--continuous"]);
 
 		await stopStartedSync(result, ac, continuousChild);
 		rmTmpDir(tmp);
@@ -405,25 +496,34 @@ describe("startSync: crash + restart with backoff", () => {
 		markSyncReady(configDir);
 		setValidSyncEnv();
 
+		const mode = makeFakeChild();
 		const first = makeFakeChild();
 		const second = makeFakeChild();
-		spawnMock.mockReturnValueOnce(first).mockReturnValueOnce(second);
+		spawnMock
+			.mockReturnValueOnce(mode)
+			.mockReturnValueOnce(first)
+			.mockReturnValueOnce(second);
 
 		const ac = new AbortController();
-		const result = await startSync(
+		const p = startSync(
 			startOptions(tmp, configDir, ac.signal, 50, {
 				initialMs: 1,
 				maxMs: 5,
 				resetAfterUpMs: 1000,
 			}),
 		);
+		await waitForSpawnCount(1);
+		mode.emit("exit", 0);
+		await waitForSpawnCount(2);
+		first.stdout.emit("data", "watching\n");
+		const result = await p;
 		expect(result.ok).toBe(true);
 
 		// Crash the first child.
 		first.emit("exit", 1);
 		// Allow backoff sleep + respawn.
 		await new Promise((r) => setTimeout(r, 20));
-		expect(spawnMock).toHaveBeenCalledTimes(2);
+		expect(spawnMock).toHaveBeenCalledTimes(3);
 
 		await stopStartedSync(result, ac, second);
 		rmTmpDir(tmp);
@@ -437,17 +537,23 @@ describe("startSync: shutdown signalling", () => {
 		markSyncReady(configDir);
 		setValidSyncEnv();
 
+		const mode = makeFakeChild();
 		const child = makeFakeChild();
-		spawnMock.mockReturnValueOnce(child);
+		spawnMock.mockReturnValueOnce(mode).mockReturnValueOnce(child);
 
 		const ac = new AbortController();
-		const result = await startSync(
+		const p = startSync(
 			startOptions(tmp, configDir, ac.signal, 10, {
 				initialMs: 1,
 				maxMs: 5,
 				resetAfterUpMs: 1000,
 			}),
 		);
+		await waitForSpawnCount(1);
+		mode.emit("exit", 0);
+		await waitForSpawnCount(2);
+		child.stdout.emit("data", "watching\n");
+		const result = await p;
 		expect(result.ok).toBe(true);
 
 		ac.abort();
