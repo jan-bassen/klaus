@@ -61,6 +61,16 @@ export async function ensureLoginFolder(): Promise<void> {
 	});
 }
 
+export async function prepareLoginFolderForStartup(): Promise<void> {
+	if (settings.allowedChatId) {
+		await clearLoginFolder();
+		return;
+	}
+
+	await ensureLoginFolder();
+	startLoginModeWatcher();
+}
+
 export async function writeQrToVault(qrData: string): Promise<void> {
 	await mkdir(settings.vault.loginDir, { recursive: true });
 	const svg = await QRCode.toString(qrData, {

@@ -41,8 +41,7 @@ import {
 } from "./infra/whatsapp/connection.ts";
 import {
 	completeSoloSetup,
-	ensureLoginFolder,
-	startLoginModeWatcher,
+	prepareLoginFolderForStartup,
 } from "./infra/whatsapp/login.ts";
 import { attachReceiveHandler } from "./infra/whatsapp/receive.ts";
 import { drainQueue, enqueueMessage, setSocket } from "./infra/whatsapp/send.ts";
@@ -286,8 +285,7 @@ async function main(): Promise<void> {
 
 	log.info("[startup] ready");
 
-	await ensureLoginFolder();
-	if (!settings.allowedChatId) startLoginModeWatcher();
+	await prepareLoginFolderForStartup();
 
 	log.info("[startup] connecting to WhatsApp");
 	const warnAfterMs = settings.startup.connectionWarnAfterMs;
