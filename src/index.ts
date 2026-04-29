@@ -39,9 +39,13 @@ import {
 	isConnected,
 	startConnection,
 } from "./infra/whatsapp/connection.ts";
-import { ensureLoginFolder, startSoloWatcher } from "./infra/whatsapp/login.ts";
+import {
+	completeSoloSetup,
+	ensureLoginFolder,
+	startLoginModeWatcher,
+} from "./infra/whatsapp/login.ts";
 import { attachReceiveHandler } from "./infra/whatsapp/receive.ts";
-import { drainQueue, enqueueMessage } from "./infra/whatsapp/send.ts";
+import { drainQueue, enqueueMessage, setSocket } from "./infra/whatsapp/send.ts";
 import { agentRegistry, loadAgents } from "./pipeline/agents.ts";
 import type { Trigger } from "./pipeline/core.ts";
 import { dispatch } from "./pipeline/dispatch.ts";
@@ -283,6 +287,7 @@ async function main(): Promise<void> {
 	log.info("[startup] ready");
 
 	await ensureLoginFolder();
+	if (!settings.allowedChatId) startLoginModeWatcher();
 
 	log.info("[startup] connecting to WhatsApp");
 	const warnAfterMs = settings.startup.connectionWarnAfterMs;
@@ -294,11 +299,18 @@ async function main(): Promise<void> {
 		}
 	}, warnAfterMs);
 
-	startConnection((socket) => {
+	startConnection(async (socket) => {
 		clearTimeout(connectionWarnTimer);
+		setSocket(socket);
+		if (!settings.allowedChatId && settings.whatsapp.selfMode) {
+			await completeSoloSetup().catch((err) =>
+				log.error("[startup] solo setup failed", {
+					error: err instanceof Error ? err.message : String(err),
+				}),
+			);
+		}
 		attachReceiveHandler(socket);
 		log.info("[startup] WhatsApp receive handler attached");
-		if (!settings.allowedChatId) startSoloWatcher();
 	}).catch((err: unknown) => {
 		clearTimeout(connectionWarnTimer);
 		log.error("[startup] WhatsApp connection failed", {

@@ -250,30 +250,34 @@ describe("startSync: first-time setup + continuous spawn", () => {
 		const loginCall = calls[0] ?? [];
 		expect(loginCall[0]).toBe("ob");
 		expect(loginCall[1]).toEqual([
-			"--config-dir",
-			configDir,
 			"login",
 			"--email",
 			"a@b.c",
 			"--password",
 			"pw",
 		]);
+		expect(loginCall[2]).toMatchObject({
+			env: expect.objectContaining({ HOME: configDir }),
+		});
 		const setupCall = calls[1] ?? [];
 		expect(setupCall[1]).toEqual([
-			"--config-dir",
-			configDir,
 			"sync-setup",
 			"--vault",
 			"MyVault",
+			"--path",
+			tmp,
 		]);
 		const continuousCall = calls[2] ?? [];
 		expect(continuousCall[1]).toEqual([
-			"--config-dir",
-			configDir,
 			"sync",
+			"--path",
+			tmp,
 			"--continuous",
 		]);
-		expect(continuousCall[2]).toMatchObject({ cwd: tmp });
+		expect(continuousCall[2]).toMatchObject({
+			cwd: tmp,
+			env: expect.objectContaining({ HOME: configDir }),
+		});
 
 		// Marker file written.
 		expect(existsSync(path.join(configDir, ".klaus-sync-ready"))).toBe(true);
@@ -303,8 +307,6 @@ describe("startSync: first-time setup + continuous spawn", () => {
 
 		const firstCall = spawnMock.mock.calls[0] as unknown[];
 		expect(firstCall[1]).toEqual([
-			"--config-dir",
-			configDir,
 			"login",
 			"--email",
 			"a@b.c",
@@ -318,21 +320,28 @@ describe("startSync: first-time setup + continuous spawn", () => {
 		rmTmpDir(tmp);
 	});
 
-	it("pipes E2EE password to sync-setup stdin when set", async () => {
+	it("passes E2EE password to sync-setup when set", async () => {
 		const tmp = makeTmpDir();
 		const configDir = path.join(tmp, "cfg");
 		setValidSyncEnv({ OBSIDIAN_E2EE_PASSWORD: "encrypted" });
 
 		const { loginChild, setupChild, continuousChild } = queueFirstRunChildren();
-		const writeSpy = vi.fn();
-		setupChild.stdin.write = writeSpy;
 
 		const ac = new AbortController();
 		const p = startSync(startOptions(tmp, configDir, ac.signal));
 		const result = await finishFirstRun(loginChild, setupChild, p);
 		expect(result.ok).toBe(true);
 
-		expect(writeSpy).toHaveBeenCalledWith("encrypted\n");
+		const setupCall = spawnMock.mock.calls[1] as unknown[];
+		expect(setupCall[1]).toEqual([
+			"sync-setup",
+			"--vault",
+			"MyVault",
+			"--path",
+			tmp,
+			"--password",
+			"encrypted",
+		]);
 
 		await stopStartedSync(result, ac, continuousChild);
 		rmTmpDir(tmp);
@@ -378,9 +387,9 @@ describe("startSync: first-time setup + continuous spawn", () => {
 		expect(spawnMock).toHaveBeenCalledTimes(1);
 		const onlyCall = spawnMock.mock.calls[0] as unknown[];
 		expect(onlyCall[1]).toEqual([
-			"--config-dir",
-			configDir,
 			"sync",
+			"--path",
+			tmp,
 			"--continuous",
 		]);
 

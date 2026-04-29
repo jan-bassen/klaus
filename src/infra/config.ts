@@ -24,8 +24,9 @@ import { readText, writeData } from "./runtime.ts";
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_VAULT_DIR = path.join(MODULE_DIR, "..", "..", "vault");
-export const bundledVaultDir = process.env.KLAUS_BUNDLED_VAULT_DIR
-	? path.resolve(process.env.KLAUS_BUNDLED_VAULT_DIR)
+const CONTAINER_DEFAULTS_DIR = "/app/defaults";
+export const bundledVaultDir = existsSync(CONTAINER_DEFAULTS_DIR)
+	? CONTAINER_DEFAULTS_DIR
 	: REPO_VAULT_DIR;
 
 // ── Env-derived paths (resolved once at startup) ───────────────────────────
@@ -391,7 +392,7 @@ configureLogger(settings.log.format);
 
 function applyYaml(next: YamlSettings): void {
 	const rebuilt = buildSettings(next);
-	Object.assign(settings, rebuilt);
+	Object.defineProperties(settings, Object.getOwnPropertyDescriptors(rebuilt));
 	configureLogger(settings.log.format);
 }
 
@@ -446,8 +447,34 @@ export async function updateAllowedChatId(chatId: string): Promise<void> {
 	const yaml = stringifyYaml(parsed, { lineWidth: 120 });
 	await writeData(filePath, yaml);
 
-	await loadSettingsFromDisk();
+	const result = await loadSettingsFromDisk();
+	if (!result.ok) {
+		throw new Error(`Updated settings.yml failed validation: ${result.error}`);
+	}
 	log.info("[config] updated allowedChatId");
+}
+
+export async function updateSelfMode(selfMode: boolean): Promise<void> {
+	const filePath = vaultPaths.settingsPath;
+	let parsed: Record<string, unknown> = {};
+
+	if (existsSync(filePath)) {
+		const raw = await readText(filePath);
+		parsed = (parseYaml(raw) as Record<string, unknown>) ?? {};
+	}
+
+	const whatsapp = (parsed.whatsapp as Record<string, unknown>) ?? {};
+	whatsapp.selfMode = selfMode;
+	parsed.whatsapp = whatsapp;
+
+	const yaml = stringifyYaml(parsed, { lineWidth: 120 });
+	await writeData(filePath, yaml);
+
+	const result = await loadSettingsFromDisk();
+	if (!result.ok) {
+		throw new Error(`Updated settings.yml failed validation: ${result.error}`);
+	}
+	log.info("[config] updated selfMode", { selfMode });
 }
 
 // ── Provider / model resolution ────────────────────────────────────────────

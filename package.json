@@ -1,6 +1,6 @@
 {
 	"name": "klaus",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"private": true,
 	"type": "module",
 	"packageManager": "npm@11.12.1",
@@ -8,6 +8,7 @@
 		"node": ">=25"
 	},
 	"scripts": {
+		"dev": "docker run --rm -it --env-file .env -v klaus-vault:/app/vault -v klaus-data:/app/data -p 3000:3000 klaus",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",

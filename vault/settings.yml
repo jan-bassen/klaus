@@ -144,8 +144,8 @@ reports:
 # Bundled obsidian-headless supervisor. The `ob sync --continuous` child is
 # always-on — credentials must be supplied via env vars (OBSIDIAN_EMAIL,
 # OBSIDIAN_PASSWORD, OBSIDIAN_VAULT_NAME, optional OBSIDIAN_MFA and
-# OBSIDIAN_E2EE_PASSWORD). Login state lives under {dataDir}/obsidian-headless
-# so it persists across container restarts via the existing data volume.
+# OBSIDIAN_E2EE_PASSWORD). The `ob` child runs with home/config/cache/data dirs
+# under {dataDir}/obsidian-headless so login state persists across restarts.
 sync:
   shutdownTimeoutMs: 5000
   restartBackoff:

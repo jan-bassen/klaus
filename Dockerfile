@@ -10,7 +10,6 @@ LABEL org.opencontainers.image.description="Headless personal AI agent: WhatsApp
 LABEL org.opencontainers.image.source="https://github.com/jan-bassen/klaus"
 LABEL org.opencontainers.image.version="${VERSION}"
 ENV VERSION=${VERSION}
-ENV KLAUS_BUNDLED_VAULT_DIR=/app/defaults/vault
 WORKDIR /app
 
 # obsidian-headless: bundles vault sync into the Klaus container so a single
@@ -21,6 +20,8 @@ RUN npm install -g obsidian-headless
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN mkdir -p /app/defaults /app/vault /app/data \
-	&& cp -R /app/vault /app/defaults/vault
+	&& cp -R /app/vault/. /app/defaults/. \
+	&& rm -rf /app/vault \
+	&& mkdir -p /app/vault
 VOLUME ["/app/vault", "/app/data"]
 CMD ["node", "src/index.ts"]

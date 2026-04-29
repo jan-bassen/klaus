@@ -3,12 +3,10 @@
  *
  * Spawns `ob sync --continuous` as a child process and keeps it alive for the
  * lifetime of the Klaus process so a single container delivers WhatsApp +
- * Obsidian Sync. Login state is pinned to a stable `--config-dir` under
+ * Obsidian Sync. Login state is pinned to a stable home/config directory under
  * `dataDir` so it persists across restarts via the existing data volume.
  *
- * CLI flags follow the obsidian-headless README. Where the README is silent
- * (e.g. the exact flag name for an E2EE vault password), the code below is a
- * best-effort first impl — verify with `ob <cmd> --help` if it doesn't take.
+ * CLI flags follow the obsidian-headless README.
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
@@ -110,11 +108,12 @@ function emitLine(line: string, kind: "out" | "err"): void {
 
 function runOnce(
 	args: string[],
-	opts: { cwd?: string; stdin?: string },
+	opts: { cwd?: string; env?: NodeJS.ProcessEnv; stdin?: string },
 ): Promise<{ exitCode: number | null; stderr: string }> {
 	return new Promise((resolve) => {
 		const child = spawn("ob", args, {
 			...(opts.cwd ? { cwd: opts.cwd } : {}),
+			...(opts.env ? { env: opts.env } : {}),
 			stdio: ["pipe", "pipe", "pipe"],
 		});
 		let stderr = "";
@@ -139,6 +138,16 @@ function runOnce(
 	});
 }
 
+function obEnv(deps: SyncDeps): NodeJS.ProcessEnv {
+	return {
+		...process.env,
+		HOME: deps.configDir,
+		XDG_CACHE_HOME: path.join(deps.configDir, "cache"),
+		XDG_CONFIG_HOME: path.join(deps.configDir, "config"),
+		XDG_DATA_HOME: path.join(deps.configDir, "data"),
+	};
+}
+
 async function ensureLoggedInAndLinked(
 	env: SyncEnv,
 	deps: SyncDeps,
@@ -147,11 +156,10 @@ async function ensureLoggedInAndLinked(
 	if (existsSync(markerPath)) return { ok: true };
 
 	await mkdir(deps.configDir, { recursive: true });
+	const commandEnv = obEnv(deps);
 
 	log.info("[sync] running first-time login");
 	const loginArgs = [
-		"--config-dir",
-		deps.configDir,
 		"login",
 		"--email",
 		env.email,
@@ -159,7 +167,7 @@ async function ensureLoggedInAndLinked(
 		env.password,
 	];
 	if (env.mfa) loginArgs.push("--mfa", env.mfa);
-	const loginResult = await runOnce(loginArgs, {});
+	const loginResult = await runOnce(loginArgs, { env: commandEnv });
 	if (loginResult.exitCode !== 0) {
 		return {
 			ok: false,
@@ -174,17 +182,16 @@ async function ensureLoggedInAndLinked(
 
 	log.info("[sync] linking vault to remote", { vault: env.vaultName });
 	const setupArgs = [
-		"--config-dir",
-		deps.configDir,
 		"sync-setup",
 		"--vault",
 		env.vaultName,
+		"--path",
+		deps.vaultRoot,
 	];
-	// The README doesn't enumerate the E2EE password flag; piping it on stdin
-	// is a safe fallback for prompted credential reads.
+	if (env.e2eePassword) setupArgs.push("--password", env.e2eePassword);
 	const setupResult = await runOnce(setupArgs, {
 		cwd: deps.vaultRoot,
-		...(env.e2eePassword ? { stdin: `${env.e2eePassword}\n` } : {}),
+		env: commandEnv,
 	});
 	if (setupResult.exitCode !== 0) {
 		return {
@@ -226,6 +233,7 @@ export async function startSync(
 	const envResult = readSyncEnv();
 	if (!envResult.ok) return { ok: false, error: envResult.error };
 	const env = envResult.value;
+	const commandEnv = obEnv(deps);
 
 	const setup = await ensureLoggedInAndLinked(env, deps);
 	if (!setup.ok) return { ok: false, error: setup.error };
@@ -245,9 +253,10 @@ export async function startSync(
 			const startedAt = Date.now();
 			const child = spawn(
 				"ob",
-				["--config-dir", deps.configDir, "sync", "--continuous"],
+				["sync", "--path", deps.vaultRoot, "--continuous"],
 				{
 					cwd: deps.vaultRoot,
+					env: commandEnv,
 					stdio: ["ignore", "pipe", "pipe"],
 				},
 			);

@@ -1,3 +1,15 @@
+# Fixes from testing
+
+- [x] startup flow bad!
+- [ ] /help
+  - [ ] shorten descriptions
+  - [ ] remove variables
+  - [ ] reduce to providers instead of models
+  - [ ] remove vault (or own command /vault?)
+  - [ ] show command params
+  - [ ] better formatting with new lines and bold
+- [ ] 
+
 # Repo cleanup
 
 We'll be opening this up as "the agent for tinkerers". Polish the codebase and the docs before that.

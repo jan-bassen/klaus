@@ -44,7 +44,11 @@ If MFA isn't accepted via `OBSIDIAN_MFA` (Obsidian Sync may not honour it on eve
 
 ```bash
 docker run --rm -it -v klaus-data:/app/data janbassen1/klaus:latest \
-  ob --config-dir /app/data/obsidian-headless login
+  env HOME=/app/data/obsidian-headless \
+    XDG_CACHE_HOME=/app/data/obsidian-headless/cache \
+    XDG_CONFIG_HOME=/app/data/obsidian-headless/config \
+    XDG_DATA_HOME=/app/data/obsidian-headless/data \
+    ob login
 ```
 
 ### Self-mode (single number)

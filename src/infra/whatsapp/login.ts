@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { watch as fsWatch, mkdir, readFile, rm } from "node:fs/promises";
 import QRCode from "qrcode";
-import { settings, updateAllowedChatId } from "../config.ts";
+import { settings, updateAllowedChatId, updateSelfMode } from "../config.ts";
 import { log } from "../logger.ts";
 import { readText, writeData } from "../runtime.ts";
 import { getSocket, normalizeJid } from "./connection.ts";
@@ -10,13 +10,14 @@ import { enqueueMessage } from "./send.ts";
 const FALLBACK_INSTRUCTIONS = `# Klaus Login
 
 1. Open WhatsApp on your phone → Settings → Linked Devices → Link a device
-2. Scan the QR code in this folder
+2. Choose how Klaus should listen:
+   - **Solo mode**: Klaus runs inside the WhatsApp account you are linking. Check the box below before scanning the QR code. After login, Klaus will message its own chat and setup is complete.
+   - **Active chat mode**: Leave the box unchecked. After scanning, send the setup code from the chat Klaus should listen to.
+3. Scan the QR code in this folder
 
-Then, **one** of the following:
+- [ ] Solo mode (I am linking the account Klaus should message itself from)
 
-- [ ] Solo mode (I'm the only user — Klaus will message itself)
-
-…or send the setup code below from the chat you want Klaus to listen on:
+Active chat setup code:
 
 \`{{code}}\`
 `;
@@ -72,7 +73,7 @@ export async function writeQrToVault(qrData: string): Promise<void> {
 }
 
 export async function clearLoginFolder(): Promise<void> {
-	stopSoloWatcher();
+	stopLoginModeWatcher();
 	try {
 		if (existsSync(settings.vault.loginDir)) {
 			await rm(settings.vault.loginDir, { recursive: true });
@@ -86,11 +87,11 @@ export async function clearLoginFolder(): Promise<void> {
 }
 
 /**
- * Watch instructions.md for the user ticking the "solo mode" checkbox.
- * Fires once, then stops itself. Safe to call when allowedChatId is already
- * set — it will no-op via stopSoloWatcher().
+ * Watch instructions.md for the user choosing solo mode before scanning QR.
+ * The choice is persisted into settings because self-mode changes both receive
+ * and send behavior after setup.
  */
-export function startSoloWatcher(): void {
+export function startLoginModeWatcher(): void {
 	if (_watcherCtl) return;
 	const ctl = new AbortController();
 	_watcherCtl = ctl;
@@ -99,17 +100,13 @@ export function startSoloWatcher(): void {
 
 	void (async () => {
 		try {
-			// Re-check immediately in case the box is already ticked when we start
-			// (e.g. selfMode preset or hot-reload after restart).
-			if (await isSoloTicked()) {
-				await completeSoloSetup();
+			if (await syncLoginModeFromInstructions()) {
 				return;
 			}
 			const watcher = fsWatch(dir, { signal: ctl.signal });
 			for await (const ev of watcher) {
 				if (ev.filename !== target) continue;
-				if (await isSoloTicked()) {
-					await completeSoloSetup();
+				if (await syncLoginModeFromInstructions()) {
 					return;
 				}
 			}
@@ -122,9 +119,18 @@ export function startSoloWatcher(): void {
 	})();
 }
 
-function stopSoloWatcher(): void {
+function stopLoginModeWatcher(): void {
 	_watcherCtl?.abort();
 	_watcherCtl = null;
+}
+
+async function syncLoginModeFromInstructions(): Promise<boolean> {
+	const solo = await isSoloTicked();
+	if (settings.whatsapp.selfMode !== solo) {
+		await updateSelfMode(solo);
+	}
+	if (!solo || settings.allowedChatId) return false;
+	return completeSoloSetup();
 }
 
 async function isSoloTicked(): Promise<boolean> {
@@ -138,11 +144,16 @@ async function isSoloTicked(): Promise<boolean> {
 	}
 }
 
-async function completeSoloSetup(): Promise<void> {
-	const ownJid = normalizeJid(getSocket().user?.id ?? "");
+export async function completeSoloSetup(): Promise<boolean> {
+	let ownJid = "";
+	try {
+		ownJid = normalizeJid(getSocket().user?.id ?? "");
+	} catch {
+		ownJid = "";
+	}
 	if (!ownJid) {
 		log.warn("[login] solo tick detected but bot JID unavailable yet");
-		return;
+		return false;
 	}
 	log.info("[login] solo mode chosen — auto-configuring");
 	await updateAllowedChatId(ownJid);
@@ -154,4 +165,5 @@ async function completeSoloSetup(): Promise<void> {
 		label: settings.whatsapp.systemLabel,
 	});
 	await clearLoginFolder();
+	return true;
 }
