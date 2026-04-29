@@ -21,5 +21,4 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN mkdir -p /app/vault /app/data
 VOLUME ["/app/vault", "/app/data"]
-EXPOSE 3000
 CMD ["node", "src/index.ts"]

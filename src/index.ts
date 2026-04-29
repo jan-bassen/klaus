@@ -1,6 +1,5 @@
 import { existsSync } from "node:fs";
 import { copyFile, mkdir, readdir } from "node:fs/promises";
-import { createServer, type Server } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { formatUserError } from "./errors.ts";
@@ -36,7 +35,6 @@ import { type SyncHandle, startSync } from "./infra/vault/sync.ts";
 import { startWatching, stopWatching } from "./infra/vault/watcher.ts";
 import {
 	closeSocket,
-	getConnectionState,
 	isConnected,
 	startConnection,
 } from "./infra/whatsapp/connection.ts";
@@ -52,19 +50,11 @@ import { loadAllTools } from "./primitives/tools/index.ts";
 import { loadSkills, skillRegistry } from "./primitives/tools/skill.ts";
 import { loadVariables, setVariables } from "./primitives/variables/index.ts";
 
-const PORT = Number(process.env.PORT ?? 3000);
-if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
-	throw new Error(
-		`Invalid PORT: "${process.env.PORT}" — must be an integer between 1 and 65535`,
-	);
-}
-
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 let shuttingDown = false;
 const shutdownController = new AbortController();
 let syncHandle: SyncHandle | null = null;
-let healthServer: Server | null = null;
 async function shutdown(signal: string): Promise<void> {
 	if (shuttingDown) return;
 	shuttingDown = true;
@@ -78,7 +68,6 @@ async function shutdown(signal: string): Promise<void> {
 	]);
 
 	closeSocket();
-	await closeHealthServer();
 
 	stopWatching();
 	stopAllSchedules();
@@ -145,44 +134,6 @@ async function runScheduledDispatch(
 			label: settings.whatsapp.systemLabel,
 		});
 	}
-}
-
-function startHealthServer(port: number): Server {
-	const server = createServer((req, res) => {
-		const url = new URL(
-			req.url ?? "/",
-			`http://${req.headers.host ?? "localhost"}`,
-		);
-		if (url.pathname === "/healthz") {
-			const whatsapp = getConnectionState();
-			const status = isConnected() ? "ok" : "degraded";
-			const version = process.env.VERSION ?? "dev";
-			const body = JSON.stringify({
-				status,
-				ts: new Date().toISOString(),
-				whatsapp,
-				version,
-			});
-			res.writeHead(200, { "Content-Type": "application/json" });
-			res.end(body);
-			return;
-		}
-
-		res.writeHead(404, { "Content-Type": "text/plain" });
-		res.end("Not Found");
-	});
-
-	server.listen(port);
-	return server;
-}
-
-async function closeHealthServer(): Promise<void> {
-	if (!healthServer) return;
-	const server = healthServer;
-	healthServer = null;
-	await new Promise<void>((resolve) => {
-		server.close(() => resolve());
-	});
 }
 
 async function main(): Promise<void> {
@@ -328,9 +279,7 @@ async function main(): Promise<void> {
 
 	startWatching(agentsDir, settings.vault.skillsDir);
 
-	healthServer = startHealthServer(PORT);
-
-	log.info(`[startup] ready on port ${PORT}`);
+	log.info("[startup] ready");
 
 	await ensureLoginFolder();
 

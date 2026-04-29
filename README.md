@@ -166,7 +166,6 @@ Hot-reload covers agent files, skills, snippets, templates, `overrides.yml`, and
 | `OBSIDIAN_E2EE_PASSWORD` | — | Optional — vault E2EE password (if enabled) |
 | `ALLOWED_CHAT_ID` | — | Fallback — prefer `basics.allowedChatId` in settings.yml |
 | `LOG_FORMAT` | `text` | `text` or `json` (NAS log viewers prefer `json`) |
-| `PORT` | `3000` | HTTP port for `/healthz` |
 
 `{vault}/Klaus/settings.yml` — everything tunable (providers, model tiers, media, whatsapp, vault folders + permissions, persistence bounds, reports). Hot-reloaded with Zod validation.
 
@@ -182,9 +181,6 @@ docker pull janbassen1/klaus:latest && docker restart <container>
 docker login
 docker buildx create --name klaus-builder --driver docker-container --use
 npm run publish   # builds linux/amd64, pushes :<version> + :latest
-
-# Health
-curl http://localhost:3000/healthz
 
 # Logs
 docker logs -f <container>
