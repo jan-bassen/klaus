@@ -34,7 +34,7 @@ describe("infra/vault: resolveVaultPath", () => {
 		settings.vault.folders = [
 			{ path: "", default: "read" },
 			{ path: "Notes", default: "full" },
-			{ path: "Notes/Private", default: "none", confirm: "full" },
+			{ path: "Notes/Private", default: "none" },
 			{ path: "Inbox", default: "append" },
 		];
 		settings.vault.internalPermission = { default: "full" };
@@ -118,7 +118,7 @@ describe("infra/vault: getReadableFolders", () => {
 		settings.vault.internalPath = path.join(tmp, "Klaus");
 		settings.vault.folders = [
 			{ path: "Notes", default: "full" },
-			{ path: "Private", default: "read", confirm: "full" },
+			{ path: "Private", default: "read" },
 			{ path: "Secrets", default: "none" },
 		];
 		settings.vault.internalPermission = { default: "full" };
@@ -132,7 +132,7 @@ describe("infra/vault: getReadableFolders", () => {
 		rmTmpDir(tmp);
 	});
 
-	it("excludes folders with default 'none' and no confirm elevation", () => {
+	it("excludes folders with default 'none'", () => {
 		const r = getReadableFolders();
 		const paths = r.map((x) => x.folder.path);
 		expect(paths).toContain("Notes");
@@ -146,10 +146,8 @@ describe("infra/vault: getReadableFolders", () => {
 		expect(r.map((x) => x.folder.path)).not.toContain("Notes");
 	});
 
-	it("agent map can keep a folder readable via confirm ceiling", () => {
-		const r = getReadableFolders({
-			Secrets: { default: "none", confirm: "read" },
-		});
+	it("agent map can make a folder readable", () => {
+		const r = getReadableFolders({ Secrets: "read" });
 		expect(r.map((x) => x.folder.path)).toContain("Secrets");
 	});
 

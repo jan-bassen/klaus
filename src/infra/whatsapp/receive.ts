@@ -184,9 +184,6 @@ export function attachReceiveHandler(socket: WASocket): void {
 					});
 				});
 
-				// Confirmation routing: if the reacted-to message is an open
-				// confirmation prompt and the emoji classifies, fire the resume.
-				// Bot's own reactions are skipped — only user reactions count.
 			}
 		}
 	});

@@ -63,9 +63,7 @@ export const voiceCommand: Command = {
 		try {
 			const raw = await readText(def.promptPath);
 			const updated = updateFrontmatter(raw, (fm) => {
-				const s = (fm.settings as Record<string, unknown>) ?? {};
-				s.voice = input;
-				fm.settings = s;
+				fm.voice = input;
 			});
 			await writeData(def.promptPath, updated);
 			def.settings.voice = input;

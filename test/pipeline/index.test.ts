@@ -383,12 +383,13 @@ function makeAgent(
 	const promptPath = path.join(dir, `${name}.md`);
 	writeFileSync(
 		promptPath,
-		`---\nname: ${name}\ntools: [reply, probe]\nsettings:\n  report: ${report}\n  stepLimit: 1\n---\nYou are ${name}.`,
+		`---\nname: ${name}\ntools: [reply, probe]\nreport: ${report}\nstepLimit: 1\n---\nYou are ${name}.`,
 	);
 	const parsed = AgentSchema.parse({
 		name,
 		tools: ["reply", "probe"],
-		settings: { report, stepLimit: 1 },
+		report,
+		stepLimit: 1,
 	});
 	return { ...parsed, promptPath };
 }

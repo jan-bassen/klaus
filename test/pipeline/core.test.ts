@@ -576,8 +576,14 @@ function makeAgent(
 	const parsed = AgentSchema.parse({
 		name: "core-test",
 		tools: patch.tools ?? [],
-		settings: { report: "none", stepLimit: 2 },
-		...(patch.persistence ? { persistence: patch.persistence } : {}),
+		report: "none",
+		stepLimit: 2,
+		...(patch.persistence?.mode === "dynamic"
+			? {
+					persistenceMode: "dynamic",
+					persistenceHint: patch.persistence.hint,
+				}
+			: {}),
 	});
 	return { ...parsed, promptPath };
 }

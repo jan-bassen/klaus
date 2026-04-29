@@ -10,7 +10,12 @@
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import { type ModelTier, modelTiers, settings } from "../infra/config.ts";
+import {
+	type AgentVaultEntry,
+	type ModelTier,
+	modelTiers,
+	settings,
+} from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
 
 import { readText, scanFiles } from "../infra/runtime.ts";
@@ -39,20 +44,7 @@ const AgentSettingsSchema = z
 		/** Render the per-turn `[Used X, Y → replied]` summary in history? */
 		showTrace: z.boolean().default(true),
 		report: z.enum(["full", "agent", "none"]).default("agent"),
-		vault: z
-			.record(
-				z.string(),
-				z.union([
-					z.enum(["none", "read", "full"]),
-					z
-						.object({
-							default: z.enum(["none", "read", "full"]),
-							confirm: z.enum(["none", "read", "append", "full"]).optional(),
-						})
-						.strict(),
-				]),
-			)
-			.optional(),
+		vault: z.record(z.string(), z.enum(["none", "read", "full"])).optional(),
 	})
 	.transform((s) => ({
 		...s,
@@ -84,16 +76,135 @@ type Persistence = z.infer<typeof PersistenceSchema>;
 
 // ── Agent ──────────────────────────────────────────────────────────────────
 
-export const AgentSchema = z.object({
-	name: z.string().min(1),
-	aliases: z.array(z.string()).default([]),
-	tools: z.array(z.string()).default([]),
-	toolsets: z.array(z.string()).default([]),
-	providerTools: z.array(z.string()).default([]),
-	skills: z.array(z.string()).default([]),
-	settings: AgentSettingsSchema.prefault({}),
-	persistence: PersistenceSchema.optional(),
-});
+const VaultAccessPermissionSchema = z.enum(["none", "read", "full"]);
+
+function parseVaultAccess(
+	entries: string[],
+	ctx: z.RefinementCtx,
+): Record<string, AgentVaultEntry> | undefined {
+	const out: Record<string, AgentVaultEntry> = {};
+	for (const [index, entry] of entries.entries()) {
+		const separator = entry.lastIndexOf(":");
+		if (separator < 0) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["vaultAccess", index],
+				message: 'Expected "path:permission" (permission: none, read, full)',
+			});
+			continue;
+		}
+
+		const key = entry.slice(0, separator).trim();
+		const rawPermission = entry.slice(separator + 1).trim();
+		const permission = VaultAccessPermissionSchema.safeParse(rawPermission);
+		if (!permission.success) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["vaultAccess", index],
+				message: 'Expected permission "none", "read", or "full"',
+			});
+			continue;
+		}
+
+		out[key] = permission.data;
+	}
+
+	return Object.keys(out).length > 0 ? out : undefined;
+}
+
+const AgentFrontmatterSchema = z
+	.object({
+		name: z.string().min(1),
+		aliases: z.array(z.string()).default([]),
+		tools: z.array(z.string()).default([]),
+		toolsets: z.array(z.string()).default([]),
+		providerTools: z.array(z.string()).default([]),
+		skills: z.array(z.string()).default([]),
+		provider: z.string().optional(),
+		modelTier: z.enum(modelTiers).optional(),
+		voice: z.enum(["on", "auto", "off"]).default("auto"),
+		temp: z.enum(["cold", "default", "hot"]).default("default"),
+		topP: z.enum(["creative", "default", "rigid"]).default("default"),
+		reasoningEffort: z.enum(["low", "default", "high"]).default("default"),
+		stepLimit: z.number().optional(),
+		historyLimit: z.number().optional(),
+		historyScope: z.enum(["full", "agent"]).optional(),
+		showTrace: z.boolean().default(true),
+		report: z.enum(["full", "agent", "none"]).default("agent"),
+		vaultAccess: z.array(z.string()).default([]),
+		persistenceMode: z.enum(["static", "dynamic"]).optional(),
+		persistenceSchedule: z.string().optional(),
+		persistencePrompt: z.string().optional(),
+		persistenceOverrides: z.array(z.string()).default([]),
+		persistenceHint: z.string().optional(),
+	})
+	.strict()
+	.transform((front, ctx) => {
+		let persistence: Persistence | undefined;
+		if (front.persistenceMode === "static") {
+			if (front.persistenceSchedule === undefined) {
+				ctx.addIssue({
+					code: "custom",
+					path: ["persistenceSchedule"],
+					message: "Required when persistenceMode is static",
+				});
+			}
+			if (front.persistencePrompt === undefined) {
+				ctx.addIssue({
+					code: "custom",
+					path: ["persistencePrompt"],
+					message: "Required when persistenceMode is static",
+				});
+			}
+			if (
+				front.persistenceSchedule !== undefined &&
+				front.persistencePrompt !== undefined
+			) {
+				persistence = {
+					mode: "static",
+					schedule: front.persistenceSchedule,
+					prompt: front.persistencePrompt,
+					overrides: front.persistenceOverrides,
+				};
+			}
+		} else if (front.persistenceMode === "dynamic") {
+			if (front.persistenceHint === undefined) {
+				ctx.addIssue({
+					code: "custom",
+					path: ["persistenceHint"],
+					message: "Required when persistenceMode is dynamic",
+				});
+			} else {
+				persistence = { mode: "dynamic", hint: front.persistenceHint };
+			}
+		}
+
+		return {
+			name: front.name,
+			aliases: front.aliases,
+			tools: front.tools,
+			toolsets: front.toolsets,
+			providerTools: front.providerTools,
+			skills: front.skills,
+			settings: AgentSettingsSchema.parse({
+				provider: front.provider,
+				modelTier: front.modelTier,
+				voice: front.voice,
+				temp: front.temp,
+				topP: front.topP,
+				reasoningEffort: front.reasoningEffort,
+				stepLimit: front.stepLimit,
+				historyLimit: front.historyLimit,
+				historyScope: front.historyScope,
+				showTrace: front.showTrace,
+				report: front.report,
+				vault: parseVaultAccess(front.vaultAccess, ctx),
+			}),
+			...(persistence ? { persistence } : {}),
+		};
+	});
+
+export const AgentSchema = AgentFrontmatterSchema;
 
 export type AgentDefinition = z.infer<typeof AgentSchema> & {
 	/** Absolute path to the .md file — used for hot-reload. */

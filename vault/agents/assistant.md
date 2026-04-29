@@ -15,9 +15,8 @@ skills:
   - obsidian-bases
   - obsidian-bases-functions
   - obsidian-canvas
-settings:
-  modelTier: medium
-  historyLimit: 20
+modelTier: medium
+historyLimit: 20
 ---
 {{snippets.personality}}
 

@@ -59,7 +59,7 @@ describe("primitives/commands/default", () => {
 		expect(enqueueMock.mock.calls[0]?.[0].content).toMatch(/Usage: \/default/);
 	});
 
-	it("agent already in registry → set default + confirm", async () => {
+	it("agent already in registry → set default", async () => {
 		agentRegistry.set("preloaded", {
 			name: "preloaded",
 			aliases: [],

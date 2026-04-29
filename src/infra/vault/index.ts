@@ -7,7 +7,7 @@ import {
 } from "../config.ts";
 
 export type VaultOp = "read" | "append" | "full";
-type PermissionCheck = "allowed" | "needsConfirm" | "denied";
+type PermissionCheck = "allowed" | "denied";
 
 /** Per-agent override map: folder.path → permission entry. "*" matches any folder. */
 export type AgentVaultMap = Record<string, AgentVaultEntry>;
@@ -30,38 +30,27 @@ const PERM_LEVEL: Record<VaultPermission, number> = {
 
 interface EffectivePermission {
 	default: VaultPermission;
-	confirm?: VaultPermission;
 }
 
 /**
  * The agent's vault map override (if any) replaces the folder's default
- * permission. Exact `folder.path` match wins over the `"*"` wildcard. Bare
- * string entries (`"read"`) are treated as `{default: "read"}` with no
- * elevation ceiling.
+ * permission. Exact `folder.path` match wins over the `"*"` wildcard.
  */
 function effectivePermission(
 	folder: VaultFolder,
 	agentMap?: AgentVaultMap,
 ): EffectivePermission {
-	const fallback: EffectivePermission = {
-		default: folder.default,
-		...(folder.confirm !== undefined ? { confirm: folder.confirm } : {}),
-	};
+	const fallback: EffectivePermission = { default: folder.default };
 	if (!agentMap) return fallback;
 	const entry = agentMap[folder.path] ?? agentMap["*"];
 	if (entry === undefined) return fallback;
-	if (typeof entry === "string") return { default: entry };
-	return {
-		default: entry.default,
-		...(entry.confirm !== undefined ? { confirm: entry.confirm } : {}),
-	};
+	return { default: entry };
 }
 
 /**
  * Check whether an operation is allowed on a folder.
- *   - `allowed`      — op level ≤ effective default
- *   - `needsConfirm` — op level > default but ≤ confirm ceiling
- *   - `denied`       — beyond ceiling, or no ceiling declared
+ *   - `allowed` — op level ≤ effective default
+ *   - `denied`  — op level > effective default
  */
 export function checkPermission(
 	folder: VaultFolder,
@@ -71,8 +60,6 @@ export function checkPermission(
 	const eff = effectivePermission(folder, agentMap);
 	const needed = PERM_LEVEL[op];
 	if (needed <= PERM_LEVEL[eff.default]) return "allowed";
-	if (eff.confirm !== undefined && needed <= PERM_LEVEL[eff.confirm])
-		return "needsConfirm";
 	return "denied";
 }
 

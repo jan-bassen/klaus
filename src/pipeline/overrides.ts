@@ -18,11 +18,11 @@ import type { AgentDefinition } from "./agents.ts";
 
 /**
  * Effective configuration for one turn — merged from `settings.agentDefaults`,
- * the agent's `settings:` frontmatter, and per-message `!overrides` (later
+ * the agent's flat frontmatter settings, and per-message `!overrides` (later
  * layer wins; `vault` is deep-merged across all three).
  *
  * Fields here are what downstream code actually reads. Some come from the
- * agent's `settings:` block (mapped via `fromFrontmatter`), some only ever
+ * agent frontmatter (mapped via `fromFrontmatter`), some only ever
  * come from `!overrides` (e.g. `ghost`, `fast`, `skipHistory`, `toolChoice`).
  */
 export interface TurnConfig {
@@ -69,20 +69,7 @@ const turnConfigSchema = z
 		historyScope: z.enum(["full", "agent"]).optional(),
 		showTrace: z.boolean().optional(),
 		report: z.enum(["full", "agent", "none"]).optional(),
-		vault: z
-			.record(
-				z.string(),
-				z.union([
-					z.enum(["none", "read", "full"]),
-					z
-						.object({
-							default: z.enum(["none", "read", "full"]),
-							confirm: z.enum(["none", "read", "append", "full"]).optional(),
-						})
-						.strict(),
-				]),
-			)
-			.optional(),
+		vault: z.record(z.string(), z.enum(["none", "read", "full"])).optional(),
 		skipHistory: z.boolean().optional(),
 		ghost: z.boolean().optional(),
 		fast: z.boolean().optional(),

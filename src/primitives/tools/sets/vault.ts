@@ -568,7 +568,7 @@ const vaultDeleteSchema = z.object({
 export const vaultDeleteTool: ToolDefinition<typeof vaultDeleteSchema> = {
 	name: "vault_delete",
 	description:
-		"Permanently delete a note from the vault. The framework asks the user to confirm before this runs (unless the agent has auto-accept on or the folder permission allows full access without confirmation).",
+		"Permanently delete a note from the vault. Requires full access to the target folder.",
 	inputSchema: vaultDeleteSchema,
 	execute: async ({ path: rel }, context) => {
 		const result = await gateVaultTool(rel, "full", context);
@@ -816,7 +816,7 @@ export const vaultOutlineTool: ToolDefinition<typeof vaultOutlineSchema> = {
 export const vaultToolset: ToolsetDefinition = {
 	name: "vault",
 	description:
-		"Use when the request involves Jan's vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. The vault has multiple folders with different permission levels (some read-only, some full access, some requiring confirmation for writes). Notes are memory, [[wikilinks]] are relationships, frontmatter tags enable discovery. Use for anything that sounds like a note, a document, something to remember, or something Jan would have written down. Prefer read-before-write: use vault_read or vault_outline before modifying notes to understand structure, language, and existing content.",
+		"Use when the request involves Jan's vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. The vault has multiple folders with different permission levels. Notes are memory, [[wikilinks]] are relationships, frontmatter tags enable discovery. Use for anything that sounds like a note, a document, something to remember, or something Jan would have written down. Prefer read-before-write: use vault_read or vault_outline before modifying notes to understand structure, language, and existing content.",
 	tools: [
 		vaultReadTool,
 		vaultSearchTool,

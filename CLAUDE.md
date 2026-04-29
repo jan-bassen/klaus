@@ -72,26 +72,26 @@ tools: [reply, react]
 toolsets: [vault, dispatch]
 providerTools: [web_search]
 skills: [workout-plan]
-settings:
-  provider: Codex|openai|gemini|qwen|deepseek
-  modelTier: small|medium|large
-  voice: on|auto|off
-  temp: cold|default|hot
-  topP: creative|default|rigid
-  reasoningEffort: low|default|high
-  historyLimit: 20
-  historyScope: full|agent
-  showTrace: true
-  report: full|agent|none
-  vault: {"*": full, "Private": none}
-persistence:
-  mode: static
-  schedule: "0 3 * * *"
-  prompt: "daily check-in"
-  overrides: [voice]
-  # OR
-  # mode: dynamic
-  # hint: "reschedule based on user's next workout"
+provider: Codex|openai|gemini|qwen|deepseek
+modelTier: small|medium|large
+voice: on|auto|off
+temp: cold|default|hot
+topP: creative|default|rigid
+reasoningEffort: low|default|high
+historyLimit: 20
+historyScope: full|agent
+showTrace: true
+report: full|agent|none
+vaultAccess:
+  - "*:full"
+  - "Private:none"
+persistenceMode: static
+persistenceSchedule: "0 3 * * *"
+persistencePrompt: "daily check-in"
+persistenceOverrides: [voice]
+# OR
+# persistenceMode: dynamic
+# persistenceHint: "reschedule based on user's next workout"
 ---
 Prompt body with {{var}} Handlebars interpolation.
 ```

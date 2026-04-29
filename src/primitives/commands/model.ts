@@ -37,10 +37,8 @@ async function writeFrontmatter(
 ): Promise<void> {
 	const raw = await readText(def.promptPath);
 	const updated = updateFrontmatter(raw, (fm) => {
-		const s = (fm.settings as Record<string, unknown>) ?? {};
-		if (patch.provider !== undefined) s.provider = patch.provider;
-		if (patch.modelTier !== undefined) s.modelTier = patch.modelTier;
-		fm.settings = s;
+		if (patch.provider !== undefined) fm.provider = patch.provider;
+		if (patch.modelTier !== undefined) fm.modelTier = patch.modelTier;
 	});
 	await writeData(def.promptPath, updated);
 	if (patch.provider !== undefined) def.settings.provider = patch.provider;

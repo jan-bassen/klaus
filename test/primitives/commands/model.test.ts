@@ -26,9 +26,8 @@ vi.mock("../../../src/infra/whatsapp/send.ts", () => ({
 
 const AGENT_PROMPT = `---
 name: coach
-settings:
-  provider: claude
-  modelTier: medium
+provider: claude
+modelTier: medium
 ---
 body`;
 

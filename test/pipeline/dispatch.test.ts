@@ -229,7 +229,7 @@ function makeAgent(
 	const parsed = AgentSchema.parse({
 		name,
 		tools: patch.tools ?? [],
-		settings: { report: "none" },
+		report: "none",
 	});
 	return { ...parsed, promptPath: path.join("/tmp", `${name}.md`) };
 }
@@ -237,7 +237,7 @@ function makeAgent(
 function writeAgentFile(dir: string, name: string): void {
 	writeFileSync(
 		path.join(dir, `${name}.md`),
-		`---\nname: ${name}\ntools: [reply]\nsettings:\n  report: none\n---\nYou are ${name}.`,
+		`---\nname: ${name}\ntools: [reply]\nreport: none\n---\nYou are ${name}.`,
 	);
 }
 

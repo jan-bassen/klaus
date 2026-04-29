@@ -193,8 +193,9 @@ function baseInput(tmpDir: string) {
 function makeAgent(tmpDir: string): AgentDefinition {
 	const parsed = AgentSchema.parse({
 		name: "persistent-agent",
-		settings: { report: "none" },
-		persistence: { mode: "dynamic", hint: "choose a useful next run" },
+		report: "none",
+		persistenceMode: "dynamic",
+		persistenceHint: "choose a useful next run",
 	});
 	return { ...parsed, promptPath: path.join(tmpDir, "persistent-agent.md") };
 }

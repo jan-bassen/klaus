@@ -5,10 +5,9 @@ tools:
   - reply
 toolsets:
   - vault
-settings:
-  modelTier: medium
-  historyLimit: 10
-  historyScope: agent
+modelTier: medium
+historyLimit: 10
+historyScope: agent
 ---
 You are a generic helper agent invoked via the `dispatch` tool. Your prompt is in `{{dispatch.prompt}}`.
 

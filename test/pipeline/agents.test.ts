@@ -69,7 +69,7 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 		writeAgent(
 			tmpDir,
 			"daily",
-			'persistence:\n  mode: static\n  schedule: "0 8 * * *"\n  prompt: "Good morning"\n',
+			'persistenceMode: static\npersistenceSchedule: "0 8 * * *"\npersistencePrompt: "Good morning"\n',
 		);
 		const def = await loadAgentDefinition(path.join(tmpDir, "daily.md"));
 		expect(def.persistence?.mode).toBe("static");
@@ -82,7 +82,7 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 		writeAgent(
 			tmpDir,
 			"adaptive",
-			'persistence:\n  mode: dynamic\n  hint: "schedule based on user"\n',
+			'persistenceMode: dynamic\npersistenceHint: "schedule based on user"\n',
 		);
 		const def = await loadAgentDefinition(path.join(tmpDir, "adaptive.md"));
 		expect(def.persistence?.mode).toBe("dynamic");
@@ -90,17 +90,31 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 		expect(def.persistence.hint).toBe("schedule based on user");
 	});
 
-	it("parses settings block overrides", async () => {
+	it("parses flat settings", async () => {
 		writeAgent(
 			tmpDir,
 			"custom",
-			"settings:\n  voice: on\n  temp: cold\n  report: full\n  historyLimit: 5\n",
+			"voice: on\ntemp: cold\nreport: full\nhistoryLimit: 5\n",
 		);
 		const def = await loadAgentDefinition(path.join(tmpDir, "custom.md"));
 		expect(def.settings.voice).toBe("on");
 		expect(def.settings.temp).toBe("cold");
 		expect(def.settings.report).toBe("full");
 		expect(def.settings.historyLimit).toBe(5);
+	});
+
+	it("parses vault access strings into the internal map", async () => {
+		writeAgent(
+			tmpDir,
+			"vaulty",
+			'vaultAccess:\n  - "*:read"\n  - "Projects:full"\n  - "Private:none"\n',
+		);
+		const def = await loadAgentDefinition(path.join(tmpDir, "vaulty.md"));
+		expect(def.settings.vault).toEqual({
+			"*": "read",
+			Projects: "full",
+			Private: "none",
+		});
 	});
 });
 

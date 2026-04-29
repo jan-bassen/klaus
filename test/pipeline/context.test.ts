@@ -445,7 +445,7 @@ function makeAgent(
 	const parsed = AgentSchema.parse({
 		name,
 		tools,
-		settings: { report: "none" },
+		report: "none",
 	});
 	return { ...parsed, promptPath };
 }

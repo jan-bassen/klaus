@@ -75,23 +75,10 @@ export interface VaultFolder {
 	path: string;
 	/** Always-on permission level. */
 	default: VaultPermission;
-	/**
-	 * Optional ceiling reachable via user confirmation (👍 reaction). When the
-	 * agent attempts an op above `default` but ≤ `confirm`, the framework
-	 * gates the call instead of denying it. Omit to disallow elevation.
-	 */
-	confirm?: VaultPermission | undefined;
 }
 
-/** Per-agent override entry: bare permission OR a `{default, confirm}` block. */
-export type AgentVaultEntry =
-	| "none"
-	| "read"
-	| "full"
-	| {
-			default: "none" | "read" | "full";
-			confirm?: VaultPermission | undefined;
-	  };
+/** Per-agent override entry. */
+export type AgentVaultEntry = "none" | "read" | "full";
 
 // ── Zod schema (validates YAML from settings.yml) ──────────────────────────
 
@@ -101,23 +88,10 @@ const VaultFolderSchema = z
 	.object({
 		path: z.string(),
 		default: VaultPermissionSchema,
-		confirm: VaultPermissionSchema.optional(),
 	})
 	.strict();
 
-/**
- * Per-agent vault override map entry. Either a bare permission string (legacy
- * shape) or an object with a `default` and optional `confirm` ceiling.
- */
-const AgentVaultEntrySchema = z.union([
-	z.enum(["none", "read", "full"]),
-	z
-		.object({
-			default: z.enum(["none", "read", "full"]),
-			confirm: VaultPermissionSchema.optional(),
-		})
-		.strict(),
-]);
+const AgentVaultEntrySchema = z.enum(["none", "read", "full"]);
 
 const RetriesSchema = z
 	.object({

@@ -23,11 +23,10 @@ function writeAgent(
 	},
 ): void {
 	const persistence = options.schedule
-		? `persistence:
-  mode: static
-  schedule: "${options.schedule}"
-  prompt: "${options.prompt ?? "check in"}"
-  overrides: [${(options.overrides ?? []).join(", ")}]
+		? `persistenceMode: static
+persistenceSchedule: "${options.schedule}"
+persistencePrompt: "${options.prompt ?? "check in"}"
+persistenceOverrides: [${(options.overrides ?? []).join(", ")}]
 `
 		: "";
 	writeFileSync(

@@ -133,9 +133,8 @@ tools: [reply, react]
 toolsets: [vault]
 providerTools: [web_search]
 skills: [obsidian-markdown]
-settings:
-  provider: claude
-  modelTier: large
+provider: claude
+modelTier: large
 ---
 You are a research assistant. {{time.date}} — use web_search + vault.
 
