@@ -57,8 +57,8 @@ function send(msg: InboundMessage, content: string, suffix: string): void {
 export const modelCommand: Command = {
 	name: "model",
 	aliases: ["m"],
-	description:
-		"Show or switch the default agent's model tier (small|medium|large)",
+	params: [{ name: "small|medium|large" }],
+	description: "Show or switch the default agent's model tier",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const cur = resolveCurrent(msg);
 		if (typeof cur === "string") return send(msg, cur, "model-error");
@@ -110,6 +110,7 @@ export const modelCommand: Command = {
 export const providerCommand: Command = {
 	name: "provider",
 	aliases: ["p"],
+	params: [{ name: "provider" }],
 	description: "Show or switch the default agent's provider",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const cur = resolveCurrent(msg);

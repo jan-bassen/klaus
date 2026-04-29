@@ -12,7 +12,8 @@ type VoiceMode = "on" | "off" | "auto";
 export const voiceCommand: Command = {
 	name: "voice",
 	aliases: ["v"],
-	description: "Show or set voice output for the default agent (on/off/auto)",
+	params: [{ name: "on|off|auto" }],
+	description: "Show or set voice output for the default agent",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const agentName = getDefaultAgent(msg.chatId);
 		const def = agentRegistry.get(agentName);

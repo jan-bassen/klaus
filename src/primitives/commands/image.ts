@@ -10,7 +10,8 @@ import type { Command } from "./index.ts";
 export const imageCommand: Command = {
 	name: "image",
 	aliases: ["img"],
-	description: "Generate an image from a prompt and send it back",
+	params: [{ name: "prompt" }],
+	description: "Generate an image",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const prompt = args.join(" ").trim();
 		if (!prompt) {

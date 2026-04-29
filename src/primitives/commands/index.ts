@@ -2,9 +2,19 @@ import { z } from "zod";
 import { log } from "../../infra/logger.ts";
 import { scanFiles } from "../../infra/runtime.ts";
 import type { InboundMessage } from "../../infra/whatsapp/receive.ts";
+export interface Param {
+	name: string;
+}
+
+export function formatParams(params: Param[] | undefined): string {
+	if (!params?.length) return "";
+	return params.map((p) => `<${p.name}>`).join(" ");
+}
+
 export interface Command {
 	name: string;
 	aliases?: string[];
+	params?: Param[];
 	description: string;
 	execute: (msg: InboundMessage, args: string[]) => Promise<void>;
 }

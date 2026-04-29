@@ -11,8 +11,8 @@ const MAX_LIMIT = 50;
 export const reportsCommand: Command = {
 	name: "reports",
 	aliases: ["rep"],
-	description:
-		"List recent reports. Optional args: a numeric limit and/or an agent filter (e.g. `/reports 5 assistant`).",
+	params: [{ name: "limit" }, { name: "agent" }],
+	description: "List recent reports",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {
 		let limit = DEFAULT_LIMIT;
 		let agent: string | undefined;

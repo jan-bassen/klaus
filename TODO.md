@@ -1,13 +1,14 @@
 # Fixes from testing
 
 - [x] startup flow bad!
-- [ ] /help
-  - [ ] shorten descriptions to 1-3 words if possible
-  - [ ] remove variables
-  - [ ] reduce to providers instead of models
-  - [ ] remove vault part
-  - [ ] show command params
-  - [ ] better formatting with new lines and bold
+- [x] /help
+  - [x] shorten descriptions more where possible
+  - [x] remove variables
+  - [x] reduce to providers instead of models
+  - [x] remove vault part
+  - [x] show command params
+  - [x] better formatting:
+    - [x] not a list, but `*main [aliases]* <params>` then in new line description
 - [ ] Lange reports einzeln?
 - [ ] Error handling
   - [ ] Failed = emoji reaction
