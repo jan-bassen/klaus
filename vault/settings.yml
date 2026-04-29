@@ -137,7 +137,7 @@ persistence:
 reports:
   # Mirror each turn's report into {vault}/reports/<date>.md for human reading.
   # JSONL under {dataDir}/logs/ is written when the effective turn report != "none".
-  vaultMarkdown: false
+  vaultMarkdown: true
   # Days of report history surfaced via /reports.
   lookbackDays: 7
 

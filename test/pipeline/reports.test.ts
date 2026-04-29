@@ -196,6 +196,7 @@ describe("pipeline/reports: emitReport", () => {
 	it("config picks only declared keys", async () => {
 		const turn: TurnContext = makeTurn({
 			config: {
+				provider: "openai",
 				modelTier: "large",
 				historyLimit: 20,
 				historyScope: "agent",
@@ -215,6 +216,7 @@ describe("pipeline/reports: emitReport", () => {
 
 		const [entry] = await readReports({ days: 1 });
 		expect(entry?.config).toEqual({
+			provider: "openai",
 			modelTier: "large",
 			historyLimit: 20,
 			historyScope: "agent",

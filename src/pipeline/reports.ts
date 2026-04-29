@@ -7,7 +7,7 @@
  *   - `"agent"` → LLM-only fields (model, tokens, steps, tool calls)
  *   - `"full"`  → also message metadata, overrides, variables summary
  *
- * Two write paths, both fire-and-forget so reporting never blocks the reply:
+ * Two write paths:
  *   1. Always: append a JSON line to `{dataDir}/logs/<date>.jsonl`.
  *   2. If `settings.reports.vaultMarkdown` is on: append a rendered
  *      `report-full.md` block to `{vault}/reports/<date>.md`.
@@ -43,16 +43,24 @@ interface EmitReportInput {
 
 /**
  * Build the report entry, write it to JSONL, and (when enabled) mirror it as
- * markdown into the vault. Catches its own errors — never throws — so the
- * caller can fire-and-forget without try/catch noise.
+ * markdown into the vault. Catches its own errors — never throws — so report
+ * failures are visible in logs without masking the turn result.
  */
 export async function emitReport(input: EmitReportInput): Promise<void> {
 	try {
 		const entry = buildReport(input);
-		await writeReport(entry);
+		const jsonlPath = await writeReport(entry);
+		let vaultPath: string | undefined;
 		if (settings.reports.vaultMarkdown) {
-			await mirrorToVault(entry);
+			vaultPath = await mirrorToVault(entry);
 		}
+		log.info("[reports] emitted", {
+			runId: entry.runId,
+			agent: entry.agent,
+			level: entry.level,
+			jsonlPath,
+			...(vaultPath ? { vaultPath } : {}),
+		});
 	} catch (err) {
 		log.warn("[reports] failed to emit", {
 			error: err instanceof Error ? err.message : String(err),
@@ -105,6 +113,7 @@ function errorOutcome(err: unknown): ReportEntry["outcome"] {
 function pickConfig(c: TurnConfig): ReportEntry["config"] {
 	const out: ReportEntry["config"] = {};
 	if (c.modelTier) out.modelTier = c.modelTier;
+	if (c.provider) out.provider = c.provider;
 	if (c.historyLimit !== undefined) out.historyLimit = c.historyLimit;
 	if (c.historyScope) out.historyScope = c.historyScope;
 	if (c.showTrace !== undefined) out.showTrace = c.showTrace;
@@ -181,7 +190,7 @@ function summarizeVars(vars: Record<string, unknown>): Record<string, number> {
 
 // ── Vault mirror ───────────────────────────────────────────────────────────
 
-async function mirrorToVault(entry: ReportEntry): Promise<void> {
+async function mirrorToVault(entry: ReportEntry): Promise<string> {
 	const dir = settings.vault.reportsDir;
 	await mkdir(dir, { recursive: true });
 	const date = localDateString(settings.timezone);
@@ -191,4 +200,5 @@ async function mirrorToVault(entry: ReportEntry): Promise<void> {
 		entry as unknown as Record<string, unknown>,
 	);
 	await appendFile(filePath, `${rendered}\n\n---\n\n`);
+	return filePath;
 }

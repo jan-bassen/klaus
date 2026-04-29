@@ -162,8 +162,9 @@ interface ExecuteAgentInput {
  * `runAgent`. Used by both the inbound pipeline and dispatch.
  *
  * Emits a per-turn report (when `turn.config.report !== "none"`) on both
- * success and failure paths — fire-and-forget so reporting never blocks
- * the reply or masks the original error.
+ * success and failure paths. Reporting catches its own errors so it cannot
+ * mask the original turn result, but executeAgent waits for it so writes and
+ * report logs are flushed before the turn is considered complete.
  */
 export async function executeAgent(
 	input: ExecuteAgentInput,
@@ -211,14 +212,19 @@ export async function executeAgent(
 		flushPendingSubReplies(fullTurn);
 
 		if (reportLevel) {
-			emitReport({ turn: fullTurn, startedAt, level: reportLevel, result });
+			await emitReport({
+				turn: fullTurn,
+				startedAt,
+				level: reportLevel,
+				result,
+			});
 		}
 
 		return result;
 	} catch (err) {
 		if (reportLevel) {
 			if (!isAbortError(err)) {
-				emitReport({
+				await emitReport({
 					turn: fullTurn,
 					startedAt,
 					level: reportLevel,

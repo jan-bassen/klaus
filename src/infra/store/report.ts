@@ -16,7 +16,6 @@
 import { appendFile, mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import type { Trigger } from "../../pipeline/core.ts";
 import { settings } from "../config.ts";
 import { log } from "../logger.ts";
 import { readText } from "../runtime.ts";
@@ -72,6 +71,7 @@ const ReportLlmSchema = z.object({
 });
 
 const ReportConfigSchema = z.object({
+	provider: z.string().optional(),
 	modelTier: z.string().optional(),
 	historyLimit: z.number().optional(),
 	historyScope: z.string().optional(),
@@ -150,10 +150,12 @@ function fileFor(date: string): string {
 	return path.join(logsDir(), `${date}.jsonl`);
 }
 
-export async function writeReport(entry: ReportEntry): Promise<void> {
+export async function writeReport(entry: ReportEntry): Promise<string> {
 	await mkdir(logsDir(), { recursive: true });
 	const date = localDateString(settings.timezone);
-	await appendFile(fileFor(date), `${JSON.stringify(entry)}\n`);
+	const filePath = fileFor(date);
+	await appendFile(filePath, `${JSON.stringify(entry)}\n`);
+	return filePath;
 }
 
 interface ReadReportsOptions {
@@ -210,6 +212,3 @@ export async function readReports(
 	out.reverse();
 	return limit ? out.slice(0, limit) : out;
 }
-
-/** Convenience: rebuild a `Trigger` for templates without exposing internals. */
-type ReportTrigger = Trigger;
