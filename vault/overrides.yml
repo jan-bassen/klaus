@@ -18,6 +18,21 @@ simulate:
   description: Dry-run — fake external/stateful tools, no real side effects
   overrides: { simulate: true }
 
+full-report:
+  aliases: [report, rp]
+  description: Write a full diagnostic report for this turn
+  overrides: { report: full }
+
+short-report:
+  aliases: [sr]
+  description: Write a short report for this turn
+  overrides: { report: short }
+
+no-report:
+  aliases: [nr]
+  description: Disable report writing for this turn
+  overrides: { report: none }
+
 small:
   aliases: [s]
   description: Use small model

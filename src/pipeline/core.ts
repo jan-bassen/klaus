@@ -265,11 +265,11 @@ function flushPendingSubReplies(turn: TurnContext): void {
 
 /** Map the user-facing setting onto the actual emit level (or `null` to skip). */
 function resolveReportLevel(
-	setting: "full" | "agent" | "none" | undefined,
-): "full" | "agent" | null {
+	setting: "full" | "short" | "none" | undefined,
+): "full" | "short" | null {
 	if (setting === "none") return null;
 	if (setting === "full") return "full";
-	return "agent";
+	return "short";
 }
 
 /**

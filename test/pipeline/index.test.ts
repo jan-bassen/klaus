@@ -104,7 +104,7 @@ describe("pipeline/index.handleTurn", () => {
 		registerTool(probeTool);
 		agentRegistry.set("default", makeAgent("default", tmpDir));
 		agentRegistry.set("researcher", makeAgent("researcher", tmpDir));
-		agentRegistry.set("reporter", makeAgent("reporter", tmpDir, "agent"));
+		agentRegistry.set("reporter", makeAgent("reporter", tmpDir, "short"));
 		setDefaultAgent("chat1", "default");
 		overrideRegistry.set("large", {
 			name: "large",
@@ -185,7 +185,7 @@ describe("pipeline/index.handleTurn", () => {
 		});
 	});
 
-	it("writes an agent-level report when the routed agent requests reports", async () => {
+	it("writes a short report when the routed agent requests reports", async () => {
 		sendMock.mockResolvedValueOnce(replyResponse("reported"));
 		const msg = makeMsg("chat1", "reporter", "please report");
 
@@ -196,7 +196,7 @@ describe("pipeline/index.handleTurn", () => {
 			agent: "reporter",
 			chatId: "chat1",
 			trigger: { kind: "message", messageId: msg.id },
-			level: "agent",
+			level: "short",
 			outcome: { kind: "ok" },
 			llm: expect.objectContaining({
 				model: "anthropic/claude-sonnet-4-6",
@@ -378,7 +378,7 @@ describe("pipeline/index.handleTurn", () => {
 function makeAgent(
 	name: string,
 	dir: string,
-	report: "none" | "agent" = "none",
+	report: "none" | "short" = "none",
 ): AgentDefinition {
 	const promptPath = path.join(dir, `${name}.md`);
 	writeFileSync(

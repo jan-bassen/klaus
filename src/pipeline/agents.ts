@@ -22,6 +22,11 @@ import { readText, scanFiles } from "../infra/runtime.ts";
 
 // ── Settings ───────────────────────────────────────────────────────────────
 
+const ReportSettingSchema = z.preprocess(
+	(value) => (value === "agent" ? "short" : value),
+	z.enum(["full", "short", "none"]),
+);
+
 /**
  * Per-agent default behavior. Per-message `!overrides` win over these; settings
  * here win over the global `settings.agentDefaults`.
@@ -43,7 +48,7 @@ const AgentSettingsSchema = z
 		historyScope: z.enum(["full", "agent"]).optional(),
 		/** Render the per-turn `[Used X, Y → replied]` summary in history? */
 		showTrace: z.boolean().default(true),
-		report: z.enum(["full", "agent", "none"]).default("agent"),
+		report: ReportSettingSchema.default("short"),
 		vault: z.record(z.string(), z.enum(["none", "read", "full"])).optional(),
 	})
 	.transform((s) => ({
@@ -130,7 +135,7 @@ const AgentFrontmatterSchema = z
 		historyLimit: z.number().optional(),
 		historyScope: z.enum(["full", "agent"]).optional(),
 		showTrace: z.boolean().default(true),
-		report: z.enum(["full", "agent", "none"]).default("agent"),
+		report: ReportSettingSchema.default("short"),
 		vaultAccess: z.array(z.string()).default([]),
 		persistenceMode: z.enum(["static", "dynamic"]).optional(),
 		persistenceSchedule: z.string().optional(),

@@ -19,7 +19,7 @@ function makeEntry(overrides: Partial<ReportEntry> = {}): ReportEntry {
 		trigger: { kind: "message", messageId: "m-1" },
 		timestamp: new Date().toISOString(),
 		durationMs: 42,
-		level: "agent",
+		level: "short",
 		outcome: { kind: "ok" },
 		overrides: [],
 		config: {},

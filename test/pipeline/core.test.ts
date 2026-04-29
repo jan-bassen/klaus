@@ -282,7 +282,7 @@ describe("pipeline/core.executeAgent", () => {
 		expect(sendMock).toHaveBeenCalledTimes(1);
 	});
 
-	it("emits an agent report on success", async () => {
+	it("emits a short report on success", async () => {
 		sendMock.mockResolvedValueOnce(
 			chatResponse({
 				toolCalls: [toolCall("probe", { value: "reported" }, "probe-1")],
@@ -293,7 +293,7 @@ describe("pipeline/core.executeAgent", () => {
 		const turn = makeTurn({
 			agent: def,
 			runId: "run-report-ok",
-			config: { report: "agent", stepLimit: 1, skipHistory: true },
+			config: { report: "short", stepLimit: 1, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 
@@ -303,7 +303,7 @@ describe("pipeline/core.executeAgent", () => {
 		expect(report).toMatchObject({
 			runId: "run-report-ok",
 			agent: "core-test",
-			level: "agent",
+			level: "short",
 			outcome: { kind: "ok" },
 			llm: {
 				model: "anthropic/claude-sonnet-4-6",
@@ -326,7 +326,7 @@ describe("pipeline/core.executeAgent", () => {
 		const turn = makeTurn({
 			agent: def,
 			runId: "run-report-error",
-			config: { report: "agent", stepLimit: 1, skipHistory: true },
+			config: { report: "short", stepLimit: 1, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 

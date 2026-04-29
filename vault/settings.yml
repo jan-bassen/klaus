@@ -25,7 +25,7 @@ agentDefaults:
   historyLimit: 20
   historyScope: full
   showTrace: true
-  report: agent
+  report: short
   vault:
     "*": full
 
@@ -136,7 +136,7 @@ persistence:
 
 reports:
   # Mirror each turn's report into {vault}/reports/<date>.md for human reading.
-  # JSONL under {dataDir}/logs/ is always written when settings.agentDefaults.report != "none".
+  # JSONL under {dataDir}/logs/ is written when the effective turn report != "none".
   vaultMarkdown: false
   # Days of report history surfaced via /reports.
   lookbackDays: 7

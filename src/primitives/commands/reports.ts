@@ -12,7 +12,7 @@ export const reportsCommand: Command = {
 	name: "reports",
 	aliases: ["rep"],
 	description:
-		"List recent agent reports. Optional args: a numeric limit and/or an agent filter (e.g. `/reports 5 assistant`).",
+		"List recent reports. Optional args: a numeric limit and/or an agent filter (e.g. `/reports 5 assistant`).",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {
 		let limit = DEFAULT_LIMIT;
 		let agent: string | undefined;

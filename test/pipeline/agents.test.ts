@@ -49,7 +49,7 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 		expect(def.settings.temp).toBe("default");
 		expect(def.settings.topP).toBe("default");
 		expect(def.settings.showTrace).toBe(true);
-		expect(def.settings.report).toBe("agent");
+		expect(def.settings.report).toBe("short");
 	});
 
 	it("throws when frontmatter is missing", async () => {

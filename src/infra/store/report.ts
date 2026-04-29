@@ -5,7 +5,7 @@
  * Written from `pipeline/core.ts` whenever `turn.config.report !== "none"`.
  *
  * Two report levels (decided by `turn.config.report`):
- *   - `"agent"` — only the LLM call: model, tokens, steps, tool calls.
+ *   - `"short"` — only the LLM call: model, tokens, steps, tool calls.
  *   - `"full"`  — also routing, overrides, variables summary, message metadata.
  *
  * Reports are operational telemetry, not part of conversation state — they
@@ -102,6 +102,11 @@ const SimulatedActionSchema = z.object({
 	result: z.unknown(),
 });
 
+const ReportLevelSchema = z.preprocess(
+	(value) => (value === "agent" ? "short" : value),
+	z.enum(["short", "full"]),
+);
+
 const ReportEntrySchema = z.object({
 	runId: z.string(),
 	chatId: z.string(),
@@ -109,7 +114,7 @@ const ReportEntrySchema = z.object({
 	trigger: TriggerSchema,
 	timestamp: z.string(),
 	durationMs: z.number(),
-	level: z.enum(["agent", "full"]),
+	level: ReportLevelSchema,
 	outcome: ReportOutcomeSchema,
 	overrides: z.array(z.string()),
 	config: ReportConfigSchema,

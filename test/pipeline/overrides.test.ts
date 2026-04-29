@@ -10,6 +10,7 @@ import { settings } from "../../src/infra/config.ts";
 import type { AgentDefinition } from "../../src/pipeline/agents.ts";
 import {
 	buildTurnConfig,
+	loadOverrides,
 	type OverrideDef,
 	overrideRegistry,
 	parseOverrides,
@@ -38,7 +39,7 @@ function makeAgent(
 			topP: "default",
 			reasoningEffort: "default",
 			showTrace: true,
-			report: "agent",
+			report: "short",
 			...patch,
 		},
 		promptPath: "/tmp/x.md",
@@ -179,5 +180,24 @@ describe("pipeline/overrides.parseOverrides + stripOverrides", () => {
 
 	it("parseOverrides ignores unrecognised !words", () => {
 		expect(parseOverrides({ text: "!unknown hi" })).toEqual({});
+	});
+});
+
+describe("pipeline/overrides default presets", () => {
+	it("ships report-level presets for one-off testing", async () => {
+		await loadOverrides("vault/overrides.yml");
+
+		expect(parseOverrides({ text: "!report inspect this" })).toEqual({
+			"full-report": true,
+		});
+		expect(buildTurnConfig(makeAgent(), { "full-report": true }).report).toBe(
+			"full",
+		);
+		expect(buildTurnConfig(makeAgent(), { "short-report": true }).report).toBe(
+			"short",
+		);
+		expect(buildTurnConfig(makeAgent(), { "no-report": true }).report).toBe(
+			"none",
+		);
 	});
 });

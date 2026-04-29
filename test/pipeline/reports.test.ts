@@ -4,7 +4,7 @@
  * Distinct from `test/infra/store/report.test.ts`, which tests the JSONL
  * round-trip primitive. Here we test the report *builder*: how a full
  * `TurnContext` + `AgentRunResult` collapse into the JSONL entry, including
- * the `agent` vs `full` level split, simulation tagging, and the never-throws
+ * the `short` vs `full` level split, simulation tagging, and the never-throws
  * contract on the error path.
  */
 
@@ -59,20 +59,20 @@ describe("pipeline/reports: emitReport", () => {
 		rmTmpDir(tmp);
 	});
 
-	it("agent level: writes LLM section but omits message + variables + verbatim prompts", async () => {
+	it("short level: writes LLM section but omits message + variables + verbatim prompts", async () => {
 		const turn: TurnContext = makeTurn({ vars: { user: { name: "Jan" } } });
 		const startedAt = Date.now() - 50;
 
 		await emitReport({
 			turn,
 			startedAt,
-			level: "agent",
+			level: "short",
 			result: makeResult(),
 		});
 
 		const [entry] = await readReports({ days: 1 });
 		expect(entry).toBeDefined();
-		expect(entry?.level).toBe("agent");
+		expect(entry?.level).toBe("short");
 		expect(entry?.outcome).toEqual({ kind: "ok" });
 		expect(entry?.llm?.model).toBe("openrouter/auto");
 		expect(entry?.llm?.usage.promptTokens).toBe(100);
@@ -132,7 +132,7 @@ describe("pipeline/reports: emitReport", () => {
 		await emitReport({
 			turn,
 			startedAt: Date.now(),
-			level: "agent",
+			level: "short",
 			error: err,
 		});
 
@@ -161,7 +161,7 @@ describe("pipeline/reports: emitReport", () => {
 		await emitReport({
 			turn,
 			startedAt: Date.now(),
-			level: "agent",
+			level: "short",
 			result: makeResult(),
 		});
 
@@ -209,7 +209,7 @@ describe("pipeline/reports: emitReport", () => {
 		await emitReport({
 			turn,
 			startedAt: Date.now(),
-			level: "agent",
+			level: "short",
 			result: makeResult(),
 		});
 

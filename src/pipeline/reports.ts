@@ -36,7 +36,7 @@ interface EmitReportInput {
 	turn: TurnContext;
 	startedAt: number;
 	/** Effective `report` level for this turn — already resolved by the caller. */
-	level: "agent" | "full";
+	level: "short" | "full";
 	result?: AgentRunResult;
 	error?: unknown;
 }
@@ -114,7 +114,7 @@ function pickConfig(c: TurnConfig): ReportEntry["config"] {
 
 function buildLlmSection(
 	result: AgentRunResult,
-	level: "agent" | "full",
+	level: "short" | "full",
 ): ReportLlm {
 	const llm: ReportLlm = {
 		model: result.model,

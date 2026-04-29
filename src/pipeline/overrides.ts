@@ -38,7 +38,7 @@ export interface TurnConfig {
 	historyLimit?: number;
 	historyScope?: "full" | "agent";
 	showTrace?: boolean;
-	report?: "full" | "agent" | "none";
+	report?: "full" | "short" | "none";
 	vault?: Record<string, AgentVaultEntry>;
 	// override-only
 	skipHistory?: boolean;
@@ -68,7 +68,12 @@ const turnConfigSchema = z
 		historyLimit: z.number().optional(),
 		historyScope: z.enum(["full", "agent"]).optional(),
 		showTrace: z.boolean().optional(),
-		report: z.enum(["full", "agent", "none"]).optional(),
+		report: z
+			.preprocess(
+				(value) => (value === "agent" ? "short" : value),
+				z.enum(["full", "short", "none"]),
+			)
+			.optional(),
 		vault: z.record(z.string(), z.enum(["none", "read", "full"])).optional(),
 		skipHistory: z.boolean().optional(),
 		ghost: z.boolean().optional(),

@@ -81,7 +81,7 @@ reasoningEffort: low|default|high
 historyLimit: 20
 historyScope: full|agent
 showTrace: true
-report: full|agent|none
+report: full|short|none
 vaultAccess:
   - "*:full"
   - "Private:none"
@@ -122,7 +122,7 @@ Persistence:
 
 Per-turn JSONL at `{dataDir}/logs/<date>.jsonl`. Three levels (`turn.config.report`):
 - `none` — skip
-- `agent` — LLM call only (model, tokens, steps, tool calls)
+- `short` — LLM call only (model, tokens, steps, tool calls)
 - `full` — also message metadata, overrides, variables summary, and **verbatim** system prompt + user message + history transcript (for spotting injection / format bugs)
 
 Sim runs always set `simulation: true` and carry the `simulatedActions` list from the overlay.
