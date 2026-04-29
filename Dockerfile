@@ -10,9 +10,6 @@ LABEL org.opencontainers.image.description="Headless personal AI agent: WhatsApp
 LABEL org.opencontainers.image.source="https://github.com/jan-bassen/klaus"
 LABEL org.opencontainers.image.version="${VERSION}"
 ENV VERSION=${VERSION}
-ENV VAULT_DIR=/app/vault
-ENV DATA_DIR=/app/data
-ENV BAILEYS_AUTH_FOLDER=/app/data/baileys-auth
 WORKDIR /app
 
 # obsidian-headless: bundles vault sync into the Klaus container so a single

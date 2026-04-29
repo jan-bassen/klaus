@@ -8,6 +8,7 @@ import {
 	type WASocket,
 } from "baileys";
 import type { ILogger } from "baileys/lib/Utils/logger.js";
+import { settings } from "../config.ts";
 import { log } from "../logger.ts";
 import { writeQrToVault } from "./login.ts";
 
@@ -38,8 +39,7 @@ type WhatsAppConnectionState =
 let connectionState: WhatsAppConnectionState = "idle";
 let latestQr: string | null = null;
 
-const AUTH_DIR =
-	process.env.BAILEYS_AUTH_FOLDER ?? path.join(process.cwd(), ".baileys-auth");
+const AUTH_DIR = path.join(settings.dataDir, "baileys-auth");
 
 /**
  * Initialize Baileys, handle QR pairing on first run, and manage reconnects.

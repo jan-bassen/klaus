@@ -26,7 +26,7 @@ const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 // ── Env-derived paths (resolved once at startup) ───────────────────────────
 
-const VAULT_ROOT = process.env.VAULT_DIR ?? path.join(process.cwd(), "vault");
+const VAULT_ROOT = path.join(process.cwd(), "vault");
 const INTERNAL_NAME = "Klaus";
 const INTERNAL_PATH = path.join(VAULT_ROOT, INTERNAL_NAME);
 
@@ -44,9 +44,7 @@ const vaultPaths = {
 	settingsPath: path.join(INTERNAL_PATH, "settings.yml"),
 };
 
-const dataDir =
-	process.env.DATA_DIR ??
-	path.join(process.env.HOME ?? process.cwd(), ".klaus", "data");
+const dataDir = path.join(process.cwd(), "data");
 
 const logFormat = (process.env.LOG_FORMAT === "json" ? "json" : "text") as
 	| "text"

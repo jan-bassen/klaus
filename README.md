@@ -167,13 +167,10 @@ Hot-reload covers agent files, skills, snippets, templates, `overrides.yml`, and
 | `ALLOWED_CHAT_ID` | — | Fallback — prefer `basics.allowedChatId` in settings.yml |
 | `LOG_FORMAT` | `text` | `text` or `json` (NAS log viewers prefer `json`) |
 | `PORT` | `3000` | HTTP port for `/healthz` |
-| `DATA_DIR` | `~/.klaus/data` | Conversations, reports, files, timers, sync state |
-| `VAULT_DIR` | `./vault` | Obsidian vault root |
-| `BAILEYS_AUTH_FOLDER` | `./.baileys-auth` | WhatsApp pairing credentials |
 
 `{vault}/Klaus/settings.yml` — everything tunable (providers, model tiers, media, whatsapp, vault folders + permissions, persistence bounds, reports). Hot-reloaded with Zod validation.
 
-The Docker image sets `VAULT_DIR=/app/vault`, `DATA_DIR=/app/data`, and `BAILEYS_AUTH_FOLDER=/app/data/baileys-auth`. Keep two volumes: `klaus-vault` for Obsidian-facing notes and agent config, `klaus-data` for operational state.
+The Docker image runs from `/app`, so those defaults become `/app/vault` and `/app/data`; WhatsApp credentials live at `/app/data/baileys-auth`. Keep two volumes: `klaus-vault` for Obsidian-facing notes and agent config, `klaus-data` for operational state.
 
 ## Deploy + operate
 

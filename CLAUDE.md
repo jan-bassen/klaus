@@ -147,7 +147,7 @@ Overlay gives read-from-write coherence: a `vault_write` followed by `vault_read
 | `schedules` | JSON + croner | Recurring cron jobs |
 | `timers` | JSON + setTimeout | One-shot future execution |
 
-All under `{dataDir}` (default `~/.klaus/data`). The vault is separate — it's the knowledge graph (notes, wikilinks, frontmatter).
+All under `{dataDir}` (default `./data`). The vault is separate — it's the knowledge graph (notes, wikilinks, frontmatter).
 
 ## Vault layout (`{vault}/Klaus/`)
 
