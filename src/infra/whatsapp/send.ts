@@ -135,6 +135,8 @@ async function sendWithRetry(
 		if (attempt > 1) {
 			log.info(`[send] retrying delivery (attempt ${attempt})`);
 		}
+		// Baileys reads content-type off `quoted.message` to build contextInfo;
+		// it crashes on key-only quotes, so include a minimal placeholder message.
 		const sendOpts = msg.quoted
 			? {
 					quoted: {
@@ -143,6 +145,7 @@ async function sendWithRetry(
 							fromMe: msg.quoted.fromMe,
 							id: msg.quoted.externalId,
 						},
+						message: { conversation: "" },
 					},
 				}
 			: undefined;

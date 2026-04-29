@@ -8,7 +8,7 @@
   - [ ] remove vault (or own command /vault?)
   - [ ] show command params
   - [ ] better formatting with new lines and bold
-- [ ] 
+- [ ] Lange reports einzeln?
 
 # Repo cleanup
 

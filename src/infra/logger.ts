@@ -31,17 +31,36 @@ const LEVEL_LABEL: Record<Level, string> = {
 
 const MODULE_RE = /^\[([^\]]+)\]\s*/;
 
-function formatText(level: Level, msg: string): string {
+function formatText(
+	level: Level,
+	msg: string,
+	data?: Record<string, unknown>,
+): string {
 	const time = new Date().toISOString().slice(11, 23);
 	const badge = `${LEVEL_COLOR[level]}${LEVEL_LABEL[level]}${RESET}`;
+	const tail =
+		data && Object.keys(data).length > 0 ? ` ${DIM}${formatData(data)}${RESET}` : "";
 
 	const match = MODULE_RE.exec(msg);
 	if (match) {
 		const module = match[1];
 		const rest = msg.slice(match[0].length);
-		return `${DIM}${time}${RESET} ${badge} ${CYAN}${BOLD}[${module}]${RESET} ${rest}`;
+		return `${DIM}${time}${RESET} ${badge} ${CYAN}${BOLD}[${module}]${RESET} ${rest}${tail}`;
 	}
-	return `${DIM}${time}${RESET} ${badge} ${msg}`;
+	return `${DIM}${time}${RESET} ${badge} ${msg}${tail}`;
+}
+
+function formatData(data: Record<string, unknown>): string {
+	return Object.entries(data)
+		.map(([k, v]) => `${k}=${formatValue(v)}`)
+		.join(" ");
+}
+
+function formatValue(v: unknown): string {
+	if (typeof v === "string") return v.includes(" ") ? JSON.stringify(v) : v;
+	if (v instanceof Error) return JSON.stringify(v.message);
+	if (typeof v === "object" && v !== null) return JSON.stringify(v);
+	return String(v);
 }
 
 // Silenced during test runs so assertions can inspect stdout/stderr without noise.
@@ -52,7 +71,7 @@ function emit(level: Level, msg: string, data?: Record<string, unknown>): void {
 	const jsonMode = process.env.NODE_ENV === "test" || logFormat === "json";
 	const line = jsonMode
 		? JSON.stringify({ ts: new Date().toISOString(), level, msg, ...data })
-		: formatText(level, msg);
+		: formatText(level, msg, data);
 	(level === "error" || level === "warn" ? console.error : console.log)(line);
 }
 

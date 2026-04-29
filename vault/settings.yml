@@ -86,7 +86,7 @@ sampling:
 media:
   voice:
     tts:
-      model: eleven_ttv_v3
+      model: eleven_v3
       # ElevenLabs voice ID — pick one at https://elevenlabs.io/app/voice-library
       voiceId: ""
     stt:
