@@ -9,6 +9,12 @@
   - [ ] show command params
   - [ ] better formatting with new lines and bold
 - [ ] Lange reports einzeln?
+- [ ] Error handling
+  - [ ] Failed = emoji reaction
+  - [ ] easy retry option
+  - [ ] easy check error option
+- [ ]  image_edit tool
+- [ ] Reduce to single report template (full)
 
 # Repo cleanup
 

@@ -94,6 +94,15 @@ process.on("SIGINT", () => {
 	shutdown("SIGINT").catch(() => process.exit(1));
 });
 
+process.on("unhandledRejection", (reason) => {
+	log.error("[process] unhandledRejection", {
+		error: reason instanceof Error ? reason.message : String(reason),
+	});
+});
+process.on("uncaughtException", (err) => {
+	log.error("[process] uncaughtException", { error: err.message });
+});
+
 async function runScheduledDispatch(
 	source: "cron" | "timer",
 	entry: ScheduleEntry | TimerEntry,
