@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { formatUserError } from "./errors.ts";
 import {
+	bundledVaultDir,
 	loadSettingsFromDisk,
 	requiredStartupApiKeyEnvVars,
 	settings,
@@ -88,7 +89,7 @@ process.on("SIGINT", () => {
  * Only copies files that don't already exist — never overwrites user customizations.
  */
 async function ensureDefaults(targetDir: string): Promise<void> {
-	const defaultsDir = path.join(MODULE_DIR, "..", "vault");
+	const defaultsDir = bundledVaultDir;
 	if (!existsSync(defaultsDir)) return;
 
 	async function copyDir(src: string, dest: string): Promise<void> {

@@ -23,6 +23,10 @@ import { readText, writeData } from "./runtime.ts";
 // ── Module anchor ─────────────────────────────────────────────────────────
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const REPO_VAULT_DIR = path.join(MODULE_DIR, "..", "..", "vault");
+export const bundledVaultDir = process.env.KLAUS_BUNDLED_VAULT_DIR
+	? path.resolve(process.env.KLAUS_BUNDLED_VAULT_DIR)
+	: REPO_VAULT_DIR;
 
 // ── Env-derived paths (resolved once at startup) ───────────────────────────
 
@@ -318,13 +322,7 @@ type YamlSettings = z.output<typeof SettingsSchema>;
 
 // ── Bundled defaults ───────────────────────────────────────────────────────
 
-const BUNDLED_SETTINGS_PATH = path.join(
-	MODULE_DIR,
-	"..",
-	"..",
-	"vault",
-	"settings.yml",
-);
+const BUNDLED_SETTINGS_PATH = path.join(bundledVaultDir, "settings.yml");
 
 function loadBundledDefaults(): YamlSettings {
 	let raw: string;
