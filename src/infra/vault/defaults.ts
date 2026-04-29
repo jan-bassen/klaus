@@ -6,7 +6,7 @@ import { log } from "../logger.ts";
 
 /**
  * Bootstrap the runtime Klaus folder from bundled defaults exactly once.
- * If the folder already exists, it is treated as synced/user-owned state.
+ * An existing Klaus folder is synced/user-owned state and must stay untouched.
  */
 export async function ensureVaultDefaults(
 	targetDir: string,

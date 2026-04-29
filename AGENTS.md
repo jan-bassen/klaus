@@ -2,6 +2,30 @@
 
 Guidance for Codex when working in this repository.
 
+## Status
+- We are in developent, nothing is deployed yet. If we change something, clean up after - no legacy code!
+
+## Code conventions
+
+- Goal: Short, clean and readable code. Try to remove, not add.
+- No barrel imports. Use specific relative module paths with explicit `.ts` extensions.
+- Errors are values — `return` them; only throw at true system boundaries.
+- Fully typesafe. No `any`. No `as`.
+- `vault/settings.yml` (repo) is the first-run template for tunable settings. At runtime Klaus reads the user's `{vault}/Klaus/settings.yml` directly; it is not merged with repo defaults. Zod validates only — no `.default()` fallbacks. Add new fields here + in `src/infra/config.ts`'s schema.
+- No inline magic numbers — route through `settings.*`.
+- Comments explain *why*, never *what*. Prefer good naming.
+- Keep the dependency list short; `npm install` only when genuinely needed.
+
+## Testing conventions
+
+- Vitest, `pool: forks` for module isolation.
+- Tests live in `test/` mirroring `src/`.
+- Keep the implementation clean of test seams. Confirm with the user if absolutely needed.
+- Optimize for critical paths (pipeline, tool execution, store round-trip). No coverage targets.
+- `test/setup.ts` preloads `src/infra/config.ts` before anything else (logger reads settings eagerly) and clears registries in `afterEach`.
+- `test/helpers/{tmp,stores,turn}.ts` for tmp dirs, store init, minimal TurnContext.
+- Module mocking: `vi.hoisted()` + `vi.mock("../relative/path.ts", ...)`. For settings overrides, mutate the live `settings` object directly in `beforeEach`.
+
 ## Commands
 
 ```bash
@@ -162,26 +186,8 @@ overrides.yml # !preset definitions
 settings.yml  # YAML settings (hot-reloaded via Zod validation)
 ```
 
-`ensureDefaults()` copies the repo's `vault/` tree into the vault's internal `Klaus/` folder on first run. User edits are never overwritten.
+`ensureDefaults()` checks only whether the vault's internal `Klaus/` folder exists. If it does not exist, it copies the repo's `vault/` tree once. If `Klaus/` exists, the whole folder is user-owned state: do not merge repo defaults into it, do not backfill files, and do not overwrite user edits.
+
+Runtime settings are read from `{vault}/Klaus/settings.yml` after startup vault sync/hydration. If startup says settings are invalid or missing while sync downloaded `Klaus/settings.yml`, debug path resolution, file contents, YAML parsing, and strict Zod validation. Do not solve this class of issue by merging the defaults folder.
 
 Templates are required — `runAgent()` throws if `message-user.md` etc. are missing.
-
-## Testing conventions
-
-- Vitest, `pool: forks` for module isolation.
-- Tests live in `test/` mirroring `src/`.
-- Keep the implementation clean of test seams. Confirm with the user if absolutely needed.
-- Optimize for critical paths (pipeline, tool execution, store round-trip). No coverage targets.
-- `test/setup.ts` preloads `src/infra/config.ts` before anything else (logger reads settings eagerly) and clears registries in `afterEach`.
-- `test/helpers/{tmp,stores,turn}.ts` for tmp dirs, store init, minimal TurnContext.
-- Module mocking: `vi.hoisted()` + `vi.mock("../relative/path.ts", ...)`. For settings overrides, mutate the live `settings` object directly in `beforeEach`.
-
-## Code conventions
-
-- No barrel imports. Use specific relative module paths with explicit `.ts` extensions.
-- Errors are values — `return` them; only throw at true system boundaries.
-- Fully typesafe. No `any`. No `as`.
-- `vault/settings.yml` (repo) is the single source of truth for tunable settings; at runtime it's overlaid with the user's `{vault}/Klaus/settings.yml`. Zod validates only — no `.default()` fallbacks. Add new fields here + in `src/infra/config.ts`'s schema.
-- No inline magic numbers — route through `settings.*`.
-- Comments explain *why*, never *what*. Prefer good naming.
-- Keep the dependency list short; `npm install` only when genuinely needed.

@@ -243,7 +243,7 @@ export function stopWatching(): void {
 
 /** Surface settings.yml validation errors via WhatsApp so the user sees them. */
 function warnSettingsInvalid(error: string): void {
-	const chatId = settings.allowedChatId;
+	const chatId = settings.allowedChat;
 	if (!chatId) return;
 	enqueueMessage({
 		chatId,

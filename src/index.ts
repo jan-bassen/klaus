@@ -128,6 +128,7 @@ async function main(): Promise<void> {
 		configDir: path.join(settings.dataDir, "obsidian-headless"),
 		signal: shutdownController.signal,
 		shutdownTimeoutMs: settings.sync.shutdownTimeoutMs,
+		fileTypes: settings.sync.fileTypes,
 		backoff: settings.sync.restartBackoff,
 		firstSync: settings.sync.firstSync,
 	};
@@ -155,7 +156,10 @@ async function main(): Promise<void> {
 	await ensureVaultDefaults(settings.vault.internalPath);
 	const settingsResult = await loadSettingsFromDisk();
 	if (!settingsResult.ok) {
-		log.warn("[startup] settings.yml invalid or missing, using defaults");
+		log.warn("[startup] settings.yml invalid, using bundled defaults", {
+			error: settingsResult.error,
+			path: path.join(settings.vault.internalPath, "settings.yml"),
+		});
 	}
 
 	const required = requiredStartupApiKeyEnvVars();
@@ -165,14 +169,14 @@ async function main(): Promise<void> {
 			`Missing required environment variables: ${missing.join(", ")}`,
 		);
 	}
-	if (!settings.allowedChatId) {
+	if (!settings.allowedChat) {
 		if (settings.whatsapp.selfMode) {
 			log.info(
-				"[startup] self-mode enabled — allowedChatId will auto-resolve on first message",
+				"[startup] self-mode enabled — allowedChat will auto-resolve on first message",
 			);
 		} else {
 			log.warn(
-				"[startup] allowedChatId not configured — running in setup mode (messages will not be processed)",
+				"[startup] allowedChat not configured — running in setup mode (messages will not be processed)",
 			);
 		}
 	}
@@ -194,6 +198,7 @@ async function main(): Promise<void> {
 		configDir: path.join(settings.dataDir, "obsidian-headless"),
 		signal: shutdownController.signal,
 		shutdownTimeoutMs: settings.sync.shutdownTimeoutMs,
+		fileTypes: settings.sync.fileTypes,
 		backoff: settings.sync.restartBackoff,
 		firstSync: settings.sync.firstSync,
 	});
@@ -311,7 +316,7 @@ async function main(): Promise<void> {
 	startConnection(async (socket) => {
 		clearTimeout(connectionWarnTimer);
 		setSocket(socket);
-		if (!settings.allowedChatId && settings.whatsapp.selfMode) {
+		if (!settings.allowedChat && settings.whatsapp.selfMode) {
 			await completeSoloSetup().catch((err) =>
 				log.error("[startup] solo setup failed", {
 					error: err instanceof Error ? err.message : String(err),

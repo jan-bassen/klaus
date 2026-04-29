@@ -107,7 +107,7 @@ export const overrideRegistry = new Map<string, OverrideDef>();
 function register(def: OverrideDef): void {
 	overrideRegistry.set(def.name, def);
 	for (const alias of def.aliases ?? []) overrideRegistry.set(alias, def);
-	log.debug(`[config] override registered: ${def.name}`);
+	log.debug(`[overrides] registered: ${def.name}`);
 }
 
 function getKnownOverrides(): string[] {
@@ -123,7 +123,9 @@ export async function loadOverrides(yamlPath?: string): Promise<void> {
 	try {
 		raw = await readText(filePath);
 	} catch {
-		log.warn("[config] overrides.yml not found, no presets loaded");
+		log.warn("[overrides] overrides.yml not found, no presets loaded", {
+			path: filePath,
+		});
 		return;
 	}
 
@@ -131,7 +133,7 @@ export async function loadOverrides(yamlPath?: string): Promise<void> {
 	try {
 		parsed = parseYaml(raw);
 	} catch (err) {
-		log.warn("[config] failed to parse overrides.yml", {
+		log.warn("[overrides] failed to parse overrides.yml", {
 			error: err instanceof Error ? err.message : String(err),
 		});
 		return;
@@ -139,7 +141,7 @@ export async function loadOverrides(yamlPath?: string): Promise<void> {
 
 	const result = YamlFileSchema.safeParse(parsed);
 	if (!result.success) {
-		log.warn("[config] invalid overrides.yml schema", {
+		log.warn("[overrides] invalid overrides.yml schema", {
 			error: result.error.message,
 		});
 		return;
@@ -155,7 +157,7 @@ export async function loadOverrides(yamlPath?: string): Promise<void> {
 	}
 
 	const count = new Set([...overrideRegistry.values()]).size;
-	log.info(`[config] loaded ${count} override presets`);
+	log.info(`[overrides] loaded ${count} presets`);
 }
 
 // ── Text-level parsing of !overrides ───────────────────────────────────────

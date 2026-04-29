@@ -9,7 +9,7 @@
  */
 
 import { formatUserError } from "../errors.ts";
-import { settings, updateAllowedChatId } from "../infra/config.ts";
+import { settings, updateAllowedChat } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
 import {
 	findFileByExternalId,
@@ -51,9 +51,9 @@ interface ActiveTurn {
 const activeTurns = new Map<string, ActiveTurn>();
 const turnGenerations = new Map<string, number>();
 
-/** Verify the sender's chatId matches the configured allowedChatId. Fail-closed: unset blocks all. */
+/** Verify the sender's chatId matches the configured allowed chat. Fail-closed: unset blocks all. */
 function checkAllowlist(msg: InboundMessage): AuthResult {
-	const allowed = settings.allowedChatId ?? "";
+	const allowed = settings.allowedChat ?? "";
 	if (allowed === "") {
 		log.warn("[auth] no allowed chat configured, entering setup mode");
 		return { allowed: false, setupMode: true };
@@ -207,7 +207,7 @@ async function handleSetupMode(msg: InboundMessage): Promise<void> {
 			return;
 		}
 		log.info("[pipeline] self-mode: auto-setup");
-		await updateAllowedChatId(ownJid);
+		await updateAllowedChat(ownJid);
 		clearSetupCode();
 		clearLoginFolder().catch(() => {});
 		enqueueMessage({
@@ -222,7 +222,7 @@ async function handleSetupMode(msg: InboundMessage): Promise<void> {
 	const setupCode = getSetupCode();
 	if (setupCode && msg.text?.trim() === setupCode) {
 		log.info("[pipeline] setup code matched, configuring allowed chat");
-		await updateAllowedChatId(msg.chatId);
+		await updateAllowedChat(msg.chatId);
 		clearSetupCode();
 		clearLoginFolder().catch(() => {});
 		enqueueMessage({

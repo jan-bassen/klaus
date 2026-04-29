@@ -1,7 +1,8 @@
 /**
  * YAML settings + env-derived paths. Single source of truth for "static"
- * configuration: anything that's read from disk at startup (bundled defaults
- * overlaid with `{vault}/Klaus/settings.yml`) or derived from env vars.
+ * configuration: anything read from the user's `{vault}/Klaus/settings.yml`
+ * at startup or derived from env vars. The repo `vault/settings.yml` is only
+ * a first-run template for bootstrapping a missing Klaus folder.
  *
  * Per-turn config (overrides, `TurnConfig`, `buildTurnConfig`) lives in
  * `pipeline/overrides.ts` — this file has no opinion on individual turns.
@@ -108,7 +109,7 @@ const BasicsSchema = z
 	.object({
 		locale: z.string(),
 		timezone: z.string(),
-		allowedChatId: z.string().optional(),
+		allowedChat: z.string().optional(),
 	})
 	.strict();
 
@@ -262,6 +263,10 @@ const SyncSchema = z
 	.object({
 		/** SIGTERM grace period before SIGKILL is sent to the `ob` child. */
 		shutdownTimeoutMs: z.number(),
+		/** Obsidian Sync file type buckets. `unsupported` is required for .yml config files. */
+		fileTypes: z.array(
+			z.enum(["image", "audio", "video", "pdf", "unsupported"]),
+		),
 		restartBackoff: z
 			.object({
 				initialMs: z.number(),
@@ -338,8 +343,8 @@ function loadBundledDefaults(): YamlSettings {
  * `vault` merges YAML fields (`folders`, `maxList`, …) with env-derived
  * paths (`root`, `agentsDir`, …) into one surface. Env fields never change.
  *
- * `allowedChatId` stays a getter because it falls back to `process.env` at
- * read time — tests and the setup flow rely on that.
+ * `allowedChat` stays a getter because it falls back to `process.env` at read
+ * time — tests and the setup flow rely on that.
  */
 function buildSettings(yaml: YamlSettings) {
 	return {
@@ -348,10 +353,8 @@ function buildSettings(yaml: YamlSettings) {
 		dataDir,
 		log: { format: logFormat },
 		startup: { connectionWarnAfterMs },
-		get allowedChatId(): string | undefined {
-			return (
-				yaml.basics.allowedChatId ?? process.env.ALLOWED_CHAT_ID ?? undefined
-			);
+		get allowedChat(): string | undefined {
+			return yaml.basics.allowedChat ?? process.env.ALLOWED_CHAT_ID ?? undefined;
 		},
 		get locale() {
 			return yaml.basics.locale;
@@ -409,7 +412,7 @@ export async function loadSettingsFromDisk(): Promise<
 	}
 }
 
-export async function updateAllowedChatId(chatId: string): Promise<void> {
+export async function updateAllowedChat(chatId: string): Promise<void> {
 	const filePath = vaultPaths.settingsPath;
 	let parsed: Record<string, unknown> = {};
 
@@ -419,7 +422,7 @@ export async function updateAllowedChatId(chatId: string): Promise<void> {
 	}
 
 	const basics = (parsed.basics as Record<string, unknown>) ?? {};
-	basics.allowedChatId = chatId;
+	basics.allowedChat = chatId;
 	parsed.basics = basics;
 
 	const yaml = stringifyYaml(parsed, { lineWidth: 120 });
@@ -429,7 +432,7 @@ export async function updateAllowedChatId(chatId: string): Promise<void> {
 	if (!result.ok) {
 		throw new Error(`Updated settings.yml failed validation: ${result.error}`);
 	}
-	log.info("[config] updated allowedChatId");
+	log.info("[config] updated allowedChat");
 }
 
 export async function updateSelfMode(selfMode: boolean): Promise<void> {

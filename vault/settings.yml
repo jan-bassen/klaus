@@ -1,8 +1,8 @@
 basics:
   locale: en-GB
   timezone: Europe/London
-  # allowedChatId is set at runtime via /setup; uncomment to pin manually
-  # allowedChatId: ""
+  # allowedChat is set at runtime via /setup; uncomment to pin manually
+  # allowedChat: ""
 
 agent:
   defaultAgent: assistant
@@ -148,6 +148,8 @@ reports:
 # under {dataDir}/obsidian-headless so login state persists across restarts.
 sync:
   shutdownTimeoutMs: 5000
+  # Include "unsupported" so Obsidian Sync transfers Klaus/*.yml files.
+  fileTypes: [image, audio, video, pdf, unsupported]
   restartBackoff:
     initialMs: 1000
     maxMs: 30000

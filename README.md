@@ -38,7 +38,12 @@ docker run -d --restart unless-stopped \
 
 1. On first start, Klaus logs into Obsidian Sync, links `/app/vault` to the remote vault, then writes a WhatsApp QR to `{vault}/Klaus/_login/qr-code.svg`. Scan it from WhatsApp → Linked Devices.
 2. Send any message to the paired number. Klaus is in **setup mode** and replies with your chat ID.
-3. Add `allowedChatId: "<id>"` to `{vault}/Klaus/settings.yml` — hot-reloaded, no restart.
+3. Add the chat ID under `basics.allowedChat` in `{vault}/Klaus/settings.yml` — hot-reloaded, no restart.
+
+```yaml
+basics:
+  allowedChat: "<id>"
+```
 
 If MFA isn't accepted via `OBSIDIAN_MFA` (Obsidian Sync may not honour it on every login), seed the token interactively once:
 
@@ -167,10 +172,12 @@ Hot-reload covers agent files, skills, snippets, templates, `overrides.yml`, and
 | `OBSIDIAN_VAULT_NAME` | — | Required — name of the remote vault to sync |
 | `OBSIDIAN_MFA` | — | Optional — TOTP code for first login |
 | `OBSIDIAN_E2EE_PASSWORD` | — | Optional — vault E2EE password (if enabled) |
-| `ALLOWED_CHAT_ID` | — | Fallback — prefer `basics.allowedChatId` in settings.yml |
+| `ALLOWED_CHAT_ID` | — | Fallback — prefer `basics.allowedChat` in settings.yml |
 | `LOG_FORMAT` | `text` | `text` or `json` (NAS log viewers prefer `json`) |
 
-`{vault}/Klaus/settings.yml` — everything tunable (providers, model tiers, media, whatsapp, vault folders + permissions, persistence bounds, reports). Hot-reloaded with Zod validation.
+`{vault}/Klaus/settings.yml` — everything tunable (providers, model tiers, media, whatsapp, vault folders + permissions, persistence bounds, reports). Hot-reloaded with strict Zod validation. It must match the schema in `src/infra/config.ts`; the repo `vault/settings.yml` is only the first-run template.
+
+On startup Klaus first hydrates `/app/vault` from Obsidian Sync, then checks whether `/app/vault/Klaus` exists. If that folder already exists, Klaus keeps it exactly as synced user-owned state. It does not merge, backfill, or overwrite files from the image defaults. If the log says `Klaus/settings.yml` was downloaded and then settings are invalid or missing, the bug is in reading, parsing, path resolution, or schema validation of that vault file.
 
 The Docker image runs from `/app`, so those defaults become `/app/vault` and `/app/data`; WhatsApp credentials live at `/app/data/baileys-auth`. Keep two volumes: `klaus-vault` for Obsidian-facing notes and agent config, `klaus-data` for operational state.
 

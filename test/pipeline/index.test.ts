@@ -5,7 +5,7 @@
  *   - Mock `src/infra/whatsapp/send.ts` so `enqueueMessage` becomes a spy.
  *   - Mock `@openrouter/sdk` so `new OpenRouter(...).chat.send` returns
  *     canned `ChatResult` payloads with a single `reply` tool call.
- *   - `initAllStores(tmpDir)` in beforeEach; point `settings.basics.allowedChatId`
+ *   - `initAllStores(tmpDir)` in beforeEach; point `settings.basics.allowedChat`
  *     at a known chatId (mutate the live `settings` object from `src/infra/config.ts`
  *     directly in beforeEach, or use `vi.resetModules` + dynamic import).
  *   - Register the `reply` tool and a minimal agent manually (bypass glob load).
@@ -74,7 +74,7 @@ vi.mock("../../src/infra/whatsapp/presence.ts", () => ({
 
 describe("pipeline/index.handleTurn", () => {
 	let tmpDir: string;
-	let originalAllowedChatId: string | undefined;
+	let originalAllowedChat: string | undefined;
 	let originalTemplatesDir: string;
 	let originalApiKey: string | undefined;
 
@@ -82,11 +82,11 @@ describe("pipeline/index.handleTurn", () => {
 		tmpDir = makeTmpDir();
 		initAllStores(tmpDir);
 
-		originalAllowedChatId = settings.basics.allowedChatId;
+		originalAllowedChat = settings.basics.allowedChat;
 		originalTemplatesDir = settings.vault.templatesDir;
 		originalApiKey = process.env.OPENROUTER_API_KEY;
 
-		settings.basics.allowedChatId = "chat1";
+		settings.basics.allowedChat = "chat1";
 		settings.vault.templatesDir = path.join(tmpDir, "templates");
 		process.env.OPENROUTER_API_KEY = "test-key";
 
@@ -116,10 +116,10 @@ describe("pipeline/index.handleTurn", () => {
 	afterEach(() => {
 		setDefaultAgent("chat1", null);
 		settings.vault.templatesDir = originalTemplatesDir;
-		if (originalAllowedChatId === undefined) {
-			delete settings.basics.allowedChatId;
+		if (originalAllowedChat === undefined) {
+			delete settings.basics.allowedChat;
 		} else {
-			settings.basics.allowedChatId = originalAllowedChatId;
+			settings.basics.allowedChat = originalAllowedChat;
 		}
 		if (originalApiKey === undefined) {
 			delete process.env.OPENROUTER_API_KEY;
@@ -217,8 +217,8 @@ describe("pipeline/index.handleTurn", () => {
 		expect(await getConversation()).toEqual([]);
 	});
 
-	it("enters setup mode when allowedChatId is unset", async () => {
-		delete settings.basics.allowedChatId;
+	it("enters setup mode when allowedChat is unset", async () => {
+		delete settings.basics.allowedChat;
 
 		await handleTurn(makeMsg("new-chat", "", "hello"));
 

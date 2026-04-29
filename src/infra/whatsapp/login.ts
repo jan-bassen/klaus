@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { watch as fsWatch, mkdir, readFile, rm } from "node:fs/promises";
 import QRCode from "qrcode";
-import { settings, updateAllowedChatId, updateSelfMode } from "../config.ts";
+import { settings, updateAllowedChat, updateSelfMode } from "../config.ts";
 import { log } from "../logger.ts";
 import { readText, writeData } from "../runtime.ts";
 import { getSocket, normalizeJid } from "./connection.ts";
@@ -62,7 +62,7 @@ export async function ensureLoginFolder(): Promise<void> {
 }
 
 export async function prepareLoginFolderForStartup(): Promise<void> {
-	if (settings.allowedChatId) {
+	if (settings.allowedChat) {
 		await clearLoginFolder();
 		return;
 	}
@@ -139,7 +139,7 @@ async function syncLoginModeFromInstructions(): Promise<boolean> {
 	if (settings.whatsapp.selfMode !== solo) {
 		await updateSelfMode(solo);
 	}
-	if (!solo || settings.allowedChatId) return false;
+	if (!solo || settings.allowedChat) return false;
 	return completeSoloSetup();
 }
 
@@ -166,7 +166,7 @@ export async function completeSoloSetup(): Promise<boolean> {
 		return false;
 	}
 	log.info("[login] solo mode chosen — auto-configuring");
-	await updateAllowedChatId(ownJid);
+	await updateAllowedChat(ownJid);
 	clearSetupCode();
 	enqueueMessage({
 		chatId: ownJid,

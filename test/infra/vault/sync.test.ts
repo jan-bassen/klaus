@@ -89,6 +89,7 @@ function startOptions(
 		configDir,
 		signal,
 		shutdownTimeoutMs,
+		fileTypes: ["image", "audio", "video", "pdf", "unsupported"] as const,
 		backoff,
 		firstSync: { quietMs: 5, timeoutMs: 200 },
 	};
@@ -239,6 +240,7 @@ describe("startSync: env validation", () => {
 			configDir: path.join(tmp, "cfg"),
 			signal: new AbortController().signal,
 			shutdownTimeoutMs: 100,
+			fileTypes: ["image", "audio", "video", "pdf", "unsupported"],
 			backoff: { initialMs: 1, maxMs: 10, resetAfterUpMs: 1000 },
 			firstSync: { quietMs: 5, timeoutMs: 200 },
 		});
@@ -279,6 +281,8 @@ describe("hydrateInitialVault", () => {
 			tmp,
 			"--mode",
 			"mirror-remote",
+			"--file-types",
+			"image,audio,video,pdf,unsupported",
 		]);
 		const syncCall = spawnMock.mock.calls[1] as unknown[];
 		expect(syncCall[1]).toEqual(["sync", "--path", tmp]);
@@ -337,6 +341,8 @@ describe("startSync: first-time setup + continuous spawn", () => {
 			tmp,
 			"--mode",
 			"bidirectional",
+			"--file-types",
+			"image,audio,video,pdf,unsupported",
 		]);
 		const continuousCall = calls[3] ?? [];
 		expect(continuousCall[1]).toEqual(["sync", "--path", tmp, "--continuous"]);
@@ -480,6 +486,8 @@ describe("startSync: first-time setup + continuous spawn", () => {
 			tmp,
 			"--mode",
 			"bidirectional",
+			"--file-types",
+			"image,audio,video,pdf,unsupported",
 		]);
 		const continuousCall = spawnMock.mock.calls[1] as unknown[];
 		expect(continuousCall[1]).toEqual(["sync", "--path", tmp, "--continuous"]);

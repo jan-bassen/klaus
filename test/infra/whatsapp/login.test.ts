@@ -12,19 +12,19 @@ describe("infra/whatsapp/login.prepareLoginFolderForStartup", () => {
 	let tmpDir = "";
 	let savedLoginDir = "";
 	let savedLoginQrPath = "";
-	let savedAllowedChatId: string | undefined;
-	let savedEnvAllowedChatId: string | undefined;
+	let savedAllowedChat: string | undefined;
+	let savedEnvAllowedChat: string | undefined;
 
 	beforeEach(() => {
 		tmpDir = makeTmpDir("klaus-login-");
 		savedLoginDir = settings.vault.loginDir;
 		savedLoginQrPath = settings.vault.loginQrPath;
-		savedAllowedChatId = settings.basics.allowedChatId;
-		savedEnvAllowedChatId = process.env.ALLOWED_CHAT_ID;
+		savedAllowedChat = settings.basics.allowedChat;
+		savedEnvAllowedChat = process.env.ALLOWED_CHAT_ID;
 
 		settings.vault.loginDir = path.join(tmpDir, "_login");
 		settings.vault.loginQrPath = path.join(settings.vault.loginDir, "qr-code.svg");
-		delete settings.basics.allowedChatId;
+		delete settings.basics.allowedChat;
 		delete process.env.ALLOWED_CHAT_ID;
 	});
 
@@ -32,15 +32,15 @@ describe("infra/whatsapp/login.prepareLoginFolderForStartup", () => {
 		await clearLoginFolder();
 		settings.vault.loginDir = savedLoginDir;
 		settings.vault.loginQrPath = savedLoginQrPath;
-		if (savedAllowedChatId === undefined) {
-			delete settings.basics.allowedChatId;
+		if (savedAllowedChat === undefined) {
+			delete settings.basics.allowedChat;
 		} else {
-			settings.basics.allowedChatId = savedAllowedChatId;
+			settings.basics.allowedChat = savedAllowedChat;
 		}
-		if (savedEnvAllowedChatId === undefined) {
+		if (savedEnvAllowedChat === undefined) {
 			delete process.env.ALLOWED_CHAT_ID;
 		} else {
-			process.env.ALLOWED_CHAT_ID = savedEnvAllowedChatId;
+			process.env.ALLOWED_CHAT_ID = savedEnvAllowedChat;
 		}
 		rmTmpDir(tmpDir);
 	});
@@ -59,7 +59,7 @@ describe("infra/whatsapp/login.prepareLoginFolderForStartup", () => {
 			path.join(settings.vault.loginDir, "instructions.md"),
 			"stale setup notes",
 		);
-		settings.basics.allowedChatId = "123@s.whatsapp.net";
+		settings.basics.allowedChat = "123@s.whatsapp.net";
 
 		await prepareLoginFolderForStartup();
 

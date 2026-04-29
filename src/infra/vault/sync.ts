@@ -29,6 +29,7 @@ interface SyncDeps {
 	configDir: string;
 	signal: AbortSignal;
 	shutdownTimeoutMs: number;
+	fileTypes: ReadonlyArray<"image" | "audio" | "video" | "pdf" | "unsupported">;
 	backoff: {
 		initialMs: number;
 		maxMs: number;
@@ -55,6 +56,7 @@ type SyncError =
 	  };
 
 const MARKER_FILENAME = ".klaus-sync-ready";
+const MIN_TIMER_MS = 1;
 
 export function readSyncEnv(
 	env: NodeJS.ProcessEnv = process.env,
@@ -148,6 +150,11 @@ function obEnv(deps: SyncDeps): NodeJS.ProcessEnv {
 	};
 }
 
+function timerMs(value: number, fallback: number): number {
+	if (!Number.isFinite(value) || value < MIN_TIMER_MS) return fallback;
+	return value;
+}
+
 async function setSyncMode(
 	mode: "bidirectional" | "mirror-remote",
 	deps: SyncDeps,
@@ -155,7 +162,15 @@ async function setSyncMode(
 ): Promise<{ ok: true } | { ok: false; error: SyncError }> {
 	log.info("[sync] setting sync mode", { mode });
 	const result = await runOnce(
-		["sync-config", "--path", deps.vaultRoot, "--mode", mode],
+		[
+			"sync-config",
+			"--path",
+			deps.vaultRoot,
+			"--mode",
+			mode,
+			"--file-types",
+			deps.fileTypes.join(","),
+		],
 		{
 			cwd: deps.vaultRoot,
 			env: commandEnv,
@@ -236,7 +251,7 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 			resolve();
 			return;
 		}
-		const t = setTimeout(resolve, ms);
+		const t = setTimeout(resolve, timerMs(ms, MIN_TIMER_MS));
 		signal.addEventListener(
 			"abort",
 			() => {
@@ -327,14 +342,17 @@ export async function startSync(
 		child.kill("SIGTERM");
 		const t = setTimeout(() => {
 			if (current === child) child.kill("SIGKILL");
-		}, deps.shutdownTimeoutMs);
+		}, timerMs(deps.shutdownTimeoutMs, 5_000));
 		t.unref();
 	};
 	if (deps.signal.aborted) onAbort();
 	else deps.signal.addEventListener("abort", onAbort, { once: true });
 
 	const timeoutPromise = new Promise<"timeout">((resolve) => {
-		const t = setTimeout(() => resolve("timeout"), deps.firstSync.timeoutMs);
+		const t = setTimeout(
+			() => resolve("timeout"),
+			timerMs(deps.firstSync.timeoutMs, 120_000),
+		);
 		t.unref();
 	});
 	const outcome = await Promise.race([
@@ -420,7 +438,7 @@ function attachFirstSyncGate(
 		if (done) return;
 		sawOutput = true;
 		if (timer) clearTimeout(timer);
-		timer = setTimeout(fire, opts.quietMs);
+		timer = setTimeout(fire, timerMs(opts.quietMs, 3_000));
 	};
 
 	child.stdout?.on("data", bump);
