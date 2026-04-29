@@ -11,9 +11,9 @@ const timeFormatter = new Intl.DateTimeFormat(settings.locale, {
 	timeZone: settings.timezone,
 });
 
-export const tasksCommand: Command = {
-	name: "tasks",
-	aliases: ["t"],
+export const schedulesCommand: Command = {
+	name: "schedules",
+	aliases: ["s"],
 	description: "List schedules and timers",
 	async execute(msg: InboundMessage, _args: string[]): Promise<void> {
 		try {
@@ -24,7 +24,7 @@ export const tasksCommand: Command = {
 				enqueueMessage({
 					chatId: msg.chatId,
 					content: "No active schedules or timers.",
-					dedupKey: `${msg.id}:tasks`,
+					dedupKey: `${msg.id}:schedules`,
 					label: settings.whatsapp.systemLabel,
 				});
 				return;
@@ -53,14 +53,14 @@ export const tasksCommand: Command = {
 			enqueueMessage({
 				chatId: msg.chatId,
 				content: lines.join("\n"),
-				dedupKey: `${msg.id}:tasks`,
+				dedupKey: `${msg.id}:schedules`,
 				label: settings.whatsapp.systemLabel,
 			});
 		} catch {
 			enqueueMessage({
 				chatId: msg.chatId,
-				content: "Could not load tasks.",
-				dedupKey: `${msg.id}:tasks-error`,
+				content: "Could not load schedules.",
+				dedupKey: `${msg.id}:schedules-error`,
 				label: settings.whatsapp.systemLabel,
 			});
 		}

@@ -51,7 +51,7 @@ describe("primitives/commands: parseCommand", () => {
 	});
 
 	it("works with no args", () => {
-		expect(parseCommand(msg("/status"))).toEqual({ name: "status", args: [] });
+		expect(parseCommand(msg("/help"))).toEqual({ name: "help", args: [] });
 	});
 });
 

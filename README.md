@@ -77,14 +77,13 @@ Default agent per chat is settable with `/default <name>`.
 
 Bypass the LLM entirely:
 
-- `/status`, `/tasks`, `/help`
+- `/help`, `/schedules`
 - `/default <agent>` — set the default agent for this chat
 - `/model [small|medium|large]` — show or switch model tier
 - `/provider [claude|openai|gemini|...]` — show or switch provider
 - `/voice on|off|auto` — toggle agent frontmatter flags
 - `/break` — hide prior conversation from the next turn (fresh context)
 - `/retry` — re-run the last turn with the same input
-- `/reports [agent] [limit]` — recent per-turn reports
 
 ### !overrides
 
@@ -92,7 +91,7 @@ Bypass the LLM entirely:
 
 | Override | Effect |
 |---|---|
-| `!voice` (`!v`) | Guaranteed TTS reply |
+| `!voice` (`!v`) / `!text` (`!txt`) | Guaranteed TTS / text-only reply |
 | `!clean` (`!cl`) | Skip conversation history |
 | `!small` / `!medium` / `!large` (`!s`/`!m`/`!l`) | Model tier |
 | `!claude` / `!openai` / `!gemini` / `!qwen` / `!deepseek` | Provider |
@@ -100,7 +99,7 @@ Bypass the LLM entirely:
 | `!creative` / `!rigid` (`!cr`/`!r`) | topP preset |
 | `!low` / `!high` (`!lo`/`!hi`) | Reasoning effort |
 | `!fast` (`!f`) | Fast inference |
-| `!no-tools` / `!use-tools` (`!nt`/`!ut`) | Tool choice |
+| `!no-tools` (`!nt`) | Disable tool use |
 | `!ghost` (`!g`) | Ephemeral, no persistence |
 | `!simulate` (`!sim`) | Dry-run — fake external/stateful tools, no real side effects |
 

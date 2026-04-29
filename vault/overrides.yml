@@ -3,6 +3,11 @@ voice:
   description: Reply as voice message
   overrides: { forceVoice: true }
 
+text:
+  aliases: [txt]
+  description: Reply as text only
+  overrides: { suppressVoice: true }
+
 clean:
   aliases: [cl]
   description: Skip conversation history
@@ -88,11 +93,6 @@ no-tools:
   aliases: [nt]
   description: Disable tools
   overrides: { toolChoice: "none" }
-
-use-tools:
-  aliases: [ut]
-  description: Force tool use
-  overrides: { toolChoice: required }
 
 low:
   aliases: [lo]
