@@ -39,7 +39,7 @@ function makeAgent(
 			topP: "default",
 			reasoningEffort: "default",
 			showTrace: true,
-			report: "short",
+			report: true,
 			...patch,
 		},
 		promptPath: "/tmp/x.md",
@@ -184,20 +184,15 @@ describe("pipeline/overrides.parseOverrides + stripOverrides", () => {
 });
 
 describe("pipeline/overrides default presets", () => {
-	it("ships report-level presets for one-off testing", async () => {
+	it("ships report on/off presets for one-off testing", async () => {
 		await loadOverrides("vault/overrides.yml");
 
 		expect(parseOverrides({ text: "!report inspect this" })).toEqual({
-			"full-report": true,
+			report: true,
 		});
-		expect(buildTurnConfig(makeAgent(), { "full-report": true }).report).toBe(
-			"full",
-		);
-		expect(buildTurnConfig(makeAgent(), { "short-report": true }).report).toBe(
-			"short",
-		);
+		expect(buildTurnConfig(makeAgent(), { report: true }).report).toBe(true);
 		expect(buildTurnConfig(makeAgent(), { "no-report": true }).report).toBe(
-			"none",
+			false,
 		);
 	});
 });

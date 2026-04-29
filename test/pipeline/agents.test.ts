@@ -49,7 +49,7 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 		expect(def.settings.temp).toBe("default");
 		expect(def.settings.topP).toBe("default");
 		expect(def.settings.showTrace).toBe(true);
-		expect(def.settings.report).toBe("short");
+		expect(def.settings.report).toBe(true);
 	});
 
 	it("throws when frontmatter is missing", async () => {
@@ -94,12 +94,12 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 		writeAgent(
 			tmpDir,
 			"custom",
-			"voice: on\ntemp: cold\nreport: full\nhistoryLimit: 5\n",
+			"voice: on\ntemp: cold\nreport: false\nhistoryLimit: 5\n",
 		);
 		const def = await loadAgentDefinition(path.join(tmpDir, "custom.md"));
 		expect(def.settings.voice).toBe("on");
 		expect(def.settings.temp).toBe("cold");
-		expect(def.settings.report).toBe("full");
+		expect(def.settings.report).toBe(false);
 		expect(def.settings.historyLimit).toBe(5);
 	});
 

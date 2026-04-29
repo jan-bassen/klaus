@@ -1,1 +1,0 @@
-{{timestamp}} @{{agent}} ({{trigger.kind}}) — {{outcome.kind}}{{#if outcome.error}}: {{outcome.error.name}}{{/if}} in {{durationMs}}ms{{#if llm}} | {{llm.model}} {{llm.usage.promptTokens}}↑/{{llm.usage.completionTokens}}↓ ({{llm.steps.length}} steps){{/if}}{{#if simulation}} ⚠ SIM{{/if}}

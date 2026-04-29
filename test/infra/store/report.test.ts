@@ -7,6 +7,7 @@ import {
 	initReportStore,
 	type ReportEntry,
 	readReports,
+	reportFilename,
 	writeReport,
 } from "../../../src/infra/store/report.ts";
 import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
@@ -19,12 +20,15 @@ function makeEntry(overrides: Partial<ReportEntry> = {}): ReportEntry {
 		trigger: { kind: "message", messageId: "m-1" },
 		timestamp: new Date().toISOString(),
 		durationMs: 42,
-		level: "short",
 		outcome: { kind: "ok" },
 		overrides: [],
 		config: {},
 	};
 	return { ...base, ...overrides };
+}
+
+async function persist(entry: ReportEntry): Promise<string> {
+	return writeReport(entry, reportFilename(entry));
 }
 
 describe("infra/store/report", () => {
@@ -41,7 +45,7 @@ describe("infra/store/report", () => {
 
 	it("round-trip: writeReport then readReports returns the entry", async () => {
 		const e = makeEntry();
-		await writeReport(e);
+		await persist(e);
 		const out = await readReports({ days: 1 });
 		expect(out).toHaveLength(1);
 		expect(out[0]?.runId).toBe(e.runId);
@@ -50,8 +54,8 @@ describe("infra/store/report", () => {
 	it("filters by agent / chatId / runId", async () => {
 		const a = makeEntry({ agent: "fitness", chatId: "c1" });
 		const b = makeEntry({ agent: "coach", chatId: "c2" });
-		await writeReport(a);
-		await writeReport(b);
+		await persist(a);
+		await persist(b);
 
 		const byAgent = await readReports({ agent: "coach" });
 		expect(byAgent.map((e) => e.agent)).toEqual(["coach"]);
@@ -65,7 +69,7 @@ describe("infra/store/report", () => {
 	});
 
 	it("limit caps the number returned", async () => {
-		for (let i = 0; i < 5; i++) await writeReport(makeEntry());
+		for (let i = 0; i < 5; i++) await persist(makeEntry());
 		const out = await readReports({ limit: 2 });
 		expect(out).toHaveLength(2);
 	});
@@ -74,7 +78,7 @@ describe("infra/store/report", () => {
 		const e = makeEntry({
 			outcome: { kind: "error", error: { name: "Boom", message: "nope" } },
 		});
-		await writeReport(e);
+		await persist(e);
 		const out = await readReports({ runId: e.runId });
 		expect(out[0]?.outcome).toEqual({
 			kind: "error",
@@ -95,15 +99,14 @@ describe("infra/store/report", () => {
 				},
 			],
 		});
-		await writeReport(e);
+		await persist(e);
 		const out = await readReports({ runId: e.runId });
 		expect(out[0]?.simulation).toBe(true);
 		expect(out[0]?.simulatedActions).toEqual(e.simulatedActions);
 	});
 
-	it("full-level entries preserve verbatim systemPrompt / userMessage / historyTranscript", async () => {
+	it("verbatim systemPrompt / userMessage / historyTranscript round-trip", async () => {
 		const e = makeEntry({
-			level: "full",
 			llm: {
 				model: "gpt",
 				tier: "medium",
@@ -119,7 +122,7 @@ describe("infra/store/report", () => {
 				historyTranscript: [{ role: "user", content: "hi" }],
 			},
 		});
-		await writeReport(e);
+		await persist(e);
 		const out = await readReports({ runId: e.runId });
 		expect(out[0]?.llm?.systemPrompt).toBe("SYS");
 		expect(out[0]?.llm?.userMessage).toBe("USR");
@@ -128,18 +131,14 @@ describe("infra/store/report", () => {
 		]);
 	});
 
-	it("corrupt lines are skipped, valid entries around them still return", async () => {
+	it("corrupt files are skipped, valid entries around them still return", async () => {
 		const e = makeEntry();
-		await writeReport(e);
-		// Append corrupt line manually.
-		// readReports uses settings.timezone for the file partition. Just append
-		// to the same file written by writeReport (look it up).
+		await persist(e);
 		const fs = await import("node:fs/promises");
 		const path = await import("node:path");
-		const dir = path.join(tmpDir, "logs");
-		const files = await fs.readdir(dir);
-		const file = path.join(dir, files[0] as string);
-		await fs.appendFile(file, "{not json\n");
+		const root = path.join(tmpDir, "logs");
+		const dateDir = path.join(root, (await fs.readdir(root))[0] as string);
+		await fs.writeFile(path.join(dateDir, "garbage.json"), "{not json");
 
 		const out = await readReports({ days: 1 });
 		expect(out.map((x) => x.runId)).toContain(e.runId);

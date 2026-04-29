@@ -136,7 +136,7 @@ describe("pipeline/core.executeAgent", () => {
 		const def = makeAgent(tmpDir, { tools: ["reply", "probe"] });
 		const turn = makeTurn({
 			agent: def,
-			config: { report: "none", stepLimit: 2, skipHistory: true },
+			config: { report: false, stepLimit: 2, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 
@@ -215,7 +215,7 @@ describe("pipeline/core.executeAgent", () => {
 		const def = makeAgent(tmpDir, { tools: ["reply", "probe"] });
 		const turn = makeTurn({
 			agent: def,
-			config: { report: "none", stepLimit: 2, skipHistory: true },
+			config: { report: false, stepLimit: 2, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 
@@ -235,7 +235,7 @@ describe("pipeline/core.executeAgent", () => {
 		const def = makeAgent(tmpDir);
 		const turn = makeTurn({
 			agent: def,
-			config: { report: "none", stepLimit: 1, skipHistory: true },
+			config: { report: false, stepLimit: 1, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 
@@ -255,7 +255,7 @@ describe("pipeline/core.executeAgent", () => {
 		const def = makeAgent(tmpDir);
 		const turn = makeTurn({
 			agent: def,
-			config: { report: "none", stepLimit: 1, skipHistory: true },
+			config: { report: false, stepLimit: 1, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 
@@ -272,7 +272,7 @@ describe("pipeline/core.executeAgent", () => {
 		const def = makeAgent(tmpDir);
 		const turn = makeTurn({
 			agent: def,
-			config: { report: "none", stepLimit: 1, skipHistory: true },
+			config: { report: false, stepLimit: 1, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 
@@ -282,7 +282,7 @@ describe("pipeline/core.executeAgent", () => {
 		expect(sendMock).toHaveBeenCalledTimes(1);
 	});
 
-	it("emits a short report on success", async () => {
+	it("emits a report on success", async () => {
 		sendMock.mockResolvedValueOnce(
 			chatResponse({
 				toolCalls: [toolCall("probe", { value: "reported" }, "probe-1")],
@@ -293,7 +293,7 @@ describe("pipeline/core.executeAgent", () => {
 		const turn = makeTurn({
 			agent: def,
 			runId: "run-report-ok",
-			config: { report: "short", stepLimit: 1, skipHistory: true },
+			config: { report: true, stepLimit: 1, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 
@@ -303,7 +303,6 @@ describe("pipeline/core.executeAgent", () => {
 		expect(report).toMatchObject({
 			runId: "run-report-ok",
 			agent: "core-test",
-			level: "short",
 			outcome: { kind: "ok" },
 			llm: {
 				model: "anthropic/claude-sonnet-4-6",
@@ -326,7 +325,7 @@ describe("pipeline/core.executeAgent", () => {
 		const turn = makeTurn({
 			agent: def,
 			runId: "run-report-error",
-			config: { report: "short", stepLimit: 1, skipHistory: true },
+			config: { report: true, stepLimit: 1, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 
@@ -361,7 +360,7 @@ describe("pipeline/core.executeAgent", () => {
 			agent: def,
 			runId: "run-trace",
 			trigger: { kind: "message", messageId: "message-1" },
-			config: { report: "none", stepLimit: 2, skipHistory: true },
+			config: { report: false, stepLimit: 2, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 
@@ -405,7 +404,7 @@ describe("pipeline/core.executeAgent", () => {
 		const turn = makeTurn({
 			agent: def,
 			runId: "run-ghost",
-			config: { ghost: true, report: "none", stepLimit: 2, skipHistory: true },
+			config: { ghost: true, report: false, stepLimit: 2, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 
@@ -421,7 +420,7 @@ describe("pipeline/core.executeAgent", () => {
 		const turn = makeTurn({
 			agent: def,
 			runId: "run-sub",
-			config: { report: "none", stepLimit: 1, skipHistory: true },
+			config: { report: false, stepLimit: 1, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 			pendingSubReplies: [["first"], ["second", "third"]],
 		});
@@ -456,7 +455,7 @@ describe("pipeline/core.executeAgent", () => {
 		const def = makeAgent(tmpDir);
 		const turn = makeTurn({
 			agent: def,
-			config: { report: "none", stepLimit: 1, skipHistory: true },
+			config: { report: false, stepLimit: 1, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 			pendingSubReplies: [["alpha"], ["beta"]],
 			_replyCollector: collector,
@@ -476,7 +475,7 @@ describe("pipeline/core.executeAgent", () => {
 			agent: def,
 			config: {
 				simulate: true,
-				report: "none",
+				report: false,
 				stepLimit: 1,
 				skipHistory: true,
 			},
@@ -517,7 +516,7 @@ describe("pipeline/core.executeAgent", () => {
 		});
 		const turn = makeTurn({
 			agent: def,
-			config: { report: "none", stepLimit: 2, skipHistory: true },
+			config: { report: false, stepLimit: 2, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 
@@ -553,7 +552,7 @@ describe("pipeline/core.executeAgent", () => {
 		});
 		const turn = makeTurn({
 			agent: def,
-			config: { report: "none", stepLimit: 1, skipHistory: true },
+			config: { report: false, stepLimit: 1, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 
@@ -576,7 +575,7 @@ function makeAgent(
 	const parsed = AgentSchema.parse({
 		name: "core-test",
 		tools: patch.tools ?? [],
-		report: "none",
+		report: false,
 		stepLimit: 2,
 		...(patch.persistence?.mode === "dynamic"
 			? {

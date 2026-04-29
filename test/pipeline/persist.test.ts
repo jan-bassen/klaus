@@ -174,7 +174,7 @@ function baseInput(tmpDir: string) {
 	const turn = makeTurn({
 		agent: def,
 		chatId: "chat-1",
-		config: { report: "none" },
+		config: { report: false },
 	});
 	return {
 		def,
@@ -193,7 +193,7 @@ function baseInput(tmpDir: string) {
 function makeAgent(tmpDir: string): AgentDefinition {
 	const parsed = AgentSchema.parse({
 		name: "persistent-agent",
-		report: "none",
+		report: false,
 		persistenceMode: "dynamic",
 		persistenceHint: "choose a useful next run",
 	});

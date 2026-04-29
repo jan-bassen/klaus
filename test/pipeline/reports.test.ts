@@ -1,11 +1,10 @@
 /**
  * `pipeline/reports.ts` — `emitReport` build + write paths.
  *
- * Distinct from `test/infra/store/report.test.ts`, which tests the JSONL
+ * Distinct from `test/infra/store/report.test.ts`, which tests the per-file
  * round-trip primitive. Here we test the report *builder*: how a full
- * `TurnContext` + `AgentRunResult` collapse into the JSONL entry, including
- * the `short` vs `full` level split, simulation tagging, and the never-throws
- * contract on the error path.
+ * `TurnContext` + `AgentRunResult` collapse into the report entry, including
+ * simulation tagging and the never-throws contract on the error path.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -59,35 +58,7 @@ describe("pipeline/reports: emitReport", () => {
 		rmTmpDir(tmp);
 	});
 
-	it("short level: writes LLM section but omits message + variables + verbatim prompts", async () => {
-		const turn: TurnContext = makeTurn({ vars: { user: { name: "Jan" } } });
-		const startedAt = Date.now() - 50;
-
-		await emitReport({
-			turn,
-			startedAt,
-			level: "short",
-			result: makeResult(),
-		});
-
-		const [entry] = await readReports({ days: 1 });
-		expect(entry).toBeDefined();
-		expect(entry?.level).toBe("short");
-		expect(entry?.outcome).toEqual({ kind: "ok" });
-		expect(entry?.llm?.model).toBe("openrouter/auto");
-		expect(entry?.llm?.usage.promptTokens).toBe(100);
-		expect(entry?.llm?.systemPromptChars).toBe(
-			"you are a helpful agent".length,
-		);
-		// Verbatim fields are FULL-only.
-		expect(entry?.llm?.systemPrompt).toBeUndefined();
-		expect(entry?.llm?.userMessage).toBeUndefined();
-		expect(entry?.llm?.historyTranscript).toBeUndefined();
-		expect(entry?.message).toBeUndefined();
-		expect(entry?.variablesSummary).toBeUndefined();
-	});
-
-	it("full level: includes verbatim prompts, message metadata, and variables summary", async () => {
+	it("writes a full report with verbatim prompts, message metadata, and variables summary", async () => {
 		const message: InboundMessage = {
 			kind: "whatsapp",
 			id: "m-42",
@@ -107,12 +78,12 @@ describe("pipeline/reports: emitReport", () => {
 		await emitReport({
 			turn,
 			startedAt: Date.now() - 10,
-			level: "full",
 			result: makeResult(),
 		});
 
 		const [entry] = await readReports({ days: 1 });
-		expect(entry?.level).toBe("full");
+		expect(entry?.outcome).toEqual({ kind: "ok" });
+		expect(entry?.llm?.model).toBe("openrouter/auto");
 		expect(entry?.llm?.systemPrompt).toBe("you are a helpful agent");
 		expect(entry?.llm?.userMessage).toBe("hello");
 		expect(entry?.llm?.historyTranscript).toHaveLength(1);
@@ -132,7 +103,6 @@ describe("pipeline/reports: emitReport", () => {
 		await emitReport({
 			turn,
 			startedAt: Date.now(),
-			level: "short",
 			error: err,
 		});
 
@@ -141,7 +111,6 @@ describe("pipeline/reports: emitReport", () => {
 			kind: "error",
 			error: { name: "TypeError", message: "boom" },
 		});
-		// No llm section since result was not provided.
 		expect(entry?.llm).toBeUndefined();
 	});
 
@@ -161,7 +130,6 @@ describe("pipeline/reports: emitReport", () => {
 		await emitReport({
 			turn,
 			startedAt: Date.now(),
-			level: "short",
 			result: makeResult(),
 		});
 
@@ -172,10 +140,7 @@ describe("pipeline/reports: emitReport", () => {
 	});
 
 	it("never throws — corrupt overlay / missing fields are swallowed", async () => {
-		// Pass a turn whose message is missing required fields; emitReport should
-		// either succeed or quietly warn, but must not throw.
 		const turn: TurnContext = makeTurn({
-			// Force a serialization edge: a circular var.
 			vars: (() => {
 				const v: Record<string, unknown> = {};
 				v.self = v;
@@ -187,7 +152,6 @@ describe("pipeline/reports: emitReport", () => {
 			emitReport({
 				turn,
 				startedAt: Date.now(),
-				level: "full",
 				result: makeResult(),
 			}),
 		).resolves.toBeUndefined();
@@ -201,8 +165,7 @@ describe("pipeline/reports: emitReport", () => {
 				historyLimit: 20,
 				historyScope: "agent",
 				showTrace: true,
-				report: "full",
-				// extra junk that should NOT leak into the entry
+				report: true,
 				simulate: false,
 			},
 		});
@@ -210,7 +173,6 @@ describe("pipeline/reports: emitReport", () => {
 		await emitReport({
 			turn,
 			startedAt: Date.now(),
-			level: "short",
 			result: makeResult(),
 		});
 
@@ -221,7 +183,7 @@ describe("pipeline/reports: emitReport", () => {
 			historyLimit: 20,
 			historyScope: "agent",
 			showTrace: true,
-			report: "full",
+			report: true,
 		});
 	});
 });

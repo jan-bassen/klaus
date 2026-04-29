@@ -445,7 +445,7 @@ function makeAgent(
 	const parsed = AgentSchema.parse({
 		name,
 		tools,
-		report: "none",
+		report: false,
 	});
 	return { ...parsed, promptPath };
 }
@@ -457,7 +457,7 @@ function baseTurn(
 	const agent = patch.agent ?? makeAgent(tmpDir);
 	return makeTurn({
 		agent,
-		config: { report: "none", ...patch.config },
+		config: { report: false, ...patch.config },
 		message: patch.message ?? inbound("current", "Current question"),
 		...patch,
 	});

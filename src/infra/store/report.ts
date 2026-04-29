@@ -1,19 +1,16 @@
 /**
  * Per-turn report store.
  *
- * One JSONL line per agent run, day-partitioned under `{dataDir}/logs/`.
- * Written from `pipeline/core.ts` whenever `turn.config.report !== "none"`.
- *
- * Two report levels (decided by `turn.config.report`):
- *   - `"short"` — only the LLM call: model, tokens, steps, tool calls.
- *   - `"full"`  — also routing, overrides, variables summary, message metadata.
+ * One JSON file per agent run, day-partitioned under `{dataDir}/logs/<date>/`.
+ * Written from `pipeline/reports.ts` whenever `turn.config.report !== false`.
  *
  * Reports are operational telemetry, not part of conversation state — they
- * never feed back into history or context. Surfaced via `/reports` and via
- * an optional vault-markdown mirror when `settings.reports.vaultMarkdown` is on.
+ * never feed back into history or context. An optional vault-markdown mirror
+ * (`settings.reports.vaultMarkdown`) writes the same content as a rendered
+ * `.md` next to the JSON for human reading in Obsidian.
  */
 
-import { appendFile, mkdir, readdir } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { settings } from "../config.ts";
@@ -60,14 +57,9 @@ const ReportLlmSchema = z.object({
 	historyMessageCount: z.number(),
 	replyChars: z.number(),
 	steps: z.array(ReportStepSchema),
-	/**
-	 * Verbatim prompts as the model saw them — only present when
-	 * `level === "full"`. Useful for spotting injection, formatting bugs,
-	 * or unexpected variable expansion.
-	 */
-	systemPrompt: z.string().optional(),
-	userMessage: z.string().optional(),
-	historyTranscript: z.array(z.unknown()).optional(),
+	systemPrompt: z.string(),
+	userMessage: z.string(),
+	historyTranscript: z.array(z.unknown()),
 });
 
 const ReportConfigSchema = z.object({
@@ -76,7 +68,7 @@ const ReportConfigSchema = z.object({
 	historyLimit: z.number().optional(),
 	historyScope: z.string().optional(),
 	showTrace: z.boolean().optional(),
-	report: z.string().optional(),
+	report: z.boolean().optional(),
 });
 
 const ReportMessageSchema = z.object({
@@ -102,11 +94,6 @@ const SimulatedActionSchema = z.object({
 	result: z.unknown(),
 });
 
-const ReportLevelSchema = z.preprocess(
-	(value) => (value === "agent" ? "short" : value),
-	z.enum(["short", "full"]),
-);
-
 const ReportEntrySchema = z.object({
 	runId: z.string(),
 	chatId: z.string(),
@@ -114,14 +101,12 @@ const ReportEntrySchema = z.object({
 	trigger: TriggerSchema,
 	timestamp: z.string(),
 	durationMs: z.number(),
-	level: ReportLevelSchema,
 	outcome: ReportOutcomeSchema,
 	overrides: z.array(z.string()),
 	config: ReportConfigSchema,
 	llm: ReportLlmSchema.optional(),
-	/** Present when `level === "full"`. */
 	message: ReportMessageSchema.optional(),
-	/** Present when `level === "full"`. Map of var key → JSON-stringified char count. */
+	/** Map of var key → JSON-stringified char count. */
 	variablesSummary: z.record(z.string(), z.number()).optional(),
 	/** True when the run was a `!simulate` dry-run — surfaced in templates. */
 	simulation: z.boolean().optional(),
@@ -146,15 +131,23 @@ function logsDir(): string {
 	return _logsDir;
 }
 
-function fileFor(date: string): string {
-	return path.join(logsDir(), `${date}.jsonl`);
+/** Sortable per-run filename: `<HH-MM-SS>-<agent>-<runIdShort>`. */
+export function reportFilename(entry: ReportEntry): string {
+	const time = entry.timestamp.slice(11, 19).replaceAll(":", "-");
+	const safeAgent = entry.agent.replace(/[^a-zA-Z0-9_-]+/g, "_");
+	const shortId = entry.runId.replace(/-/g, "").slice(0, 8);
+	return `${time}-${safeAgent}-${shortId}`;
 }
 
-export async function writeReport(entry: ReportEntry): Promise<string> {
-	await mkdir(logsDir(), { recursive: true });
+export async function writeReport(
+	entry: ReportEntry,
+	filename: string,
+): Promise<string> {
 	const date = localDateString(settings.timezone);
-	const filePath = fileFor(date);
-	await appendFile(filePath, `${JSON.stringify(entry)}\n`);
+	const dir = path.join(logsDir(), date);
+	await mkdir(dir, { recursive: true });
+	const filePath = path.join(dir, `${filename}.json`);
+	await writeFile(filePath, JSON.stringify(entry, null, 2));
 	return filePath;
 }
 
@@ -172,39 +165,43 @@ export async function readReports(
 ): Promise<ReportEntry[]> {
 	const days = opts.days ?? settings.reports.lookbackDays;
 	const limit = opts.limit;
-	const dir = logsDir();
+	const root = logsDir();
 
-	let files: string[];
+	let dateDirs: string[];
 	try {
-		files = (await readdir(dir))
-			.filter((f) => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(f))
+		dateDirs = (await readdir(root))
+			.filter((f) => /^\d{4}-\d{2}-\d{2}$/.test(f))
 			.sort()
-			.slice(-days)
-			.map((f) => path.join(dir, f));
+			.slice(-days);
 	} catch {
 		return [];
 	}
 
 	const out: ReportEntry[] = [];
-	for (const filePath of files) {
-		let text: string;
+	for (const date of dateDirs) {
+		const dir = path.join(root, date);
+		let files: string[];
 		try {
-			text = await readText(filePath);
+			files = (await readdir(dir)).filter((f) => f.endsWith(".json")).sort();
 		} catch {
 			continue;
 		}
-		for (const line of text.split("\n")) {
-			if (!line.trim()) continue;
+		for (const file of files) {
+			const filePath = path.join(dir, file);
+			let text: string;
 			try {
-				const entry = ReportEntrySchema.parse(JSON.parse(line));
+				text = await readText(filePath);
+			} catch {
+				continue;
+			}
+			try {
+				const entry = ReportEntrySchema.parse(JSON.parse(text));
 				if (opts.agent && entry.agent !== opts.agent) continue;
 				if (opts.chatId && entry.chatId !== opts.chatId) continue;
 				if (opts.runId && entry.runId !== opts.runId) continue;
 				out.push(entry);
 			} catch {
-				log.warn("[report] skipping corrupt line", {
-					line: line.slice(0, 100),
-				});
+				log.warn("[report] skipping corrupt file", { file: filePath });
 			}
 		}
 	}

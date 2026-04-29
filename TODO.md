@@ -9,13 +9,21 @@
   - [x] show command params
   - [x] better formatting:
     - [x] not a list, but `*main [aliases]* <params>` then in new line description
-- [ ] Lange reports einzeln?
+- [ ] Default bundle updates
+  - [ ] add !text as opposite of !voice
+  - [ ] remove !use-tools
+  - [ ] remove /reports
+  - [ ] remove /status
+  - [ ] rename /tasks -> schedules (still includes timers though)
+- [x] Reports
+  - [x] Reduce to single report template (full) we don't need short
+  - [x] Reports are now each their own file
 - [ ] Error handling
   - [ ] Failed = emoji reaction
   - [ ] easy retry option
   - [ ] easy check error option
 - [x] image_edit tool
-- [ ] Reduce to single report template (full)
+
 
 # Repo cleanup
 

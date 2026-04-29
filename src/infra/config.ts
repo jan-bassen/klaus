@@ -93,10 +93,6 @@ const VaultFolderSchema = z
 	.strict();
 
 const AgentVaultEntrySchema = z.enum(["none", "read", "full"]);
-const ReportSettingSchema = z.preprocess(
-	(value) => (value === "agent" ? "short" : value),
-	z.enum(["full", "short", "none"]),
-);
 
 const RetriesSchema = z
 	.object({
@@ -136,7 +132,7 @@ const AgentDefaultsSchema = z
 		historyLimit: z.number(),
 		historyScope: z.enum(["full", "agent"]),
 		showTrace: z.boolean(),
-		report: ReportSettingSchema,
+		report: z.boolean(),
 		/** Per-folder overrides applied on top of folder defaults. "*" is the wildcard fallback. */
 		vault: z.record(z.string(), AgentVaultEntrySchema),
 	})
@@ -254,7 +250,7 @@ const ReportsSchema = z
 	.object({
 		/** Mirror each turn's report as rendered markdown into `{vault}/reports/`. */
 		vaultMarkdown: z.boolean(),
-		/** Days of report history surfaced via `/reports` and read APIs. */
+		/** Days of report history surfaced via read APIs. */
 		lookbackDays: z.number(),
 	})
 	.strict();

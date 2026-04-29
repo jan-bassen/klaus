@@ -1,19 +1,15 @@
 /**
  * Per-turn report builder + emitter.
  *
- * Called from `pipeline/core.ts` once per `executeAgent` invocation. Decides
- * the report level from `turn.config.report`:
- *   - `"none"`  → skip
- *   - `"agent"` → LLM-only fields (model, tokens, steps, tool calls)
- *   - `"full"`  → also message metadata, overrides, variables summary
+ * Called from `pipeline/core.ts` once per `executeAgent` invocation when
+ * `turn.config.report !== false`. Always writes a single full report:
  *
- * Two write paths:
- *   1. Always: append a JSON line to `{dataDir}/logs/<date>.jsonl`.
- *   2. If `settings.reports.vaultMarkdown` is on: append a rendered
- *      `report-full.md` block to `{vault}/reports/<date>.md`.
+ *   1. Always: a JSON file at `{dataDir}/logs/<date>/<filename>.json`.
+ *   2. If `settings.reports.vaultMarkdown` is on: a rendered markdown file at
+ *      `{vault}/Klaus/reports/<date>/<filename>.md`.
  */
 
-import { appendFile, mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
@@ -23,6 +19,7 @@ import {
 	type ReportEntry,
 	type ReportLlm,
 	type ReportStep,
+	reportFilename,
 	writeReport,
 } from "../infra/store/report.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
@@ -35,30 +32,28 @@ import { renderTemplate } from "./prompts.ts";
 interface EmitReportInput {
 	turn: TurnContext;
 	startedAt: number;
-	/** Effective `report` level for this turn — already resolved by the caller. */
-	level: "short" | "full";
 	result?: AgentRunResult;
 	error?: unknown;
 }
 
 /**
- * Build the report entry, write it to JSONL, and (when enabled) mirror it as
+ * Build the report entry, write it to disk, and (when enabled) mirror it as
  * markdown into the vault. Catches its own errors — never throws — so report
  * failures are visible in logs without masking the turn result.
  */
 export async function emitReport(input: EmitReportInput): Promise<void> {
 	try {
 		const entry = buildReport(input);
-		const jsonlPath = await writeReport(entry);
+		const filename = reportFilename(entry);
+		const jsonPath = await writeReport(entry, filename);
 		let vaultPath: string | undefined;
 		if (settings.reports.vaultMarkdown) {
-			vaultPath = await mirrorToVault(entry);
+			vaultPath = await mirrorToVault(entry, filename);
 		}
 		log.info("[reports] emitted", {
 			runId: entry.runId,
 			agent: entry.agent,
-			level: entry.level,
-			jsonlPath,
+			jsonPath,
 			...(vaultPath ? { vaultPath } : {}),
 		});
 	} catch (err) {
@@ -71,7 +66,7 @@ export async function emitReport(input: EmitReportInput): Promise<void> {
 // ── Build ──────────────────────────────────────────────────────────────────
 
 function buildReport(input: EmitReportInput): ReportEntry {
-	const { turn, startedAt, level, result, error } = input;
+	const { turn, startedAt, result, error } = input;
 	const durationMs = Date.now() - startedAt;
 
 	const entry: ReportEntry = {
@@ -81,19 +76,15 @@ function buildReport(input: EmitReportInput): ReportEntry {
 		trigger: turn.trigger,
 		timestamp: new Date().toISOString(),
 		durationMs,
-		level,
 		outcome: error ? errorOutcome(error) : { kind: "ok" },
 		overrides: Object.keys(turn.overrides),
 		config: pickConfig(turn.config),
 	};
 
-	if (result) entry.llm = buildLlmSection(result, level);
-
-	if (level === "full") {
-		if (turn.message) entry.message = buildMessageSection(turn.message);
-		if (turn.vars && Object.keys(turn.vars).length > 0) {
-			entry.variablesSummary = summarizeVars(turn.vars);
-		}
+	if (result) entry.llm = buildLlmSection(result);
+	if (turn.message) entry.message = buildMessageSection(turn.message);
+	if (turn.vars && Object.keys(turn.vars).length > 0) {
+		entry.variablesSummary = summarizeVars(turn.vars);
 	}
 
 	if (turn.config?.simulate) {
@@ -117,15 +108,12 @@ function pickConfig(c: TurnConfig): ReportEntry["config"] {
 	if (c.historyLimit !== undefined) out.historyLimit = c.historyLimit;
 	if (c.historyScope) out.historyScope = c.historyScope;
 	if (c.showTrace !== undefined) out.showTrace = c.showTrace;
-	if (c.report) out.report = c.report;
+	if (c.report !== undefined) out.report = c.report;
 	return out;
 }
 
-function buildLlmSection(
-	result: AgentRunResult,
-	level: "short" | "full",
-): ReportLlm {
-	const llm: ReportLlm = {
+function buildLlmSection(result: AgentRunResult): ReportLlm {
+	return {
 		model: result.model,
 		tier: result.tier,
 		durationMs: result.durationMs,
@@ -138,13 +126,10 @@ function buildLlmSection(
 		historyMessageCount: result.historyMessages.length,
 		replyChars: result.replyContent.length,
 		steps: result.steps.map(toReportStep),
+		systemPrompt: result.systemPrompt,
+		userMessage: result.userMessage,
+		historyTranscript: result.historyMessages,
 	};
-	if (level === "full") {
-		llm.systemPrompt = result.systemPrompt;
-		llm.userMessage = result.userMessage;
-		llm.historyTranscript = result.historyMessages;
-	}
-	return llm;
 }
 
 function toReportStep(s: AgentRunResult["steps"][number]): ReportStep {
@@ -190,15 +175,18 @@ function summarizeVars(vars: Record<string, unknown>): Record<string, number> {
 
 // ── Vault mirror ───────────────────────────────────────────────────────────
 
-async function mirrorToVault(entry: ReportEntry): Promise<string> {
-	const dir = settings.vault.reportsDir;
-	await mkdir(dir, { recursive: true });
+async function mirrorToVault(
+	entry: ReportEntry,
+	filename: string,
+): Promise<string> {
 	const date = localDateString(settings.timezone);
-	const filePath = path.join(dir, `${date}.md`);
+	const dir = path.join(settings.vault.reportsDir, date);
+	await mkdir(dir, { recursive: true });
+	const filePath = path.join(dir, `${filename}.md`);
 	const rendered = renderTemplate(
-		"report-full",
+		"report",
 		entry as unknown as Record<string, unknown>,
 	);
-	await appendFile(filePath, `${rendered}\n\n---\n\n`);
+	await writeFile(filePath, `${rendered}\n`);
 	return filePath;
 }

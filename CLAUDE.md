@@ -105,7 +105,7 @@ reasoningEffort: low|default|high
 historyLimit: 20
 historyScope: full|agent
 showTrace: true
-report: full|short|none
+report: true|false
 vaultAccess:
   - "*:full"
   - "Private:none"
@@ -144,14 +144,11 @@ Persistence:
 
 ## Reports
 
-Per-turn JSONL at `{dataDir}/logs/<date>.jsonl`. Three levels (`turn.config.report`):
-- `none` — skip
-- `short` — LLM call only (model, tokens, steps, tool calls)
-- `full` — also message metadata, overrides, variables summary, and **verbatim** system prompt + user message + history transcript (for spotting injection / format bugs)
+One JSON file per turn at `{dataDir}/logs/<date>/<HH-MM-SS>-<agent>-<runId>.json`. `turn.config.report` is a boolean — `true` writes the report, `false` skips. Each report contains the full execution record: routing, overrides, variables summary, message metadata, and **verbatim** system prompt + user message + history transcript (for spotting injection / format bugs).
 
 Sim runs always set `simulation: true` and carry the `simulatedActions` list from the overlay.
 
-`settings.reports.vaultMarkdown: true` mirrors each report into `{vault}/Klaus/reports/<date>.md` for Obsidian reading.
+`settings.reports.vaultMarkdown: true` mirrors each report into `{vault}/Klaus/reports/<date>/<file>.md` for Obsidian reading.
 
 ## Simulation (`!simulate` / `!sim`)
 
@@ -166,7 +163,7 @@ Overlay gives read-from-write coherence: a `vault_write` followed by `vault_read
 | Store | Format | Purpose |
 |---|---|---|
 | `history` | JSONL, day-partitioned | Conversation events (msg, ack, reaction, trace, break) |
-| `report` | JSONL, day-partitioned | Per-turn execution record |
+| `report` | JSON file per run, day-partitioned | Per-turn execution record |
 | `files` | JSONL index + blobs | File metadata + content on disk |
 | `schedules` | JSON + croner | Recurring cron jobs |
 | `timers` | JSON + setTimeout | One-shot future execution |

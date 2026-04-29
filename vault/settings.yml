@@ -25,7 +25,7 @@ agentDefaults:
   historyLimit: 20
   historyScope: full
   showTrace: true
-  report: short
+  report: true
   vault:
     "*": full
 
@@ -135,10 +135,10 @@ persistence:
   defaultNextRun: 1h
 
 reports:
-  # Mirror each turn's report into {vault}/reports/<date>.md for human reading.
-  # JSONL under {dataDir}/logs/ is written when the effective turn report != "none".
+  # Mirror each turn's report into {vault}/reports/<date>/<file>.md for human reading.
+  # One JSON per run is written under {dataDir}/logs/<date>/ when report is true.
   vaultMarkdown: true
-  # Days of report history surfaced via /reports.
+  # Days of report history surfaced via read APIs.
   lookbackDays: 7
 
 # Bundled obsidian-headless supervisor. The `ob sync --continuous` child is

@@ -1,12 +1,21 @@
 import { settings } from "../../infra/config.ts";
-import { readReports } from "../../infra/store/report.ts";
+import { type ReportEntry, readReports } from "../../infra/store/report.ts";
 import type { InboundMessage } from "../../infra/whatsapp/receive.ts";
 import { enqueueMessage } from "../../infra/whatsapp/send.ts";
-import { renderTemplate } from "../../pipeline/prompts.ts";
 import type { Command } from "./index.ts";
 
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
+
+function summarize(e: ReportEntry): string {
+	const outcome =
+		e.outcome.kind === "ok" ? "ok" : `error: ${e.outcome.error.name}`;
+	const llm = e.llm
+		? ` | ${e.llm.model} ${e.llm.usage.promptTokens}↑/${e.llm.usage.completionTokens}↓ (${e.llm.steps.length} steps)`
+		: "";
+	const sim = e.simulation ? " ⚠ SIM" : "";
+	return `${e.timestamp} @${e.agent} (${e.trigger.kind}) — ${outcome} in ${e.durationMs}ms${llm}${sim}`;
+}
 
 export const reportsCommand: Command = {
 	name: "reports",
@@ -32,14 +41,7 @@ export const reportsCommand: Command = {
 		});
 
 		const content = entries.length
-			? entries
-					.map((e) =>
-						renderTemplate(
-							"report-short",
-							e as unknown as Record<string, unknown>,
-						),
-					)
-					.join("\n")
+			? entries.map(summarize).join("\n")
 			: "_No reports yet._";
 
 		enqueueMessage({

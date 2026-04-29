@@ -128,7 +128,6 @@ export interface AgentRunResult {
 	steps: ModelCallStep[];
 	model: string;
 	tier: string;
-	/** Verbatim transcript that hit the model — full prompts for `report: "full"`. */
 	historyMessages: ChatMessage[];
 	systemPrompt: string;
 	userMessage: string;
@@ -170,7 +169,7 @@ export async function executeAgent(
 	input: ExecuteAgentInput,
 ): Promise<AgentRunResult> {
 	const startedAt = Date.now();
-	const reportLevel = resolveReportLevel(input.turn.config.report);
+	const reportEnabled = input.turn.config.report !== false;
 
 	let fullTurn: TurnContext = { ...input.turn, vars: {} };
 
@@ -211,26 +210,14 @@ export async function executeAgent(
 
 		flushPendingSubReplies(fullTurn);
 
-		if (reportLevel) {
-			await emitReport({
-				turn: fullTurn,
-				startedAt,
-				level: reportLevel,
-				result,
-			});
+		if (reportEnabled) {
+			await emitReport({ turn: fullTurn, startedAt, result });
 		}
 
 		return result;
 	} catch (err) {
-		if (reportLevel) {
-			if (!isAbortError(err)) {
-				await emitReport({
-					turn: fullTurn,
-					startedAt,
-					level: reportLevel,
-					error: err,
-				});
-			}
+		if (reportEnabled && !isAbortError(err)) {
+			await emitReport({ turn: fullTurn, startedAt, error: err });
 		}
 		throw err;
 	}
@@ -267,15 +254,6 @@ function flushPendingSubReplies(turn: TurnContext): void {
 	}
 
 	turn.pendingSubReplies.length = 0;
-}
-
-/** Map the user-facing setting onto the actual emit level (or `null` to skip). */
-function resolveReportLevel(
-	setting: "full" | "short" | "none" | undefined,
-): "full" | "short" | null {
-	if (setting === "none") return null;
-	if (setting === "full") return "full";
-	return "short";
 }
 
 /**

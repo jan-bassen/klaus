@@ -92,50 +92,8 @@ describe("template goldens", () => {
 		).toBe("Something went wrong: Something low-level broke");
 	});
 
-	it("renders compact report lines for ok, error, and simulation outcomes", () => {
-		const base = {
-			timestamp: "2026-04-28T10:00:00.000Z",
-			agent: "assistant",
-			trigger: { kind: "message" },
-			durationMs: 42,
-			llm: {
-				model: "model-a",
-				usage: { promptTokens: 12, completionTokens: 34 },
-				steps: [{}, {}],
-			},
-		};
-
-		expect(
-			renderTemplate("report-short", {
-				...base,
-				outcome: { kind: "ok" },
-			}),
-		).toBe(
-			"2026-04-28T10:00:00.000Z @assistant (message) — ok in 42ms | model-a 12↑/34↓ (2 steps)",
-		);
-
-		expect(
-			renderTemplate("report-short", {
-				...base,
-				outcome: { kind: "error", error: { name: "BoomError" } },
-			}),
-		).toBe(
-			"2026-04-28T10:00:00.000Z @assistant (message) — error: BoomError in 42ms | model-a 12↑/34↓ (2 steps)",
-		);
-
-		expect(
-			renderTemplate("report-short", {
-				...base,
-				outcome: { kind: "ok" },
-				simulation: true,
-			}),
-		).toBe(
-			"2026-04-28T10:00:00.000Z @assistant (message) — ok in 42ms | model-a 12↑/34↓ (2 steps) ⚠ SIM",
-		);
-	});
-
 	it("renders full reports with prompts, history, variables, and simulated actions", () => {
-		const rendered = renderTemplate("report-full", {
+		const rendered = renderTemplate("report", {
 			timestamp: "2026-04-28T10:00:00.000Z",
 			agent: "assistant",
 			runId: "run-1",

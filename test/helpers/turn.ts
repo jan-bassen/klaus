@@ -24,7 +24,7 @@ export function makeTurn(patch: Partial<TurnContext> = {}): TurnContext {
 				topP: "default",
 				reasoningEffort: "default",
 				showTrace: true,
-				report: "short",
+				report: true,
 			},
 			promptPath: "/tmp/nonexistent.md",
 		} as unknown as AgentDefinition);
