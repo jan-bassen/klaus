@@ -183,6 +183,8 @@ interface GeneratedImage {
 
 interface GenerateImageInput {
 	prompt: string;
+	/** Optional input images to edit / use as visual context. */
+	images?: Array<{ bytes: Buffer; mimeType: string }>;
 	/** Override the configured image model. */
 	model?: string;
 }
@@ -203,7 +205,10 @@ export async function generateImage(
 	}
 
 	const model = input.model || configuredModel;
-	log.info(`[imagegen] generating with ${model}`);
+	const inputImages = input.images ?? [];
+	log.info(
+		`[imagegen] generating with ${model}${inputImages.length ? ` (+${inputImages.length} input image${inputImages.length > 1 ? "s" : ""})` : ""}`,
+	);
 
 	const client = new OpenRouter({
 		apiKey,
@@ -211,12 +216,24 @@ export async function generateImage(
 		retryConfig: { strategy: "none" },
 	});
 
+	const content = inputImages.length
+		? [
+				{ type: "text" as const, text: input.prompt },
+				...inputImages.map((img) => ({
+					type: "image_url" as const,
+					imageUrl: {
+						url: `data:${img.mimeType};base64,${img.bytes.toString("base64")}`,
+					},
+				})),
+			]
+		: input.prompt;
+
 	try {
 		const response = await client.chat.send({
 			chatRequest: {
 				model,
 				modalities: ["image", "text"],
-				messages: [{ role: "user", content: input.prompt }],
+				messages: [{ role: "user", content }],
 				stream: false,
 			},
 		});

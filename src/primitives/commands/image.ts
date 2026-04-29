@@ -1,5 +1,6 @@
 import { settings } from "../../infra/config.ts";
 import { log } from "../../infra/logger.ts";
+import { readArrayBuffer } from "../../infra/runtime.ts";
 import { persistFileBlob } from "../../infra/store/files.ts";
 import type { InboundMessage } from "../../infra/whatsapp/receive.ts";
 import { enqueueMessage } from "../../infra/whatsapp/send.ts";
@@ -22,7 +23,20 @@ export const imageCommand: Command = {
 			return;
 		}
 
-		const result = await generateImage({ prompt });
+		const quotedMedia = msg.quotedMessage?.media;
+		const sources = quotedMedia?.mimeType.startsWith("image/")
+			? [
+					{
+						bytes: Buffer.from(await readArrayBuffer(quotedMedia.path)),
+						mimeType: quotedMedia.mimeType,
+					},
+				]
+			: [];
+
+		const result = await generateImage({
+			prompt,
+			...(sources.length ? { images: sources } : {}),
+		});
 		if (result instanceof Error) {
 			log.warn("[/image] generation failed", { error: result.message });
 			enqueueMessage({

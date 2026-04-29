@@ -2,10 +2,10 @@
 
 - [x] startup flow bad!
 - [ ] /help
-  - [ ] shorten descriptions
+  - [ ] shorten descriptions to 1-3 words if possible
   - [ ] remove variables
   - [ ] reduce to providers instead of models
-  - [ ] remove vault (or own command /vault?)
+  - [ ] remove vault part
   - [ ] show command params
   - [ ] better formatting with new lines and bold
 - [ ] Lange reports einzeln?
@@ -13,7 +13,7 @@
   - [ ] Failed = emoji reaction
   - [ ] easy retry option
   - [ ] easy check error option
-- [ ]  image_edit tool
+- [x] image_edit tool
 - [ ] Reduce to single report template (full)
 
 # Repo cleanup
@@ -38,7 +38,6 @@ We'll be opening this up as "the agent for tinkerers". Polish the codebase and t
 - [ ] Add `docs/`:
   - [ ] setup-guide — deeper common setups + issues
   - [ ] codebase-walkthrough — patterns, structure, key files/flows ("how to work with klaus' codebase 101")
-  - [ ] vault-walkthrough — vault side incl. key settings and folders
   - [ ] iterate-in-obsidian — most useful patterns with examples
   - [ ] iterate-in-code — adding a command / variable / tool
 
