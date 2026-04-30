@@ -1,23 +1,9 @@
 # Fixes from testing
 
-- [x] startup flow bad!
-- [x] /help
-  - [x] shorten descriptions more where possible
-  - [x] remove variables
-  - [x] reduce to providers instead of models
-  - [x] remove vault part
-  - [x] show command params
-  - [x] better formatting:
-    - [x] not a list, but `*main [aliases]* <params>` then in new line description
-- [x] Default bundle updates
-  - [x] add !text as opposite of !voice
-  - [x] remove !use-tools
-  - [x] remove /reports
-  - [x] remove /status
-  - [x] rename /tasks -> schedules (still includes timers though)
-- [x] Reports
-  - [x] Reduce to single report template (full) we don't need short
-  - [x] Reports are now each their own file
+- [x] /help cleanup #2
+  - [x] Add settings section with agent, model tier, voice, report, and history
+  - [x] Move Agents after settings section (before commands) and add provider/model + history info as one more new here if set
+  - [x] Remove Provider section
 - [ ] Error handling
   - [ ] Failed = emoji reaction
   - [ ] easy retry option
