@@ -67,6 +67,7 @@ function checkAllowlist(msg: InboundMessage): AuthResult {
 }
 
 export async function handleTurn(msg: InboundMessage): Promise<void> {
+	let failedContext: { agent: string; runId: string } | undefined;
 	try {
 		const auth = checkAllowlist(msg);
 		if (!auth.allowed) {
@@ -157,10 +158,13 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			messageId: effectiveMsg.id,
 		};
 
+		const runId = crypto.randomUUID();
+		failedContext = { agent: def.name, runId };
+
 		const partialTurn: Omit<TurnContext, "vars"> = {
 			chatId: effectiveMsg.chatId,
 			agent: def,
-			runId: crypto.randomUUID(),
+			runId,
 			trigger,
 			overrides: parsed.overrides,
 			config,
@@ -189,7 +193,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		}
 	} catch (err) {
 		if (!isAbortError(err)) {
-			await reportPipelineError(msg, err);
+			await reportPipelineError(msg, err, failedContext);
 		}
 	}
 }
@@ -262,6 +266,7 @@ function resolveQuotedMedia(msg: InboundMessage): InboundMessage {
 async function reportPipelineError(
 	msg: InboundMessage,
 	err: unknown,
+	context?: { agent: string; runId: string },
 ): Promise<void> {
 	log.error("[pipeline] unhandled error", {
 		error: err instanceof Error ? err.message : String(err),
@@ -270,15 +275,36 @@ async function reportPipelineError(
 
 	if (msg.kind !== "whatsapp") return;
 
+	const errorContent = formatUserError(err);
+
 	try {
 		enqueueMessage({
 			chatId: msg.chatId,
-			content: formatUserError(err),
+			content: errorContent,
 			dedupKey: `${msg.id}:error`,
 			label: settings.whatsapp.systemLabel,
 		});
 	} catch {
 		/* best-effort */
+	}
+
+	if (context) {
+		try {
+			await appendMessage({
+				role: "assistant",
+				content: errorContent,
+				agent: context.agent,
+				runId: context.runId,
+				failed: true,
+			});
+		} catch (persistErr) {
+			log.warn("[pipeline] failed to persist failed assistant message", {
+				error:
+					persistErr instanceof Error
+						? persistErr.message
+						: String(persistErr),
+			});
+		}
 	}
 
 	try {

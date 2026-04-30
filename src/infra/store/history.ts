@@ -28,7 +28,12 @@ interface MessageBase {
  * and trace lookup can all rely on the link. User rows have neither. */
 type AppendMessageInput =
 	| (MessageBase & { role: "user" })
-	| (MessageBase & { role: "assistant"; agent: string; runId: string });
+	| (MessageBase & {
+			role: "assistant";
+			agent: string;
+			runId: string;
+			failed?: boolean;
+	  });
 
 interface ConversationStore {
 	appendMessage(msg: AppendMessageInput): Promise<string>;
@@ -81,6 +86,8 @@ const ConversationMessageEventSchema = z.object({
 	agent: z.string().optional(),
 	/** Assistant rows: the run that produced the reply (links to the trace). */
 	runId: z.string().optional(),
+	/** Assistant rows: the turn ended in an error (used by /retry). */
+	failed: z.boolean().optional(),
 });
 
 const ConversationAckEventSchema = z.object({
@@ -169,6 +176,8 @@ interface ConversationMessage {
 	agent?: string;
 	/** Assistant rows: the run id (links to the trace). Required for new rows. */
 	runId?: string;
+	/** Assistant rows: turn ended in an error. */
+	failed?: boolean;
 	reactions: Array<{ emoji: string; senderId: string; fromMe: boolean }>;
 }
 
@@ -233,6 +242,7 @@ export function createConversationStore(
 						...(event.command != null ? { command: event.command } : {}),
 						...(event.agent ? { agent: event.agent } : {}),
 						...(event.runId ? { runId: event.runId } : {}),
+						...(event.failed ? { failed: true } : {}),
 						reactions: [],
 					});
 					order.push(event.id);
@@ -313,7 +323,11 @@ export function createConversationStore(
 				: {}),
 			...(msg.command ? { command: msg.command } : {}),
 			...(msg.role === "assistant"
-				? { agent: msg.agent, runId: msg.runId }
+				? {
+						agent: msg.agent,
+						runId: msg.runId,
+						...(msg.failed ? { failed: true } : {}),
+					}
 				: {}),
 		};
 		await appendEvent(event);
