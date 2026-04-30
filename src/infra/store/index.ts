@@ -20,6 +20,20 @@ export function localDateString(timezone: string): string {
 	return fmt.format(new Date());
 }
 
+/**
+ * Returns the current local time as HH-MM-SS in the given timezone.
+ */
+export function localTimeString(timezone: string): string {
+	const fmt = new Intl.DateTimeFormat("en-GB", {
+		timeZone: timezone,
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+		hour12: false,
+	});
+	return fmt.format(new Date()).replaceAll(":", "-");
+}
+
 // -- JSONL utilities --
 
 /**

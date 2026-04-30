@@ -17,7 +17,7 @@ import { settings } from "../config.ts";
 import { log } from "../logger.ts";
 import { readText } from "../runtime.ts";
 import { TriggerSchema } from "./history.ts";
-import { localDateString } from "./index.ts";
+import { localDateString, localTimeString } from "./index.ts";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -131,12 +131,11 @@ function logsDir(): string {
 	return _logsDir;
 }
 
-/** Sortable per-run filename: `<HH-MM-SS>-<agent>-<runIdShort>`. */
+/** Sortable per-run filename: `<HH-MM-SS>--<runIdShort>`. */
 export function reportFilename(entry: ReportEntry): string {
-	const time = entry.timestamp.slice(11, 19).replaceAll(":", "-");
-	const safeAgent = entry.agent.replace(/[^a-zA-Z0-9_-]+/g, "_");
+	const time = localTimeString(settings.timezone);
 	const shortId = entry.runId.replace(/-/g, "").slice(0, 8);
-	return `${time}-${safeAgent}-${shortId}`;
+	return `${time}--${shortId}`;
 }
 
 export async function writeReport(

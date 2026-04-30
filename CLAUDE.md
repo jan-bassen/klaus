@@ -144,7 +144,7 @@ Persistence:
 
 ## Reports
 
-One JSON file per turn at `{dataDir}/logs/<date>/<HH-MM-SS>-<agent>-<runId>.json`. `turn.config.report` is a boolean — `true` writes the report, `false` skips. Each report contains the full execution record: routing, overrides, variables summary, message metadata, and **verbatim** system prompt + user message + history transcript (for spotting injection / format bugs).
+One JSON file per turn at `{dataDir}/logs/<date>/<HH-MM-SS>--<runIdShort>.json` (time uses `settings.timezone`). `turn.config.report` is a boolean — `true` writes the report, `false` skips. Each report contains the full execution record: routing, overrides, variables summary, message metadata, and **verbatim** system prompt + user message + history transcript (for spotting injection / format bugs).
 
 Sim runs always set `simulation: true` and carry the `simulatedActions` list from the overlay.
 
