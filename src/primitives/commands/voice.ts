@@ -13,7 +13,7 @@ export const voiceCommand: Command = {
 	name: "voice",
 	aliases: ["v"],
 	params: [{ name: "on|off|auto" }],
-	description: "Show or set voice output for the default agent",
+	description: "Show or set voice setting",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const agentName = getDefaultAgent(msg.chatId);
 		const def = agentRegistry.get(agentName);

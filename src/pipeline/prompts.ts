@@ -37,7 +37,8 @@ type TemplateName =
 	| "message-user"
 	| "error"
 	| "report"
-	| "welcome";
+	| "welcome"
+	| "help";
 
 const _compiled = new Map<string, HandlebarsTemplateDelegate>();
 

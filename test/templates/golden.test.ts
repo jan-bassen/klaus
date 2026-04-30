@@ -108,6 +108,82 @@ describe("template goldens", () => {
 		).toBe("Something went wrong: Something low-level broke");
 	});
 
+	it("renders help without markdown emphasis leaking across agent settings", () => {
+		expect(
+			renderTemplate("help", {
+				settings: {
+					agent: "assistant",
+					model: "openai / medium",
+					voice: "auto",
+					report: "on",
+					history: "20 (full scope)",
+				},
+				agents: [
+					{
+						name: "assistant",
+						aliases: "",
+						tools: "reply, react, image_generate",
+						toolsets: "vault, dispatch, files",
+						model: "openai / medium",
+						history: "20 (full scope)",
+					},
+					{
+						name: "dispatch",
+						aliases: " [d]",
+						tools: "reply",
+						toolsets: "vault",
+						model: "openai / medium",
+						history: "10 (agent scope)",
+					},
+				],
+				commands: [
+					{
+						name: "help",
+						aliases: " [?]",
+						params: "<section>",
+						description: "Show settings, agents, overrides, commands",
+					},
+				],
+				overrides: [
+					{
+						name: "voice",
+						aliases: " [v]",
+						description: "Reply as voice message",
+					},
+				],
+			}),
+		).toBe(`Settings
+
+agent: @assistant
+model: openai / medium
+voice: auto
+report: on
+history: 20 (full scope)
+
+Agents
+
+@assistant
+tools: reply, react, image_generate
+toolsets: vault, dispatch, files
+model: openai / medium
+history: 20 (full scope)
+@dispatch [d]
+tools: reply
+toolsets: vault
+model: openai / medium
+history: 10 (agent scope)
+
+Commands
+
+/help [?] <section>
+Show settings, agents, overrides, commands
+
+Overrides
+
+!voice [v]
+Reply as voice message`);
+	});
+
 	it("renders full reports with prompts, history, variables, and simulated actions", () => {
 		const rendered = renderTemplate("report", {
 			timestamp: "2026-04-28T10:00:00.000Z",

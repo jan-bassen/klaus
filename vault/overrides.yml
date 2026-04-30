@@ -5,7 +5,7 @@ voice:
 
 text:
   aliases: [txt]
-  description: Reply as text only
+  description: Reply as text (no voice)
   overrides: { suppressVoice: true }
 
 clean:
@@ -20,17 +20,17 @@ ghost:
 
 simulate:
   aliases: [sim]
-  description: Dry-run — fake external/stateful tools, no real side effects
+  description: Dry-run for testing
   overrides: { simulate: true }
 
 report:
   aliases: [rp]
-  description: Write a diagnostic report for this turn
+  description: Enable report for this turn
   overrides: { report: true }
 
 no-report:
   aliases: [nr]
-  description: Disable report writing for this turn
+  description: Disable report for this turn
   overrides: { report: false }
 
 small:

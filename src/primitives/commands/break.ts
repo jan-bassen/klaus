@@ -7,7 +7,7 @@ import type { Command } from "./index.ts";
 export const breakCommand: Command = {
 	name: "break",
 	aliases: ["b"],
-	description: "Insert a context break — fresh start from here",
+	description: "Insert a context break",
 	async execute(msg: InboundMessage, _args: string[]): Promise<void> {
 		await appendBreak();
 		enqueueMessage({

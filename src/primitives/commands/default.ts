@@ -11,7 +11,7 @@ import type { Command } from "./index.ts";
 export const defaultCommand: Command = {
 	name: "default",
 	params: [{ name: "agent" }],
-	description: "Set the default agent for this chat",
+	description: "Change the default agent",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {
 		const agentName = args[0];
 

@@ -49,14 +49,15 @@ async function selectTarget(
 		}
 	}
 	return {
-		error: "Nothing to retry — no failed turn found. Quote a message to retry it.",
+		error:
+			"Nothing to retry — no failed turn found. Quote a message to retry it.",
 	};
 }
 
 export const retryCommand: Command = {
 	name: "retry",
 	aliases: ["r"],
-	description: "Re-run the last failed turn (or quote a message to retry it)",
+	description: "Re-run the last failed turn",
 	async execute(msg: InboundMessage, _args: string[]): Promise<void> {
 		const target = await selectTarget(msg);
 		if ("error" in target) {
