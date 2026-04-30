@@ -159,6 +159,9 @@ function renderUserText(turn: TurnContext): string {
 		isDocument,
 		...(media?.fileName ? { fileName: media.fileName } : {}),
 		...(media?.mimeType ? { mimeType: media.mimeType } : {}),
+		...(isDocument && media?.extractedText
+			? { extractedText: media.extractedText }
+			: {}),
 		...(isVoice && media?.voiceCaption
 			? { voiceCaption: media.voiceCaption }
 			: {}),

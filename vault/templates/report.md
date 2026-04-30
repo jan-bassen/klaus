@@ -1,5 +1,5 @@
-# {{timestamp}} @{{agent}}
-
+- **Agent**: `{{agent}}`
+- **Time**: `{{timestamp}}`
 - **Run**: `{{runId}}`
 - **Chat**: `{{chatId}}`
 - **Trigger**: {{trigger.kind}}{{#if trigger.messageId}} `{{trigger.messageId}}`{{/if}}{{#if trigger.scheduleId}} `{{trigger.scheduleId}}`{{/if}}{{#if trigger.timerId}} `{{trigger.timerId}}`{{/if}}{{#if trigger.parentRunId}} parent `{{trigger.parentRunId}}`{{/if}}
@@ -32,6 +32,13 @@
 {{/each}}
 {{/each}}
 
+{{#if simulatedActions.length}}
+## Simulated actions
+{{#each simulatedActions}}
+- **{{tool}}** ({{sideEffect}}) — {{intent}}
+{{/each}}
+{{/if}}
+
 {{#if llm.systemPrompt}}
 ### System prompt
 ```
@@ -53,18 +60,4 @@
 ```
 {{/each}}
 {{/if}}
-{{/if}}
-
-{{#if variablesSummary}}
-## Variables
-{{#each variablesSummary}}
-- {{@key}}: {{this}} chars
-{{/each}}
-{{/if}}
-
-{{#if simulatedActions.length}}
-## Simulated actions
-{{#each simulatedActions}}
-- **{{tool}}** ({{sideEffect}}) — {{intent}}
-{{/each}}
 {{/if}}

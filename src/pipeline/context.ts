@@ -8,6 +8,7 @@
  * resolved) to render their replies.
  */
 
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type {
 	ChatMessages as ChatMessage,
@@ -357,6 +358,11 @@ async function assembleHistory(
 			const isVoice = media?.mimeType.startsWith("audio/") ?? false;
 			const isImage = media?.mimeType.startsWith("image/") ?? false;
 			const isDocument = !!media && !isVoice && !isImage;
+			const sidecar = isDocument ? `${media.path}.parsed.txt` : null;
+			const extractedText =
+				sidecar && existsSync(sidecar)
+					? readFileSync(sidecar, "utf-8")
+					: undefined;
 			messages.push({
 				role: "user",
 				content: renderTemplate("message-user", {
@@ -371,6 +377,7 @@ async function assembleHistory(
 								mimeType: media.mimeType,
 							}
 						: {}),
+					...(extractedText ? { extractedText } : {}),
 					...(row.quotedText ? { quotedText: row.quotedText } : {}),
 					...(row.quotedRole ? { quotedRole: row.quotedRole } : {}),
 				}),

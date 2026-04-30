@@ -12,7 +12,7 @@ export const breakCommand: Command = {
 		await appendBreak();
 		enqueueMessage({
 			chatId: msg.chatId,
-			content: "Context break. Fresh start from here.",
+			content: "--- break ---",
 			dedupKey: `${msg.id}:break`,
 			label: settings.whatsapp.systemLabel,
 		});
