@@ -10,7 +10,7 @@
   - [ ] easy check error option
   - [ ] maybe backup models?
 - [x] image_edit tool
-- [ ] make toolsets less confusing for agents (they work got after injection, agent doesn't understand first call. maybe name from use_ to loadToolset or smth?)
+- [x] make toolsets less confusing for agents (they work got after injection, agent doesn't understand first call. maybe name from use_ to loadToolset or smth?)
 
 
 # Repo cleanup

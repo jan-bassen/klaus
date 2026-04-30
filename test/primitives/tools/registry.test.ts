@@ -52,7 +52,7 @@ describe("primitives/tools: sideEffect enforcement", () => {
 			tools: [pureTool("files.read")],
 		};
 		const meta = generateMetaTool(ts);
-		expect(meta.name).toBe("use_files");
+		expect(meta.name).toBe("load_files");
 		expect(meta.sideEffect).toBe("pure");
 	});
 });

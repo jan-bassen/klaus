@@ -162,7 +162,7 @@ async function invokeTool(
  * Build the function-tool set + initial allowlist.
  *
  * Core tools, provider tools, and toolset meta-tools start active. Toolset
- * tools are pre-registered but hidden until `use_<set>` is called. Skills
+ * tools are pre-registered but hidden until `load_<set>` is called. Skills
  * pre-register their tools too; `skill_get` activates them.
  */
 function assembleTools(
@@ -246,11 +246,11 @@ function assembleTools(
 		for (const step of steps) {
 			for (const call of step.toolCalls) {
 				const name = call.toolName;
-				if (name.startsWith("use_")) {
-					const tsName = name.slice(4);
+				if (name.startsWith("load_")) {
+					const tsName = name.slice(5);
 					const ts = toolsetRegistry.get(tsName);
 					if (!ts) continue;
-					active.delete(`use_${tsName}`);
+					active.delete(`load_${tsName}`);
 					for (const t of ts.tools) active.add(t.name);
 				} else if (name === "skill_get") {
 					const sName =

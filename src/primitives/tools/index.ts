@@ -74,7 +74,7 @@ export function registerToolset(ts: ToolsetDefinition): void {
 }
 
 /**
- * Generate a meta-tool for a toolset. The model calls this (e.g. `use_files`) to
+ * Generate a meta-tool for a toolset. The model calls this (e.g. `load_files`) to
  * opt into the toolset; `prepareStep` then injects the real tools for subsequent steps.
  */
 export function generateMetaTool(
@@ -84,11 +84,11 @@ export function generateMetaTool(
 		.map((t) => `• ${t.name}: ${t.description}`)
 		.join("\n");
 	return {
-		name: `use_${ts.name}`,
-		description: `Activate the ${ts.name} toolset. ${ts.description}\n\nTools you will gain access to:\n${toolList}`,
+		name: `load_${ts.name}`,
+		description: `Load the ${ts.name} toolset to gain access to its tools on the next step. ${ts.description}`,
 		inputSchema: emptySchema,
 		execute: async (_input, _context) =>
-			`✓ ${ts.name} toolset activated. Tools now available:\n${toolList}`,
+			`Loaded. The ${ts.name} tools are now in your toolset for the next step — call one of them to act on the user's request:\n${toolList}`,
 		sideEffect: "pure",
 		kind: "builtin",
 		capability: "tool",

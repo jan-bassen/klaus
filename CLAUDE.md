@@ -130,7 +130,7 @@ Persistence:
 
 **Provider tools** (e.g. `web_search`, `web_fetch`) are OpenRouter server tools — they get appended verbatim to the request's `tools` array (`{ type: "openrouter:web_search" }`) and execute server-side; the agent loop never sees a client-side tool_call for them. Declared per agent in `providerTools: […]`.
 
-**Toolsets** are lazy-loaded via `use_<name>` meta-tools so the initial context stays lean.
+**Toolsets** are lazy-loaded via `load_<name>` meta-tools so the initial context stays lean.
 
 **Skills** are `.md` docs in `{vault}/Klaus/skills/`, loaded via a per-agent `skill_get` tool scoped to the agent's declared list.
 
