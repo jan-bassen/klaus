@@ -87,7 +87,8 @@
       "Bash(find /Users/janbassen/Code/klaus -name \"*.ts\" -type f -exec grep -l \"Defuddle\\\\|defuddle\" {} \\\\;)",
       "WebFetch(domain:openrouter.ai)",
       "Bash(npm run *)",
-      "Bash(npx biome *)"
+      "Bash(npx biome *)",
+      "Bash(npm test *)"
     ]
   }
 }

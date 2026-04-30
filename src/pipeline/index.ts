@@ -37,6 +37,7 @@ import type { Trigger, TurnContext } from "./core.ts";
 import { executeAgent, isAbortError } from "./core.ts";
 import { parseMessage } from "./message.ts";
 import { buildTurnConfig } from "./overrides.ts";
+import { renderTemplate } from "./prompts.ts";
 
 interface AuthResult {
 	allowed: boolean;
@@ -212,7 +213,7 @@ async function handleSetupMode(msg: InboundMessage): Promise<void> {
 		clearLoginFolder().catch(() => {});
 		enqueueMessage({
 			chatId: msg.chatId,
-			content: "Hey! Klaus is set up and ready to go 🤙",
+			content: renderTemplate("welcome", {}),
 			dedupKey: `${msg.id}:setup-complete`,
 			label: settings.whatsapp.systemLabel,
 		});
@@ -227,18 +228,12 @@ async function handleSetupMode(msg: InboundMessage): Promise<void> {
 		clearLoginFolder().catch(() => {});
 		enqueueMessage({
 			chatId: msg.chatId,
-			content: "Hey! Klaus is set up and ready to go 🤙",
+			content: renderTemplate("welcome", {}),
 			dedupKey: `${msg.id}:setup-complete`,
 			label: settings.whatsapp.systemLabel,
 		});
 	} else {
 		log.info("[pipeline] setup mode, awaiting setup code");
-		enqueueMessage({
-			chatId: msg.chatId,
-			content: `*Klaus setup*\n\nSend the setup code from the instructions in your vault to complete setup.\n\nYour chat ID: \`${msg.chatId}\``,
-			dedupKey: `${msg.id}:setup`,
-			label: settings.whatsapp.systemLabel,
-		});
 	}
 }
 

@@ -75,17 +75,17 @@ describe("template goldens", () => {
 	});
 
 	it("renders user-facing error messages by kind", () => {
-		expect(renderTemplate("error-message", { kind: "timeout" })).toBe(
+		expect(renderTemplate("error", { kind: "timeout" })).toBe(
 			"The AI model timed out — please try again.",
 		);
-		expect(renderTemplate("error-message", { kind: "rate_limit" })).toBe(
+		expect(renderTemplate("error", { kind: "rate_limit" })).toBe(
 			"Too many requests right now — please try again in a moment.",
 		);
-		expect(renderTemplate("error-message", { kind: "too_long" })).toBe(
+		expect(renderTemplate("error", { kind: "too_long" })).toBe(
 			"Your conversation got too long for the model — try starting fresh.",
 		);
 		expect(
-			renderTemplate("error-message", {
+			renderTemplate("error", {
 				kind: "unknown",
 				message: "Something low-level broke",
 			}),

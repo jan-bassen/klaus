@@ -99,6 +99,10 @@ describe("pipeline/index.handleTurn", () => {
 			path.join(settings.vault.templatesDir, "message-agent.md"),
 			"{{#if isNotDefaultAgent}}[{{agentLabel}}] {{/if}}{{message}}",
 		);
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "welcome.md"),
+			"Hey! Klaus is set up and ready to go 🤙",
+		);
 
 		registerTool(replyTool);
 		registerTool(probeTool);
@@ -216,17 +220,13 @@ describe("pipeline/index.handleTurn", () => {
 		expect(await getConversation()).toEqual([]);
 	});
 
-	it("enters setup mode when allowedChat is unset", async () => {
+	it("stays silent in setup mode until the setup code arrives", async () => {
 		delete settings.basics.allowedChat;
 
 		await handleTurn(makeMsg("new-chat", "", "hello"));
 
 		expect(sendMock).not.toHaveBeenCalled();
-		expect(vi.mocked(enqueueMessage).mock.calls[0]?.[0]).toMatchObject({
-			chatId: "new-chat",
-			label: settings.whatsapp.systemLabel,
-			content: expect.stringContaining("*Klaus setup*"),
-		});
+		expect(enqueueMessage).not.toHaveBeenCalled();
 	});
 
 	it("dispatches /commands without invoking the model", async () => {

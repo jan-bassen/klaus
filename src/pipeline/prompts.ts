@@ -2,7 +2,7 @@
  * Per-turn prompt compilation.
  *
  * Single home for all template rendering: the agent's `.md` body, the
- * `Klaus/templates/` files (`message-user`, `error-message`, `report`), and
+ * `Klaus/templates/` files (`message-user`, `error`, `report`), and
  * the sampling-config translation.
  *
  * Templates are eager-loaded at startup via `loadTemplates()` so each one
@@ -35,8 +35,9 @@ export type UserContent = ChatUserMessage["content"];
 type TemplateName =
 	| "message-agent"
 	| "message-user"
-	| "error-message"
-	| "report";
+	| "error"
+	| "report"
+	| "welcome";
 
 const _compiled = new Map<string, HandlebarsTemplateDelegate>();
 

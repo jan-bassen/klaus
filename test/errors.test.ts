@@ -1,7 +1,7 @@
 /**
  * `errors.ts` — formatUserError classification + default fallback messages.
  *
- * In the test environment the `error-message.md` template is not available,
+ * In the test environment the `error.md` template is not available,
  * so `renderTemplate` throws and `formatUserError` falls back to its built-in
  * default messages. That path is exactly what we test here.
  */

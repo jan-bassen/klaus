@@ -100,7 +100,7 @@ describe("pipeline/prompts: resolveSampling", () => {
 const ALL_TEMPLATE_NAMES = [
 	"message-user",
 	"message-agent",
-	"error-message",
+	"error",
 	"report",
 ] as const;
 
@@ -166,11 +166,11 @@ describe("pipeline/prompts: renderTemplate", () => {
 		writeTemplate(tmpDir, "message-user", "inner {{val}}");
 		writeTemplate(
 			tmpDir,
-			"error-message",
+			"error",
 			"outer: {{> message-user val=kind}}",
 		);
 		loadTemplates();
-		const out = renderTemplate("error-message", { kind: "timeout" });
+		const out = renderTemplate("error", { kind: "timeout" });
 		expect(out).toBe("outer: inner timeout");
 	});
 });

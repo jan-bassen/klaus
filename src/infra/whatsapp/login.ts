@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { watch as fsWatch, mkdir, readFile, rm } from "node:fs/promises";
 import QRCode from "qrcode";
+import { renderTemplate } from "../../pipeline/prompts.ts";
 import { settings, updateAllowedChat, updateSelfMode } from "../config.ts";
 import { log } from "../logger.ts";
 import { readText, writeData } from "../runtime.ts";
@@ -170,7 +171,7 @@ export async function completeSoloSetup(): Promise<boolean> {
 	clearSetupCode();
 	enqueueMessage({
 		chatId: ownJid,
-		content: "Hey! Klaus is set up and ready to go 🤙",
+		content: renderTemplate("welcome", {}),
 		dedupKey: `solo-setup:${ownJid}`,
 		label: settings.whatsapp.systemLabel,
 	});

@@ -179,8 +179,8 @@ All under `{dataDir}` (default `./data`). The vault is separate — it's the kno
 agents/       # agent .md files
 skills/       # on-demand reference docs
 snippets/     # prompt fragments compiled into {{snippets.<name>}}
-templates/    # message-user.md, report-short.md, report-full.md,
-              # error-message.md
+templates/    # message-user.md, message-agent.md, report.md,
+              # error.md, welcome.md
 reports/      # optional vault-markdown report mirror
 overrides.yml # !preset definitions
 settings.yml  # YAML settings (hot-reloaded via Zod validation)

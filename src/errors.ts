@@ -25,13 +25,13 @@ function mapError(err: unknown): ErrorInfo {
 }
 
 /**
- * Map + render a thrown value through `error-message.md`. Falls back to a
+ * Map + render a thrown value through `error.md`. Falls back to a
  * built-in string if the template is missing so error reporting always works.
  */
 export function formatUserError(err: unknown): string {
 	const info = mapError(err);
 	try {
-		return renderTemplate("error-message", { ...info });
+		return renderTemplate("error", { ...info });
 	} catch {
 		return defaultErrorMessage(info);
 	}
