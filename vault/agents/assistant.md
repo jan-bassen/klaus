@@ -3,6 +3,9 @@ name: assistant
 tools:
   - reply
   - react
+  - conversation
+  - image
+  - math
 providerTools:
   - web_search
   - web_fetch

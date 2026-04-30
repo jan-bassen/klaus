@@ -1,4 +1,4 @@
-import { settings } from "../../infra/config.ts";
+import { settings, updateDefaultAgent } from "../../infra/config.ts";
 import type { InboundMessage } from "../../infra/whatsapp/receive.ts";
 import { enqueueMessage } from "../../infra/whatsapp/send.ts";
 import {
@@ -28,6 +28,7 @@ export const defaultCommand: Command = {
 		// Check registry first
 		if (agentRegistry.get(agentName)) {
 			setDefaultAgent(msg.chatId, agentName);
+			await updateDefaultAgent(agentName);
 			enqueueMessage({
 				chatId: msg.chatId,
 				content: `Default agent set to @${agentName}.`,
@@ -44,6 +45,7 @@ export const defaultCommand: Command = {
 			);
 			agentRegistry.set(def.name, def);
 			setDefaultAgent(msg.chatId, agentName);
+			await updateDefaultAgent(agentName);
 			enqueueMessage({
 				chatId: msg.chatId,
 				content: `Default agent set to @${agentName}.`,

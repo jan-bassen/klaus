@@ -431,6 +431,29 @@ export async function updateAllowedChat(chatId: string): Promise<void> {
 	log.info("[config] updated allowedChat");
 }
 
+export async function updateDefaultAgent(agentName: string): Promise<void> {
+	const filePath = vaultPaths.settingsPath;
+	let parsed: Record<string, unknown> = {};
+
+	if (existsSync(filePath)) {
+		const raw = await readText(filePath);
+		parsed = (parseYaml(raw) as Record<string, unknown>) ?? {};
+	}
+
+	const agent = (parsed.agent as Record<string, unknown>) ?? {};
+	agent.defaultAgent = agentName;
+	parsed.agent = agent;
+
+	const yaml = stringifyYaml(parsed, { lineWidth: 120 });
+	await writeData(filePath, yaml);
+
+	const result = await loadSettingsFromDisk();
+	if (!result.ok) {
+		throw new Error(`Updated settings.yml failed validation: ${result.error}`);
+	}
+	log.info("[config] updated defaultAgent", { agentName });
+}
+
 export async function updateSelfMode(selfMode: boolean): Promise<void> {
 	const filePath = vaultPaths.settingsPath;
 	let parsed: Record<string, unknown> = {};
