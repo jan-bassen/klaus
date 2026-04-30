@@ -8,6 +8,7 @@
  * resolved) to render their replies.
  */
 
+import path from "node:path";
 import type {
 	ChatMessages as ChatMessage,
 	ChatFunctionTool as ChatTool,
@@ -16,7 +17,8 @@ import type { z } from "zod";
 import { settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
 import { fakeExternal, fakeStateful, getOverlay } from "../infra/simulation.ts";
-import { getConversation, getTraces } from "../infra/store/history.ts";
+import { findFileByExternalId } from "../infra/store/files.ts";
+import { getConversation } from "../infra/store/history.ts";
 import type { ToolDefinition } from "../primitives/tools/index.ts";
 import {
 	generateMetaTool,
@@ -24,10 +26,10 @@ import {
 	toolsetRegistry,
 } from "../primitives/tools/index.ts";
 import { getProviderTool } from "../primitives/tools/provider.ts";
-import { REPLY_TOOL_NAME } from "../primitives/tools/reply.ts";
 import { buildSkillTool, skillRegistry } from "../primitives/tools/skill.ts";
 import type { Variable } from "../primitives/variables/index.ts";
 import type { AgentDefinition } from "./agents.ts";
+import { getDefaultAgent } from "./agents.ts";
 import type { ModelCallStep, TurnContext } from "./core.ts";
 import { renderTemplate } from "./prompts.ts";
 
@@ -293,14 +295,15 @@ interface AssembledHistory {
 }
 
 /**
- * Read the conversation log, trim to `limit`, and reconstruct ChatMessages.
+ * Read the conversation log, trim to `limit`, and render each chat turn via
+ * the unified `message-user` / `message-agent` templates.
  *
- * **Structured replay**: assistant turns expand into the OpenAI-shape
- * `assistant` (with `tool_calls`) → `role: "tool"` (per call) → final
- * `assistant` (with `content`) sequence, mirroring what the model produced.
- * Reply tool calls (REPLY_TOOL_NAME) stay filtered out of the trace; the
- * final assistant `content` is the persisted reply text from the conversation
- * log. This keeps existing JSONL files backward-compatible.
+ * Tool calls/results are deliberately *not* replayed — past tool scratch
+ * doesn't earn its place in future-turn context. The trace remains in the
+ * report (the human-facing debug mirror) at full fidelity.
+ *
+ * Numbering covers user + assistant turns (everything WhatsApp-visible) so the
+ * model can quote/react to either side via `messageRefs`.
  */
 async function assembleHistory(
 	turn: Omit<TurnContext, "vars">,
@@ -311,9 +314,9 @@ async function assembleHistory(
 	const limit = opts.limit ?? settings.agentDefaults.historyLimit;
 	const scope = opts.scope ?? "full";
 	const agentName = turn.agent?.name;
+	const defaultAgent = getDefaultAgent(turn.chatId);
 
 	const allMessages = await getConversation();
-	const traceMap = await getTraces();
 
 	let filtered = turn.message.id
 		? allMessages.filter((m) => m.externalId !== turn.message?.id)
@@ -321,7 +324,6 @@ async function assembleHistory(
 	if (scope === "agent" && agentName) {
 		filtered = filtered.filter((m, idx, arr) => {
 			if (m.role === "assistant") return m.agent === agentName;
-			// user message: keep only when the next assistant reply was this agent's
 			for (let j = idx + 1; j < arr.length; j++) {
 				const next = arr[j];
 				if (next?.role === "assistant") return next.agent === agentName;
@@ -329,6 +331,8 @@ async function assembleHistory(
 			return false;
 		});
 	}
+	// Drop empty rows (failed turns left no content) before limit/numbering.
+	filtered = filtered.filter((m) => (m.content ?? "").trim().length > 0);
 	const recent = filtered.slice(-limit);
 
 	const messages: ChatMessage[] = [];
@@ -347,57 +351,48 @@ async function assembleHistory(
 		}
 
 		if (row.role === "user") {
+			const media = row.externalId
+				? findFileByExternalId(row.externalId)
+				: null;
+			const isVoice = media?.mimeType.startsWith("audio/") ?? false;
+			const isImage = media?.mimeType.startsWith("image/") ?? false;
+			const isDocument = !!media && !isVoice && !isImage;
 			messages.push({
 				role: "user",
 				content: renderTemplate("message-user", {
 					label,
 					messageText: row.content ?? "",
+					isVoice,
+					isImage,
+					isDocument,
+					...(media
+						? {
+								fileName: path.basename(media.path),
+								mimeType: media.mimeType,
+							}
+						: {}),
+					...(row.quotedText ? { quotedText: row.quotedText } : {}),
+					...(row.quotedRole ? { quotedRole: row.quotedRole } : {}),
 				}),
 			});
 			continue;
 		}
 
-		const trace = row.runId ? traceMap.get(row.runId) : undefined;
-		const replyText = row.content ?? "";
-
-		if (trace) {
-			for (const step of trace.steps) {
-				const calls = step.toolCalls.filter(
-					(tc) => tc.toolName !== REPLY_TOOL_NAME,
-				);
-				if (calls.length === 0) continue;
-
-				const resultMap = new Map(
-					step.toolResults
-						.filter((tr) => tr.toolName !== REPLY_TOOL_NAME)
-						.map((tr) => [tr.toolCallId, tr]),
-				);
-				// Skip steps where every call is orphaned (replay would be malformed).
-				const paired = calls.filter((tc) => resultMap.has(tc.toolCallId));
-				if (paired.length === 0) continue;
-
-				messages.push({
-					role: "assistant",
-					content: "",
-					toolCalls: paired.map((tc) => ({
-						id: tc.toolCallId,
-						type: "function",
-						function: { name: tc.toolName, arguments: tc.args },
-					})),
-				});
-				for (const tc of paired) {
-					const tr = resultMap.get(tc.toolCallId);
-					if (!tr) continue;
-					messages.push({
-						role: "tool",
-						toolCallId: tc.toolCallId,
-						content: tr.result,
-					});
-				}
-			}
-		}
-
-		messages.push({ role: "assistant", content: replyText });
+		const isNotDefaultAgent = row.agent ? row.agent !== defaultAgent : false;
+		const reactionEmojis = row.reactions
+			.map((r) => r.emoji)
+			.filter((e) => e.length > 0)
+			.join(" ");
+		messages.push({
+			role: "assistant",
+			content: renderTemplate("message-agent", {
+				label,
+				message: row.content ?? "",
+				agentLabel: row.agent ?? "",
+				isNotDefaultAgent,
+				...(reactionEmojis ? { reactionEmojis } : {}),
+			}),
+		});
 	}
 
 	return { messages, messageRefs };

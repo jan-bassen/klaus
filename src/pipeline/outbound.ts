@@ -80,6 +80,7 @@ async function persistAssistantMessage(
 	logPrefix: string,
 ): Promise<string | undefined> {
 	if (context.config?.ghost) return undefined;
+	if (!content.trim()) return undefined;
 
 	try {
 		return await appendMessage({

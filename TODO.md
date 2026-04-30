@@ -1,16 +1,6 @@
 # Fixes from testing
 
-- [x] /help cleanup #2
-  - [x] Add settings section with agent, model tier, voice, report, and history
-  - [x] Move Agents after settings section (before commands) and add provider/model + history info as one more new here if set
-  - [x] Remove Provider section
-- [ ] Error handling
-  - [x] Failed = emoji reaction (already wired; verify visibility — see `[send] reaction failed` warns)
-  - [x] easy retry option (`/retry` — quote a message or retry last failed)
-  - [ ] easy check error option
-  - [ ] maybe backup models?
-- [x] image_edit tool
-- [x] make toolsets less confusing for agents (they work got after injection, agent doesn't understand first call. maybe name from use_ to loadToolset or smth?)
+- [ ] 
 
 
 # Repo cleanup

@@ -85,12 +85,6 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 
 		if (parsed.command) {
 			log.info(`[pipeline] dispatching /${parsed.command.name} command`);
-			await appendMessage({
-				role: "user",
-				content: processedMsg.text ?? null,
-				externalId: processedMsg.id,
-				command: parsed.command.name,
-			});
 			const command = commandRegistry.get(parsed.command.name);
 			if (command) await command.execute(processedMsg, parsed.command.args);
 			return;
@@ -300,9 +294,7 @@ async function reportPipelineError(
 		} catch (persistErr) {
 			log.warn("[pipeline] failed to persist failed assistant message", {
 				error:
-					persistErr instanceof Error
-						? persistErr.message
-						: String(persistErr),
+					persistErr instanceof Error ? persistErr.message : String(persistErr),
 			});
 		}
 	}

@@ -141,14 +141,29 @@ export function buildSystemPrompt(
 function renderUserText(turn: TurnContext): string {
 	if (!turn.message) return "";
 
-	const messageText = turn.message.media?.mimeType.startsWith("audio/")
-		? (turn.message.media?.transcription ?? "")
+	const media = turn.message.media;
+	const messageText = media?.mimeType.startsWith("audio/")
+		? (media.transcription ?? "")
 		: (turn.message.text ?? "");
+
+	const isVoice = media?.mimeType.startsWith("audio/") ?? false;
+	const isImage = media?.mimeType.startsWith("image/") ?? false;
+	const isDocument = !!media && !isVoice && !isImage;
 
 	const rendered = renderTemplate("message-user", {
 		...turn.vars,
-		quotedText: turn.message.quotedMessage?.text ?? "",
 		messageText,
+		isVoice,
+		isImage,
+		isDocument,
+		...(media?.fileName ? { fileName: media.fileName } : {}),
+		...(media?.mimeType ? { mimeType: media.mimeType } : {}),
+		...(isVoice && media?.voiceCaption
+			? { voiceCaption: media.voiceCaption }
+			: {}),
+		...(turn.message.quotedMessage?.text
+			? { quotedText: turn.message.quotedMessage.text, quotedRole: "user" }
+			: {}),
 		overrides: Object.keys(turn.overrides),
 	});
 

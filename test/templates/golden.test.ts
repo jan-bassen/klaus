@@ -35,9 +35,10 @@ describe("template goldens", () => {
 			renderTemplate("message-user", {
 				isImage: true,
 				quotedText: "previous note",
+				quotedRole: "user",
 				messageText: "what is this?",
 			}),
-		).toBe("Image\n> Quoted: previous note \n\nwhat is this?");
+		).toBe("Image\n> Quoted (user): previous note\n\nwhat is this?");
 
 		expect(
 			renderTemplate("message-user", {
@@ -56,7 +57,7 @@ describe("template goldens", () => {
 		).toBe("[#3] plain hello");
 	});
 
-	it("renders message-agent with only non-default agent labeling", () => {
+	it("renders message-agent with optional non-default-agent prefix, history label, and reactions", () => {
 		expect(
 			renderTemplate("message-agent", {
 				isNotDefaultAgent: true,
@@ -72,6 +73,21 @@ describe("template goldens", () => {
 				message: "done",
 			}),
 		).toBe("done");
+
+		expect(
+			renderTemplate("message-agent", {
+				label: 5,
+				message: "answer",
+			}),
+		).toBe("[#5] answer");
+
+		expect(
+			renderTemplate("message-agent", {
+				label: 7,
+				message: "with reactions",
+				reactionEmojis: "👍 ❤️",
+			}),
+		).toBe("[#7] with reactions\n👍 ❤️");
 	});
 
 	it("renders user-facing error messages by kind", () => {

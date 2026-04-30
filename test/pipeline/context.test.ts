@@ -118,14 +118,8 @@ describe("pipeline/context.assembleHistory", () => {
 		rmTmpDir(tmpDir);
 	});
 
-	it("replays assistant traces by runId as assistant tool calls, tool results, then final content", async () => {
+	it("renders chat-only history (no tool replay), numbering both sides", async () => {
 		await appendUser("u1", "First question");
-		await appendTrace(
-			"wrong-run",
-			"alpha",
-			{ kind: "message", messageId: "u1" },
-			[traceStep("wrong-tool", "wrong-result")],
-		);
 		await appendTrace(
 			"actual-run",
 			"alpha",
@@ -144,26 +138,37 @@ describe("pipeline/context.assembleHistory", () => {
 
 		expect(ctx.history.messages).toEqual([
 			{ role: "user", content: "1:First question" },
-			{
-				role: "assistant",
-				content: "",
-				toolCalls: [
-					{
-						id: "probe-call",
-						type: "function",
-						function: {
-							name: "probe",
-							arguments: JSON.stringify({ value: "probe" }),
-						},
-					},
-				],
-			},
-			{
-				role: "tool",
-				toolCallId: "probe-call",
-				content: JSON.stringify({ ok: true }),
-			},
-			{ role: "assistant", content: "Alpha answer" },
+			{ role: "assistant", content: "2:Alpha answer" },
+		]);
+		expect(ctx.history.messageRefs).toEqual({
+			"1": { externalId: "u1", role: "user" },
+		});
+	});
+
+	it("drops empty assistant rows from replay (failed turns leave no transcript hole)", async () => {
+		await appendUser("u1", "Question");
+		await appendMessage({
+			role: "assistant",
+			agent: "alpha",
+			runId: "failed-run",
+			content: "",
+			failed: true,
+		});
+		await appendUser("u2", "Follow-up");
+		await appendAssistant("Real answer", "alpha", "ok-run");
+
+		const def = makeAgent(tmpDir, "alpha");
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			message: inbound("current", "Current question"),
+			config: { historyLimit: 10 },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.history.messages).toEqual([
+			{ role: "user", content: "1:Question" },
+			{ role: "user", content: "2:Follow-up" },
+			{ role: "assistant", content: "3:Real answer" },
 		]);
 	});
 
@@ -183,7 +188,7 @@ describe("pipeline/context.assembleHistory", () => {
 
 		expect(ctx.history.messages).toEqual([
 			{ role: "user", content: "1:Ask alpha" },
-			{ role: "assistant", content: "Alpha answer" },
+			{ role: "assistant", content: "2:Alpha answer" },
 		]);
 	});
 
@@ -204,7 +209,7 @@ describe("pipeline/context.assembleHistory", () => {
 
 		expect(ctx.history.messages).toEqual([
 			{ role: "user", content: "1:Recent question" },
-			{ role: "assistant", content: "Recent answer" },
+			{ role: "assistant", content: "2:Recent answer" },
 		]);
 	});
 
@@ -254,7 +259,7 @@ describe("pipeline/context.assembleHistory", () => {
 
 		expect(ctx.history.messages).toEqual([
 			{ role: "user", content: "1:Question" },
-			{ role: "assistant", content: "Answer survives" },
+			{ role: "assistant", content: "2:Answer survives" },
 		]);
 	});
 });
@@ -431,7 +436,7 @@ function writeTemplates(tmpDir: string): void {
 	);
 	writeFileSync(
 		path.join(settings.vault.templatesDir, "message-agent.md"),
-		"{{message}}",
+		"{{label}}:{{message}}",
 	);
 }
 

@@ -245,11 +245,8 @@ describe("pipeline/index.handleTurn", () => {
 			["one", "two"],
 		);
 		expect(sendMock).not.toHaveBeenCalled();
-		expect((await getConversation())[0]).toMatchObject({
-			role: "user",
-			command: "unitcmd",
-			externalId: msg.id,
-		});
+		// Commands are out-of-band: they don't pollute the chat history.
+		expect(await getConversation()).toEqual([]);
 	});
 
 	it("parses !overrides before routing to the model", async () => {
@@ -374,11 +371,7 @@ describe("pipeline/index.handleTurn", () => {
 	});
 });
 
-function makeAgent(
-	name: string,
-	dir: string,
-	report = false,
-): AgentDefinition {
+function makeAgent(name: string, dir: string, report = false): AgentDefinition {
 	const promptPath = path.join(dir, `${name}.md`);
 	writeFileSync(
 		promptPath,

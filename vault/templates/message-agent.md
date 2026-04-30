@@ -1,1 +1,2 @@
-{{#if isNotDefaultAgent}}[{{agentLabel}}] {{/if}}{{message}}
+{{#if isNotDefaultAgent}}[{{agentLabel}}] {{/if}}{{#if label}}[#{{label}}] {{/if}}{{message}}{{#if reactionEmojis}}
+{{reactionEmojis}}{{/if}}
