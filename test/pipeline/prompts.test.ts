@@ -12,6 +12,8 @@ import {
 	loadTemplates,
 	renderTemplate,
 	resolveSampling,
+	textOnlyUserContent,
+	type UserContent,
 } from "../../src/pipeline/prompts.ts";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 
@@ -193,5 +195,21 @@ describe("pipeline/prompts: buildSystemPrompt", () => {
 
 	it("returns empty string for empty body with whitespace", () => {
 		expect(buildSystemPrompt("   ", {})).toBe("");
+	});
+});
+
+describe("pipeline/prompts: textOnlyUserContent", () => {
+	it("keeps text parts and replaces image data URLs with a marker", () => {
+		const content: UserContent = [
+			{
+				type: "image_url",
+				imageUrl: { url: "data:image/png;base64,AAAABBBB" },
+			},
+			{ type: "text", text: "what is this?" },
+		];
+
+		expect(textOnlyUserContent(content)).toBe(
+			"[image omitted from text-only follow-up/report]\nwhat is this?",
+		);
 	});
 });

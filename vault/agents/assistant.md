@@ -4,7 +4,8 @@ tools:
   - reply
   - react
   - conversation
-  - image
+  - skill
+  - image_generate
   - math
 providerTools:
   - web_search

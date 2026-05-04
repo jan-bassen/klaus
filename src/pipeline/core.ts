@@ -39,6 +39,7 @@ import {
 	buildSystemPrompt,
 	buildUserMessage,
 	resolveSampling,
+	textOnlyUserContent,
 	type UserContent,
 } from "./prompts.ts";
 import { emitReport } from "./reports.ts";
@@ -325,8 +326,7 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 		})
 		.join("\n---\n");
 
-	const userMessageStr =
-		typeof userContent === "string" ? userContent : JSON.stringify(userContent);
+	const userMessageStr = textOnlyUserContent(userContent);
 
 	return {
 		usage: result.usage,

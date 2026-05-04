@@ -96,6 +96,38 @@ describe("pipeline/reports: emitReport", () => {
 		expect(entry?.overrides).toEqual(["voice"]);
 	});
 
+	it("redacts base64 data URLs from report prompts and history", async () => {
+		const historyMessages: AgentRunResult["historyMessages"] = [
+			{
+				role: "user",
+				content: [
+					{
+						type: "image_url",
+						imageUrl: { url: "data:image/png;base64,AAAABBBB" },
+					},
+					{ type: "text", text: "earlier image" },
+				],
+			},
+		];
+
+		await emitReport({
+			turn: makeTurn(),
+			startedAt: Date.now(),
+			result: makeResult({
+				userMessage: "data:image/jpeg;base64,CCCCDDDD",
+				historyMessages,
+			}),
+		});
+
+		const [entry] = await readReports({ days: 1 });
+		const encoded = JSON.stringify(entry);
+		expect(encoded).not.toContain("AAAABBBB");
+		expect(encoded).not.toContain("CCCCDDDD");
+		expect(entry?.llm?.userMessage).toBe(
+			"[base64 data URL omitted from report]",
+		);
+	});
+
 	it("error path: outcome is { kind: 'error' } with name+message", async () => {
 		const turn: TurnContext = makeTurn();
 		const err = new TypeError("boom");

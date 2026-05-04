@@ -113,6 +113,9 @@ function pickConfig(c: TurnConfig): ReportEntry["config"] {
 }
 
 function buildLlmSection(result: AgentRunResult): ReportLlm {
+	const userMessage = sanitizeReportText(result.userMessage);
+	const systemPrompt = sanitizeReportText(result.systemPrompt);
+
 	return {
 		model: result.model,
 		tier: result.tier,
@@ -126,9 +129,9 @@ function buildLlmSection(result: AgentRunResult): ReportLlm {
 		historyMessageCount: result.historyMessages.length,
 		replyChars: result.replyContent.length,
 		steps: result.steps.map(toReportStep),
-		systemPrompt: result.systemPrompt,
-		userMessage: result.userMessage,
-		historyTranscript: result.historyMessages,
+		systemPrompt,
+		userMessage,
+		historyTranscript: sanitizeHistoryTranscript(result.historyMessages),
 	};
 }
 
@@ -136,17 +139,43 @@ function toReportStep(s: AgentRunResult["steps"][number]): ReportStep {
 	const step: ReportStep = {
 		toolCalls: s.toolCalls.map((tc) => ({
 			tool: tc.toolName,
-			args: tc.args,
+			args: sanitizeReportValue(tc.args),
 		})),
 		toolResults: s.toolResults.map((tr) => ({
 			tool: tr.toolName,
-			result: tr.result,
+			result: sanitizeReportValue(tr.result),
 		})),
 	};
-	if (s.reasoning) step.reasoning = s.reasoning;
+	if (s.reasoning) step.reasoning = sanitizeReportText(s.reasoning);
 	if (s.finishReason) step.finishReason = s.finishReason;
 	if (s.usage) step.usage = s.usage;
 	return step;
+}
+
+function sanitizeHistoryTranscript(
+	messages: AgentRunResult["historyMessages"],
+): ReportLlm["historyTranscript"] {
+	const sanitized = sanitizeReportValue(messages);
+	return Array.isArray(sanitized) ? sanitized : [];
+}
+
+function sanitizeReportValue(value: unknown): unknown {
+	try {
+		return JSON.parse(
+			JSON.stringify(value, (_key, inner: unknown) =>
+				typeof inner === "string" ? sanitizeReportText(inner) : inner,
+			),
+		);
+	} catch {
+		return value;
+	}
+}
+
+function sanitizeReportText(text: string): string {
+	return text.replace(
+		/data:[^;,\s]+;base64,[A-Za-z0-9+/=]+/g,
+		"[base64 data URL omitted from report]",
+	);
 }
 
 function buildMessageSection(msg: InboundMessage): ReportEntry["message"] {

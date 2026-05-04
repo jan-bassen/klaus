@@ -29,6 +29,7 @@ import type { TurnConfig } from "./overrides.ts";
 
 /** User-message content as accepted by the chat completions API. */
 export type UserContent = ChatUserMessage["content"];
+const OMITTED_IMAGE_TEXT = "[image omitted from text-only follow-up/report]";
 
 // ── Template loader ────────────────────────────────────────────────────────
 
@@ -209,6 +210,19 @@ export async function buildUserMessage(
 	if (turn.message) return renderUserText(turn);
 
 	return turn.dispatchContext?.prompt ?? "";
+}
+
+export function textOnlyUserContent(content: UserContent): string {
+	if (typeof content === "string") return content;
+
+	return content
+		.map((part) => {
+			if (part.type === "text") return part.text;
+			if (part.type === "image_url") return OMITTED_IMAGE_TEXT;
+			return `[${part.type} omitted from text-only follow-up/report]`;
+		})
+		.join("\n")
+		.trim();
 }
 
 // ── Sampling resolution ────────────────────────────────────────────────────

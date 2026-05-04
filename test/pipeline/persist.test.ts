@@ -7,6 +7,7 @@ import {
 	AgentSchema,
 } from "../../src/pipeline/agents.ts";
 import { persistDynamic } from "../../src/pipeline/persistence.ts";
+import type { UserContent } from "../../src/pipeline/prompts.ts";
 import { initAllStores } from "../helpers/stores.ts";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 import { makeTurn } from "../helpers/turn.ts";
@@ -102,6 +103,34 @@ describe("pipeline/persistence.persistDynamic", () => {
 		expect(Date.parse(timers[0]?.runAt ?? "")).toBeLessThanOrEqual(
 			Date.now() + 30 * 60 * 1_000 + 500,
 		);
+	});
+
+	it("uses text-only current user content for the forced persist call", async () => {
+		sendMock.mockResolvedValueOnce(
+			chatResponse(
+				persistCall({
+					nextRun: "30m",
+					prompt: "next objective",
+				}),
+			),
+		);
+		const input = baseInput(tmpDir);
+		const userContent: UserContent = [
+			{
+				type: "image_url",
+				imageUrl: { url: "data:image/png;base64,AAAABBBB" },
+			},
+			{ type: "text", text: "caption" },
+		];
+
+		await persistDynamic({ ...input, userContent });
+
+		expect(firstChatRequest().messages).toContainEqual({
+			role: "user",
+			content:
+				"[image omitted from text-only follow-up/report]\ncaption",
+		});
+		expect(JSON.stringify(firstChatRequest())).not.toContain("AAAABBBB");
 	});
 
 	it("clamps ISO nextRun values into the configured scheduling window", async () => {

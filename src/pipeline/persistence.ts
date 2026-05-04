@@ -11,7 +11,7 @@ import { log } from "../infra/logger.ts";
 import { addTimer } from "../infra/store/timers.ts";
 import type { AgentDefinition } from "./agents.ts";
 import type { TurnContext } from "./core.ts";
-import type { UserContent } from "./prompts.ts";
+import { textOnlyUserContent, type UserContent } from "./prompts.ts";
 
 const PERSIST_TOOL_NAME = "persist";
 
@@ -59,7 +59,7 @@ export async function persistDynamic(
 
 	const messages: ChatMessage[] = [
 		...input.historyMessages,
-		{ role: "user", content: input.userContent },
+		{ role: "user", content: textOnlyUserContent(input.userContent) },
 	];
 	if (input.replyContent) {
 		messages.push({ role: "assistant", content: input.replyContent });
