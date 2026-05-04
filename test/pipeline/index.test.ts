@@ -1,0 +1,524 @@
+/**
+ * End-to-end happy path through `handleTurn`.
+ *
+ * Setup strategy:
+ *   - Mock `src/infra/whatsapp/send.ts` so `enqueueMessage` becomes a spy.
+ *   - Mock `@openrouter/sdk` so `new OpenRouter(...).chat.send` returns
+ *     canned `ChatResult` payloads with a single `reply` tool call.
+ *   - `initAllStores(tmpDir)` in beforeEach; point `settings.basics.allowedChat`
+ *     at a known chatId (mutate the live `settings` object from `src/infra/config.ts`
+ *     directly in beforeEach, or use `vi.resetModules` + dynamic import).
+ *   - Register the `reply` tool and a minimal agent manually (bypass glob load).
+ *
+ * Universal gotcha: `src/infra/logger.ts` eagerly reads settings — `test/setup.ts`
+ * preloads `src/infra/config.ts` to avoid the crash. Don't reorder.
+ */
+
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
+import { settings } from "../../src/infra/config.ts";
+import { getConversation, getTraces } from "../../src/infra/store/history.ts";
+import { readReports } from "../../src/infra/store/report.ts";
+import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
+import { enqueueMessage, sendReaction } from "../../src/infra/whatsapp/send.ts";
+import type { AgentDefinition } from "../../src/pipeline/agents.ts";
+import {
+	AgentSchema,
+	agentRegistry,
+	setDefaultAgent,
+} from "../../src/pipeline/agents.ts";
+import { handleTurn } from "../../src/pipeline/index.ts";
+import { overrideRegistry } from "../../src/pipeline/overrides.ts";
+import { registry as commandRegistry } from "../../src/primitives/commands/index.ts";
+import {
+	registerTool,
+	type ToolDefinition,
+} from "../../src/primitives/tools/index.ts";
+import { replyTool } from "../../src/primitives/tools/reply.ts";
+import { initAllStores } from "../helpers/stores.ts";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
+
+const sendMock = vi.hoisted(() => vi.fn());
+const probeSchema = z.object({ value: z.number() });
+const probeTool: ToolDefinition<typeof probeSchema> = {
+	name: "probe",
+	description: "Probe tool for index tests",
+	inputSchema: probeSchema,
+	execute: async ({ value }) => ({ value }),
+	sideEffect: "pure",
+	kind: "builtin",
+	capability: "tool",
+};
+
+vi.mock("@openrouter/sdk", () => ({
+	OpenRouter: vi.fn(function OpenRouter() {
+		return {
+			chat: {
+				send: sendMock,
+			},
+		};
+	}),
+}));
+
+vi.mock("../../src/infra/whatsapp/send.ts", () => ({
+	enqueueMessage: vi.fn(),
+	sendReaction: vi.fn(),
+}));
+
+vi.mock("../../src/infra/whatsapp/presence.ts", () => ({
+	startTyping: vi.fn(),
+	stopTyping: vi.fn(),
+}));
+
+describe("pipeline/index.handleTurn", () => {
+	let tmpDir: string;
+	let originalAllowedChat: string | undefined;
+	let originalTemplatesDir: string;
+	let originalApiKey: string | undefined;
+
+	beforeEach(() => {
+		tmpDir = makeTmpDir();
+		initAllStores(tmpDir);
+
+		originalAllowedChat = settings.basics.allowedChat;
+		originalTemplatesDir = settings.vault.templatesDir;
+		originalApiKey = process.env.OPENROUTER_API_KEY;
+
+		settings.basics.allowedChat = "chat1";
+		settings.vault.templatesDir = path.join(tmpDir, "templates");
+		process.env.OPENROUTER_API_KEY = "test-key";
+
+		mkdirSync(settings.vault.templatesDir, { recursive: true });
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "message-user.md"),
+			"{{messageText}}",
+		);
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "message-agent.md"),
+			"{{#if isNotDefaultAgent}}[{{agentLabel}}] {{/if}}{{message}}",
+		);
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "welcome.md"),
+			"Hey! Klaus is set up and ready to go 🤙",
+		);
+
+		registerTool(replyTool);
+		registerTool(probeTool);
+		agentRegistry.set("default", makeAgent("default", tmpDir));
+		agentRegistry.set("researcher", makeAgent("researcher", tmpDir));
+		agentRegistry.set("reporter", makeAgent("reporter", tmpDir, true));
+		setDefaultAgent("chat1", "default");
+		overrideRegistry.set("large", {
+			name: "large",
+			description: "Use the large model",
+			overrides: { modelTier: "large" },
+		});
+	});
+
+	afterEach(() => {
+		setDefaultAgent("chat1", null);
+		settings.vault.templatesDir = originalTemplatesDir;
+		if (originalAllowedChat === undefined) {
+			delete settings.basics.allowedChat;
+		} else {
+			settings.basics.allowedChat = originalAllowedChat;
+		}
+		if (originalApiKey === undefined) {
+			delete process.env.OPENROUTER_API_KEY;
+		} else {
+			process.env.OPENROUTER_API_KEY = originalApiKey;
+		}
+		sendMock.mockReset();
+		vi.mocked(enqueueMessage).mockReset();
+		vi.mocked(sendReaction).mockReset();
+		rmTmpDir(tmpDir);
+	});
+
+	it("routes a text message to the default agent and enqueues the assistant reply", async () => {
+		sendMock.mockResolvedValueOnce(replyResponse("hello back"));
+
+		await handleTurn(makeMsg("chat1", "", "hello"));
+
+		expect(sendMock).toHaveBeenCalledOnce();
+		expect(enqueueMessage).toHaveBeenCalledOnce();
+		expect(vi.mocked(enqueueMessage).mock.calls[0]?.[0]).toMatchObject({
+			chatId: "chat1",
+			content: "hello back",
+			label: "default",
+		});
+	});
+
+	it("persists user, assistant, and trace rows for a normal turn", async () => {
+		sendMock
+			.mockResolvedValueOnce(mixedResponse("remembered", "probe", { value: 2 }))
+			.mockResolvedValueOnce(stopResponse());
+		const msg = makeMsg("chat1", "", "remember this");
+
+		await handleTurn(msg);
+
+		const rows = await getConversation();
+		expect(rows).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					role: "user",
+					content: "remember this",
+					externalId: msg.id,
+				}),
+				expect.objectContaining({
+					role: "assistant",
+					content: "remembered",
+					agent: "default",
+					runId: expect.any(String),
+				}),
+			]),
+		);
+		const assistant = rows.find((row) => row.role === "assistant");
+		expect(assistant?.runId).toEqual(expect.any(String));
+
+		const trace = await waitForTrace(assistant?.runId ?? "");
+		expect(trace).toMatchObject({
+			agent: "default",
+			trigger: { kind: "message", messageId: msg.id },
+			steps: [
+				expect.objectContaining({
+					toolCalls: [expect.objectContaining({ toolName: "probe" })],
+				}),
+			],
+		});
+	});
+
+	it("writes a report when the routed agent requests reports", async () => {
+		sendMock.mockResolvedValueOnce(replyResponse("reported"));
+		const msg = makeMsg("chat1", "reporter", "please report");
+
+		await handleTurn(msg);
+
+		const report = await waitForReport("reporter");
+		expect(report).toMatchObject({
+			agent: "reporter",
+			chatId: "chat1",
+			trigger: { kind: "message", messageId: msg.id },
+			outcome: { kind: "ok" },
+			llm: expect.objectContaining({
+				model: "anthropic/claude-sonnet-4-6",
+				steps: [
+					expect.objectContaining({
+						toolCalls: [expect.objectContaining({ tool: "reply" })],
+					}),
+				],
+			}),
+		});
+	});
+
+	it("rejects messages from non-allowlisted chatIds", async () => {
+		await handleTurn(makeMsg("other-chat", "", "hello"));
+
+		expect(sendMock).not.toHaveBeenCalled();
+		expect(enqueueMessage).not.toHaveBeenCalled();
+		expect(await getConversation()).toEqual([]);
+	});
+
+	it("stays silent in setup mode until the setup code arrives", async () => {
+		delete settings.basics.allowedChat;
+
+		await handleTurn(makeMsg("new-chat", "", "hello"));
+
+		expect(sendMock).not.toHaveBeenCalled();
+		expect(enqueueMessage).not.toHaveBeenCalled();
+	});
+
+	it("dispatches /commands without invoking the model", async () => {
+		const commandExecute = vi.fn(async () => {});
+		commandRegistry.register({
+			name: "unitcmd",
+			description: "test command",
+			execute: commandExecute,
+		});
+		const msg = makeMsg("chat1", "", "/unitcmd one two");
+
+		await handleTurn(msg);
+
+		expect(commandExecute).toHaveBeenCalledWith(
+			expect.objectContaining({ id: msg.id, text: "/unitcmd one two" }),
+			["one", "two"],
+		);
+		expect(sendMock).not.toHaveBeenCalled();
+		// Commands are out-of-band: they don't pollute the chat history.
+		expect(await getConversation()).toEqual([]);
+	});
+
+	it("parses !overrides before routing to the model", async () => {
+		sendMock.mockResolvedValueOnce(replyResponse("large reply"));
+
+		await handleTurn(makeMsg("chat1", "", "!large hello"));
+
+		expect(firstChatRequest()).toMatchObject({
+			model: "anthropic/claude-opus-4.7",
+		});
+		expect((await getConversation())[0]).toMatchObject({
+			content: "hello",
+			overrides: ["large"],
+		});
+	});
+
+	it("routes an @agent prefix instead of the per-chat default", async () => {
+		sendMock.mockResolvedValueOnce(replyResponse("research done"));
+
+		await handleTurn(makeMsg("chat1", "researcher", "look this up"));
+
+		expect(enqueueMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				chatId: "chat1",
+				content: "[researcher] research done",
+				label: "researcher",
+			}),
+			expect.any(Function),
+		);
+	});
+
+	it("on unhandled error: enqueues the formatted error message and applies an error reaction", async () => {
+		sendMock.mockRejectedValueOnce(new Error("rate limit exceeded"));
+		const msg = makeMsg("chat1", "", "please fail");
+
+		await handleTurn(msg);
+
+		expect(enqueueMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				chatId: "chat1",
+				label: settings.whatsapp.systemLabel,
+				content: expect.stringMatching(/too many requests/i),
+			}),
+		);
+		expect(sendReaction).toHaveBeenCalledWith("chat1", msg.messageKey, "❌");
+	});
+
+	describe("per-agent turn interruption", () => {
+		it("second handleTurn for same chatId+agent aborts the first", async () => {
+			sendMock
+				.mockImplementationOnce((_body, options?: { signal?: AbortSignal }) =>
+					rejectOnAbort(options?.signal),
+				)
+				.mockResolvedValueOnce(replyResponse("second"));
+
+			const p1 = handleTurn(makeMsg("chat1", "default", "A"));
+			await waitForSendCalls(1);
+
+			const p2 = handleTurn(makeMsg("chat1", "default", "B"));
+			await Promise.all([p1, p2]);
+
+			expect(sendMock).toHaveBeenCalledTimes(2);
+			expect(enqueueMessage).toHaveBeenCalledOnce();
+			expect(vi.mocked(enqueueMessage).mock.calls[0]?.[0]).toMatchObject({
+				chatId: "chat1",
+				content: "second",
+				label: "default",
+			});
+		});
+
+		it("rapid same-agent messages leave only the newest turn active", async () => {
+			sendMock.mockImplementation(
+				(body: unknown, options?: { signal?: AbortSignal }) =>
+					JSON.stringify(body).includes("C")
+						? Promise.resolve(replyResponse("third"))
+						: rejectOnAbort(options?.signal),
+			);
+
+			const p1 = handleTurn(makeMsg("chat1", "default", "A"));
+			await waitForSendCalls(1);
+
+			const p2 = handleTurn(makeMsg("chat1", "default", "B"));
+			const p3 = handleTurn(makeMsg("chat1", "default", "C"));
+			await Promise.all([p1, p2, p3]);
+
+			expect(enqueueMessage).toHaveBeenCalledOnce();
+			expect(vi.mocked(enqueueMessage).mock.calls[0]?.[0]).toMatchObject({
+				chatId: "chat1",
+				content: "third",
+				label: "default",
+			});
+		});
+
+		it("different agents on same chat do not interrupt each other", async () => {
+			sendMock
+				.mockResolvedValueOnce(replyResponse("default done"))
+				.mockResolvedValueOnce(replyResponse("researcher done"));
+
+			const p1 = handleTurn(makeMsg("chat1", "default", "A"));
+			await waitForSendCalls(1);
+
+			const p2 = handleTurn(makeMsg("chat1", "researcher", "B"));
+			await Promise.all([p1, p2]);
+
+			expect(sendMock).toHaveBeenCalledTimes(2);
+			expect(enqueueMessage).toHaveBeenCalledTimes(2);
+			expect(vi.mocked(enqueueMessage).mock.calls.map((c) => c[0])).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						chatId: "chat1",
+						content: "default done",
+						label: "default",
+					}),
+					expect.objectContaining({
+						chatId: "chat1",
+						content: "[researcher] researcher done",
+						label: "researcher",
+					}),
+				]),
+			);
+		});
+	});
+});
+
+function makeAgent(name: string, dir: string, report = false): AgentDefinition {
+	const promptPath = path.join(dir, `${name}.md`);
+	writeFileSync(
+		promptPath,
+		`---\nname: ${name}\ntools: [reply, probe]\nreport: ${report}\nstepLimit: 1\n---\nYou are ${name}.`,
+	);
+	const parsed = AgentSchema.parse({
+		name,
+		tools: ["reply", "probe"],
+		report,
+		stepLimit: 1,
+	});
+	return { ...parsed, promptPath };
+}
+
+function makeMsg(
+	chatId: string,
+	agentRef: string,
+	text: string,
+): InboundMessage {
+	return {
+		kind: "whatsapp",
+		id: crypto.randomUUID(),
+		chatId,
+		senderId: chatId,
+		text: agentRef ? `@${agentRef} ${text}` : text,
+		timestamp: new Date(),
+		messageKey: {},
+	};
+}
+
+function replyResponse(content: string) {
+	return {
+		choices: [
+			{
+				finishReason: "tool_calls",
+				message: {
+					content: "",
+					toolCalls: [
+						{
+							id: crypto.randomUUID(),
+							type: "function",
+							function: {
+								name: "reply",
+								arguments: JSON.stringify({ content }),
+							},
+						},
+					],
+				},
+			},
+		],
+		usage: { promptTokens: 1, completionTokens: 1 },
+	};
+}
+
+function mixedResponse(
+	content: string,
+	toolName: string,
+	args: Record<string, unknown>,
+) {
+	return {
+		choices: [
+			{
+				finishReason: "tool_calls",
+				message: {
+					content: "",
+					toolCalls: [
+						{
+							id: "reply-call",
+							type: "function",
+							function: {
+								name: "reply",
+								arguments: JSON.stringify({ content }),
+							},
+						},
+						{
+							id: `${toolName}-call`,
+							type: "function",
+							function: {
+								name: toolName,
+								arguments: JSON.stringify(args),
+							},
+						},
+					],
+				},
+			},
+		],
+		usage: { promptTokens: 1, completionTokens: 1 },
+	};
+}
+
+function stopResponse() {
+	return {
+		choices: [
+			{
+				finishReason: "stop",
+				message: {
+					content: "done",
+					toolCalls: [],
+				},
+			},
+		],
+		usage: { promptTokens: 1, completionTokens: 1 },
+	};
+}
+
+function firstChatRequest(): Record<string, unknown> {
+	const call = sendMock.mock.calls[0]?.[0] as
+		| { chatRequest?: Record<string, unknown> }
+		| undefined;
+	const request = call?.chatRequest;
+	if (!request) throw new Error("Missing first chat request");
+	return request;
+}
+
+async function waitForReport(agent: string) {
+	for (let i = 0; i < 50; i++) {
+		const report = (await readReports({ agent, days: 1 }))[0];
+		if (report) return report;
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	}
+	throw new Error(`Timed out waiting for report for ${agent}`);
+}
+
+async function waitForTrace(runId: string) {
+	for (let i = 0; i < 50; i++) {
+		const trace = (await getTraces()).get(runId);
+		if (trace) return trace;
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	}
+	throw new Error(`Timed out waiting for trace ${runId}`);
+}
+
+function rejectOnAbort(signal?: AbortSignal): Promise<never> {
+	return new Promise((_, reject) => {
+		const abort = () => reject(new DOMException("Aborted", "AbortError"));
+		if (signal?.aborted) {
+			abort();
+			return;
+		}
+		signal?.addEventListener("abort", abort, { once: true });
+	});
+}
+
+async function waitForSendCalls(count: number): Promise<void> {
+	for (let i = 0; i < 50; i++) {
+		if (sendMock.mock.calls.length >= count) return;
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	}
+	throw new Error(`Timed out waiting for ${count} chat.send call(s)`);
+}

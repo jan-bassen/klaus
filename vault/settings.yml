@@ -1,0 +1,165 @@
+basics:
+  locale: en-GB
+  timezone: Europe/London
+  # allowedChat is set at runtime via /setup; uncomment to pin manually
+  # allowedChat: ""
+
+agent:
+  defaultAgent: assistant
+  maxSteps: 10
+  timeout: 120000
+  retries:
+    max: 3
+    backoffMs: 1000
+  maxChainDepth: 10
+  lookbackDays: 7
+  # Cap on reasoning text replayed into history per past step.
+  maxReasoningChars: 2000
+
+agentDefaults:
+  modelTier: medium
+  voice: auto
+  temp: default
+  topP: default
+  reasoningEffort: default
+  historyLimit: 20
+  historyScope: full
+  showTrace: true
+  report: true
+  vault:
+    "*": full
+
+# Active provider — name must match a key under `providers:`.
+defaultProvider: claude
+
+# OpenAI-compatible chat completions endpoints. Add direct endpoints here
+# (e.g. anthropic-direct, openai-direct) if you want to bypass OpenRouter for
+# a specific provider — point that provider's `endpoint:` at the new key.
+endpoints:
+  openrouter:
+    baseURL: https://openrouter.ai/api/v1
+    apiKeyEnv: OPENROUTER_API_KEY
+
+# Model sets — small/medium/large per provider, all routable through any
+# endpoint. `tempScale` is the provider's native temperature range; the
+# global 0–1 sampling values are multiplied by it before being sent.
+providers:
+  claude:
+    endpoint: openrouter
+    tempScale: 1
+    small: anthropic/claude-haiku-4-5
+    medium: anthropic/claude-sonnet-4-6
+    large: anthropic/claude-opus-4.7
+  openai:
+    endpoint: openrouter
+    tempScale: 2
+    small: openai/gpt-5.4-mini
+    medium: openai/gpt-5.5
+    large: openai/gpt-5.5-pro
+  gemini:
+    endpoint: openrouter
+    tempScale: 2
+    small: google/gemini-3.1-flash-lite-preview
+    medium: google/gemini-3-flash-preview
+    large: google/gemini-3.1-pro-preview
+  qwen:
+    endpoint: openrouter
+    tempScale: 2
+    small: qwen/qwen3.5-flash-02-23
+    medium: qwen/qwen3.6-plus
+    large: qwen/qwen3.6-plus
+  deepseek:
+    endpoint: openrouter
+    tempScale: 2
+    small: deepseek/deepseek-v4-flash
+    medium: deepseek/deepseek-v4-pro
+    large: deepseek/deepseek-v4-pro
+
+# Sampling presets in normalized 0–1 space. Each provider's `tempScale`
+# translates to its native range at request-build time. top_p is universal 0–1.
+sampling:
+  coldTemperature: 0
+  hotTemperature: 1
+  creativeTopP: 0.95
+  rigidTopP: 0.1
+
+media:
+  voice:
+    tts:
+      model: eleven_v3
+      # ElevenLabs voice ID — pick one at https://elevenlabs.io/app/voice-library
+      voiceId: ""
+    stt:
+      model: scribe_v2
+      timeout: 30000
+      agentTriggers:
+        - hey
+        - at
+        - an
+        - to
+        - dear
+  image:
+    vision:
+      maxSize: 2048
+    gen:
+      endpoint: openrouter
+      model: openai/gpt-5.4-image-2
+  document:
+    ocr: true
+    maxChars: 40000
+
+whatsapp:
+  selfMode: false
+  systemLabel: System
+  sendDelay: 1500
+  retries:
+    max: 3
+    backoffMs: 1000
+  maxDownload: 67108864
+  mediaDownloadTimeout: 30000
+  offlineWindow: 300000
+  maxSeenSize: 10000
+
+vault:
+  watcherDebounce: 1000
+  maxList: 200
+  folders:
+    - path: ""
+      default: full
+  internalPermission:
+    default: read
+
+persistence:
+  minNextRun: 60000
+  maxNextRun: 604800000
+  defaultNextRun: 1h
+
+reports:
+  # Mirror each turn's report into {vault}/reports/<date>/<file>.md for human reading.
+  # One JSON per run is written under {dataDir}/logs/<date>/ when report is true.
+  vaultMarkdown: true
+  # Days of report history surfaced via read APIs.
+  lookbackDays: 7
+
+# Bundled obsidian-headless supervisor. The `ob sync --continuous` child is
+# always-on — credentials must be supplied via env vars (OBSIDIAN_EMAIL,
+# OBSIDIAN_PASSWORD, OBSIDIAN_VAULT_NAME, optional OBSIDIAN_MFA and
+# OBSIDIAN_E2EE_PASSWORD). The `ob` child runs with home/config/cache/data dirs
+# under {dataDir}/obsidian-headless so login state persists across restarts.
+sync:
+  shutdownTimeoutMs: 5000
+  # Include "unsupported" so Obsidian Sync transfers Klaus/*.yml files.
+  fileTypes: [image, audio, video, pdf, unsupported]
+  restartBackoff:
+    initialMs: 1000
+    maxMs: 30000
+    # If the child stays up longer than this, reset the backoff to initialMs
+    # — covers the "long-running but eventually crashes" case without locking
+    # a hot crash-loop into the 30s ceiling.
+    resetAfterUpMs: 60000
+  # Block startup until the initial sync settles so agent/skill loaders see a
+  # fully-hydrated vault. We resolve when stdout has been quiet for `quietMs`
+  # after at least one output line, or hard-cap at `timeoutMs` (warn + proceed).
+  firstSync:
+    quietMs: 3000
+    timeoutMs: 120000

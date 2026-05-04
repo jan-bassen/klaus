@@ -1,502 +1,203 @@
 # Klaus
 
-A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Obsidian Vault**. *Klaus* is a reference to [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), the legendary pirate who allegedly walked past his crew after being beheaded — because this stack is *headless*. Personal hobby project.
+A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Obsidian vault**. *Klaus* is named after [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), the pirate who allegedly walked past his crew after being beheaded — because this stack is *headless*. Personal hobby project.
 
----
+**It is:** a single Docker container that routes WhatsApp messages to agents you define as `.md` files in your Obsidian vault. Edit a prompt, save, message — live.
+
+**It isn't:** a multi-user assistant, a customer-facing bot, a rich UI, or a general-purpose framework. It's opinionated and tuned for one user.
 
 ## Stack
 
-| Layer        | Tech                                         |
-| ------------ | -------------------------------------------- |
-| Runtime      | Bun + TypeScript (strict)                    |
-| LLM / Vision | Anthropic Claude via Vercel AI SDK           |
-| STT / TTS    | ElevenLabs                                   |
-| WhatsApp     | Baileys (unofficial WA Web API, multi-device)|
-| Knowledge    | Obsidian vault (notes, wikilinks, tags)       |
-| Storage      | JSONL flat files (conversations, costs, etc.) |
-| Task queue   | In-memory job queue                           |
-| Hosting      | Docker Hub image (`janbassen1/klaus`)             |
+| Layer | Tech |
+|---|---|
+| Runtime | Node 25 + native TypeScript (strict) |
+| LLM | Custom loop · any OpenAI-compatible endpoint (default: OpenRouter) |
+| STT / TTS | ElevenLabs |
+| WhatsApp | Baileys (unofficial multi-device) |
+| Knowledge | Obsidian vault (notes, wikilinks, frontmatter) |
+| Storage | JSONL + JSON flat files |
+| Hosting | Docker (`janbassen1/klaus`) |
 
----
+## Quick start
 
-## Usage
-
-Send a WhatsApp message to the paired number. That's it — Klaus responds using the default agent.
-
-### Agent routing
-
-Prefix your message with `@agent` to route it to a specific agent instead of the default:
-
-- `@think What are the trade-offs between X and Y?` — routes to the thinking agent (high-tier model, extended reasoning)
-- `@vault Create a note about today's meeting` — routes to the vault agent (Obsidian read/write)
-
-The default agent can be changed per-chat with the `/default` command.
-
-### Commands
-
-Commands start with `/` and bypass the LLM entirely:
-
-- `/status` — show current agent, active tasks, and vault note count
-- `/tasks` — list active background tasks
-- `/new` — archive the current conversation and start fresh
-- `/default <agent>` — set the default agent for this chat
-- `/model [low|default|high]` — change the model tier of the current default agent
-- `/register` — register the current chat ID
-- `/help [commands|agents|flags]` — show available commands, agents, and flags; optional filter narrows to one section
-
-### Flags
-
-Flags start with `!` and can appear anywhere in your message. They modify how Klaus responds:
-
-- `!verbose` / `!concise` — control response length
-- `!voice` — reply as a voice note
-- `!de` / `!en` — force response language
-- `!formal` — use formal tone
-
-Flags are stripped from the message text before it reaches the agent, so they don't interfere with your actual message. Combine freely: `@think !verbose !en Explain quantum computing`.
-
-Flags are defined as `.md` files in `{vault}/Klaus/flags/` with a `description:` frontmatter field (shown in `/help flags`) and a body that is injected into the prompt when the flag is active. The watcher hot-reloads flag changes without restart.
-
-### Media
-
-Klaus handles more than text:
-
-- **Voice notes** — automatically transcribed via ElevenLabs STT, then processed as text
-- **Images** — passed to the model as vision input
-- **Documents** — attached and made available to the agent
-- **Quote-replies** — the quoted message is included as context
-
----
-
-## Initial setup
-
-Do this once on any machine (laptop or NAS).
-
-**Prerequisites:** Docker, git, and your API keys ready.
-
-1. Clone the repo:
+Prereqs: Docker, an Anthropic API key, an Obsidian Sync subscription (the container bundles `obsidian-headless` and keeps your vault in sync).
 
 ```bash
 git clone <repo-url> && cd klaus
-```
+cp .env.example .env    # fill in OPENROUTER_API_KEY, OBSIDIAN_*, etc.
 
-2. Create env file:
-
-```bash
-cp .env.example .env
-```
-
-Fill in your API keys in .env.
-
-3. Start:
-
-```bash
 docker run -d --restart unless-stopped \
   --env-file .env \
-  -v klaus-config:/app/config \
   -v klaus-vault:/app/vault \
   -v klaus-data:/app/data \
   -p 3000:3000 \
   janbassen1/klaus:latest
 ```
 
-4. Scan the WhatsApp QR code (one-time — auth persists in the volume):
+`.env` must include `OBSIDIAN_EMAIL`, `OBSIDIAN_PASSWORD`, and `OBSIDIAN_VAULT_NAME` (the remote vault to sync). `OBSIDIAN_MFA` and `OBSIDIAN_E2EE_PASSWORD` are optional — set the latter if your vault is end-to-end encrypted.
 
-```bash
-docker logs -f <container-id>
+1. On first start, Klaus logs into Obsidian Sync, links `/app/vault` to the remote vault, then writes a WhatsApp QR to `{vault}/Klaus/_login/qr-code.svg`. Scan it from WhatsApp → Linked Devices.
+2. Send any message to the paired number. Klaus is in **setup mode** and replies with your chat ID.
+3. Add the chat ID under `basics.allowedChat` in `{vault}/Klaus/settings.yml` — hot-reloaded, no restart.
+
+```yaml
+basics:
+  allowedChat: "<id>"
 ```
 
-First-time QR pairing can take longer on NAS setups with delayed or messy log output. Klaus now keeps running while WhatsApp is waiting for the QR scan and only logs a warning after `STARTUP_CONNECTION_WARN_AFTER_MS` (default: `60000`). During that time, `/healthz` may report `status: "degraded"` until WhatsApp is fully connected.
-
----
-
-## Deployment (Docker Hub)
-
-Klaus is published as a single image on Docker Hub: `janbassen1/klaus`.
-
-### Pull and run
+If MFA isn't accepted via `OBSIDIAN_MFA` (Obsidian Sync may not honour it on every login), seed the token interactively once:
 
 ```bash
-docker pull janbassen1/klaus:latest
+docker run --rm -it -v klaus-data:/app/data janbassen1/klaus:latest \
+  env HOME=/app/data/obsidian-headless \
+    XDG_CACHE_HOME=/app/data/obsidian-headless/cache \
+    XDG_CONFIG_HOME=/app/data/obsidian-headless/config \
+    XDG_DATA_HOME=/app/data/obsidian-headless/data \
+    ob login
 ```
 
-### Publish a new version
+### Self-mode (single number)
 
-One-time setup:
+Set `whatsapp.selfMode: true` in `settings.yml`. Klaus runs on your own number — you message the "Note to Self" chat and Klaus replies there. Outbound messages are prefixed with `[AgentName]:` so you can tell them apart from your own text.
 
-```bash
-docker login
-docker buildx create --name klaus-builder --driver docker-container --use
+## Usage
+
+### @agent routing
+
+`@name` at the start of a message routes to a specific agent:
+
+```
+@dispatch summarise my inbox
+@fitness plan tomorrow's session
 ```
 
-Then publish:
+Default agent per chat is settable with `/default <name>`.
 
-```bash
-bun run publish
-```
+### /commands
 
-This builds for `linux/amd64` and pushes both `janbassen1/klaus:<version>` and `:latest`.
+Bypass the LLM entirely:
 
-### Update
+- `/help`, `/schedules`
+- `/default <agent>` — set the default agent for this chat
+- `/model [small|medium|large]` — show or switch model tier
+- `/provider [claude|openai|gemini|...]` — show or switch provider
+- `/voice on|off|auto` — toggle agent frontmatter flags
+- `/break` — hide prior conversation from the next turn (fresh context)
+- `/retry` — re-run the last turn with the same input
 
-```bash
-docker pull janbassen1/klaus:latest && docker restart <container-name>
-```
+### !overrides
 
-Or use Container Manager > Registry > Download latest in the Synology DSM UI.
+`!word` anywhere in a message tweaks pipeline/agent behavior for that turn. Presets live in `Klaus/overrides.yml` (hot-reloaded). Built-ins include:
 
-### Verify
+| Override | Effect |
+|---|---|
+| `!voice` (`!v`) / `!text` (`!txt`) | Guaranteed TTS / text-only reply |
+| `!clean` (`!cl`) | Skip conversation history |
+| `!small` / `!medium` / `!large` (`!s`/`!m`/`!l`) | Model tier |
+| `!claude` / `!openai` / `!gemini` / `!qwen` / `!deepseek` | Provider |
+| `!cold` / `!hot` (`!c`/`!h`) | Temperature preset |
+| `!creative` / `!rigid` (`!cr`/`!r`) | topP preset |
+| `!low` / `!high` (`!lo`/`!hi`) | Reasoning effort |
+| `!fast` (`!f`) | Fast inference |
+| `!no-tools` (`!nt`) | Disable tool use |
+| `!ghost` (`!g`) | Ephemeral, no persistence |
+| `!simulate` (`!sim`) | Dry-run — fake external/stateful tools, no real side effects |
 
-```bash
-curl http://localhost:3000/healthz
-# {"status":"ok","ts":"...","whatsapp":"connected","version":"0.1.0"}
-```
+Combine freely: `@fitness !voice !large plan tomorrow's session`.
 
----
+### Media
 
-## Operations
-
-Follow logs:
-
-```bash
-docker logs -f <container-name>
-```
-
-Restart (e.g. after .env edit):
-
-```bash
-docker restart <container-name>
-```
-
-Deploy update:
-
-```bash
-docker pull janbassen1/klaus:latest && docker restart <container-name>
-```
-
-Show container status:
-
-```bash
-docker ps
-```
-
-**Destructive** — wipe all data:
-
-```bash
-docker rm -f <container-name> && docker volume rm klaus-config klaus-vault klaus-data
-```
-
----
-
-## Configuration
-
-### .env
-
-API keys and host-specific settings, gitignored, never committed.
-
-| Variable            | Default | Description                             |
-| ------------------- | ------- | --------------------------------------- |
-| ANTHROPIC_API_KEY   | —       | Claude API key (required)               |
-| ELEVENLABS_API_KEY  | —       | ElevenLabs TTS/STT key (required)       |
-| ALLOWED_CHAT_ID     | —       | WhatsApp chat ID to allow (fail-closed, required) |
-| LOG_FORMAT          | `pretty` | Log output: `pretty` or `json`         |
-| STARTUP_CONNECTION_WARN_AFTER_MS | `60000` | Warn if WhatsApp connection is still pending after this many ms |
-| PORT                | `3000`  | HTTP port for `/healthz`                |
-| BAILEYS_AUTH_FOLDER | `<cwd>/.baileys-auth` | WhatsApp auth state directory |
-| DATA_DIR            | `~/.klaus/data` | Operational data (conversations, costs, etc.) |
-| VAULT_DIR           | `<cwd>/vault` | Obsidian vault root               |
-
-All path variables default to sensible local values — no extra config needed for local dev.
-
----
+Voice notes are transcribed (STT). Images are sent to the model as vision input. Documents (PDF, Word, Excel, PowerPoint) are parsed to text via `@llamaindex/liteparse`. Quoted messages carry their original media through.
 
 ## Architecture
 
-### Message pipeline
+Every WhatsApp message goes through a fixed pipeline:
 
-Every inbound WhatsApp message flows through the same pipeline:
+1. **Auth** — allowlist (fail-closed)
+2. **Parse** — STT, doc extract, web-link fetch, voice transcript rewrite, `/command`, `@agent`, `!overrides`
+3. **Resolve agent + config** — agent frontmatter merged with overrides into a `TurnConfig`
+4. **Persist** — append to day-partitioned conversation JSONL
+5. **Execute** — assemble context (variables + tools + history), render prompts, run the model loop, emit a structured report
 
-1. **Auth** — reject if chatId is not in the allowlist (fail-closed)
-2. **Rate limit** — per-chat rate limiting; soft reject with retry message
-3. **Normalize** — transcribe voice notes (ElevenLabs STT), downscale large images
-4. **Parse** — extract /command (execute directly, bypass LLM) or @agent routing prefix
-5. **Strip flags** — pull out !flag tokens
-6. **Persist** — append message to conversation JSONL, resolve quote-reply
-7. **Assemble context** — run all context variables in parallel, trim to token budget
-8. **Execute agent** — Vercel AI SDK agentic loop with tools, send response via WhatsApp
+Cron schedules and one-shot timers (including dynamic-persistence reschedules and `dispatch(when: ...)`) also enter at step 5 with a synthesised trigger.
 
-### Agents
+See [CLAUDE.md](CLAUDE.md) for directory layout, per-module concerns, and code conventions.
 
-An agent is a .md file in the vault (`Klaus/agents/`) with YAML frontmatter + a Handlebars prompt body. The frontmatter declares which model tier, tools, toolsets, and provider tools the agent uses:
+## Extending
 
-```yaml
----
-name: thinking
-modelTier: high
-tools: [reply, react, cost_tracking]
-providerTools: [web_search, web_fetch, code_execution]
-toolsets: [vault, dispatch, files]
-skills: [workout-plan]        # optional — on-demand .md docs from Klaus/skills/
-schedule: "0 3 * * *"         # optional — makes it a cron agent
-persistent: true              # optional — forces structured nextRun output, auto-reschedules
----
-```
+All primitives are auto-discovered — drop a file, export the right shape, restart.
 
-Agent and skill files are watched for changes at runtime — edits to prompt text, YAML frontmatter (model tier, tools, toolsets, schedule, etc.), or adding/removing files take effect automatically with no restart needed. Schedule changes are reconciled immediately (old cron removed, new one registered).
-
-**Persistent agents** (`persistent: true`) use structured output to guarantee they always reschedule themselves. After each run, the model must declare `{ nextRun, objective }` — when to run next and what to focus on. The system creates a one-shot timer automatically. If the model call fails, a fallback timer ensures the chain never breaks. Use this for recurring check-ins (fitness coach, language teacher, daily reminders) where the agent dynamically decides its own interval.
-
-Built-in agents:
-
-| Agent      | Purpose                                                              |
-| ---------- | -------------------------------------------------------------------- |
-| klaus      | Default conversational agent                                         |
-| thinking   | High-tier agent for research and extended reasoning                  |
-| memorize   | Async agent dispatched to extract facts into memory.md and user.md   |
-| vault      | Obsidian vault specialist — read, search, create, and organize notes |
-
-### Tools and toolsets
-
-**Tools** are always-available capabilities (e.g. reply, react, dispatch). **Toolsets** are groups of related tools that are lazy-loaded to save context tokens. Each toolset registers a use\_\<name\> meta-tool; when the model calls it, the actual tools are injected into the next step.
-
-| Toolset  | Tools                                               | Purpose                                |
-| -------- | --------------------------------------------------- | -------------------------------------- |
-| vault    | read, search, list, write, append, backlinks, etc.  | Obsidian vault + memory                |
-| dispatch | agent, schedule, timer, list, cancel                | Agent dispatch, cron, one-time timers  |
-| files    | upload, download, list, delete                      | File management                        |
-| notes    | list, read, search, write, edit, delete              | Auto-managed knowledge notes           |
-
-**Standalone tools** are opt-in per agent via `tools:` in frontmatter:
-
-| Tool                 | Purpose                                                                 |
-| -------------------- | ----------------------------------------------------------------------- |
-| conversation         | Search conversation history by text, around a message, or time range    |
-| cost_tracking        | Query total LLM/TTS/STT spend and budget status                        |
-
-Agents can also use **provider tools** — Anthropic built-in capabilities like web_search, web_fetch, and code_execution that are injected directly via the Vercel AI SDK.
-
-### Knowledge layer
-
-Klaus has three types of knowledge content, forming a spectrum from always-loaded to agent-managed:
-
-| Type         | Location              | Loading       | Mutability | Purpose                              |
-| ------------ | --------------------- | ------------- | ---------- | ------------------------------------ |
-| **Snippets** | `Klaus/snippets/`     | Always loaded | Static     | Core prompt content (soul, architecture, user profile) — injected as `{{vars}}` |
-| **Skills**   | `Klaus/skills/`       | On demand     | Static     | Reference material loaded via `skill_get` tool when needed |
-| **Notes**    | `Klaus/notes/`        | On demand     | Dynamic    | Runtime knowledge written/searched by agents via `notes.*` tools |
-
-**Snippets** are `.md` files in `Klaus/snippets/` plus `Klaus/user.md`. They are loaded every turn as Handlebars template variables (e.g., `{{personality}}`, `{{user}}`, `{{architecture}}`). Always in context — use for core identity and instructions.
-
-**Skills** are `.md` files in `Klaus/skills/` with optional `description:` frontmatter. Declare `skills: [name1, name2]` in an agent's frontmatter to grant access via a `skill_get` tool scoped to those names via `z.enum`. The `{{skills}}` Handlebars var lists available skills in the prompt. Zero token overhead for agents without skills.
-
-**Notes** are auto-managed, topic-keyed `.md` files in `Klaus/notes/`. Six tools in the `notes` toolset:
-- `notes.list` — list all note names with descriptions
-- `notes.read` — read a specific note by name
-- `notes.search` — substring match across filenames, descriptions, and body (compact results)
-- `notes.write` — create or overwrite with optional `description:` frontmatter
-- `notes.edit` — find-and-replace within an existing note
-- `notes.delete` — delete a note (requires `confirm: true`)
-
-Agents opt in by adding `notes` to their `toolsets:` list. All knowledge files are watched and hot-reloaded.
-
-### Context assembly
-
-The prompt body uses `{{variable}}` placeholders filled by **context variables** — modular async functions in `src/context/`. Variables run in parallel. Each has a priority (lower = trimmed first when the token budget overflows) and a truncation strategy (never, always, oldest).
-
-Context variables:
-
-| Variable           | Priority | Purpose                                                        |
-| ------------------ | -------- | -------------------------------------------------------------- |
-| `snippets`         | -1       | Loads `Klaus/snippets/*.md` + `user.md` as Handlebars template vars |
-| `date`, `time`, `weekday` | -1 | Current datetime (locale-aware, never trimmed)               |
-| `dispatch_context` | -1       | Dispatch metadata when invoked via `dispatch.agent`            |
-| `active_tasks`     | 4        | Running async jobs and pending timers                          |
-
-### Storage
-
-All operational data is stored as flat files — no database required.
-
-- **Conversations** — JSONL files in `{dataDir}/conversations/`. Four event types: `msg`, `ack` (WhatsApp delivery confirmation), `reaction`, `trace` (LLM tool-call traces). Merged in-memory on read.
-- **Costs** — date-partitioned JSONL in `{dataDir}/costs/`
-- **Invocations** — date-partitioned JSONL in `{dataDir}/invocations/` (LLM call traces)
-- **Files** — blob storage in `{filesDir}/` with a JSONL metadata index
-- **Schedules** — `{dataDir}/schedules.json`
-- **Timers** — `{dataDir}/timers.json` (one-time future execution, restored on restart)
-
-The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[wikilinks]]` are edges, YAML frontmatter provides metadata and tags.
-
-### Dispatch
-
-The `dispatch` toolset provides five tools for agent-to-agent invocation:
-
-| Tool              | Behavior                                                                 |
-| ----------------- | ------------------------------------------------------------------------ |
-| `dispatch.agent`  | Invoke another agent (inline = sync, async = background job)             |
-| `dispatch.schedule` | Register a recurring cron schedule (persisted to schedules.json)       |
-| `dispatch.timer`  | Schedule a one-time future execution via setTimeout (persisted to timers.json) |
-| `dispatch.list`   | List active schedules, timers, and running jobs                          |
-| `dispatch.cancel` | Cancel a schedule, timer, or running job by ID                           |
-
-Max chain depth is enforced to prevent infinite recursive dispatch.
-
----
-
-## Folder structure
-
-```
-src/
-├── commands/      # /command handlers
-├── context/       # Context variable modules (one file per variable)
-├── core/          # Pipeline, agent runner, dispatch, queue, model router
-├── store/         # Flat-file storage (conversations, schedules, timers, costs, files, etc.)
-├── tools/         # Tool definitions and toolsets
-│   └── sets/      # Toolset definitions (vault, dispatch, files, notes)
-└── whatsapp/      # Transport layer (connection, receive, send, TTS, STT)
-
-vault/Klaus/       # Klaus's own directory in the Obsidian vault
-├── agents/        # Agent prompt files (.md with YAML frontmatter)
-├── flags/         # Flag definitions (.md with description frontmatter)
-├── notes/         # Auto-managed knowledge notes (written/searched by agents at runtime)
-├── skills/        # Static .md reference documents (loaded on demand by agents)
-├── snippets/      # Static prompt content (soul.md, architecture.md)
-└── user.md        # User profile (updated by memorize agent)
-```
-
----
-
-## Extending Klaus
-
-The codebase is designed to be extended by adding files, not modifying existing ones. Each extension point follows a consistent pattern: implement an interface, drop a file in the right folder, and it's picked up automatically.
-
-### Add a new agent
-
-Create a .md file in `vault/Klaus/agents/` with YAML frontmatter and a Handlebars prompt body. The frontmatter declares the agent's model tier, tools, and toolsets. The prompt body uses {{variable}} placeholders that are filled by context queries at runtime.
-
-Example — a minimal agent that can reply and search the web:
+**New agent** — `.md` file in `{vault}/Klaus/agents/` with YAML frontmatter:
 
 ```yaml
 ---
 name: research
-modelTier: high
+aliases: [r]
 tools: [reply, react]
-providerTools: [web_search]
 toolsets: [vault]
+providerTools: [web_search]
+skills: [obsidian-markdown]
+provider: claude
+modelTier: large
 ---
+You are a research assistant. {{time.date}} — use web_search + vault.
 
-You are a research assistant. Answer questions thoroughly using web search.
-
-It is {{weekday}} ({{date}}, {{time}}).
-
-{{personality}}
-
-{{user}}
+{{snippets.personality}}
+{{snippets.user}}
 ```
 
-No restart needed — agent files are watched and hot-reloaded automatically.
+**New tool** — `.ts` file in `src/primitives/tools/` exporting a `ToolDefinition` with a `sideEffect: "external" | "stateful" | "pure"` declaration.
 
-### Add a new tool
+**New variable** — `.ts` file in `src/primitives/variables/` exporting a `Variable`. The `key` becomes a top-level entry in the `{{namespace}}`.
 
-Create a .ts file in src/tools/ that exports a ToolDefinition. Define a Zod schema for the input, an execute function, and metadata:
+**New command** — `.ts` file in `src/primitives/commands/` exporting a `Command`. Invoked as `/name`.
 
-```typescript
-import { z } from "zod";
-import type { ToolDefinition } from "@/types";
+**New override** — entry in `{vault}/Klaus/overrides.yml`. Hot-reloaded.
 
-const schema = z.object({
-  query: z.string().describe("Search query"),
-});
+**New skill** — `.md` file in `{vault}/Klaus/skills/` with a `description:` frontmatter field. Reference it from an agent's `skills: [...]` list.
 
-export const myTool: ToolDefinition<typeof schema> = {
-  name: "my_tool",
-  description: "Does something useful",
-  inputSchema: schema,
-  execute: async ({ query }, context) => {
-    // your logic here
-    return { result: "done" };
-  },
-  kind: "builtin",
-  capability: "tool",
-};
+Hot-reload covers agent files, skills, snippets, templates, `overrides.yml`, and `settings.yml`. Code-level primitives need a restart.
+
+## Configuration
+
+`.env` — API keys and paths (gitignored):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `OPENROUTER_API_KEY` | — | Required (default endpoint) |
+| `ELEVENLABS_API_KEY` | — | For voice notes (STT/TTS) |
+| `OBSIDIAN_EMAIL` | — | Required — Obsidian Sync account email |
+| `OBSIDIAN_PASSWORD` | — | Required — Obsidian Sync account password |
+| `OBSIDIAN_VAULT_NAME` | — | Required — name of the remote vault to sync |
+| `OBSIDIAN_MFA` | — | Optional — TOTP code for first login |
+| `OBSIDIAN_E2EE_PASSWORD` | — | Optional — vault E2EE password (if enabled) |
+| `ALLOWED_CHAT_ID` | — | Fallback — prefer `basics.allowedChat` in settings.yml |
+| `LOG_FORMAT` | `text` | `text` or `json` (NAS log viewers prefer `json`) |
+
+`{vault}/Klaus/settings.yml` — everything tunable (providers, model tiers, media, whatsapp, vault folders + permissions, persistence bounds, reports). Hot-reloaded with strict Zod validation. It must match the schema in `src/infra/config.ts`; the repo `vault/settings.yml` is only the first-run template.
+
+On startup Klaus first hydrates `/app/vault` from Obsidian Sync, then checks whether `/app/vault/Klaus` exists. If that folder already exists, Klaus keeps it exactly as synced user-owned state. It does not merge, backfill, or overwrite files from the image defaults. If the log says `Klaus/settings.yml` was downloaded and then settings are invalid or missing, the bug is in reading, parsing, path resolution, or schema validation of that vault file.
+
+The Docker image runs from `/app`, so those defaults become `/app/vault` and `/app/data`; WhatsApp credentials live at `/app/data/baileys-auth`. Keep two volumes: `klaus-vault` for Obsidian-facing notes and agent config, `klaus-data` for operational state.
+
+## Deploy + operate
+
+```bash
+# Pull new version
+docker pull janbassen1/klaus:latest && docker restart <container>
+
+# Publish (maintainer)
+docker login
+docker buildx create --name klaus-builder --driver docker-container --use
+npm run publish   # builds linux/amd64, pushes :<version> + :latest
+
+# Logs
+docker logs -f <container>
+
+# Wipe (destructive)
+docker rm -f <container> && docker volume rm klaus-vault klaus-data
 ```
-
-Then reference it by name in an agent's frontmatter tools list.
-
-### Add a new context variable
-
-Create a .ts file in src/context/ that exports a ContextVariable. Each variable has a name (used as the {{variable}} in prompts), a priority (lower = trimmed first on token overflow), and a run function that returns content:
-
-```typescript
-import type { ContextVariable } from "@/types";
-
-export const myVar: ContextVariable = {
-  name: "my_context",
-  priority: 50,
-  run: async (turn, params) => {
-    const content = "some dynamic context";
-    return {
-      content,
-      tokenCount: Math.ceil(content.length / 4),
-      truncate: "always",
-    };
-  },
-};
-```
-
-Then use {{my_context}} in any agent prompt. Params are supported: {{my_context?key=value}}.
-
-### Add a new command
-
-Create a .ts file in src/commands/ that exports a Command. Commands bypass the LLM and execute directly:
-
-```typescript
-import type { Command } from "@/commands";
-import type { InboundMessage } from "@/types";
-import { enqueueMessage } from "@/whatsapp/send";
-
-export const myCommand: Command = {
-  name: "mycommand",
-  description: "Does something directly",
-  execute: async (msg: InboundMessage, args: string[]) => {
-    enqueueMessage({
-      chatId: msg.chatId,
-      content: "Command executed.",
-      dedupKey: `${msg.id}:mycommand`,
-    });
-  },
-};
-```
-
-Invoke it in chat with /mycommand.
-
-### Add a new toolset
-
-Create a .ts file in src/tools/sets/ that exports a group of related ToolDefinitions. The toolset registers a use\_\<name\> meta-tool. When the model calls it, the actual tools are injected into the conversation. This keeps the initial context lean — tools are only loaded when needed.
-
-Reference the toolset by name in an agent's frontmatter toolsets list.
-
-### Add a new skill
-
-Create a `.md` file in `vault/Klaus/skills/`. The filename (without `.md`) is the skill name. Add a `description:` in YAML frontmatter so the model knows what the skill contains:
-
-```markdown
----
-description: Weekly training split with progressive overload
----
-# Workout Plan
-
-## Monday — Push
-- Bench press 4×8
-- ...
-```
-
-Then add the skill name to an agent's frontmatter:
-
-```yaml
-skills: [workout-plan]
-```
-
-No restart needed — skill files are watched and hot-reloaded automatically.
 
 ---
 
-See AGENT.md for coding guidelines and conventions.
+See [CLAUDE.md](CLAUDE.md) for working in the codebase.

@@ -1,0 +1,110 @@
+voice:
+  aliases: [v]
+  description: Reply as voice message
+  overrides: { forceVoice: true }
+
+text:
+  aliases: [txt]
+  description: Reply as text (no voice)
+  overrides: { suppressVoice: true }
+
+clean:
+  aliases: [cl]
+  description: Skip conversation history
+  overrides: { skipHistory: true }
+
+ghost:
+  aliases: [g]
+  description: Ephemeral call, no persistence
+  overrides: { ghost: true, skipHistory: true }
+
+simulate:
+  aliases: [sim]
+  description: Dry-run for testing
+  overrides: { simulate: true }
+
+report:
+  aliases: [rp]
+  description: Enable report for this turn
+  overrides: { report: true }
+
+no-report:
+  aliases: [nr]
+  description: Disable report for this turn
+  overrides: { report: false }
+
+small:
+  aliases: [s]
+  description: Use small model
+  overrides: { modelTier: small }
+
+medium:
+  aliases: [m]
+  description: Use medium model
+  overrides: { modelTier: medium }
+
+large:
+  aliases: [l]
+  description: Use large model
+  overrides: { modelTier: large }
+
+claude:
+  description: Use Claude provider
+  overrides: { provider: claude }
+
+openai:
+  aliases: [chatgpt, gpt]
+  description: Use OpenAI provider
+  overrides: { provider: openai }
+
+gemini:
+  description: Use Gemini provider
+  overrides: { provider: gemini }
+
+qwen:
+  description: Use Qwen provider
+  overrides: { provider: qwen }
+
+deepseek:
+  description: Use DeepSeek provider
+  overrides: { provider: deepseek }
+
+cold:
+  aliases: [c]
+  description: Low temperature
+  overrides: { temperaturePreset: cold }
+
+hot:
+  aliases: [h]
+  description: High temperature
+  overrides: { temperaturePreset: hot }
+
+creative:
+  aliases: [cr]
+  description: High topP sampling
+  overrides: { topPPreset: creative }
+
+rigid:
+  aliases: [r]
+  description: Low topP sampling
+  overrides: { topPPreset: rigid }
+
+no-tools:
+  aliases: [nt]
+  description: Disable tools
+  overrides: { toolChoice: "none" }
+
+low:
+  aliases: [lo]
+  description: Low reasoning effort
+  overrides: { reasoningEffort: low }
+
+high:
+  aliases: [hi]
+  description: High reasoning effort
+  overrides: { reasoningEffort: high }
+
+fast:
+  aliases: [f]
+  description: Fast inference
+  overrides: { fast: true }

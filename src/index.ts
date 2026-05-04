@@ -1,75 +1,86 @@
-// Suppress Bun's compat warnings for ws npm package event listeners
-const _emitWarning = process.emitWarning.bind(process);
-process.emitWarning = (warning, ...args) => {
-	if (typeof warning === "string" && warning.includes("ws.WebSocket")) return;
-	// biome-ignore lint/suspicious/noExplicitAny: spread required for overloaded signature
-	_emitWarning(warning, ...(args as any[]));
-};
-
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { agentRegistry, loadAgents } from "./core/agent";
-import { loadContextVariables, setContextVariables } from "./core/assemble";
-import { dispatch } from "./core/dispatch";
-import { loadFlags } from "./core/flags";
-import { initQueue } from "./core/queue";
-import { loadAllTools } from "./core/registry";
-import { startWatching, stopWatching } from "./core/watcher";
-import { startWorkers } from "./core/worker";
-import { log } from "./logger";
-import { settings } from "./settings";
-import { loadBudgets } from "./store/budgets";
-import { rebuildIndexes as rebuildConversationIndexes } from "./store/conversation";
-import { rebuildFileIndex } from "./store/files";
+import { fileURLToPath } from "node:url";
+import { formatUserError } from "./errors.ts";
+import {
+	loadSettingsFromDisk,
+	requiredStartupApiKeyEnvVars,
+	settings,
+} from "./infra/config.ts";
+import { log } from "./infra/logger.ts";
+import { initFilesStore, rebuildFileIndex } from "./infra/store/files.ts";
+import {
+	initHistoryStore,
+	rebuildIndexes as rebuildConversationIndexes,
+} from "./infra/store/history.ts";
+import { initReportStore } from "./infra/store/report.ts";
 import {
 	addSchedule,
+	initSchedulesStore,
 	loadSchedules,
+	type ScheduleEntry,
 	setOnCronFire,
 	startAllSchedules,
 	stopAllSchedules,
-} from "./store/schedules";
-import { loadTimers, setOnTimerFire, stopAllTimers } from "./store/timers";
-import { loadSkills, skillRegistry } from "./tools/skill";
+} from "./infra/store/schedules.ts";
+import {
+	initTimersStore,
+	loadTimers,
+	setOnTimerFire,
+	stopAllTimers,
+	type TimerEntry,
+} from "./infra/store/timers.ts";
+import { ensureVaultDefaults } from "./infra/vault/defaults.ts";
+import {
+	hydrateInitialVault,
+	type SyncHandle,
+	startSync,
+} from "./infra/vault/sync.ts";
+import { startWatching, stopWatching } from "./infra/vault/watcher.ts";
 import {
 	closeSocket,
-	getConnectionState,
 	isConnected,
 	startConnection,
-} from "./whatsapp/connection";
-import { attachReceiveHandler } from "./whatsapp/receive";
-import { drainQueue } from "./whatsapp/send";
+} from "./infra/whatsapp/connection.ts";
+import {
+	completeSoloSetup,
+	prepareLoginFolderForStartup,
+} from "./infra/whatsapp/login.ts";
+import { attachReceiveHandler } from "./infra/whatsapp/receive.ts";
+import {
+	drainQueue,
+	enqueueMessage,
+	setSocket,
+} from "./infra/whatsapp/send.ts";
+import { agentRegistry, loadAgents } from "./pipeline/agents.ts";
+import type { Trigger } from "./pipeline/core.ts";
+import { dispatch } from "./pipeline/dispatch.ts";
+import { loadOverrides } from "./pipeline/overrides.ts";
+import { loadTemplates } from "./pipeline/prompts.ts";
+import { loadAllTools } from "./primitives/tools/index.ts";
+import { loadSkills, skillRegistry } from "./primitives/tools/skill.ts";
+import { loadVariables, setVariables } from "./primitives/variables/index.ts";
 
-const PORT = Number(process.env.PORT ?? 3000);
-if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
-	throw new Error(
-		`Invalid PORT: "${process.env.PORT}" — must be an integer between 1 and 65535`,
-	);
-}
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
-// Graceful shutdown
 let shuttingDown = false;
+const shutdownController = new AbortController();
+let syncHandle: SyncHandle | null = null;
 async function shutdown(signal: string): Promise<void> {
 	if (shuttingDown) return;
 	shuttingDown = true;
 	log.info("[shutdown] received signal, shutting down gracefully", { signal });
 
-	// 1. Drain the outbound send queue (max 5s).
+	shutdownController.abort();
+
 	await Promise.race([
-		drainQueue(),
-		new Promise<void>((r) => setTimeout(r, 5_000)),
+		Promise.all([drainQueue(), syncHandle?.stop() ?? Promise.resolve()]),
+		new Promise<void>((r) => setTimeout(r, 10_000)),
 	]);
 
-	// 2. Close WhatsApp socket.
 	closeSocket();
 
-	// 3. Stop the in-memory queue.
-	const { stopQueue } = await import("./core/queue");
-	await stopQueue();
-
-	// 4. Stop file watchers.
 	stopWatching();
-
-	// 5. Stop cron schedules and timers.
 	stopAllSchedules();
 	stopAllTimers();
 
@@ -83,184 +94,250 @@ process.on("SIGINT", () => {
 	shutdown("SIGINT").catch(() => process.exit(1));
 });
 
+process.on("unhandledRejection", (reason) => {
+	log.error("[process] unhandledRejection", {
+		error: reason instanceof Error ? reason.message : String(reason),
+	});
+});
+process.on("uncaughtException", (err) => {
+	log.error("[process] uncaughtException", { error: err.message });
+});
+
+async function runScheduledDispatch(
+	source: "cron" | "timer",
+	entry: ScheduleEntry | TimerEntry,
+	trigger: Trigger,
+): Promise<void> {
+	try {
+		await dispatch({
+			agent: entry.agentName,
+			prompt: entry.objective,
+			...(entry.overrides ? { overrides: entry.overrides } : {}),
+			chatId: entry.chatId,
+			trigger,
+		});
+	} catch (err) {
+		log.error(`[${source}] dispatch failed`, {
+			[`${source === "cron" ? "schedule" : "timer"}Id`]: entry.id,
+			error: err,
+		});
+		enqueueMessage({
+			chatId: entry.chatId,
+			content: `⚠️ Scheduled @${entry.agentName} run failed:\n${formatUserError(err)}`,
+			dedupKey: `${source}-error:${entry.id}:${Date.now()}`,
+			label: settings.whatsapp.systemLabel,
+		});
+	}
+}
+
 async function main(): Promise<void> {
-	// 0. Validate required env vars
-	const required = ["ANTHROPIC_API_KEY", "ALLOWED_CHAT_ID"] as const;
+	await mkdir(settings.vault.root, { recursive: true });
+	const defaultSyncDeps = {
+		vaultRoot: settings.vault.root,
+		configDir: path.join(settings.dataDir, "obsidian-headless"),
+		signal: shutdownController.signal,
+		shutdownTimeoutMs: settings.sync.shutdownTimeoutMs,
+		fileTypes: settings.sync.fileTypes,
+		backoff: settings.sync.restartBackoff,
+		firstSync: settings.sync.firstSync,
+	};
+
+	log.info(
+		"[startup] hydrating vault via obsidian-headless in mirror-remote mode",
+	);
+	const pullResult = await hydrateInitialVault(defaultSyncDeps);
+	if (!pullResult.ok) {
+		const err = pullResult.error;
+		if (err.kind === "missing-env") {
+			log.error("[startup] obsidian sync env vars missing", {
+				missing: err.vars,
+			});
+		} else {
+			log.error("[startup] obsidian initial pull failed", {
+				step: err.step,
+				exitCode: err.exitCode,
+				stderr: err.stderr,
+			});
+		}
+		process.exit(1);
+	}
+
+	await ensureVaultDefaults(settings.vault.internalPath);
+	const settingsResult = await loadSettingsFromDisk();
+	if (!settingsResult.ok) {
+		log.warn("[startup] settings.yml invalid, using bundled defaults", {
+			error: settingsResult.error,
+			path: path.join(settings.vault.internalPath, "settings.yml"),
+		});
+	}
+
+	const required = requiredStartupApiKeyEnvVars();
 	const missing = required.filter((k) => !process.env[k]);
 	if (missing.length > 0) {
 		throw new Error(
 			`Missing required environment variables: ${missing.join(", ")}`,
 		);
 	}
+	if (!settings.allowedChat) {
+		if (settings.whatsapp.selfMode) {
+			log.info(
+				"[startup] self-mode enabled — allowedChat will auto-resolve on first message",
+			);
+		} else {
+			log.warn(
+				"[startup] allowedChat not configured — running in setup mode (messages will not be processed)",
+			);
+		}
+	}
 
-	// 1. Ensure directory structure
-	log.info("[startup] ensuring data directories", {
-		dataDir: settings.dataDir,
-	});
+	log.info("[startup] ensuring data directories");
 	const dirs = [
 		settings.dataDir,
 		path.join(settings.dataDir, "conversations"),
-		path.join(settings.dataDir, "conversations", "archive"),
-		path.join(settings.dataDir, "costs"),
-		path.join(settings.dataDir, "invocations"),
 		path.join(settings.dataDir, "files"),
+		path.join(settings.dataDir, "logs"),
 	];
 	for (const dir of dirs) {
 		await mkdir(dir, { recursive: true });
 	}
 
-	// 2. Load tools, agents (from vault), context variables, skills, flags (from vault)
-	log.info(
-		"[startup] loading tools, agents, context variables, skills, and flags",
-	);
-	await loadAllTools(path.join(import.meta.dir, "tools"));
+	log.info("[startup] starting bundled obsidian-headless sync");
+	const syncResult = await startSync({
+		vaultRoot: settings.vault.root,
+		configDir: path.join(settings.dataDir, "obsidian-headless"),
+		signal: shutdownController.signal,
+		shutdownTimeoutMs: settings.sync.shutdownTimeoutMs,
+		fileTypes: settings.sync.fileTypes,
+		backoff: settings.sync.restartBackoff,
+		firstSync: settings.sync.firstSync,
+	});
+	if (!syncResult.ok) {
+		const err = syncResult.error;
+		if (err.kind === "missing-env") {
+			log.error("[startup] obsidian sync env vars missing", {
+				missing: err.vars,
+			});
+		} else {
+			log.error("[startup] obsidian sync setup failed", {
+				step: err.step,
+				exitCode: err.exitCode,
+				stderr: err.stderr,
+			});
+		}
+		process.exit(1);
+	}
+	syncHandle = syncResult.handle;
+
+	initHistoryStore({ dataDir: settings.dataDir });
+	initFilesStore({ dataDir: settings.dataDir });
+	initReportStore({ dataDir: settings.dataDir });
+	initSchedulesStore({
+		dataDir: settings.dataDir,
+		timezone: settings.timezone,
+	});
+	initTimersStore({ dataDir: settings.dataDir });
+
+	log.info("[startup] loading tools, agents, variables, skills, and overrides");
+	await loadAllTools(path.join(MODULE_DIR, "primitives", "tools"));
+	await loadOverrides();
+	loadTemplates();
 
 	const agentsDir = settings.vault.agentsDir;
-	await mkdir(agentsDir, { recursive: true });
 	await loadAgents(agentsDir);
 
-	const contextVariables = await loadContextVariables(
-		path.join(import.meta.dir, "context"),
+	const variables = await loadVariables(
+		path.join(MODULE_DIR, "primitives", "variables"),
 	);
-	setContextVariables(contextVariables);
+	setVariables(variables);
 
-	const snippetsDir = settings.vault.snippetsDir;
-	await mkdir(snippetsDir, { recursive: true });
+	await loadSkills(settings.vault.skillsDir);
 
-	const skillsDir = settings.vault.skillsDir;
-	await mkdir(skillsDir, { recursive: true });
-	await loadSkills(skillsDir);
+	const { loadCommands } = await import("./primitives/commands/index.ts");
+	await loadCommands(path.join(MODULE_DIR, "primitives", "commands"));
 
-	const flagsDir = settings.vault.flagsDir;
-	await mkdir(flagsDir, { recursive: true });
-	await loadFlags(flagsDir);
-
-	const notesDir = settings.vault.notesDir;
-	await mkdir(notesDir, { recursive: true });
-
-	await import("./commands/register");
-
-	// Validate skill references
 	for (const def of agentRegistry.values()) {
 		for (const skill of def.skills ?? []) {
 			if (!skillRegistry.has(skill)) {
-				log.warn("[startup] agent references unknown skill", {
-					agent: def.name,
-					skill,
-				});
+				log.warn(
+					`[startup] agent @${def.name} references unknown skill: ${skill}`,
+				);
 			}
 		}
 	}
 
-	// 3. Build in-memory indexes
 	log.info("[startup] building in-memory indexes");
 	await rebuildConversationIndexes();
 	await rebuildFileIndex();
 
-	// 4. Init in-memory queue and workers
-	log.info("[startup] initializing queue and workers");
-	await initQueue();
-	await startWorkers();
-
-	// 5. Load schedules and timers, register callbacks
 	await loadSchedules();
-	await loadBudgets();
-
-	// Register frontmatter schedules for agents that declare a schedule field
 	for (const def of agentRegistry.values()) {
-		if (def.schedule) {
-			log.info("[startup] registering frontmatter schedule", {
-				agent: def.name,
-				schedule: def.schedule,
-			});
-			await addSchedule({
-				id: `frontmatter:${def.name}`,
-				agentName: def.name,
-				pattern: def.schedule,
-				chatId: "system",
-				objective: `Scheduled run of ${def.name}`,
-				label: `${def.name} (frontmatter)`,
-				createdBy: "scheduler",
-				createdAt: new Date().toISOString(),
-			});
-		}
+		if (def.persistence?.mode !== "static") continue;
+		log.info(
+			`[startup] registering static schedule for @${def.name}: ${def.persistence.schedule}`,
+		);
+		await addSchedule({
+			id: `frontmatter:${def.name}`,
+			agentName: def.name,
+			pattern: def.persistence.schedule,
+			chatId: "system",
+			objective: def.persistence.prompt,
+			...(def.persistence.overrides.length > 0
+				? { overrides: def.persistence.overrides }
+				: {}),
+			label: `${def.name} (frontmatter)`,
+			createdBy: "scheduler",
+			createdAt: new Date().toISOString(),
+		});
 	}
 
-	// Register cron fire callback — dispatches scheduled agents into the queue
 	setOnCronFire(async (entry) => {
-		await dispatch({
-			agent: entry.agentName,
-			objective: entry.objective,
-			...(entry.hint ? { hint: entry.hint } : {}),
-			mode: { kind: "async" },
-			chatId: entry.chatId,
-			caller: entry.createdBy,
+		await runScheduledDispatch("cron", entry, {
+			kind: "schedule",
+			scheduleId: entry.id,
 		});
 	});
 	startAllSchedules();
 
-	// Register timer fire callback — dispatches timed agents into the queue
 	setOnTimerFire(async (entry) => {
-		await dispatch({
-			agent: entry.agentName,
-			objective: entry.objective,
-			...(entry.hint ? { hint: entry.hint } : {}),
-			mode: { kind: "async" },
-			chatId: entry.chatId,
-			caller: entry.createdBy,
+		await runScheduledDispatch("timer", entry, {
+			kind: "timer",
+			timerId: entry.id,
 		});
 	});
 	await loadTimers();
 
-	// 6. Watch agent, skill, and flag directories for hot-reload
-	startWatching(agentsDir, skillsDir, flagsDir);
+	startWatching(agentsDir, settings.vault.skillsDir);
 
-	// 7. Start HTTP server before WhatsApp so the process stays up during first-time pairing.
-	Bun.serve({
-		port: PORT,
-		async fetch(req) {
-			const url = new URL(req.url);
-			if (url.pathname === "/healthz") {
-				const whatsapp = getConnectionState();
-				const status = isConnected() ? "ok" : "degraded";
-				const version = process.env.VERSION ?? "dev";
-				return Response.json({
-					status,
-					ts: new Date().toISOString(),
-					whatsapp,
-					version,
-				});
-			}
-			return new Response("Not Found", { status: 404 });
-		},
-	});
+	log.info("[startup] ready");
 
-	log.info("[startup] ready", { port: PORT, whatsapp: getConnectionState() });
+	await prepareLoginFolderForStartup();
 
-	// 8. Connect to WhatsApp in the background.
 	log.info("[startup] connecting to WhatsApp");
 	const warnAfterMs = settings.startup.connectionWarnAfterMs;
 	const connectionWarnTimer = setTimeout(() => {
 		if (!isConnected()) {
 			log.warn(
 				"[startup] WhatsApp pairing/connection is taking longer than expected",
-				{
-					warnAfterMs,
-					whatsapp: getConnectionState(),
-				},
 			);
 		}
 	}, warnAfterMs);
 
-	startConnection((socket) => {
+	startConnection(async (socket) => {
 		clearTimeout(connectionWarnTimer);
+		setSocket(socket);
+		if (!settings.allowedChat && settings.whatsapp.selfMode) {
+			await completeSoloSetup().catch((err) =>
+				log.error("[startup] solo setup failed", {
+					error: err instanceof Error ? err.message : String(err),
+				}),
+			);
+		}
 		attachReceiveHandler(socket);
 		log.info("[startup] WhatsApp receive handler attached");
 	}).catch((err: unknown) => {
 		clearTimeout(connectionWarnTimer);
 		log.error("[startup] WhatsApp connection failed", {
 			error: err instanceof Error ? err.message : String(err),
-			stack: err instanceof Error ? err.stack : undefined,
 		});
 	});
 }
@@ -268,7 +345,6 @@ async function main(): Promise<void> {
 main().catch((err: unknown) => {
 	log.error("[startup] fatal", {
 		error: err instanceof Error ? err.message : String(err),
-		stack: err instanceof Error ? err.stack : undefined,
 	});
 	process.exit(1);
 });

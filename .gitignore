@@ -1,8 +1,8 @@
 node_modules/
-.env
-.auth/
-.files/
 dist/
+data/
+.env
 bun.lock
 *.log
 .DS_Store
+.fallow/

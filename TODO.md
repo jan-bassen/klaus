@@ -1,29 +1,42 @@
-# TODO
+# Fixes from testing
 
-## Iteration
-- [x] Make persistence (recurring calls) explicit — `persistent: true` frontmatter + structured output `{ nextRun, objective }`
-- [ ] Add traces conversion limit param to agents for finer control
-- [ ] Check for unused baileys potential and fix persistence 
-- [ ] Validate dynamic vault part loading on load and warn per WhatsApp
+- [ ] 
 
-## Agents
-- [ ] Fitness - An agent that tracks my fitness goals/progress, manage my trainingplan and helps me stay on track. I want to call him directly with @fitness during training sessions and he should be able to provide me with motivation and insights, mostly through random (for me unexpected) dispatches to motivate me. Espescially on training days.
-- [ ] Daily - An agent that runs every day in the morning to create a daily report in the daily note of the obsidian vault and a short voice message (in german). The daily report should include the weather, the most important few news (local, national, global), a quick check of one or two science news websites. 
-- [ ] Nicola - Italian teacher
-- [ ] Geo - Geography teacher/expert agent to learn and ask about geology (https://rapidapi.com/mmplabsadm/api/geography4)
-- [ ] ??? - Life Coach (?)
 
-# Later
+# Repo cleanup
 
-## Security
-- [ ] Look at the tool verification pipeline again. Probably use 👍/👎 for feedback and ✅/⛔ or /yes + /no for acceptance. Will need a flow for good ux (short description + tool name + maybe even params)
+We'll be opening this up as "the agent for tinkerers". Polish the codebase and the docs before that.
 
-## Internationalization (only when simple)
-- [ ] Add support for multiple languages for all user-facing (and probably even agent-facing) strings
+## Config
 
-## Evals
-- [ ] Add `*.eval.ts` files for non-deterministic behavior (pipeline end-to-end, agent tool selection, memory search relevance)
-- [ ] See `AGENT.md` for eval conventions
+- [ ] pin dependency versions? (or simpler fix for protection against supply chain attacks)
+- [ ] remove and cleanup after fallow
+- [ ] remove and cleanup after claude tooling + 
+- [ ] remove .agent skills with simple docs guide in agents.md
 
-## Maybe's
-- [ ] Voice language field in settings.ts against awkward accents
+## Code 
+
+- [ ] 
+
+## Docs
+
+- [ ] Remove any personal artifacts (janbassen1/klaus, ...)
+- [ ] Update README to be perfect and poignant (short intro + quick setup + architecture pointers to /docs)
+- [ ] Add `docs/`:
+  - [ ] setup-guide — deeper common setups + issues
+  - [ ] codebase-walkthrough — patterns, structure, key files/flows ("how to work with klaus' codebase 101")
+  - [ ] iterate-in-obsidian — most useful patterns with examples
+  - [ ] iterate-in-code — adding a command / variable / tool
+
+## Comments
+
+- [ ] Remove redundant comments (good naming > explanations; comments are for the non-obvious)
+- [ ] Shorten comments where possible
+- [ ] Final pass — everything up-to-date and matching the implemented code
+
+## Agent tooling
+
+The codebase should be ready for agents, but unopinionated.
+
+- [ ] CLAUDE.md → AGENT.md (shorten further, optimise for forkers)
+- [ ] Remove `.claude/`

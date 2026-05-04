@@ -1,188 +1,190 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude when working in this repository.
+
+## Status
+- We are in developent, nothing is deployed yet. If we change something, clean up after - no legacy code!
+
+## Code conventions
+
+- Goal: Short, clean and readable code. Try to remove, not add.
+- No barrel imports. Use specific relative module paths with explicit `.ts` extensions.
+- Errors are values — `return` them; only throw at true system boundaries.
+- Fully typesafe. No `any`. No `as`.
+- `vault/settings.yml` (repo) is the first-run template for tunable settings. At runtime Klaus reads the user's `{vault}/Klaus/settings.yml` directly; it is not merged with repo defaults. Zod validates only — no `.default()` fallbacks. Add new fields here + in `src/infra/config.ts`'s schema.
+- No inline magic numbers — route through `settings.*`.
+- Comments explain *why*, never *what*. Prefer good naming.
+- Keep the dependency list short; `npm install` only when genuinely needed.
+
+## Testing conventions
+
+- Vitest, `pool: forks` for module isolation.
+- Tests live in `test/` mirroring `src/`.
+- Keep the implementation clean of test seams. Confirm with the user if absolutely needed.
+- Optimize for critical paths (pipeline, tool execution, store round-trip). No coverage targets.
+- `test/setup.ts` preloads `src/infra/config.ts` before anything else (logger reads settings eagerly) and clears registries in `afterEach`.
+- `test/helpers/{tmp,stores,turn}.ts` for tmp dirs, store init, minimal TurnContext.
+- Module mocking: `vi.hoisted()` + `vi.mock("../relative/path.ts", ...)`. For settings overrides, mutate the live `settings` object directly in `beforeEach`.
 
 ## Commands
 
 ```bash
-# Development (uses 1Password for env secrets)
-op run --env-file=.env -- bun run src/index.ts
-
-# Type checking
-bun run typecheck
-
-# Tests
-bun run test
-
-# Run a single test file
-bun test src/__tests__/pipeline.test.ts
-
-# Watch mode
-bun run test:watch
-
-# Linting/formatting (Biome)
-bunx biome check --write .
-
-# Publish to Docker Hub (builds linux/amd64, pushes :version + :latest)
-bun run publish
+npm run typecheck
+npm run test
+npm run test:watch
+npx biome check --write .
+npm run build
+npm run publish
 ```
 
-## Git workflow
+## What Klaus is
 
-One logical change = one PR = one commit. A change is not done until all of the following are included together:
+A maximally simple, headless personal AI agent: **WhatsApp → TypeScript → Obsidian vault → Docker**.
 
-- The implementation itself
-- Tests for the new/changed behavior (in `src/__tests__/`)
-- Updates to README.md if the change affects setup, architecture, or public-facing behavior
-- Updates to this file (CLAUDE.md) if the change affects conventions, commands, or architecture
-- Any TODO/task list updates if the project tracks open work
+Stack: Node 25, native TypeScript, strict TypeScript, Zod, Handlebars, Baileys. Models via a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default only OpenRouter); request/response types come from the `openrouter` sdk. Liteparse for docs, sharp for images. JSONL for conversations/reports, JSON for schedules/timers. No database.
 
-Do not split these across multiple PRs or commits. Do not submit a feature and leave tests, docs, or housekeeping for a follow-up — include everything in the same PR.
+## Directory layout
+The repo is itentionally flat and opinionated in structure. One glance and a new user should be able to find where to look.
 
-Before opening a PR, run `bun run typecheck`, `bun run test`, and `bunx biome check --write .` and fix any failures.
+```
+src/
+├── index.ts          # bootstrap
+├── errors.ts         # user-facing error formatting
+├── pipeline/         # per-turn orchestration
+│   ├── index.ts      # handleTurn — auth + full turn
+│   ├── message.ts    # parseMessage (STT, @agent, !overrides, commands)
+│   ├── overrides.ts  # TurnConfig + !preset registry + merge
+│   ├── agents.ts     # Agent schema + registry + default-agent
+│   ├── context.ts    # variables + tools + history assembly
+│   ├── prompts.ts    # system/user message rendering
+│   ├── core.ts       # core model loop (runAgent, executeAgent, persist) + TurnContext + Trigger
+│   ├── dispatch.ts   # dispatch() primitive
+│   ├── media.ts      # STT, doc parsing, image prep
+│   └── reports.ts    # per-turn report emitter
+├── primitives/       # pluggable extensions (auto-discovered via glob)
+│   ├── tools/        # reply, react, web, conversation, skill + sets/{vault,dispatch,files}
+│   ├── variables/    # time, media, links, tasks, dispatch, config, user, snippets, trigger
+│   └── commands/     # /status, /tasks, /voice, /model, /provider, /break, /retry, /reports, /help, /default
+└── infra/            # external systems + state
+    ├── config.ts     # YAML settings + env paths + resolveModel/resolveImageModel (live mutable `settings`)
+    ├── logger.ts
+    ├── simulation.ts # per-turn overlay (WeakMap<TurnContext>) + fakers
+    ├── store/        # flat-file stores (history, files, report, schedules, timers)
+    ├── vault/        # path resolution, permissions, markdown helpers, file watcher, Obsidian sync
+    └── whatsapp/     # connection, send queue, receive (+ InboundMessage), presence, login
+```
 
-## Architecture
+## Message flow
 
-Klaus is a headless personal AI agent: WhatsApp messages → TypeScript pipeline → Obsidian Vault + LLM → response.
+1. **Auth** — allowlist (fail-closed). Unset → setup mode; self-mode auto-resolves own JID.
+2. **Parse** — `parseMessage`: STT transcribe → doc extract → link fetch → voice transcript rewrite → `/command` → `@agent` → `!overrides`.
+3. **Resolve agent + build config** — `getOrLoadAgent` + `buildTurnConfig` (globalDefaults → frontmatter → `!overrides`).
+4. **Persist message** — append to day-partitioned JSONL, resolve quoted media.
+5. **Execute agent** — `executeAgent`: assemble context (vars + tools + history) → compile prompts → `runLoop` (multi-step `completeChat` calls until the model stops calling tools) → report → reschedule if persistent.
 
-### Stack
+Dispatched runs (cron, timer, `dispatch` tool) start at step 5 with a synthesised `Trigger`.
 
-Bun, TypeScript (strict), Baileys, Vercel AI SDK. Containerized as a single Docker image (`janbassen1/klaus`).
+## Agents
 
-Storage: JSONL flat files for operational data (conversations, costs, invocations), JSON files for schedules and timers, Obsidian vault for knowledge (notes, wikilinks, tags as the knowledge graph).
-
-### Message flow (pipeline.ts)
-
-Every inbound WhatsApp message goes through a pipeline in `src/core/pipeline.ts`:
-
-1. **Auth** — allowlist check (fail-closed)
-2. **Rate limit** — per-chat message/min guard
-3. **Normalize** — transcribe voice notes (STT), downscale large images
-4. **Parse commands** — `/command` handlers bypass LLM, return early
-5. **Parse routing** — extract `@agentName` prefix and `!flags` from text
-6. **Resolve agent** — look up `agentRegistry` or hot-load from `.md` file
-7. **Persist** — append message to conversation JSONL, resolve quote-reply
-8. **Assemble context** — all context variables run in parallel, trimmed to token budget
-9. **Execute agent** — `runAgent()` via Vercel AI SDK agentic loop
-
-### Agent system (core/agent.ts)
-
-Agents are defined as `.md` files in `{vault}/Klaus/agents/` with YAML frontmatter:
+`.md` files in `{vault}/Klaus/agents/` with YAML frontmatter:
 
 ```yaml
 ---
 name: agentName
-modelTier: default|low|high    # maps to model IDs in settings.ts
-tools: [reply, send, react]
-toolsets: [vault, dispatch]    # expands to use_* meta-tools; tools loaded lazily
-providerTools: [web_search]    # Anthropic built-ins
-skills: [workout-plan]        # on-demand .md docs from {vault}/Klaus/skills/
-schedule: "0 3 * * *"         # optional cron
-persistent: true              # optional: forces structured nextRun output, auto-reschedules
-vaultScope: "Training"        # optional: restricts all vault tools to this subdirectory
+aliases: [short]
+tools: [reply, react]
+toolsets: [vault, dispatch]
+providerTools: [web_search]
+skills: [workout-plan]
+provider: Codex|openai|gemini|qwen|deepseek
+modelTier: small|medium|large
+voice: on|auto|off
+temp: cold|default|hot
+topP: creative|default|rigid
+reasoningEffort: low|default|high
+historyLimit: 20
+historyScope: full|agent
+showTrace: true
+report: true|false
+vaultAccess:
+  - "*:full"
+  - "Private:none"
+persistenceMode: static
+persistenceSchedule: "0 3 * * *"
+persistencePrompt: "daily check-in"
+persistenceOverrides: [voice]
+# OR
+# persistenceMode: dynamic
+# persistenceHint: "reschedule based on user's next workout"
 ---
-Prompt body with {{contextVar}} Handlebars interpolation.
+Prompt body with {{var}} Handlebars interpolation.
 ```
 
-`agentRegistry` (Map<name, AgentDefinition>) is populated at startup from all `.md` files. The `runAgent()` function loads the prompt, builds system prompt via Handlebars, registers tools, and drives the Vercel AI SDK agentic loop.
+Persistence:
+- `static` — cron fires at `schedule` with fixed `prompt` + `overrides`.
+- `dynamic` — after each run, a forced `persist` tool call produces `{nextRun, prompt, overrides?}`; one-shot timer created, chain unbreakable.
 
-**Persistent agents** (`persistent: true`) use AI SDK `Output.object()` to force the model to produce a structured `{ nextRun, objective }` declaration as its final step. After execution, the system automatically creates a one-shot timer for `nextRun` (delay string or ISO datetime, clamped to min/max bounds from `settings.persistent`). If the model call fails or output parsing fails, a fallback timer is created at `settings.persistent.defaultNextRun`. Existing timers for the same agent+chatId are cancelled before scheduling to prevent accumulation. This guarantees persistent agents never silently stop — the chain is unbreakable.
+## Primitives
 
-**Toolsets** are groups of tools loaded lazily via meta-tools (e.g., `use_vault`). Defined in `src/tools/sets/`.
+**Tools** declare `sideEffect: "external" | "stateful" | "pure"` (enforced at registration). Under `!simulate`, `external`/`stateful` calls route through the per-turn simulation overlay — either a custom `simulate` handler or a generic faker. `pure` passes through.
 
-**Skills** are static `.md` reference documents in `{vault}/Klaus/skills/` with optional YAML frontmatter (`description:` field). Agents that declare `skills:` in frontmatter get a `skill_get` tool scoped to those names via `z.enum`. Skill descriptions are included in the tool description to help the model decide when to load. The `{{skills}}` Handlebars var is injected so agents can list available skills in the prompt. Zero token overhead for agents without skills.
+**Provider tools** (e.g. `web_search`, `web_fetch`) are OpenRouter server tools — they get appended verbatim to the request's `tools` array (`{ type: "openrouter:web_search" }`) and execute server-side; the agent loop never sees a client-side tool_call for them. Declared per agent in `providerTools: […]`.
 
-**Notes** are auto-managed, topic-keyed `.md` files in `{vault}/Klaus/notes/`. Unlike snippets (always loaded) or skills (static, on-demand), notes are written and updated by agents at runtime — learned knowledge that is too numerous or low-priority to always inject. The `notes` toolset (`src/tools/sets/notes.ts`) provides four tools: `notes.search` (substring match across filenames, descriptions, body), `notes.write` (create/overwrite with optional frontmatter description), `notes.edit` (find-and-replace within an existing note), `notes.delete` (with confirm guard). Agents opt in by adding `notes` to their `toolsets:` list.
+**Toolsets** are lazy-loaded via `load_<name>` meta-tools so the initial context stays lean.
 
-**Flags** are `.md` files in `{vault}/Klaus/flags/` with a `description:` frontmatter field and a body that is injected into the prompt when active. Users activate flags with `!flagName` in their message. `src/core/flags.ts` manages the `flagRegistry` (Map<name, FlagMeta>), loaded at startup and hot-reloaded by the watcher. Flag text is stripped from the user message and injected via `buildUserMessageText` in the pipeline.
+**Skills** are `.md` docs in `{vault}/Klaus/skills/`, loaded via a per-agent `skill_get` tool scoped to the agent's declared list.
 
-**Commands** are `/command` handlers that bypass the LLM entirely. Defined in `src/commands/` and registered in `src/commands/register.ts`. Current commands: `/status`, `/tasks`, `/default`, `/help`, `/new`. Each command implements the `Command` interface (name, description, execute).
+**Variables** produce the unified `{{namespace}}` for templates. One file per top-level key in `src/primitives/variables/`. User messages also support `$var.sub.path` shortcut syntax.
 
-**Extension pattern:** new agent = new `.md` file; new tool = new file implementing `ToolDefinition`; new context variable = new file implementing `ContextVariable`. Extend by adding, not modifying.
+**Overrides** are `!preset` words in messages, defined in `Klaus/overrides.yml`. Parsed out, merged into `TurnConfig` on top of agent frontmatter defaults. Reserved for pipeline/agent behavior — NOT for prompt content. Aliases resolve at parse time.
 
-### Storage (src/store/)
+**Commands** are `/command` handlers that bypass the LLM. Auto-discovered from `src/primitives/commands/`.
 
-All operational data is stored as flat files — no database.
+**Extension pattern** — drop a file, export the right shape, restart. No wiring.
 
-| Module | Format | Purpose |
-|--------|--------|---------|
-| `conversation.ts` | JSONL (msg/ack/reaction/trace events) | Chat history with in-memory indexes |
-| `jsonl.ts` | Date-partitioned JSONL | Generic append/read utilities |
-| `costs.ts` | JSONL | Cost tracking by service |
-| `invocations.ts` | JSONL | LLM call traces |
-| `files.ts` | JSONL index + blob storage | File metadata |
-| `schedules.ts` | JSON + croner cron jobs | Recurring schedule persistence |
-| `timers.ts` | JSON + setTimeout | One-time future execution |
-| `budgets.ts` | JSON | Budget config |
+## Reports
 
-The user's Obsidian vault serves as the knowledge graph — notes are nodes, `[[wikilinks]]` are edges, YAML frontmatter is metadata. Vault tools provide search, read, write, and link traversal.
+One JSON file per turn at `{dataDir}/logs/<date>/<HH-MM-SS>--<runIdShort>.json` (time uses `settings.timezone`). `turn.config.report` is a boolean — `true` writes the report, `false` skips. Each report contains the full execution record: routing, overrides, variables summary, message metadata, and **verbatim** system prompt + user message + history transcript (for spotting injection / format bugs).
 
-### Key modules
+Sim runs always set `simulation: true` and carry the `simulatedActions` list from the overlay.
 
-| Path | Concern |
-|------|---------|
-| `src/types.ts` | All core interfaces (InboundMessage, TurnContext, AgentDefinition, ToolDefinition, ContextVariable) |
-| `src/settings.ts` | Model tiers, pricing, context budgets, rate limits, timeouts, vision, whatsapp transport, vault subdirectory getters, locale, dataDir |
-| `src/core/flags.ts` | Flag registry — loads `.md` flag definitions from vault, hot-reloaded |
-| `src/core/pipeline.ts` | Message orchestrator |
-| `src/core/agent.ts` | Agent executor + agentRegistry |
-| `src/core/assemble.ts` | Context assembly — runs context variables in parallel, enforces token budget |
-| `src/core/registry.ts` | Tool + toolset registry, meta-tool generation, dynamic tool loading |
-| `src/core/dispatch.ts` | Unified dispatch function (inline/async modes) |
-| `src/core/model-router.ts` | LLM call routing + cost logging |
-| `src/core/queue.ts` | In-memory job queue + active job tracking |
-| `src/core/watcher.ts` | File watcher for hot-reloading agents, skills, and flags |
-| `src/store/` | Flat-file storage modules (conversations, schedules, timers, costs, files, etc.) |
-| `src/context/` | Context variable modules (inject dynamic content into prompts) |
-| `src/tools/` | Tool definitions + toolset loaders |
-| `src/tools/skill.ts` | `buildSkillTool()` — per-agent skill.get tool builder |
-| `src/tools/sets/dispatch.ts` | `dispatch` toolset: `dispatch.agent`, `dispatch.schedule`, `dispatch.timer`, `dispatch.list`, `dispatch.cancel` |
-| `src/tools/sets/notes.ts` | `notes` toolset: `notes.search`, `notes.write`, `notes.edit`, `notes.delete` — auto-managed knowledge notes |
-| `src/tools/conversation.ts` | Standalone tool: search conversation history (text, around message, time range) |
-| `src/tools/cost-tracking.ts` | Standalone tool: query LLM/TTS/STT spend and budget status |
-| `src/commands/` | /command handlers |
-| `src/commands/register.ts` | Registers all commands into the command registry |
-| `src/whatsapp/` | Transport layer (Baileys connection, send, receive, TTS, STT, presence) |
+`settings.reports.vaultMarkdown: true` mirrors each report into `{vault}/Klaus/reports/<date>/<file>.md` for Obsidian reading.
 
-### Project boundaries
+## Simulation (`!simulate` / `!sim`)
 
-- `/whatsapp` — pure transport, no business logic
-- `/core` — pipeline, agent engine, queue, middleware
-- `/store` — flat-file storage, JSONL read/write, schedules, timers, indexes
-- `/tools` — each tool/tool-set in its own file or folder
-- `/context` — one file per context variable
-- `{vault}/Klaus/agents/` — markdown prompt files with YAML frontmatter
-- `{vault}/Klaus/skills/` — static `.md` reference documents loaded on demand via `skill_get`
-- `{vault}/Klaus/notes/` — auto-managed knowledge notes, written/searched by agents at runtime via `notes.*` tools
-- `{vault}/Klaus/flags/` — `.md` flag definitions with `description:` frontmatter, hot-reloaded
-- `{vault}/Klaus/snippets/` — static prompt content (soul.md, architecture.md) injected as template vars
-- `{vault}/Klaus/user.md` — user profile, updated by memorize agent
+Try actions with real data, no real consequences. Reports always emitted, tagged `SIM`.
 
-Live Vault is located at /Users/janbassen/Vaults/Jan/Klaus on this pc
+Elevates `ghost: true` + `skipHistory: true` — neither the user message nor the trace persist. Inline dispatch propagates `simulate` into sub-agents automatically.
 
-### Deployment
+Overlay gives read-from-write coherence: a `vault_write` followed by `vault_read` sees the pending content. Same for dispatch timers/schedules and file uploads.
 
-Published as `janbassen1/klaus` on Docker Hub. The Dockerfile includes OCI labels and a VERSION build arg that is exposed via the `/healthz` endpoint. The container runs as non-root (`USER bun`). `LOG_FORMAT=json` is recommended for NAS log viewers.
+## Storage
 
-### Testing conventions
+| Store | Format | Purpose |
+|---|---|---|
+| `history` | JSONL, day-partitioned | Conversation events (msg, ack, reaction, trace, break) |
+| `report` | JSON file per run, day-partitioned | Per-turn execution record |
+| `files` | JSONL index + blobs | File metadata + content on disk |
+| `schedules` | JSON + croner | Recurring cron jobs |
+| `timers` | JSON + setTimeout | One-shot future execution |
 
-- Tests mirror source tree under `src/__tests__/`
-- Write tests alongside the code being developed, not after
-- Mocks must be registered **before** importing the module under test (Bun mock hoisting)
-- Mock at the `store/*` boundary for unit tests (e.g., `mock.module("@/store/conversation", ...)`)
-- Clean up registries in `afterEach` (agentRegistry, toolRegistry)
-- No coverage targets — optimize for confidence in the critical paths: pipeline, middleware, store read/write, tool execution
-- Agent evals (`*.eval.ts`) test non-deterministic behavior — not CI-blocking, tracked over time
-- Test timeout: 30s (bunfig.toml)
+All under `{dataDir}` (default `./data`). The vault is separate — it's the knowledge graph (notes, wikilinks, frontmatter).
 
-### Code conventions
+## Vault layout (`{vault}/Klaus/`)
 
-- No barrel files — import from specific module paths
-- Errors are values — return don't throw (except at true system boundaries)
-- No `any` types; explicit return types on exported functions
-- Prefer `const` and pure functions; minimize mutable state
-- Config lives in `src/settings.ts` (not scattered env reads). All tunable constants (token budgets, retry counts, dimension limits, timeout values, max sizes) belong in `settings.ts` — never inline magic numbers. Vault subdirectory paths use `settings.vault.*Dir` getters. The `modelTiers` array and `ModelTier` type are derived from `settings.models` — keep schemas (e.g. agent frontmatter) in sync via `z.enum(modelTiers)`.
-- One concern per file
-- Path alias `@/` maps to `src/`
-- No unnecessary comments — code should be self-explanatory; comments explain *why*, never *what*
-- Keep the dependency list short; justify every addition — use `bun add` / `bun update`, no need to check versions manually
+```
+agents/       # agent .md files
+skills/       # on-demand reference docs
+snippets/     # prompt fragments compiled into {{snippets.<name>}}
+templates/    # message-user.md, message-agent.md, report.md,
+              # error.md, welcome.md
+reports/      # optional vault-markdown report mirror
+overrides.yml # !preset definitions
+settings.yml  # YAML settings (hot-reloaded via Zod validation)
+```
+
+`ensureDefaults()` checks only whether the vault's internal `Klaus/` folder exists. If it does not exist, it copies the repo's `vault/` tree once. If `Klaus/` exists, the whole folder is user-owned state: do not merge repo defaults into it, do not backfill files, and do not overwrite user edits.
+
+Runtime settings are read from `{vault}/Klaus/settings.yml` after startup vault sync/hydration. If startup says settings are invalid or missing while sync downloaded `Klaus/settings.yml`, debug path resolution, file contents, YAML parsing, and strict Zod validation. Do not solve this class of issue by merging the defaults folder.
+
+Templates are required — `runAgent()` throws if `message-user.md` etc. are missing.
