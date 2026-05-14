@@ -208,14 +208,14 @@ async function mirrorToVault(
 	entry: ReportEntry,
 	filename: string,
 ): Promise<string> {
-	const date = localDateString(settings.timezone);
-	const dir = path.join(settings.vault.reportsDir, date);
-	await mkdir(dir, { recursive: true });
-	const filePath = path.join(dir, `${filename}.md`);
 	const rendered = renderTemplate(
 		"report",
 		entry as unknown as Record<string, unknown>,
 	);
+	const date = localDateString(settings.timezone);
+	const dir = path.join(settings.vault.reportsDir, date);
+	await mkdir(dir, { recursive: true });
+	const filePath = path.join(dir, `${filename}.md`);
 	await writeFile(filePath, `${rendered}\n`);
 	return filePath;
 }

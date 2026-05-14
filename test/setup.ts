@@ -8,7 +8,7 @@
  * 2. Per-test cleanup of in-memory registries that survive between suites.
  */
 
-import "../src/infra/config.ts";
+import { settings } from "../src/infra/config.ts";
 
 import { afterEach } from "vitest";
 import { agentRegistry } from "../src/pipeline/agents.ts";
@@ -18,6 +18,8 @@ import {
 	toolsetRegistry,
 } from "../src/primitives/tools/index.ts";
 import { skillRegistry } from "../src/primitives/tools/skill.ts";
+
+settings.reports.vaultMarkdown = false;
 
 afterEach(() => {
 	agentRegistry.clear();
