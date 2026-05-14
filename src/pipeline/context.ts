@@ -20,7 +20,10 @@ import { log } from "../infra/logger.ts";
 import { fakeExternal, fakeStateful, getOverlay } from "../infra/simulation.ts";
 import { findFileByExternalId } from "../infra/store/files.ts";
 import { getConversation } from "../infra/store/history.ts";
-import type { ToolDefinition } from "../primitives/tools/index.ts";
+import type {
+	ToolDefinition,
+	ToolsetDefinition,
+} from "../primitives/tools/index.ts";
 import {
 	generateMetaTool,
 	toolRegistry,
@@ -106,6 +109,13 @@ export interface AssembledTools {
 	prepareStep: (steps: ModelCallStep[]) => string[];
 }
 
+interface ToolAssembly {
+	functionTools: FunctionToolSet;
+	serverTools: ChatTool[];
+	initialActive: string[];
+	wrap(t: ToolDefinition): FunctionTool;
+}
+
 /**
  * Per-call tool dispatcher. Honours `turn.config.simulate`:
  *   - external → never invoke real `execute`; return a plausible fake
@@ -161,6 +171,157 @@ async function invokeTool(
 	return result;
 }
 
+function createToolAssembly(turn: TurnContext): ToolAssembly {
+	const functionTools: FunctionToolSet = {};
+	const serverTools: ChatTool[] = [];
+	const initialActive: string[] = [];
+
+	return {
+		functionTools,
+		serverTools,
+		initialActive,
+		wrap: (t) => ({
+			description: t.description,
+			inputSchema: t.inputSchema,
+			execute: (input: unknown) => invokeTool(t, input, turn),
+		}),
+	};
+}
+
+function addInitialTool(name: string, assembly: ToolAssembly): void {
+	const tool = toolRegistry.get(name);
+	if (!tool) {
+		log.warn(`[context] unknown tool: ${name}`);
+		return;
+	}
+	assembly.functionTools[tool.name] = assembly.wrap(tool);
+	assembly.initialActive.push(tool.name);
+}
+
+function addProviderTools(def: AgentDefinition, assembly: ToolAssembly): void {
+	for (const name of def.providerTools ?? []) {
+		const providerTool = getProviderTool(name);
+		if (!providerTool) {
+			log.warn(`[context] provider tool "${name}" not available`);
+			continue;
+		}
+		assembly.serverTools.push(providerTool);
+	}
+}
+
+function addToolsetTools(tsName: string, assembly: ToolAssembly): void {
+	const toolset = toolsetRegistry.get(tsName);
+	if (!toolset) {
+		log.warn(`[context] unknown toolset: ${tsName}`);
+		return;
+	}
+
+	const meta = generateMetaTool(toolset);
+	assembly.functionTools[meta.name] = assembly.wrap(meta);
+	assembly.initialActive.push(meta.name);
+	for (const tool of toolset.tools) {
+		assembly.functionTools[tool.name] = assembly.wrap(tool);
+	}
+}
+
+function addHiddenTool(toolName: string, assembly: ToolAssembly): void {
+	const tool = toolRegistry.get(toolName);
+	if (!tool) return;
+	if (!assembly.functionTools[tool.name]) {
+		assembly.functionTools[tool.name] = assembly.wrap(tool);
+	}
+}
+
+function addSkillTool(
+	toolName: string,
+	skillName: string,
+	assembly: ToolAssembly,
+): void {
+	const tool = toolRegistry.get(toolName);
+	if (!tool) {
+		log.warn(`[context] unknown tool "${toolName}" in skill ${skillName}`);
+		return;
+	}
+	if (!assembly.functionTools[tool.name]) {
+		assembly.functionTools[tool.name] = assembly.wrap(tool);
+	}
+}
+
+function addSkillToolset(
+	tsName: string,
+	skillName: string,
+	assembly: ToolAssembly,
+): void {
+	const toolset = toolsetRegistry.get(tsName);
+	if (!toolset) {
+		log.warn(`[context] unknown toolset "${tsName}" in skill ${skillName}`);
+		return;
+	}
+	for (const tool of toolset.tools) addHiddenTool(tool.name, assembly);
+}
+
+function addSkillTools(def: AgentDefinition, assembly: ToolAssembly): void {
+	if (!def.skills?.length) return;
+
+	const skillTool = buildSkillTool(def.skills, settings.vault.skillsDir);
+	assembly.functionTools[skillTool.name] = assembly.wrap(skillTool);
+	assembly.initialActive.push(skillTool.name);
+
+	for (const skillName of def.skills) {
+		const meta = skillRegistry.get(skillName);
+		if (!meta) continue;
+		for (const toolName of meta.tools) {
+			addSkillTool(toolName, skillName, assembly);
+		}
+		for (const tsName of meta.toolsets) {
+			addSkillToolset(tsName, skillName, assembly);
+		}
+	}
+}
+
+function activateToolset(
+	active: Set<string>,
+	toolset: ToolsetDefinition,
+): void {
+	active.delete(`load_${toolset.name}`);
+	for (const tool of toolset.tools) active.add(tool.name);
+}
+
+function activateSkillTools(
+	active: Set<string>,
+	skillName: string | undefined,
+): void {
+	const meta = skillName ? skillRegistry.get(skillName) : undefined;
+	if (!meta) return;
+
+	for (const toolName of meta.tools) active.add(toolName);
+	for (const tsName of meta.toolsets) {
+		const toolset = toolsetRegistry.get(tsName);
+		if (toolset) activateToolset(active, toolset);
+	}
+}
+
+function prepareActiveTools(
+	initialActive: string[],
+	steps: ModelCallStep[],
+): string[] {
+	const active = new Set(initialActive);
+	for (const step of steps) {
+		for (const call of step.toolCalls) {
+			const name = call.toolName;
+			if (name.startsWith("load_")) {
+				const toolset = toolsetRegistry.get(name.slice(5));
+				if (toolset) activateToolset(active, toolset);
+			} else if (name === "skill_get") {
+				const skillName =
+					typeof call.args?.name === "string" ? call.args.name : undefined;
+				activateSkillTools(active, skillName);
+			}
+		}
+	}
+	return [...active];
+}
+
 /**
  * Build the function-tool set + initial allowlist.
  *
@@ -172,109 +333,23 @@ function assembleTools(
 	def: AgentDefinition,
 	turn: TurnContext,
 ): AssembledTools {
-	const wrap = (t: ToolDefinition): FunctionTool => ({
-		description: t.description,
-		inputSchema: t.inputSchema,
-		execute: (input: unknown) => invokeTool(t, input, turn),
-	});
-
-	const functionTools: FunctionToolSet = {};
-	const initialActive: string[] = [];
+	const assembly = createToolAssembly(turn);
 
 	for (const name of def.tools) {
-		const t = toolRegistry.get(name);
-		if (!t) {
-			log.warn(`[context] unknown tool: ${name}`);
-			continue;
-		}
-		functionTools[t.name] = wrap(t);
-		initialActive.push(t.name);
+		addInitialTool(name, assembly);
 	}
-
-	const serverTools: ChatTool[] = [];
-	for (const name of def.providerTools ?? []) {
-		const pt = getProviderTool(name);
-		if (!pt) {
-			log.warn(`[context] provider tool "${name}" not available`);
-			continue;
-		}
-		serverTools.push(pt);
-	}
-
+	addProviderTools(def, assembly);
 	for (const tsName of def.toolsets ?? []) {
-		const ts = toolsetRegistry.get(tsName);
-		if (!ts) {
-			log.warn(`[context] unknown toolset: ${tsName}`);
-			continue;
-		}
-		const meta = generateMetaTool(ts);
-		functionTools[meta.name] = wrap(meta);
-		initialActive.push(meta.name);
-		for (const t of ts.tools) {
-			functionTools[t.name] = wrap(t);
-		}
+		addToolsetTools(tsName, assembly);
 	}
+	addSkillTools(def, assembly);
 
-	if (def.skills?.length) {
-		const skillTool = buildSkillTool(def.skills, settings.vault.skillsDir);
-		functionTools[skillTool.name] = wrap(skillTool);
-		initialActive.push(skillTool.name);
-
-		for (const sName of def.skills) {
-			const meta = skillRegistry.get(sName);
-			if (!meta) continue;
-			for (const toolName of meta.tools) {
-				const t = toolRegistry.get(toolName);
-				if (!t) {
-					log.warn(`[context] unknown tool "${toolName}" in skill ${sName}`);
-					continue;
-				}
-				if (!functionTools[t.name]) functionTools[t.name] = wrap(t);
-			}
-			for (const tsName of meta.toolsets) {
-				const ts = toolsetRegistry.get(tsName);
-				if (!ts) {
-					log.warn(`[context] unknown toolset "${tsName}" in skill ${sName}`);
-					continue;
-				}
-				for (const t of ts.tools) {
-					if (!functionTools[t.name]) functionTools[t.name] = wrap(t);
-				}
-			}
-		}
-	}
-
-	const prepareStep = (steps: ModelCallStep[]): string[] => {
-		const active = new Set(initialActive);
-		for (const step of steps) {
-			for (const call of step.toolCalls) {
-				const name = call.toolName;
-				if (name.startsWith("load_")) {
-					const tsName = name.slice(5);
-					const ts = toolsetRegistry.get(tsName);
-					if (!ts) continue;
-					active.delete(`load_${tsName}`);
-					for (const t of ts.tools) active.add(t.name);
-				} else if (name === "skill_get") {
-					const sName =
-						typeof call.args?.name === "string" ? call.args.name : undefined;
-					const meta = sName ? skillRegistry.get(sName) : undefined;
-					if (!meta) continue;
-					for (const toolName of meta.tools) {
-						active.add(toolName);
-					}
-					for (const tsName of meta.toolsets) {
-						const ts = toolsetRegistry.get(tsName);
-						if (!ts) continue;
-						for (const t of ts.tools) active.add(t.name);
-					}
-				}
-			}
-		}
-		return [...active];
+	return {
+		functionTools: assembly.functionTools,
+		serverTools: assembly.serverTools,
+		initialActive: assembly.initialActive,
+		prepareStep: (steps) => prepareActiveTools(assembly.initialActive, steps),
 	};
-
-	return { functionTools, serverTools, initialActive, prepareStep };
 }
 
 // ── History ────────────────────────────────────────────────────────────────
@@ -293,6 +368,129 @@ export interface HistoryOptions {
 interface AssembledHistory {
 	messages: ChatMessage[];
 	messageRefs: Record<string, { externalId: string; role: string }>;
+}
+
+type ConversationRow = Awaited<ReturnType<typeof getConversation>>[number];
+
+function withoutCurrentMessage(
+	rows: ConversationRow[],
+	messageId: string | undefined,
+): ConversationRow[] {
+	if (!messageId) return rows;
+	return rows.filter((row) => row.externalId !== messageId);
+}
+
+function followedByAgentReply(
+	rows: ConversationRow[],
+	index: number,
+	agentName: string,
+): boolean {
+	for (let j = index + 1; j < rows.length; j++) {
+		const next = rows[j];
+		if (next?.role === "assistant") return next.agent === agentName;
+	}
+	return false;
+}
+
+function filterAgentHistory(
+	rows: ConversationRow[],
+	agentName: string | undefined,
+	scope: HistoryOptions["scope"],
+): ConversationRow[] {
+	if (scope !== "agent" || !agentName) return rows;
+	return rows.filter((row, index, allRows) => {
+		if (row.role === "assistant") return row.agent === agentName;
+		return followedByAgentReply(allRows, index, agentName);
+	});
+}
+
+function visibleHistoryRows(
+	rows: ConversationRow[],
+	limit: number,
+): ConversationRow[] {
+	return rows
+		.filter((row) => (row.content ?? "").trim().length > 0)
+		.slice(-limit);
+}
+
+function addMessageRef(
+	messageRefs: AssembledHistory["messageRefs"],
+	label: number,
+	row: ConversationRow,
+): void {
+	if (!row.externalId) return;
+	messageRefs[String(label)] = {
+		externalId: row.externalId,
+		role: row.role,
+	};
+}
+
+function renderHistoryUserMessage(
+	row: ConversationRow,
+	label: number,
+): ChatMessage {
+	const media = row.externalId ? findFileByExternalId(row.externalId) : null;
+	const isVoice = media?.mimeType.startsWith("audio/") ?? false;
+	const isImage = media?.mimeType.startsWith("image/") ?? false;
+	const isDocument = !!media && !isVoice && !isImage;
+	const sidecar = isDocument ? `${media.path}.parsed.txt` : null;
+	const extractedText =
+		sidecar && existsSync(sidecar) ? readFileSync(sidecar, "utf-8") : undefined;
+
+	return {
+		role: "user",
+		content: renderTemplate("message-user", {
+			label,
+			messageText: row.content ?? "",
+			isVoice,
+			isImage,
+			isDocument,
+			...(media
+				? {
+						fileName: path.basename(media.path),
+						mimeType: media.mimeType,
+					}
+				: {}),
+			...(extractedText ? { extractedText } : {}),
+			...(row.quotedText ? { quotedText: row.quotedText } : {}),
+			...(row.quotedRole ? { quotedRole: row.quotedRole } : {}),
+		}),
+	};
+}
+
+function reactionSummary(row: ConversationRow): string {
+	return row.reactions
+		.map((reaction) => reaction.emoji)
+		.filter((emoji) => emoji.length > 0)
+		.join(" ");
+}
+
+function renderHistoryAssistantMessage(
+	row: ConversationRow,
+	label: number,
+	defaultAgent: string,
+): ChatMessage {
+	const reactionEmojis = reactionSummary(row);
+	return {
+		role: "assistant",
+		content: renderTemplate("message-agent", {
+			label,
+			message: row.content ?? "",
+			agentLabel: row.agent ?? "",
+			isNotDefaultAgent: row.agent ? row.agent !== defaultAgent : false,
+			...(reactionEmojis ? { reactionEmojis } : {}),
+		}),
+	};
+}
+
+function renderHistoryRow(
+	row: ConversationRow,
+	label: number,
+	defaultAgent: string,
+): ChatMessage {
+	return row.role === "user"
+		? renderHistoryUserMessage(row, label)
+		: renderHistoryAssistantMessage(row, label, defaultAgent);
 }
 
 /**
@@ -318,23 +516,12 @@ async function assembleHistory(
 	const defaultAgent = getDefaultAgent(turn.chatId);
 
 	const allMessages = await getConversation();
-
-	let filtered = turn.message.id
-		? allMessages.filter((m) => m.externalId !== turn.message?.id)
-		: allMessages;
-	if (scope === "agent" && agentName) {
-		filtered = filtered.filter((m, idx, arr) => {
-			if (m.role === "assistant") return m.agent === agentName;
-			for (let j = idx + 1; j < arr.length; j++) {
-				const next = arr[j];
-				if (next?.role === "assistant") return next.agent === agentName;
-			}
-			return false;
-		});
-	}
-	// Drop empty rows (failed turns left no content) before limit/numbering.
-	filtered = filtered.filter((m) => (m.content ?? "").trim().length > 0);
-	const recent = filtered.slice(-limit);
+	const filtered = filterAgentHistory(
+		withoutCurrentMessage(allMessages, turn.message.id),
+		agentName,
+		scope,
+	);
+	const recent = visibleHistoryRows(filtered, limit);
 
 	const messages: ChatMessage[] = [];
 	const messageRefs: Record<string, { externalId: string; role: string }> = {};
@@ -344,62 +531,8 @@ async function assembleHistory(
 		if (!row) continue;
 
 		const label = i + 1;
-		if (row.externalId) {
-			messageRefs[String(label)] = {
-				externalId: row.externalId,
-				role: row.role,
-			};
-		}
-
-		if (row.role === "user") {
-			const media = row.externalId
-				? findFileByExternalId(row.externalId)
-				: null;
-			const isVoice = media?.mimeType.startsWith("audio/") ?? false;
-			const isImage = media?.mimeType.startsWith("image/") ?? false;
-			const isDocument = !!media && !isVoice && !isImage;
-			const sidecar = isDocument ? `${media.path}.parsed.txt` : null;
-			const extractedText =
-				sidecar && existsSync(sidecar)
-					? readFileSync(sidecar, "utf-8")
-					: undefined;
-			messages.push({
-				role: "user",
-				content: renderTemplate("message-user", {
-					label,
-					messageText: row.content ?? "",
-					isVoice,
-					isImage,
-					isDocument,
-					...(media
-						? {
-								fileName: path.basename(media.path),
-								mimeType: media.mimeType,
-							}
-						: {}),
-					...(extractedText ? { extractedText } : {}),
-					...(row.quotedText ? { quotedText: row.quotedText } : {}),
-					...(row.quotedRole ? { quotedRole: row.quotedRole } : {}),
-				}),
-			});
-			continue;
-		}
-
-		const isNotDefaultAgent = row.agent ? row.agent !== defaultAgent : false;
-		const reactionEmojis = row.reactions
-			.map((r) => r.emoji)
-			.filter((e) => e.length > 0)
-			.join(" ");
-		messages.push({
-			role: "assistant",
-			content: renderTemplate("message-agent", {
-				label,
-				message: row.content ?? "",
-				agentLabel: row.agent ?? "",
-				isNotDefaultAgent,
-				...(reactionEmojis ? { reactionEmojis } : {}),
-			}),
-		});
+		addMessageRef(messageRefs, label, row);
+		messages.push(renderHistoryRow(row, label, defaultAgent));
 	}
 
 	return { messages, messageRefs };

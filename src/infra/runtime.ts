@@ -6,7 +6,7 @@ export async function readText(filePath: string): Promise<string> {
 	return await readFile(filePath, "utf8");
 }
 
-export async function readBytes(filePath: string): Promise<Uint8Array> {
+async function readBytes(filePath: string): Promise<Uint8Array> {
 	return await readFile(filePath);
 }
 

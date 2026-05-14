@@ -6,7 +6,7 @@ We'll be opening this up as "the agent for tinkerers". Polish the codebase and t
 ## Config
 
 - [x] pin dependency versions? (or simpler fix for protection against supply chain attacks)
-- [ ] remove and cleanup after fallow
+- [x] remove and cleanup after fallow
 - [ ] remove and cleanup after claude tooling + 
 - [ ] remove .agent skills with simple docs guide in agents.md
 

@@ -34,7 +34,7 @@ export function clearSetupCode(): void {
 	_setupCode = null;
 }
 
-export async function ensureLoginFolder(): Promise<void> {
+async function ensureLoginFolder(): Promise<void> {
 	const dir = settings.vault.loginDir;
 	await mkdir(dir, { recursive: true });
 
@@ -102,7 +102,7 @@ export async function clearLoginFolder(): Promise<void> {
  * The choice is persisted into settings because self-mode changes both receive
  * and send behavior after setup.
  */
-export function startLoginModeWatcher(): void {
+function startLoginModeWatcher(): void {
 	if (_watcherCtl) return;
 	const ctl = new AbortController();
 	_watcherCtl = ctl;

@@ -20,8 +20,6 @@ interface OutboundMessage {
 	label?: string;
 }
 
-import { getSocket } from "./connection.ts";
-
 // Module-level socket reference set by attachReceiveHandler at startup.
 let _socket: WASocket | null = null;
 
@@ -175,8 +173,11 @@ export async function sendReaction(
 	msgKey: WAMessageKey,
 	emoji: string,
 ): Promise<undefined | Error> {
+	const socket = _socket;
+	if (!socket)
+		return new Error("No WhatsApp socket — call setSocket() before sending");
 	try {
-		await getSocket().sendMessage(chatId, {
+		await socket.sendMessage(chatId, {
 			react: { key: msgKey, text: emoji },
 		});
 		log.debug("[send] reaction sent");

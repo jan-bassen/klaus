@@ -301,6 +301,22 @@ const SettingsSchema = z
 
 type YamlSettings = z.output<typeof SettingsSchema>;
 
+function parseYamlSettings(
+	raw: string,
+): { ok: true; value: YamlSettings } | { ok: false; error: string } {
+	const parsed = parseYaml(raw);
+	const result = SettingsSchema.safeParse(parsed ?? {});
+	if (!result.success) {
+		return {
+			ok: false,
+			error: result.error.issues
+				.map((i) => `${i.path.join(".")}: ${i.message}`)
+				.join("; "),
+		};
+	}
+	return { ok: true, value: result.data };
+}
+
 // ── Bundled defaults ───────────────────────────────────────────────────────
 
 const BUNDLED_SETTINGS_PATH = path.join(bundledVaultDir, "settings.yml");
@@ -317,17 +333,13 @@ function loadBundledDefaults(): YamlSettings {
 		);
 	}
 
-	const parsed = parseYaml(raw);
-	const result = SettingsSchema.safeParse(parsed ?? {});
-	if (!result.success) {
-		const issues = result.error.issues
-			.map((i) => `${i.path.join(".")}: ${i.message}`)
-			.join("; ");
+	const result = parseYamlSettings(raw);
+	if (!result.ok) {
 		throw new Error(
-			`Bundled default settings at ${BUNDLED_SETTINGS_PATH} failed validation: ${issues}`,
+			`Bundled default settings at ${BUNDLED_SETTINGS_PATH} failed validation: ${result.error}`,
 		);
 	}
-	return result.data;
+	return result.value;
 }
 
 // ── Live settings object ───────────────────────────────────────────────────
@@ -390,17 +402,10 @@ export async function loadSettingsFromDisk(): Promise<
 
 	try {
 		const raw = await readText(filePath);
-		const parsed = parseYaml(raw);
-		const result = SettingsSchema.safeParse(parsed ?? {});
+		const result = parseYamlSettings(raw);
+		if (!result.ok) return { ok: false, error: result.error };
 
-		if (!result.success) {
-			const issues = result.error.issues
-				.map((i) => `${i.path.join(".")}: ${i.message}`)
-				.join("; ");
-			return { ok: false, error: issues };
-		}
-
-		applyYaml(result.data);
+		applyYaml(result.value);
 		log.info("[config] loaded from disk");
 		return { ok: true };
 	} catch (err) {

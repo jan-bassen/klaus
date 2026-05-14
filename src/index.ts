@@ -46,6 +46,7 @@ import {
 import {
 	completeSoloSetup,
 	prepareLoginFolderForStartup,
+	writeQrToVault,
 } from "./infra/whatsapp/login.ts";
 import { attachReceiveHandler } from "./infra/whatsapp/receive.ts";
 import {
@@ -306,18 +307,21 @@ async function main(): Promise<void> {
 		}
 	}, warnAfterMs);
 
-	startConnection(async (socket) => {
-		clearTimeout(connectionWarnTimer);
-		setSocket(socket);
-		if (!settings.allowedChat && settings.whatsapp.selfMode) {
-			await completeSoloSetup().catch((err) =>
-				log.error("[startup] solo setup failed", {
-					error: err instanceof Error ? err.message : String(err),
-				}),
-			);
-		}
-		attachReceiveHandler(socket);
-		log.info("[startup] WhatsApp receive handler attached");
+	startConnection({
+		onQr: writeQrToVault,
+		onOpen: async (socket) => {
+			clearTimeout(connectionWarnTimer);
+			setSocket(socket);
+			if (!settings.allowedChat && settings.whatsapp.selfMode) {
+				await completeSoloSetup().catch((err) =>
+					log.error("[startup] solo setup failed", {
+						error: err instanceof Error ? err.message : String(err),
+					}),
+				);
+			}
+			attachReceiveHandler(socket);
+			log.info("[startup] WhatsApp receive handler attached");
+		},
 	}).catch((err: unknown) => {
 		clearTimeout(connectionWarnTimer);
 		log.error("[startup] WhatsApp connection failed", {

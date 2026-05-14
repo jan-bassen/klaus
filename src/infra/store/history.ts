@@ -68,6 +68,19 @@ interface ConversationStore {
 	rebuildIndexes(): Promise<void>;
 }
 
+async function readNonEmptyLines(filePaths: string[]): Promise<string[]> {
+	const lines: string[] = [];
+	for (const filePath of filePaths) {
+		try {
+			const text = await readText(filePath);
+			for (const line of text.split("\n")) {
+				if (line.trim()) lines.push(line);
+			}
+		} catch {}
+	}
+	return lines;
+}
+
 // -- Event schemas & types --
 
 const ConversationMessageEventSchema = z.object({
@@ -184,8 +197,129 @@ interface AgentTrace {
 	steps: TraceStep[];
 }
 
+interface ParsedConversationEvents {
+	messages: Map<string, ConversationMessage>;
+	acks: Map<string, string>;
+	reactions: ConversationReactionEvent[];
+	order: string[];
+}
+
 interface ConversationStoreEnv {
 	dataDir: string;
+}
+
+function conversationMessageFromEvent(
+	event: ConversationMessageEvent,
+): ConversationMessage {
+	return {
+		id: event.id,
+		role: event.role,
+		content: event.content,
+		createdAt: event.createdAt,
+		...(event.externalId ? { externalId: event.externalId } : {}),
+		...(event.quotedText ? { quotedText: event.quotedText } : {}),
+		...(event.quotedRole ? { quotedRole: event.quotedRole } : {}),
+		...(event.overrides ? { overrides: event.overrides } : {}),
+		...(event.command != null ? { command: event.command } : {}),
+		...(event.agent ? { agent: event.agent } : {}),
+		...(event.runId ? { runId: event.runId } : {}),
+		...(event.failed ? { failed: true } : {}),
+		reactions: [],
+	};
+}
+
+function parseConversationEvents(lines: string[]): ParsedConversationEvents {
+	const messages = new Map<string, ConversationMessage>();
+	const acks = new Map<string, string>();
+	const reactions: ConversationReactionEvent[] = [];
+	const order: string[] = [];
+
+	for (const line of lines) {
+		if (!line.trim()) continue;
+		try {
+			const event = ConversationEventSchema.parse(JSON.parse(line));
+
+			if (event.kind === "msg") {
+				messages.set(event.id, conversationMessageFromEvent(event));
+				order.push(event.id);
+			} else if (event.kind === "ack") {
+				acks.set(event.messageId, event.externalId);
+			} else if (event.kind === "reaction") {
+				reactions.push(event);
+			}
+		} catch {
+			log.warn("[conversation] skipping corrupt line", {
+				line: line.slice(0, 100),
+			});
+		}
+	}
+
+	return { messages, acks, reactions, order };
+}
+
+function applyAcks(
+	messages: Map<string, ConversationMessage>,
+	acks: Map<string, string>,
+): void {
+	for (const [messageId, externalId] of acks) {
+		const msg = messages.get(messageId);
+		if (msg) msg.externalId = externalId;
+	}
+}
+
+function externalMessageIds(
+	messages: Map<string, ConversationMessage>,
+): Map<string, string> {
+	const out = new Map<string, string>();
+	for (const msg of messages.values()) {
+		if (msg.externalId) out.set(msg.externalId, msg.id);
+	}
+	return out;
+}
+
+function applyReaction(
+	msg: ConversationMessage,
+	reaction: ConversationReactionEvent,
+): void {
+	const existing = msg.reactions.findIndex(
+		(rx) => rx.senderId === reaction.senderId,
+	);
+	if (reaction.emoji === "") {
+		if (existing >= 0) msg.reactions.splice(existing, 1);
+	} else if (existing >= 0) {
+		msg.reactions[existing] = {
+			emoji: reaction.emoji,
+			senderId: reaction.senderId,
+			fromMe: reaction.fromMe,
+		};
+	} else {
+		msg.reactions.push({
+			emoji: reaction.emoji,
+			senderId: reaction.senderId,
+			fromMe: reaction.fromMe,
+		});
+	}
+}
+
+function applyReactions(
+	messages: Map<string, ConversationMessage>,
+	reactions: ConversationReactionEvent[],
+): void {
+	const extToMsg = externalMessageIds(messages);
+	for (const reaction of reactions) {
+		const msgId = extToMsg.get(reaction.messageExternalId);
+		const msg = msgId ? messages.get(msgId) : undefined;
+		if (msg) applyReaction(msg, reaction);
+	}
+}
+
+function orderedMessages(
+	messages: Map<string, ConversationMessage>,
+	order: string[],
+): ConversationMessage[] {
+	return order
+		.map((id) => messages.get(id))
+		.filter((x): x is ConversationMessage => Boolean(x));
 }
 
 export function createConversationStore(
@@ -216,83 +350,10 @@ export function createConversationStore(
 	}
 
 	function mergeEvents(lines: string[]): ConversationMessage[] {
-		const messages = new Map<string, ConversationMessage>();
-		const acks = new Map<string, string>();
-		const reactions: ConversationReactionEvent[] = [];
-		const order: string[] = [];
-
-		for (const line of lines) {
-			if (!line.trim()) continue;
-			try {
-				const event = ConversationEventSchema.parse(JSON.parse(line));
-
-				if (event.kind === "msg") {
-					messages.set(event.id, {
-						id: event.id,
-						role: event.role,
-						content: event.content,
-						createdAt: event.createdAt,
-						...(event.externalId ? { externalId: event.externalId } : {}),
-						...(event.quotedText ? { quotedText: event.quotedText } : {}),
-						...(event.quotedRole ? { quotedRole: event.quotedRole } : {}),
-						...(event.overrides ? { overrides: event.overrides } : {}),
-						...(event.command != null ? { command: event.command } : {}),
-						...(event.agent ? { agent: event.agent } : {}),
-						...(event.runId ? { runId: event.runId } : {}),
-						...(event.failed ? { failed: true } : {}),
-						reactions: [],
-					});
-					order.push(event.id);
-				} else if (event.kind === "ack") {
-					acks.set(event.messageId, event.externalId);
-				} else if (event.kind === "reaction") {
-					reactions.push(event);
-				}
-			} catch {
-				log.warn("[conversation] skipping corrupt line", {
-					line: line.slice(0, 100),
-				});
-			}
-		}
-
-		for (const [messageId, externalId] of acks) {
-			const msg = messages.get(messageId);
-			if (msg) msg.externalId = externalId;
-		}
-
-		const extToMsg = new Map<string, string>();
-		for (const msg of messages.values()) {
-			if (msg.externalId) extToMsg.set(msg.externalId, msg.id);
-		}
-
-		for (const r of reactions) {
-			const msgId = extToMsg.get(r.messageExternalId);
-			if (!msgId) continue;
-			const msg = messages.get(msgId);
-			if (!msg) continue;
-			const existing = msg.reactions.findIndex(
-				(rx) => rx.senderId === r.senderId,
-			);
-			if (r.emoji === "") {
-				if (existing >= 0) msg.reactions.splice(existing, 1);
-			} else if (existing >= 0) {
-				msg.reactions[existing] = {
-					emoji: r.emoji,
-					senderId: r.senderId,
-					fromMe: r.fromMe,
-				};
-			} else {
-				msg.reactions.push({
-					emoji: r.emoji,
-					senderId: r.senderId,
-					fromMe: r.fromMe,
-				});
-			}
-		}
-
-		return order
-			.map((id) => messages.get(id))
-			.filter((x): x is ConversationMessage => Boolean(x));
+		const parsed = parseConversationEvents(lines);
+		applyAcks(parsed.messages, parsed.acks);
+		applyReactions(parsed.messages, parsed.reactions);
+		return orderedMessages(parsed.messages, parsed.order);
 	}
 
 	async function ensureDir(): Promise<void> {
@@ -379,17 +440,7 @@ export function createConversationStore(
 		const cutoff = allFiles.length > lookback ? allFiles.length - lookback : 0;
 		const relevantFiles = allFiles.slice(cutoff);
 
-		const allLines: string[] = [];
-		for (const filePath of relevantFiles) {
-			try {
-				const text = await readText(filePath);
-				for (const line of text.split("\n")) {
-					if (line.trim()) allLines.push(line);
-				}
-			} catch {
-				// File doesn't exist or read error — skip
-			}
-		}
+		const allLines = await readNonEmptyLines(relevantFiles);
 
 		let startIndex = 0;
 		for (let i = allLines.length - 1; i >= 0; i--) {
@@ -411,16 +462,7 @@ export function createConversationStore(
 
 	async function readAllMessages(): Promise<ConversationMessage[]> {
 		const allFiles = await listConversationFiles();
-		const allLines: string[] = [];
-
-		for (const filePath of allFiles) {
-			try {
-				const text = await readText(filePath);
-				for (const line of text.split("\n")) {
-					if (line.trim()) allLines.push(line);
-				}
-			} catch {}
-		}
+		const allLines = await readNonEmptyLines(allFiles);
 
 		return mergeEvents(allLines);
 	}

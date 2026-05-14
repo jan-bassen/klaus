@@ -10,7 +10,6 @@ import {
 import type { ILogger } from "baileys/lib/Utils/logger.js";
 import { settings } from "../config.ts";
 import { log } from "../logger.ts";
-import { writeQrToVault } from "./login.ts";
 
 const baileysLogger: ILogger = {
 	level: "warn",
@@ -30,6 +29,11 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 const AUTH_DIR = path.join(settings.dataDir, "baileys-auth");
 
+type ConnectionHandlers = {
+	onOpen?: (socket: WASocket) => void | Promise<void>;
+	onQr?: (qr: string) => void | Promise<void>;
+};
+
 /**
  * Initialize Baileys, handle QR pairing on first run, and manage reconnects.
  * Returns the active WASocket once the connection is open.
@@ -39,7 +43,7 @@ const AUTH_DIR = path.join(settings.dataDir, "baileys-auth");
  * On any other disconnect: waits 1.5s and reconnects with the same auth state.
  */
 export async function startConnection(
-	onOpen?: (socket: WASocket) => void | Promise<void>,
+	handlers: ConnectionHandlers = {},
 ): Promise<WASocket> {
 	closing = false;
 	const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -70,8 +74,8 @@ export async function startConnection(
 						log.info(
 							"[connection] QR code written to vault — open in Obsidian to scan",
 						);
-						writeQrToVault(qr).catch((err) =>
-							log.error("[connection] failed to write QR to vault", {
+						handlers.onQr?.(qr)?.catch((err) =>
+							log.error("[connection] QR handler failed", {
 								error: err instanceof Error ? err.message : String(err),
 							}),
 						);
@@ -83,9 +87,9 @@ export async function startConnection(
 						}
 						socket = sock;
 						retryCount = 0;
-						if (onOpen) {
+						if (handlers.onOpen) {
 							try {
-								await onOpen(sock);
+								await handlers.onOpen(sock);
 							} catch (err) {
 								log.error("[connection] onOpen callback failed", {
 									error: err instanceof Error ? err.message : String(err),
