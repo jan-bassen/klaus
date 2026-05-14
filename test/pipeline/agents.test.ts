@@ -116,6 +116,43 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 			Private: "none",
 		});
 	});
+
+	it("parses the bundled meta agent contract", async () => {
+		const def = await loadAgentDefinition(
+			path.resolve("vault/agents/meta.md"),
+		);
+		const expectedTools = [
+			"reply",
+			"react",
+			"conversation",
+			"skill",
+			"math",
+			"vault_read",
+			"vault_search",
+			"vault_list",
+			"vault_write",
+			"vault_append",
+			"vault_patch",
+			"vault_outline",
+			"vault_tags",
+			"vault_links",
+			"vault_backlinks",
+			"vault_move",
+			"vault_delete",
+		];
+
+		expect(def.name).toBe("meta");
+		expect(def.aliases).toEqual(["m"]);
+		expect(def.tools).toEqual(expectedTools);
+		expect(def.settings.modelTier).toBe("large");
+		expect(def.settings.reasoningEffort).toBe("high");
+		expect(def.settings.historyLimit).toBe(30);
+		expect(def.settings.historyScope).toBe("agent");
+		expect(def.settings.vault).toEqual({
+			"*": "none",
+			Klaus: "full",
+		});
+	});
 });
 
 describe("pipeline/agents: loadAgents", () => {
