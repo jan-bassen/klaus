@@ -23,7 +23,10 @@ describe("infra/whatsapp/login.prepareLoginFolderForStartup", () => {
 		savedEnvAllowedChat = process.env.ALLOWED_CHAT_ID;
 
 		settings.vault.loginDir = path.join(tmpDir, "_login");
-		settings.vault.loginQrPath = path.join(settings.vault.loginDir, "qr-code.svg");
+		settings.vault.loginQrPath = path.join(
+			settings.vault.loginDir,
+			"qr-code.svg",
+		);
 		delete settings.basics.allowedChat;
 		delete process.env.ALLOWED_CHAT_ID;
 	});
@@ -48,9 +51,9 @@ describe("infra/whatsapp/login.prepareLoginFolderForStartup", () => {
 	it("creates setup instructions when no allowed chat is configured", async () => {
 		await prepareLoginFolderForStartup();
 
-		expect(existsSync(path.join(settings.vault.loginDir, "instructions.md"))).toBe(
-			true,
-		);
+		expect(
+			existsSync(path.join(settings.vault.loginDir, "instructions.md")),
+		).toBe(true);
 	});
 
 	it("removes stale setup instructions when an allowed chat is configured", async () => {

@@ -68,8 +68,9 @@ vi.mock("../../src/infra/whatsapp/send.ts", () => ({
 }));
 
 vi.mock("../../src/infra/whatsapp/presence.ts", () => ({
-	startTyping: vi.fn(),
-	stopTyping: vi.fn(),
+	startPresence: vi.fn(),
+	setPresenceKind: vi.fn(),
+	stopPresence: vi.fn(),
 }));
 
 describe("pipeline/index.handleTurn", () => {

@@ -4,6 +4,10 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+	initSchedulesStore,
+	stopAllSchedules,
+} from "../../../src/infra/store/schedules.ts";
+import {
 	addTimer,
 	initTimersStore,
 	stopAllTimers,
@@ -33,10 +37,12 @@ describe("primitives/variables/tasks", () => {
 	beforeEach(() => {
 		tmp = makeTmpDir();
 		initTimersStore({ dataDir: tmp });
+		initSchedulesStore({ dataDir: tmp, timezone: "UTC" });
 	});
 
 	afterEach(() => {
 		stopAllTimers();
+		stopAllSchedules();
 		rmTmpDir(tmp);
 	});
 

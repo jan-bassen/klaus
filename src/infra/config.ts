@@ -222,6 +222,7 @@ const WhatsAppSchema = z
 		mediaDownloadTimeout: z.number(),
 		offlineWindow: z.number(),
 		maxSeenSize: z.number(),
+		presenceRefreshMs: z.number(),
 	})
 	.strict();
 
@@ -380,7 +381,7 @@ function applyYaml(next: YamlSettings): void {
 export async function loadSettingsFromDisk(): Promise<
 	{ ok: true } | { ok: false; error: string }
 > {
-	const filePath = vaultPaths.settingsPath;
+	const filePath = settings.vault.settingsPath;
 
 	if (!existsSync(filePath)) {
 		log.info("[config] no settings.yml in vault, using bundled defaults");
@@ -421,11 +422,16 @@ async function setYamlField(
 	field: string,
 	value: unknown,
 ): Promise<void> {
-	const filePath = vaultPaths.settingsPath;
-	let parsed: Record<string, unknown> = {};
+	const filePath = settings.vault.settingsPath;
+	let parsed: Record<string, unknown>;
 
 	if (existsSync(filePath)) {
 		const raw = await readText(filePath);
+		parsed = (parseYaml(raw) as Record<string, unknown>) ?? {};
+	} else {
+		// Seed from bundled defaults so the written file passes full schema
+		// validation on reload — partial files would fail Zod's strict object check.
+		const raw = readFileSync(BUNDLED_SETTINGS_PATH, "utf8");
 		parsed = (parseYaml(raw) as Record<string, unknown>) ?? {};
 	}
 

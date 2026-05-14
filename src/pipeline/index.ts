@@ -27,7 +27,7 @@ import {
 	clearSetupCode,
 	getSetupCode,
 } from "../infra/whatsapp/login.ts";
-import { startTyping, stopTyping } from "../infra/whatsapp/presence.ts";
+import { startPresence, stopPresence } from "../infra/whatsapp/presence.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
 import { enqueueMessage, sendReaction } from "../infra/whatsapp/send.ts";
 import { registry as commandRegistry } from "../primitives/commands/index.ts";
@@ -168,7 +168,12 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		};
 
 		try {
-			if (msg.kind === "whatsapp") await startTyping(effectiveMsg.chatId);
+			if (msg.kind === "whatsapp") {
+				startPresence(
+					effectiveMsg.chatId,
+					config.forceVoice ? "recording" : "composing",
+				);
+			}
 			await executeAgent({
 				turn: partialTurn,
 				def,
@@ -176,7 +181,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 				signal: ac.signal,
 			});
 		} finally {
-			if (msg.kind === "whatsapp") await stopTyping(effectiveMsg.chatId);
+			if (msg.kind === "whatsapp") await stopPresence(effectiveMsg.chatId);
 			if (activeTurns.get(turnKey) === activeEntry) {
 				activeTurns.delete(turnKey);
 			}

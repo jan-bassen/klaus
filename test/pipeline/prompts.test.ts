@@ -166,11 +166,7 @@ describe("pipeline/prompts: renderTemplate", () => {
 
 	it("template registered as Handlebars partial can be used via {{> name}}", () => {
 		writeTemplate(tmpDir, "message-user", "inner {{val}}");
-		writeTemplate(
-			tmpDir,
-			"error",
-			"outer: {{> message-user val=kind}}",
-		);
+		writeTemplate(tmpDir, "error", "outer: {{> message-user val=kind}}");
 		loadTemplates();
 		const out = renderTemplate("error", { kind: "timeout" });
 		expect(out).toBe("outer: inner timeout");

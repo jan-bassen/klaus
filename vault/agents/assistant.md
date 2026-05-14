@@ -40,7 +40,7 @@ It is {{time.weekday}} ({{time.date}}, {{time.time}}).
 # Currently Active Tasks
 
 {{#each tasks.active}}
-{{#if (eq kind "running")}}- [running] {{objective}}{{else}}- [timer {{runAt}}] {{objective}}{{/if}}
+{{#if (eq kind "schedule")}}- [schedule {{pattern}}{{#if label}} ({{label}}){{/if}}] {{objective}}{{else}}- [timer {{runAt}}] {{objective}}{{/if}}
 {{/each}}
 
 ---

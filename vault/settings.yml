@@ -119,6 +119,9 @@ whatsapp:
   mediaDownloadTimeout: 30000
   offlineWindow: 300000
   maxSeenSize: 10000
+  # Baileys composing/recording presence expires ~10s after the last update.
+  # Refresh below that so long turns keep the typing/recording indicator alive.
+  presenceRefreshMs: 7000
 
 vault:
   watcherDebounce: 1000

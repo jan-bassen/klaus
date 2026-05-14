@@ -32,6 +32,13 @@
 {{/each}}
 {{/each}}
 
+{{#if variablesSummary}}
+## Variables
+{{#each variablesSummary}}
+- {{@key}}: {{this}} chars
+{{/each}}
+{{/if}}
+
 {{#if simulatedActions.length}}
 ## Simulated actions
 {{#each simulatedActions}}

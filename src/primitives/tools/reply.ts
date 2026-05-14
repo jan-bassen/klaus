@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { log } from "../../infra/logger.ts";
+import { setPresenceKind } from "../../infra/whatsapp/presence.ts";
 import { enqueueMessage } from "../../infra/whatsapp/send.ts";
 import { getDefaultAgent } from "../../pipeline/agents.ts";
 import type { TurnContext } from "../../pipeline/core.ts";
@@ -58,6 +59,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 		const useVoice =
 			!context.config?.suppressVoice && (voice || context.config?.forceVoice);
 		if (useVoice) {
+			setPresenceKind(context.chatId, "recording");
 			const audio = await textToSpeech(content);
 			if (audio instanceof Error) {
 				log.warn("[reply] TTS failed, falling back to text", {

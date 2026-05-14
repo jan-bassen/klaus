@@ -108,7 +108,7 @@ describe("template goldens", () => {
 		).toBe("Something went wrong: Something low-level broke");
 	});
 
-	it("renders help without markdown emphasis leaking across agent settings", () => {
+	it("renders help with WhatsApp emphasis applied consistently to values and headings", () => {
 		expect(
 			renderTemplate("help", {
 				settings: {
@@ -152,36 +152,36 @@ describe("template goldens", () => {
 					},
 				],
 			}),
-		).toBe(`Settings
+		).toBe(`*Settings*
 
 agent: @assistant
-model: openai / medium
-voice: auto
-report: on
-history: 20 (full scope)
+model: _openai / medium_
+voice: _auto_
+report: _on_
+history: _20 (full scope)_
 
-Agents
+*Agents*
 
-@assistant
-tools: reply, react, image_generate
-toolsets: vault, dispatch, files
-model: openai / medium
-history: 20 (full scope)
-@dispatch [d]
-tools: reply
-toolsets: vault
-model: openai / medium
-history: 10 (agent scope)
+*@assistant*
+tools: _reply, react, image_generate_
+toolsets: _vault, dispatch, files_
+model: _openai / medium_
+history: _20 (full scope)_
+*@dispatch* [d]
+tools: _reply_
+toolsets: _vault_
+model: _openai / medium_
+history: _10 (agent scope)_
 
-Commands
+*Commands*
 
-/help [?] <section>
-Show settings, agents, overrides, commands
+*/help* [?] <section>
+_Show settings, agents, overrides, commands_
 
-Overrides
+*Overrides*
 
-!voice [v]
-Reply as voice message`);
+*!voice* [v]
+_Reply as voice message_`);
 	});
 
 	it("renders full reports with prompts, history, variables, and simulated actions", () => {
