@@ -2,15 +2,6 @@
 
 We'll be opening this up as "the agent for tinkerers". Polish the codebase and the docs before that.
 
-
-## Config
-
-- [x] pin dependency versions? (or simpler fix for protection against supply chain attacks)
-- [x] remove and cleanup after fallow
-- [ ] remove and cleanup after claude tooling + 
-- [ ] remove .agent skills with simple docs guide in agents.md
-
-
 ## Docs
 
 - [ ] Remove any personal artifacts (janbassen1/klaus, ...)
@@ -31,5 +22,5 @@ We'll be opening this up as "the agent for tinkerers". Polish the codebase and t
 
 The codebase should be ready for agents, but unopinionated.
 
-- [ ] CLAUDE.md → AGENT.md (shorten further, optimise for forkers)
+- [ ] Shorten AGENTS.md further and optimise it for forkers
 - [ ] Remove `.claude/`
