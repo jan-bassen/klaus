@@ -337,7 +337,7 @@ const vaultWriteSchema = z.object({
 export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
 	name: "vault_write",
 	description:
-		"Create or override a note in the vault. Parent directories are created automatically. overrideS the entire file — read first with vault_read if you need to preserve existing content.",
+		"Create or overwrite a note in the vault. Parent directories are created automatically. Overwrites the entire file — read first with vault_read if you need to preserve existing content.",
 	inputSchema: vaultWriteSchema,
 	execute: async ({ path: rel, content }, context) => {
 		const result = await gateVaultTool(rel, "full", context);

@@ -14,7 +14,6 @@ import type { TurnContext } from "../../pipeline/core.ts";
 export interface Variable {
 	key: string;
 	description?: string;
-	hidden?: boolean;
 	/**
 	 * If true, this variable runs in a second phase after all non-`after` variables
 	 * have resolved, and receives the partial namespace via `turn.vars`. Use this

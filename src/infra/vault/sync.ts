@@ -46,7 +46,7 @@ export interface SyncHandle {
 	stop(): Promise<void>;
 }
 
-type SyncError =
+export type SyncError =
 	| { kind: "missing-env"; vars: string[] }
 	| {
 			kind: "setup-failed";
@@ -340,9 +340,12 @@ export async function startSync(
 		const child = current;
 		if (!child) return;
 		child.kill("SIGTERM");
-		const t = setTimeout(() => {
-			if (current === child) child.kill("SIGKILL");
-		}, timerMs(deps.shutdownTimeoutMs, 5_000));
+		const t = setTimeout(
+			() => {
+				if (current === child) child.kill("SIGKILL");
+			},
+			timerMs(deps.shutdownTimeoutMs, 5_000),
+		);
 		t.unref();
 	};
 	if (deps.signal.aborted) onAbort();
@@ -423,7 +426,6 @@ function attachFirstSyncGate(
 	opts: { quietMs: number },
 	onReady: () => void,
 ): void {
-	let sawOutput = false;
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let done = false;
 
@@ -436,17 +438,13 @@ function attachFirstSyncGate(
 
 	const bump = (): void => {
 		if (done) return;
-		sawOutput = true;
 		if (timer) clearTimeout(timer);
 		timer = setTimeout(fire, timerMs(opts.quietMs, 3_000));
 	};
 
 	child.stdout?.on("data", bump);
 	child.stderr?.on("data", bump);
-	child.on("exit", () => {
-		// If the first child exits before settling, unblock startup so the loop
-		// can restart it under backoff — better than hanging the whole boot.
-		if (!sawOutput) fire();
-		else if (!done) fire();
-	});
+	// If the child exits before the quiet timer fires, unblock startup so the
+	// outer loop can restart it under backoff — better than hanging the boot.
+	child.on("exit", fire);
 }

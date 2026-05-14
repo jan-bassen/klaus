@@ -28,17 +28,6 @@ let socket: WASocket | null = null;
 let closing = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-type WhatsAppConnectionState =
-	| "idle"
-	| "connecting"
-	| "pairing"
-	| "connected"
-	| "disconnected"
-	| "logged_out";
-
-let connectionState: WhatsAppConnectionState = "idle";
-let latestQr: string | null = null;
-
 const AUTH_DIR = path.join(settings.dataDir, "baileys-auth");
 
 /**
@@ -65,7 +54,6 @@ export async function startConnection(
 				clearTimeout(reconnectTimer);
 				reconnectTimer = null;
 			}
-			connectionState = "connecting";
 			const sock = makeWASocket({
 				version,
 				auth: state,
@@ -79,8 +67,6 @@ export async function startConnection(
 				"connection.update",
 				async ({ connection, lastDisconnect, qr }) => {
 					if (qr) {
-						connectionState = "pairing";
-						latestQr = qr;
 						log.info(
 							"[connection] QR code written to vault — open in Obsidian to scan",
 						);
@@ -96,8 +82,6 @@ export async function startConnection(
 							reconnectTimer = null;
 						}
 						socket = sock;
-						connectionState = "connected";
-						latestQr = null;
 						retryCount = 0;
 						if (onOpen) {
 							try {
@@ -123,7 +107,6 @@ export async function startConnection(
 						)?.output?.statusCode;
 
 						if (code === DisconnectReason.loggedOut) {
-							connectionState = "logged_out";
 							log.error(
 								"[connection] logged out, delete auth folder and restart",
 							);
@@ -134,7 +117,6 @@ export async function startConnection(
 								process.exit(1);
 							}
 						} else {
-							connectionState = "disconnected";
 							const delayMs =
 								Math.min(30_000, 1_500 * 2 ** retryCount) +
 								Math.floor(Math.random() * 500);
@@ -166,8 +148,6 @@ export function getSocket(): WASocket {
 
 export function closeSocket(): void {
 	closing = true;
-	connectionState = "idle";
-	latestQr = null;
 	if (reconnectTimer) {
 		clearTimeout(reconnectTimer);
 		reconnectTimer = null;
@@ -178,14 +158,6 @@ export function closeSocket(): void {
 
 export function isConnected(): boolean {
 	return socket !== null;
-}
-
-export function getConnectionState(): WhatsAppConnectionState {
-	return connectionState;
-}
-
-function getLatestQr(): string | null {
-	return latestQr;
 }
 
 /** Normalize a raw JID to user@s.whatsapp.net form. */

@@ -105,10 +105,6 @@ function register(def: OverrideDef): void {
 	log.debug(`[overrides] registered: ${def.name}`);
 }
 
-function getKnownOverrides(): string[] {
-	return [...overrideRegistry.keys()];
-}
-
 /** Load presets from `Klaus/overrides.yml`. Called at startup and on hot-reload. */
 export async function loadOverrides(yamlPath?: string): Promise<void> {
 	overrideRegistry.clear();

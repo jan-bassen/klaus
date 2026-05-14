@@ -350,7 +350,9 @@ function buildSettings(yaml: YamlSettings) {
 		log: { format: logFormat },
 		startup: { connectionWarnAfterMs },
 		get allowedChat(): string | undefined {
-			return yaml.basics.allowedChat ?? process.env.ALLOWED_CHAT_ID ?? undefined;
+			return (
+				yaml.basics.allowedChat ?? process.env.ALLOWED_CHAT_ID ?? undefined
+			);
 		},
 		get locale() {
 			return yaml.basics.locale;
@@ -408,7 +410,17 @@ export async function loadSettingsFromDisk(): Promise<
 	}
 }
 
-export async function updateAllowedChat(chatId: string): Promise<void> {
+/**
+ * Set a single field inside `settings.yml` (creating the section if missing),
+ * persist, and reload through Zod. Throws if the post-write file fails
+ * validation — callers can assume a successful return means live settings now
+ * reflect the change.
+ */
+async function setYamlField(
+	section: string,
+	field: string,
+	value: unknown,
+): Promise<void> {
 	const filePath = vaultPaths.settingsPath;
 	let parsed: Record<string, unknown> = {};
 
@@ -417,63 +429,30 @@ export async function updateAllowedChat(chatId: string): Promise<void> {
 		parsed = (parseYaml(raw) as Record<string, unknown>) ?? {};
 	}
 
-	const basics = (parsed.basics as Record<string, unknown>) ?? {};
-	basics.allowedChat = chatId;
-	parsed.basics = basics;
+	const current = (parsed[section] as Record<string, unknown>) ?? {};
+	current[field] = value;
+	parsed[section] = current;
 
-	const yaml = stringifyYaml(parsed, { lineWidth: 120 });
-	await writeData(filePath, yaml);
+	await writeData(filePath, stringifyYaml(parsed, { lineWidth: 120 }));
 
 	const result = await loadSettingsFromDisk();
 	if (!result.ok) {
 		throw new Error(`Updated settings.yml failed validation: ${result.error}`);
 	}
+}
+
+export async function updateAllowedChat(chatId: string): Promise<void> {
+	await setYamlField("basics", "allowedChat", chatId);
 	log.info("[config] updated allowedChat");
 }
 
 export async function updateDefaultAgent(agentName: string): Promise<void> {
-	const filePath = vaultPaths.settingsPath;
-	let parsed: Record<string, unknown> = {};
-
-	if (existsSync(filePath)) {
-		const raw = await readText(filePath);
-		parsed = (parseYaml(raw) as Record<string, unknown>) ?? {};
-	}
-
-	const agent = (parsed.agent as Record<string, unknown>) ?? {};
-	agent.defaultAgent = agentName;
-	parsed.agent = agent;
-
-	const yaml = stringifyYaml(parsed, { lineWidth: 120 });
-	await writeData(filePath, yaml);
-
-	const result = await loadSettingsFromDisk();
-	if (!result.ok) {
-		throw new Error(`Updated settings.yml failed validation: ${result.error}`);
-	}
+	await setYamlField("agent", "defaultAgent", agentName);
 	log.info("[config] updated defaultAgent", { agentName });
 }
 
 export async function updateSelfMode(selfMode: boolean): Promise<void> {
-	const filePath = vaultPaths.settingsPath;
-	let parsed: Record<string, unknown> = {};
-
-	if (existsSync(filePath)) {
-		const raw = await readText(filePath);
-		parsed = (parseYaml(raw) as Record<string, unknown>) ?? {};
-	}
-
-	const whatsapp = (parsed.whatsapp as Record<string, unknown>) ?? {};
-	whatsapp.selfMode = selfMode;
-	parsed.whatsapp = whatsapp;
-
-	const yaml = stringifyYaml(parsed, { lineWidth: 120 });
-	await writeData(filePath, yaml);
-
-	const result = await loadSettingsFromDisk();
-	if (!result.ok) {
-		throw new Error(`Updated settings.yml failed validation: ${result.error}`);
-	}
+	await setYamlField("whatsapp", "selfMode", selfMode);
 	log.info("[config] updated selfMode", { selfMode });
 }
 

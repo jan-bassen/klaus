@@ -25,8 +25,3 @@ export function getProviderTool(name: string): ChatTool | undefined {
 	}
 	return tool;
 }
-
-/** Names of all known provider/server tools. */
-export function listProviderToolNames(): string[] {
-	return Object.keys(SERVER_TOOLS);
-}

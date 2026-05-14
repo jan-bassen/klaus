@@ -60,7 +60,6 @@ export { hbs };
 // -- Frontmatter --
 
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { readText } from "../runtime.ts";
 
 const fmEnvelope = /^---\n([\s\S]*?)\n---/;
 
@@ -192,23 +191,6 @@ export function wikilinkTargetPattern(noteName: string, flags = "i"): RegExp {
 
 function escapeRegExp(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// -- Interpolation --
-
-const fmPattern = /^---\n[\s\S]*?\n---\n?/;
-
-/**
- * Read a .md prompt file and return the body after stripping YAML frontmatter.
- * Returns empty string on failure.
- */
-async function readPromptBody(promptPath: string): Promise<string> {
-	try {
-		const raw = await readText(promptPath);
-		return raw.replace(fmPattern, "").trim();
-	} catch {
-		return "";
-	}
 }
 
 // -- User message $var interpolation --

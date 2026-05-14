@@ -6,13 +6,6 @@ import { log } from "../logger.ts";
 import { readText, writeData } from "../runtime.ts";
 
 interface FileStore {
-	saveFileMeta(meta: {
-		path: string;
-		mimeType: string;
-		sizeBytes: number;
-		messageId?: string;
-		externalId?: string;
-	}): Promise<{ id: string; path: string } | Error>;
 	persistFileBlob(
 		input: PersistFileBlobInput,
 	): Promise<PersistedFileBlob | Error>;
@@ -158,10 +151,7 @@ function createFileStore(env: FileStoreEnv): FileStore {
 		meta.messageId = messageId;
 		messageFileIndex.set(messageId, fileId);
 		try {
-			await appendFile(
-				indexPath(),
-				`${JSON.stringify({ ...meta, _update: true })}\n`,
-			);
+			await appendFile(indexPath(), `${JSON.stringify(meta)}\n`);
 		} catch (err) {
 			return err instanceof Error ? err : new Error(String(err));
 		}
@@ -216,9 +206,7 @@ function createFileStore(env: FileStoreEnv): FileStore {
 			for (const line of text.split("\n")) {
 				if (!line.trim()) continue;
 				try {
-					const record = FileMetaSchema.extend({
-						_update: z.boolean().optional(),
-					}).parse(JSON.parse(line));
+					const record = FileMetaSchema.parse(JSON.parse(line));
 					fileIndex.set(record.id, {
 						id: record.id,
 						path: record.path,
@@ -246,7 +234,6 @@ function createFileStore(env: FileStoreEnv): FileStore {
 	}
 
 	return {
-		saveFileMeta,
 		persistFileBlob,
 		updateFileMessageId,
 		findFile,
@@ -269,16 +256,6 @@ export function initFilesStore(env: FileStoreEnv): void {
 function store(): FileStore {
 	if (!_store) throw new Error("[files] store not initialized");
 	return _store;
-}
-
-function saveFileMeta(meta: {
-	path: string;
-	mimeType: string;
-	sizeBytes: number;
-	messageId?: string;
-	externalId?: string;
-}): Promise<{ id: string; path: string } | Error> {
-	return store().saveFileMeta(meta);
 }
 
 export function persistFileBlob(

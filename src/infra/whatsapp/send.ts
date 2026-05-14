@@ -8,8 +8,6 @@ import { log } from "../logger.ts";
 
 // -- Send queue types (owned by this domain) --
 
-type MessageOrdinal = number;
-
 interface OutboundMessage {
 	chatId: string;
 	content: string | Buffer;

@@ -118,10 +118,11 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 		const result = await dispatchFn({
 			agent,
 			prompt: input.prompt,
-			overrides: ["simulate", ...(input.overrides ?? [])],
+			...(input.overrides ? { overrides: input.overrides } : {}),
 			chatId: context.chatId,
 			trigger: { kind: "dispatch", parentRunId: context.runId },
 			replyCollector: slot,
+			simulate: true,
 		});
 		return result ?? "(sim) done";
 	},

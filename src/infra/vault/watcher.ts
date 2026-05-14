@@ -25,9 +25,14 @@ function debounce(key: string, fn: () => void): void {
 	);
 }
 
+/**
+ * Look up an agent by its prompt-file path, returning only the canonical
+ * registry entry — alias entries share the same `def` and would otherwise
+ * leak through, leaving the canonical key behind on rename cleanup.
+ */
 function findAgentByPath(promptPath: string): { name: string } | undefined {
 	for (const [name, def] of agentRegistry) {
-		if (def.promptPath === promptPath) return { name };
+		if (def.promptPath === promptPath && def.name === name) return { name };
 	}
 	return undefined;
 }
@@ -163,7 +168,7 @@ async function handleSkillChange(
 
 export function startWatching(agentsDir: string, skillsDir: string): void {
 	const agentWatcher = watch(agentsDir, (_event, filename) => {
-		if (!filename || !filename.endsWith(".md")) return;
+		if (!filename?.endsWith(".md")) return;
 		debounce(`agent:${filename}`, () => {
 			handleAgentChange(agentsDir, filename).catch((err) =>
 				log.error("[watcher] unhandled error in agent handler", {
@@ -175,7 +180,7 @@ export function startWatching(agentsDir: string, skillsDir: string): void {
 	watchers.push(agentWatcher);
 
 	const skillWatcher = watch(skillsDir, (_event, filename) => {
-		if (!filename || !filename.endsWith(".md")) return;
+		if (!filename?.endsWith(".md")) return;
 		debounce(`skill:${filename}`, () => {
 			handleSkillChange(skillsDir, filename).catch((err) =>
 				log.error("[watcher] unhandled error in skill handler", {
@@ -202,14 +207,20 @@ export function startWatching(agentsDir: string, skillsDir: string): void {
 			}
 			if (filename === "settings.yml") {
 				debounce("settings", () => {
-					loadSettingsFromDisk().then((r) => {
-						if (!r.ok) {
-							log.warn(
-								"[watcher] settings reload failed, keeping last valid config",
-							);
-							warnSettingsInvalid(r.error);
-						}
-					});
+					loadSettingsFromDisk()
+						.then((r) => {
+							if (!r.ok) {
+								log.warn(
+									"[watcher] settings reload failed, keeping last valid config",
+								);
+								warnSettingsInvalid(r.error);
+							}
+						})
+						.catch((err) =>
+							log.error("[watcher] settings reload threw", {
+								error: err instanceof Error ? err.message : String(err),
+							}),
+						);
 				});
 			}
 		});
@@ -221,7 +232,7 @@ export function startWatching(agentsDir: string, skillsDir: string): void {
 	const templatesDir = settings.vault.templatesDir;
 	if (existsSync(templatesDir)) {
 		const templatesWatcher = watch(templatesDir, (_event, filename) => {
-			if (!filename || !filename.endsWith(".md")) return;
+			if (!filename?.endsWith(".md")) return;
 			debounce(`template:${filename}`, () => {
 				const name = filename.replace(/\.md$/, "");
 				invalidateTemplate(name);

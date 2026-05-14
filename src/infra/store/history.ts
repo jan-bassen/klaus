@@ -6,6 +6,7 @@ import { settings } from "../config.ts";
 import { log } from "../logger.ts";
 import { readText } from "../runtime.ts";
 import { localDateString } from "./index.ts";
+
 /** Mirrors the `Trigger` discriminated union in `src/types.ts`. */
 export const TriggerSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("message"), messageId: z.string() }),
@@ -62,8 +63,6 @@ interface ConversationStore {
 		contextWindow?: number;
 	}): Promise<ConversationMessage[]>;
 	findByExternalId(externalId: string): { messageId: string } | null;
-	resolveExternalId(externalId: string): string | null;
-	resolveMessageId(messageId: string): string | null;
 	/** Indexed by `runId` — the new stable id for an agent run. */
 	getTraces(): Promise<Map<string, AgentTrace>>;
 	rebuildIndexes(): Promise<void>;
@@ -153,11 +152,9 @@ const ConversationEventSchema = z.discriminatedUnion("kind", [
 ]);
 
 type ConversationMessageEvent = z.infer<typeof ConversationMessageEventSchema>;
-type ConversationAckEvent = z.infer<typeof ConversationAckEventSchema>;
 type ConversationReactionEvent = z.infer<
 	typeof ConversationReactionEventSchema
 >;
-type ConversationBreakEvent = z.infer<typeof ConversationBreakEventSchema>;
 type ConversationEvent = z.infer<typeof ConversationEventSchema>;
 
 // -- Merged message type returned by getConversation --
@@ -477,14 +474,6 @@ export function createConversationStore(
 		return messageId ? { messageId } : null;
 	}
 
-	function resolveExternalId(externalId: string): string | null {
-		return externalToId.get(externalId) ?? null;
-	}
-
-	function resolveMessageId(messageId: string): string | null {
-		return idToExternal.get(messageId) ?? null;
-	}
-
 	async function getTraces(): Promise<Map<string, AgentTrace>> {
 		const traces = new Map<string, AgentTrace>();
 		const lookback = settings.agent.lookbackDays;
@@ -570,8 +559,6 @@ export function createConversationStore(
 		readAllMessages,
 		searchConversation,
 		findByExternalId,
-		resolveExternalId,
-		resolveMessageId,
 		getTraces,
 		rebuildIndexes,
 	};
@@ -646,14 +633,6 @@ export function findByExternalId(
 	externalId: string,
 ): { messageId: string } | null {
 	return store().findByExternalId(externalId);
-}
-
-function resolveExternalId(externalId: string): string | null {
-	return store().resolveExternalId(externalId);
-}
-
-function resolveMessageId(messageId: string): string | null {
-	return store().resolveMessageId(messageId);
 }
 
 export function getTraces(): Promise<Map<string, AgentTrace>> {

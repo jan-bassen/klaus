@@ -39,7 +39,9 @@ function formatText(
 	const time = new Date().toISOString().slice(11, 23);
 	const badge = `${LEVEL_COLOR[level]}${LEVEL_LABEL[level]}${RESET}`;
 	const tail =
-		data && Object.keys(data).length > 0 ? ` ${DIM}${formatData(data)}${RESET}` : "";
+		data && Object.keys(data).length > 0
+			? ` ${DIM}${formatData(data)}${RESET}`
+			: "";
 
 	const match = MODULE_RE.exec(msg);
 	if (match) {
@@ -68,10 +70,10 @@ const SILENT = process.env.NODE_ENV === "test";
 
 function emit(level: Level, msg: string, data?: Record<string, unknown>): void {
 	if (SILENT) return;
-	const jsonMode = process.env.NODE_ENV === "test" || logFormat === "json";
-	const line = jsonMode
-		? JSON.stringify({ ts: new Date().toISOString(), level, msg, ...data })
-		: formatText(level, msg, data);
+	const line =
+		logFormat === "json"
+			? JSON.stringify({ ts: new Date().toISOString(), level, msg, ...data })
+			: formatText(level, msg, data);
 	(level === "error" || level === "warn" ? console.error : console.log)(line);
 }
 

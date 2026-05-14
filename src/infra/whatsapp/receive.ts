@@ -183,7 +183,6 @@ export function attachReceiveHandler(socket: WASocket): void {
 						error: err instanceof Error ? err.message : String(err),
 					});
 				});
-
 			}
 		}
 	});

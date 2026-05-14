@@ -158,11 +158,3 @@ function isToolsetDefinition(x: unknown): x is ToolsetDefinition {
 function isToolDefinition(x: unknown): x is ToolDefinition<z.ZodTypeAny> {
 	return ToolShape.safeParse(x).success;
 }
-
-/** Returns all registered tools whose name starts with `{toolsetName}.` */
-export function getToolsForToolset(
-	toolsetName: string,
-): ToolDefinition<z.ZodTypeAny>[] {
-	const prefix = `${toolsetName}.`;
-	return [...toolRegistry.values()].filter((t) => t.name.startsWith(prefix));
-}

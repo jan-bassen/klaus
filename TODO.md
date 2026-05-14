@@ -1,11 +1,14 @@
-# Fixes from testing
-
-- [ ] 
-
-
 # Repo cleanup
 
 We'll be opening this up as "the agent for tinkerers". Polish the codebase and the docs before that.
+
+## Code
+
+- [ ] Add `schedules` variant to `TaskEntry` in `src/primitives/variables/tasks.ts` (currently anticipating it via the `kind: "timer"` discriminator but only timers exist)
+- [ ] Presence: refresh `composing`/`recording` periodically — Baileys presence updates expire after ~10s, so long agent turns drop the typing indicator mid-reply. Hook a repeating ping into `pipeline/index.ts` (or `presence.ts`) for the duration of the turn. Likely also wants `recording` for voice replies.
+- [ ] Fix 5 pre-existing test failures (unrelated to repo cleanup pass):
+  - `test/primitives/commands/default.test.ts` × 2 — `getDefaultAgent` cache-miss disk-load path no longer matches test expectations
+  - `test/templates/golden.test.ts` × 3 — template snapshot drift
 
 ## Config
 
@@ -14,9 +17,6 @@ We'll be opening this up as "the agent for tinkerers". Polish the codebase and t
 - [ ] remove and cleanup after claude tooling + 
 - [ ] remove .agent skills with simple docs guide in agents.md
 
-## Code 
-
-- [ ] 
 
 ## Docs
 

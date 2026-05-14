@@ -51,8 +51,6 @@ const AgentSettingsSchema = z
 		modelTier: s.modelTier as ModelTier | undefined,
 	}));
 
-type AgentSettings = z.infer<typeof AgentSettingsSchema>;
-
 // ── Persistence ────────────────────────────────────────────────────────────
 
 /**

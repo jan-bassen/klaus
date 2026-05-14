@@ -8,7 +8,6 @@ import type { Variable } from "./index.ts";
 export const dispatchVariable: Variable = {
 	key: "dispatch",
 	description: "Dispatch prompt",
-	hidden: true,
 	async run(turn) {
 		const ctx = turn.dispatchContext;
 		if (!ctx) return null;

@@ -33,6 +33,7 @@ import {
 import { ensureVaultDefaults } from "./infra/vault/defaults.ts";
 import {
 	hydrateInitialVault,
+	type SyncError,
 	type SyncHandle,
 	startSync,
 } from "./infra/vault/sync.ts";
@@ -130,9 +131,24 @@ async function runScheduledDispatch(
 	}
 }
 
+function failOnSyncError(err: SyncError, failureMsg: string): never {
+	if (err.kind === "missing-env") {
+		log.error("[startup] obsidian sync env vars missing", {
+			missing: err.vars,
+		});
+	} else {
+		log.error(failureMsg, {
+			step: err.step,
+			exitCode: err.exitCode,
+			stderr: err.stderr,
+		});
+	}
+	process.exit(1);
+}
+
 async function main(): Promise<void> {
 	await mkdir(settings.vault.root, { recursive: true });
-	const defaultSyncDeps = {
+	const syncDeps = {
 		vaultRoot: settings.vault.root,
 		configDir: path.join(settings.dataDir, "obsidian-headless"),
 		signal: shutdownController.signal,
@@ -145,21 +161,9 @@ async function main(): Promise<void> {
 	log.info(
 		"[startup] hydrating vault via obsidian-headless in mirror-remote mode",
 	);
-	const pullResult = await hydrateInitialVault(defaultSyncDeps);
+	const pullResult = await hydrateInitialVault(syncDeps);
 	if (!pullResult.ok) {
-		const err = pullResult.error;
-		if (err.kind === "missing-env") {
-			log.error("[startup] obsidian sync env vars missing", {
-				missing: err.vars,
-			});
-		} else {
-			log.error("[startup] obsidian initial pull failed", {
-				step: err.step,
-				exitCode: err.exitCode,
-				stderr: err.stderr,
-			});
-		}
-		process.exit(1);
+		failOnSyncError(pullResult.error, "[startup] obsidian initial pull failed");
 	}
 
 	await ensureVaultDefaults(settings.vault.internalPath);
@@ -202,29 +206,9 @@ async function main(): Promise<void> {
 	}
 
 	log.info("[startup] starting bundled obsidian-headless sync");
-	const syncResult = await startSync({
-		vaultRoot: settings.vault.root,
-		configDir: path.join(settings.dataDir, "obsidian-headless"),
-		signal: shutdownController.signal,
-		shutdownTimeoutMs: settings.sync.shutdownTimeoutMs,
-		fileTypes: settings.sync.fileTypes,
-		backoff: settings.sync.restartBackoff,
-		firstSync: settings.sync.firstSync,
-	});
+	const syncResult = await startSync(syncDeps);
 	if (!syncResult.ok) {
-		const err = syncResult.error;
-		if (err.kind === "missing-env") {
-			log.error("[startup] obsidian sync env vars missing", {
-				missing: err.vars,
-			});
-		} else {
-			log.error("[startup] obsidian sync setup failed", {
-				step: err.step,
-				exitCode: err.exitCode,
-				stderr: err.stderr,
-			});
-		}
-		process.exit(1);
+		failOnSyncError(syncResult.error, "[startup] obsidian sync setup failed");
 	}
 	syncHandle = syncResult.handle;
 

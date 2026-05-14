@@ -12,7 +12,6 @@ import type { Variable } from "./index.ts";
 export const triggerVariable: Variable = {
 	key: "trigger",
 	description: "What kicked off this agent run (kind + source id)",
-	hidden: true,
 	async run(turn) {
 		return turn.trigger;
 	},

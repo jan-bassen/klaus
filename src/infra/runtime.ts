@@ -17,10 +17,6 @@ export async function readArrayBuffer(filePath: string): Promise<ArrayBuffer> {
 	return copy;
 }
 
-export async function readBlob(filePath: string): Promise<Blob> {
-	return new Blob([await readArrayBuffer(filePath)]);
-}
-
 export async function writeData(
 	filePath: string,
 	data: string | Uint8Array | ArrayBuffer | Blob,
