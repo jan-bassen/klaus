@@ -47,8 +47,8 @@ providers:
   claude:
     endpoint: openrouter
     tempScale: 1
-    small: anthropic/claude-haiku-4-5
-    medium: anthropic/claude-sonnet-4-6
+    small: anthropic/claude-haiku-4.5
+    medium: anthropic/claude-sonnet-4.6
     large: anthropic/claude-opus-4.7
   openai:
     endpoint: openrouter
@@ -138,7 +138,7 @@ persistence:
   defaultNextRun: 1h
 
 reports:
-  # Mirror each turn's report into {vault}/reports/<date>/<file>.md for human reading.
+  # Mirror each turn's report into {vault}/Klaus/reports/<date>/<file>.md for human reading.
   # One JSON per run is written under {dataDir}/logs/<date>/ when report is true.
   vaultMarkdown: true
   # Days of report history surfaced via read APIs.

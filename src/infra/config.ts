@@ -249,7 +249,7 @@ const PersistenceSchema = z
 
 const ReportsSchema = z
 	.object({
-		/** Mirror each turn's report as rendered markdown into `{vault}/reports/`. */
+		/** Mirror each turn's report as rendered markdown into `{vault}/Klaus/reports/`. */
 		vaultMarkdown: z.boolean(),
 		/** Days of report history surfaced via read APIs. */
 		lookbackDays: z.number(),

@@ -1,20 +1,21 @@
 # Klaus
 
-**Klaus is a headless personal AI agent for tinkerers written in TypeScript.** It is built for people who want their assistant minimal, easily configurable and self-hosted. The name is a nod to the infamous [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), who allegedly walked past his crew after being beheaded — because this stack is headless. 
-If you're looking for a simpler and more complete setup, projects like [Hermes Agent](https://github.com/NousResearch/hermes-agent) or [OpenClaw](https://github.com/openclaw/openclaw) may be a calmer harbor. Klaus is for when you would rather sail with your strange little ship. 
+**Klaus is a headless personal AI agent for tinkerers written in TypeScript.**
+It is built for people who want their assistant minimal, self-hosted, and close to the metal: Markdown agents, readable files, Obsidian as memory, WhatsApp as the interface, and Docker as the engine room. The name is a nod to the infamous [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), who allegedly walked past his crew after being beheaded; this stack is headless too.
 
+If you're looking for a simpler and more complete setup, projects like [Hermes Agent](https://github.com/NousResearch/hermes-agent) or [OpenClaw](https://github.com/openclaw/openclaw) may be a calmer harbor. Klaus is for when you would rather sail your own strange little ship.
 
 ## Quick Start
 
 Prerequisites:
 
 - Docker
-- Node 25 and npm, for building the local image
 - An Obsidian Sync account
+- A WhatsApp account to link as a device
 - An OpenRouter API key, unless you reconfigure every provider endpoint
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/jan-bassen/klaus.git
 cd klaus
 cp .env.example .env
 ```
@@ -31,14 +32,13 @@ OBSIDIAN_VAULT_NAME=
 Build and run the local image:
 
 ```bash
-npm run build
+docker build -t klaus .
 
 docker run -d --restart unless-stopped \
   --name klaus \
   --env-file .env \
   -v klaus-vault:/app/vault \
   -v klaus-data:/app/data \
-  -p 3000:3000 \
   klaus
 ```
 
@@ -123,6 +123,8 @@ Code-level primitives are just as direct, but they need a restart:
 Start with [docs/iterate-in-obsidian.md](docs/iterate-in-obsidian.md) for vault recipes and [docs/iterate-in-code.md](docs/iterate-in-code.md) for TypeScript extension points.
 
 ## Develop
+
+Local development uses Node 25 and npm:
 
 ```bash
 npm run typecheck

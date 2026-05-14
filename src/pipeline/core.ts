@@ -161,7 +161,7 @@ interface ExecuteAgentInput {
  * Assembles context (vars + tools + history), compiles prompts, then calls
  * `runAgent`. Used by both the inbound pipeline and dispatch.
  *
- * Emits a per-turn report (when `turn.config.report !== "none"`) on both
+ * Emits a per-turn report (when `turn.config.report !== false`) on both
  * success and failure paths. Reporting catches its own errors so it cannot
  * mask the original turn result, but executeAgent waits for it so writes and
  * report logs are flushed before the turn is considered complete.

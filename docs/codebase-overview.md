@@ -5,7 +5,6 @@ Klaus is easiest to understand as one tree. The structure is the architecture: s
 ```text
 .
 ├── README.md                         # short public front door
-├── TODO.md                           # cleanup/release checklist
 ├── AGENTS.md                         # repo instructions for coding agents
 ├── Dockerfile                        # Node 25 image + obsidian-headless + bundled vault defaults
 ├── package.json                      # scripts and dependency surface
@@ -29,7 +28,7 @@ Klaus is easiest to understand as one tree. The structure is the architecture: s
 │   │   ├── outbound.ts               # shared reply/react preparation, quotes, dedup keys, trace persistence
 │   │   ├── dispatch.ts               # run an agent from schedules, timers, persistence, or another agent
 │   │   ├── persistence.ts            # static cron persistence and dynamic self-rescheduling
-│   │   └── reports.ts                # JSONL reports and optional vault Markdown mirrors
+│   │   └── reports.ts                # per-run JSON reports and optional vault Markdown mirrors
 │   ├── primitives/                   # auto-discovered extension surface
 │   │   ├── commands/                 # deterministic WhatsApp commands; bypass the LLM
 │   │   │   ├── index.ts              # Command type, registry, parser, loader
@@ -72,7 +71,7 @@ Klaus is easiest to understand as one tree. The structure is the architecture: s
 │       ├── store/                    # flat-file durable state under {dataDir}
 │       │   ├── index.ts              # shared store helpers
 │       │   ├── history.ts            # conversation JSONL, trace entries, breaks, indexes
-│       │   ├── report.ts             # per-turn report JSONL
+│       │   ├── report.ts             # one JSON report per run
 │       │   ├── files.ts              # file metadata index + blobs
 │       │   ├── schedules.ts          # recurring cron jobs and scheduler wiring
 │       │   └── timers.ts             # one-shot future runs and timeout wiring

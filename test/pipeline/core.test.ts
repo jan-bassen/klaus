@@ -143,7 +143,7 @@ describe("pipeline/core.executeAgent", () => {
 		const result = await executeAgent({ turn, def, variables: [] });
 
 		expect(result).toMatchObject({
-			model: "anthropic/claude-sonnet-4-6",
+			model: "anthropic/claude-sonnet-4.6",
 			tier: "medium",
 			usage: { promptTokens: 16, completionTokens: 20 },
 			systemPrompt: "You are core-test.",
@@ -172,7 +172,7 @@ describe("pipeline/core.executeAgent", () => {
 			],
 		});
 		expect(firstChatRequest()).toMatchObject({
-			model: "anthropic/claude-sonnet-4-6",
+			model: "anthropic/claude-sonnet-4.6",
 			messages: [
 				{ role: "system", content: "You are core-test." },
 				{ role: "user", content: "objective" },
@@ -305,7 +305,7 @@ describe("pipeline/core.executeAgent", () => {
 			agent: "core-test",
 			outcome: { kind: "ok" },
 			llm: {
-				model: "anthropic/claude-sonnet-4-6",
+				model: "anthropic/claude-sonnet-4.6",
 				steps: [
 					{
 						toolCalls: [{ tool: "probe", args: { value: "reported" } }],

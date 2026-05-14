@@ -5,7 +5,6 @@ This guide is the practical path from clone to a running Klaus container. The sh
 ## Prerequisites
 
 - Docker
-- Node 25 and npm
 - An Obsidian Sync account
 - A WhatsApp account to link as a device
 - `OPENROUTER_API_KEY`, unless you change every configured provider away from the default OpenRouter endpoint
@@ -48,7 +47,7 @@ Prefer `basics.allowedChat` in `{vault}/Klaus/settings.yml` over `ALLOWED_CHAT_I
 Build the local image:
 
 ```bash
-npm run build
+docker build -t klaus .
 ```
 
 Run it with separate vault and data volumes:
@@ -59,14 +58,13 @@ docker run -d --restart unless-stopped \
   --env-file .env \
   -v klaus-vault:/app/vault \
   -v klaus-data:/app/data \
-  -p 3000:3000 \
   klaus
 ```
 
 The two volumes have different jobs:
 
 - `klaus-vault`: Synced obsidian vault.
-- `klaus-data`: WhatsApp credentials, Obsidian login state, conversation JSONL, file blobs, schedules, timers, report JSONL.
+- `klaus-data`: WhatsApp credentials, Obsidian login state, conversation JSONL, file blobs, schedules, timers, and per-run report JSON.
 
 Watch logs with:
 
@@ -88,26 +86,30 @@ Startup does this in order:
 
 ## WhatsApp Login
 
-Klaus writes the login QR to:
+Klaus writes a temporary login folder to:
+
+```text
+{vault}/Klaus/_login/
+```
+
+Open `instructions.md` first. It contains the current active-chat setup code and a solo-mode checkbox.
+
+The QR itself is written to:
 
 ```text
 {vault}/Klaus/_login/qr-code.svg
 ```
 
-Open it from Obsidian or the mounted vault, then scan it from WhatsApp -> Linked Devices.
+Scan it from WhatsApp -> Linked Devices after choosing the setup mode:
 
-After the device links, send any message to the paired number. If no chat is allowlisted, Klaus replies in setup mode with your chat ID. Add it to:
+- **Solo mode**: Tick the solo checkbox before scanning. Klaus runs on the WhatsApp account you are linking, auto-resolves its own chat, writes `basics.allowedChat` and `whatsapp.selfMode`, sends the welcome message, and removes `_login`.
+- **Active chat mode**: Leave the checkbox unticked, scan the QR, then send the six-digit setup code from the chat Klaus should listen to. Klaus writes `basics.allowedChat`, sends the welcome message, and removes `_login`.
 
-```yaml
-basics:
-  allowedChat: "<your-chat-id>"
-```
-
-Settings hot-reload, so the next message should run normally.
+You can still pin `basics.allowedChat` manually in `{vault}/Klaus/settings.yml` or with `ALLOWED_CHAT_ID`, but the normal clone-and-deploy path should not need it.
 
 ## Self-Mode
 
-Set this in `{vault}/Klaus/settings.yml`:
+To skip the checkbox, set this before first WhatsApp login in `{vault}/Klaus/settings.yml`:
 
 ```yaml
 whatsapp:

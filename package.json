@@ -8,12 +8,11 @@
 		"node": ">=25"
 	},
 	"scripts": {
-		"dev": "docker run --rm -it --env-file .env -v klaus-vault:/app/vault -v klaus-data:/app/data -p 3000:3000 klaus",
+		"dev": "docker run --rm -it --env-file .env -v klaus-vault:/app/vault -v klaus-data:/app/data klaus",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"build": "docker build -t klaus .",
-		"publish": "docker buildx build --platform linux/amd64 --build-arg VERSION=$(jq -r .version package.json) -t janbassen1/klaus:$(jq -r .version package.json) -t janbassen1/klaus:latest --push ."
+		"build": "docker build -t klaus ."
 	},
 	"dependencies": {
 		"@llamaindex/liteparse": "^1.5.2",

@@ -203,7 +203,7 @@ describe("pipeline/index.handleTurn", () => {
 			trigger: { kind: "message", messageId: msg.id },
 			outcome: { kind: "ok" },
 			llm: expect.objectContaining({
-				model: "anthropic/claude-sonnet-4-6",
+				model: "anthropic/claude-sonnet-4.6",
 				steps: [
 					expect.objectContaining({
 						toolCalls: [expect.objectContaining({ tool: "reply" })],

@@ -163,7 +163,7 @@ Templates are required. If a required template is missing, the run fails instead
 
 ## Reports
 
-When reporting is enabled, Klaus writes JSONL reports under `{dataDir}/logs/`. If `reports.vaultMarkdown` is true, it also mirrors readable Markdown into `{vault}/Klaus/reports/`.
+When reporting is enabled, Klaus writes one JSON report per run under `{dataDir}/logs/`. If `reports.vaultMarkdown` is true, it also mirrors readable Markdown into `{vault}/Klaus/reports/`.
 
 Reports are the quickest way to debug:
 

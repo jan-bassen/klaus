@@ -70,7 +70,7 @@ describe("pipeline/persistence.persistDynamic", () => {
 
 		expect(sendMock).toHaveBeenCalledOnce();
 		expect(firstChatRequest()).toMatchObject({
-			model: "anthropic/claude-sonnet-4-6",
+			model: "anthropic/claude-sonnet-4.6",
 			toolChoice: { type: "function", function: { name: "persist" } },
 			stream: false,
 		});

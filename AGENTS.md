@@ -34,7 +34,6 @@ npm run test
 npm run test:watch
 npx biome check --write .
 npm run build
-npm run publish
 ```
 
 ## What Klaus is
@@ -105,7 +104,7 @@ reasoningEffort: low|default|high
 historyLimit: 20
 historyScope: full|agent
 showTrace: true
-report: full|short|none
+report: true|false
 vaultAccess:
   - "*:full"
   - "Private:none"
@@ -144,14 +143,11 @@ Persistence:
 
 ## Reports
 
-Per-turn JSONL at `{dataDir}/logs/<date>.jsonl`. Three levels (`turn.config.report`):
-- `none` — skip
-- `short` — LLM call only (model, tokens, steps, tool calls)
-- `full` — also message metadata, overrides, variables summary, and **verbatim** system prompt + user message + history transcript (for spotting injection / format bugs)
+One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, LLM steps, tool calls, and **verbatim** system prompt + user message + history transcript for spotting injection or format bugs.
 
 Sim runs always set `simulation: true` and carry the `simulatedActions` list from the overlay.
 
-`settings.reports.vaultMarkdown: true` mirrors each report into `{vault}/Klaus/reports/<date>.md` for Obsidian reading.
+`settings.reports.vaultMarkdown: true` mirrors each report into `{vault}/Klaus/reports/<date>/<file>.md` for Obsidian reading.
 
 ## Simulation (`!simulate` / `!sim`)
 

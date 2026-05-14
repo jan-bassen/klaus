@@ -10,3 +10,4 @@ src/__tests__/
 .github/
 *.md
 !package.json
+!vault/**/*.md
