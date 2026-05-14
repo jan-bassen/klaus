@@ -94,7 +94,7 @@ Klaus is easiest to understand as one tree. The structure is the architecture: s
 │   ├── agents/
 │   │   ├── assistant.md              # default user-facing agent
 │   │   └── dispatch.md               # default scheduling/delegation agent
-│   ├── skills/
+│   ├── skills/                         # simplified one-file Markdown skills, not SKILL.md folders
 │   │   ├── obsidian-markdown.md      # Obsidian Markdown reference skill
 │   │   ├── obsidian-canvas.md        # Canvas reference skill
 │   │   ├── obsidian-bases.md         # Bases reference skill

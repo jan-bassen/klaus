@@ -66,11 +66,14 @@ Keep snippets composable. Agents should decide which ones they include.
 
 ## Skills
 
-Skills live in `{vault}/Klaus/skills/*.md`. Give each skill a short frontmatter description so the `skill_get` tool can present it clearly.
+Skills live in `{vault}/Klaus/skills/*.md`. Klaus intentionally uses a simplified single-file skill format: one Markdown file per skill, named by filename. It does not implement the broader folder-based skill standard with `SKILL.md` and bundled assets.
+
+Give each skill a short frontmatter description so the `skill_get` tool can present it clearly. A skill can also declare tools or toolsets that become available after the agent loads it.
 
 ```markdown
 ---
 description: How to write durable meeting notes in this vault.
+toolsets: [vault]
 ---
 
 # Meeting Notes

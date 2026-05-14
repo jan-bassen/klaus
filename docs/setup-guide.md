@@ -7,7 +7,7 @@ This guide is the practical path from clone to a running Klaus container. The sh
 - Docker
 - An Obsidian Sync account
 - A WhatsApp account to link as a device
-- `OPENROUTER_API_KEY`, unless you change every configured provider away from the default OpenRouter endpoint
+- `OPENROUTER_API_KEY`, unless you reconfigure the default provider to use another endpoint
 - Optional `ELEVENLABS_API_KEY` for speech-to-text and text-to-speech
 
 Klaus runs as one Docker container. Inside it, the app supervises `obsidian-headless`, which keeps `/app/vault` synced with your remote Obsidian vault.
@@ -28,6 +28,8 @@ OBSIDIAN_EMAIL=
 OBSIDIAN_PASSWORD=
 OBSIDIAN_VAULT_NAME=
 ```
+
+`OPENROUTER_API_KEY` is required for the bundled settings because the default provider routes through OpenRouter. If you edit `{vault}/Klaus/settings.yml` to point the default provider at another OpenAI-compatible endpoint, set that endpoint's `apiKeyEnv` instead.
 
 Optional:
 
@@ -63,7 +65,7 @@ docker run -d --restart unless-stopped \
 
 The two volumes have different jobs:
 
-- `klaus-vault`: Synced obsidian vault.
+- `klaus-vault`: Synced Obsidian vault.
 - `klaus-data`: WhatsApp credentials, Obsidian login state, conversation JSONL, file blobs, schedules, timers, and per-run report JSON.
 
 Watch logs with:
@@ -81,8 +83,10 @@ Startup does this in order:
 3. Mirrors the remote vault before Klaus writes startup defaults.
 4. Copies the bundled `vault/` template into `/app/vault/Klaus`, *but only if that folder does not already exist*.
 5. Loads `/app/vault/Klaus/settings.yml`.
-6. Starts continuous bidirectional Obsidian Sync.
-7. Loads tools, agents, variables, commands, skills, templates, overrides, stores, schedules, timers, and WhatsApp.
+6. Creates data directories and starts continuous bidirectional Obsidian Sync.
+7. Loads stores, tools, agents, variables, commands, skills, templates, overrides, schedules, and timers.
+8. Creates the WhatsApp login folder if no allowed chat is configured.
+9. Connects WhatsApp and writes the QR code when Baileys provides one.
 
 ## WhatsApp Login
 
@@ -130,21 +134,37 @@ The password is passed to `obsidian-headless` during first-time sync setup.
 
 ## Common Issues
 
-**Missing Obsidian env vars**
+**Container exits immediately**
 
-Startup fails closed when `OBSIDIAN_EMAIL`, `OBSIDIAN_PASSWORD`, or `OBSIDIAN_VAULT_NAME` is missing. Fill `.env`, then recreate or restart the container.
+Run `docker logs klaus` and look for the first `[startup]` error. The most common hard failures are missing Obsidian env vars, a failed Obsidian login, or a missing API key for the configured default provider.
 
-**Missing model API key**
+For the bundled settings, these must be present:
 
-The default provider points at the `openrouter` endpoint, so `OPENROUTER_API_KEY` must be set unless `settings.yml` routes the default provider to another endpoint.
+```dotenv
+OPENROUTER_API_KEY=
+OBSIDIAN_EMAIL=
+OBSIDIAN_PASSWORD=
+OBSIDIAN_VAULT_NAME=
+```
 
-**Invalid settings after sync**
+If you changed `defaultProvider` or an endpoint in `{vault}/Klaus/settings.yml`, the required API key may not be `OPENROUTER_API_KEY`; it is whatever that endpoint's `apiKeyEnv` names.
 
-Runtime settings are read from `{vault}/Klaus/settings.yml` and validated strictly with Zod. The repo `vault/settings.yml` is only a first-run template. If logs say settings were downloaded but invalid or missing, debug the synced file, path, YAML syntax, and schema shape. Do not fix this by merging bundled defaults into an existing user-owned `Klaus/` folder.
+**Obsidian login or vault link fails**
+
+Check that `OBSIDIAN_EMAIL`, `OBSIDIAN_PASSWORD`, and `OBSIDIAN_VAULT_NAME` match the Obsidian Sync account and remote vault exactly. Klaus stores Obsidian login state under `/app/data/obsidian-headless`, so the `klaus-data` volume must be mounted and persistent.
+
+If you need to retry first-time Obsidian setup from a clean state, stop the container and remove only the data volume. This also removes WhatsApp auth, schedules, timers, history, files, and reports:
+
+```bash
+docker rm -f klaus
+docker volume rm klaus-data
+```
+
+Then start the normal `docker run` command again.
 
 **MFA does not work on first boot**
 
-If Obsidian Sync refuses a one-time `OBSIDIAN_MFA` value in the container flow, seed login state interactively once:
+`OBSIDIAN_MFA` is a one-time code. If Obsidian Sync refuses it in the container flow, seed login state interactively once:
 
 ```bash
 docker run --rm -it \
@@ -161,13 +181,66 @@ docker run --rm -it \
 
 Then start the normal container again.
 
+**E2EE vault does not sync**
+
+Set `OBSIDIAN_E2EE_PASSWORD` in `.env`. Klaus passes it to `ob sync-setup` only during first-time vault linking. If you linked the vault once without the E2EE password, reset the Obsidian login/link state by removing `klaus-data`, then start again with the password set.
+
+**Invalid settings after sync**
+
+Runtime settings are read from `{vault}/Klaus/settings.yml` and validated strictly with Zod. The repo `vault/settings.yml` is only a first-run template. Once `{vault}/Klaus/` exists, that folder is user-owned state: Klaus does not merge new defaults into it or backfill missing fields.
+
+If logs say `settings.yml` was invalid, inspect the synced file itself:
+
+- YAML syntax must be valid.
+- Top-level sections and fields must match the schema in `src/infra/config.ts`.
+- New settings added in code must also be added to the user's `{vault}/Klaus/settings.yml`.
+- There are no Zod `.default()` fallbacks for missing fields.
+
+Do not fix this by merging the bundled `vault/` folder into an existing vault. Copy over only the specific missing setting you intentionally want.
+
 **Vault looks stale on startup**
 
-Klaus performs an initial mirror-remote sync before loading settings and agents, then waits for the first continuous sync to settle. If your vault still looks stale, check Obsidian Sync logs, the remote vault name, and whether `sync.firstSync.timeoutMs` is too low for the first hydration.
+Klaus performs an initial `mirror-remote` sync before loading settings and agents, then starts continuous bidirectional sync and waits for it to go quiet. If your vault still looks stale, check the Obsidian Sync logs, the remote vault name, and whether `sync.firstSync.timeoutMs` is too low for the first hydration.
+
+Also check `sync.fileTypes` in `{vault}/Klaus/settings.yml`. It should include `unsupported`, otherwise Obsidian Sync may skip Klaus YAML files such as `settings.yml` and `overrides.yml`.
+
+**No `{vault}/Klaus/_login/` folder appears**
+
+Klaus only creates `_login` when no allowed chat is configured. If `basics.allowedChat` is already set in `{vault}/Klaus/settings.yml` or `ALLOWED_CHAT_ID` is set in `.env`, setup mode is skipped.
+
+If neither is set, check logs for earlier startup errors. WhatsApp setup happens after Obsidian sync, settings validation, provider API-key validation, store initialization, and primitive loading.
+
+**QR code is missing**
+
+Open `{vault}/Klaus/_login/instructions.md` first; it is created before the QR. The QR appears at `{vault}/Klaus/_login/qr-code.svg` only after the WhatsApp connection asks for pairing. Watch logs with:
+
+```bash
+docker logs -f klaus
+```
+
+If you see `WhatsApp pairing/connection is taking longer than expected`, keep the container running a little longer unless another error appears.
 
 **WhatsApp QR keeps rotating**
 
 Check that `klaus-data` is mounted and persistent. WhatsApp auth lives under `/app/data/baileys-auth`; losing that data means relinking.
+
+**Setup code is ignored**
+
+The six-digit code must be sent from the chat Klaus should listen to, and only after the QR has been scanned. In active chat mode, Klaus ignores normal messages until the code matches.
+
+If you changed `instructions.md`, make sure you did not delete or alter the current code. Restarting can generate a new code.
+
+**Solo checkbox was ticked but setup did not finish**
+
+The checkbox must be ticked before scanning, or while the container is running and watching `instructions.md`. Klaus can only auto-resolve its own chat after WhatsApp has connected and Baileys exposes the bot JID.
+
+If setup does not complete, leave the container running and check logs for `solo tick detected but bot JID unavailable yet`. It should retry when the socket opens. You can also set `whatsapp.selfMode: true` in `{vault}/Klaus/settings.yml` before first WhatsApp login.
+
+**Klaus receives messages but does not reply**
+
+Check the allowlist first. Klaus is fail-closed: it processes only the chat in `basics.allowedChat` or `ALLOWED_CHAT_ID`. If you used active chat mode, confirm the setup code was sent from the exact chat you want Klaus to answer.
+
+Also check that the default provider's API key is still available and that the configured model IDs are valid for that endpoint.
 
 **Clean reset**
 

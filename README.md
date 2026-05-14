@@ -1,6 +1,7 @@
 # Klaus
 
 **Klaus is a headless personal AI agent for tinkerers written in TypeScript.**
+
 It is built for people who want their assistant minimal, self-hosted, and close to the metal: Markdown agents, readable files, Obsidian as memory, WhatsApp as the interface, and Docker as the engine room. The name is a nod to the infamous [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), who allegedly walked past his crew after being beheaded; this stack is headless too.
 
 If you're looking for a simpler and more complete setup, projects like [Hermes Agent](https://github.com/NousResearch/hermes-agent) or [OpenClaw](https://github.com/openclaw/openclaw) may be a calmer harbor. Klaus is for when you would rather sail your own strange little ship.
@@ -106,7 +107,7 @@ Most everyday iteration happens in Obsidian:
 
 - Agents live in `{vault}/Klaus/agents/*.md`.
 - Snippets live in `{vault}/Klaus/snippets/*.md`.
-- Skills live in `{vault}/Klaus/skills/*.md`.
+- Skills live in `{vault}/Klaus/skills/*.md` as simplified single-file Markdown references.
 - Overrides live in `{vault}/Klaus/overrides.yml`.
 - Settings live in `{vault}/Klaus/settings.yml`.
 - Reports can mirror into `{vault}/Klaus/reports/`.
