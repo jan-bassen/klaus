@@ -50,6 +50,8 @@ Use the vault when the answer depends on my notes.
 
 Use `@research ...` to route a message to that agent. Use `/default research` to make it the chat default.
 
+`tools` are always-visible local functions. `toolsets` are lazy groups: the agent sees `load_vault`, `load_dispatch`, and similar loader tools first, then receives the full group only after choosing to load it. This is useful for broad capabilities that would otherwise crowd every model call, while still letting an agent read/write the vault, dispatch work, or manage stored files when the turn calls for it.
+
 ## Snippets
 
 Snippets live in `{vault}/Klaus/snippets/*.md` and are exposed under `{{snippets.<name>}}`.

@@ -93,7 +93,9 @@ Use Zod schemas for inputs. Avoid `any` and type assertions. Return clear values
 
 ## Add A Toolset
 
-Toolsets keep the initial context small. The agent sees a `load_<name>` meta-tool first; after it calls that, the real tools are injected for the next step.
+Toolsets are lazy-loaded groups of related tools. They keep the initial context small: the agent sees a `load_<name>` meta-tool first, and after it calls that, the real tools are injected for the next step.
+
+Use a toolset when several tools belong together but are only useful on some turns, such as vault file operations, dispatch scheduling, or file-store helpers. Use standalone `tools: [...]` for tiny always-needed tools like `reply` or `react`.
 
 ```ts
 import type { ToolsetDefinition } from "../index.ts";
@@ -112,7 +114,7 @@ Reference a toolset from agent frontmatter:
 toolsets: [text]
 ```
 
-Use standalone `tools: [...]` for tiny always-needed tools. Use toolsets when a cluster is useful only for certain turns.
+After `load_text` runs, the tools in the set are called by their normal tool names, for example `shout`.
 
 ## Provider Tools
 

@@ -107,7 +107,7 @@ Most everyday iteration happens in Obsidian:
 
 - Agents live in `{vault}/Klaus/agents/*.md`.
 - Snippets live in `{vault}/Klaus/snippets/*.md`.
-- Skills live in `{vault}/Klaus/skills/*.md` as simplified single-file Markdown references.
+- Skills live in `{vault}/Klaus/skills/*.md` (as simplified single-file Markdown references).
 - Overrides live in `{vault}/Klaus/overrides.yml`.
 - Settings live in `{vault}/Klaus/settings.yml`.
 - Reports can mirror into `{vault}/Klaus/reports/`.
@@ -120,6 +120,8 @@ Code-level primitives are just as direct, but they need a restart:
 - Add a variable in `src/primitives/variables/`.
 - Add a tool or toolset in `src/primitives/tools/`.
 - Add focused Vitest coverage under matching paths in `test/`.
+
+Tools are functions an agent can call directly. Toolsets are lazy-loaded groups of related tools, such as vault, dispatch, or files: the agent first sees a small `load_<name>` tool, then gets the full group only when the turn actually needs it. That keeps everyday prompts lean while still making larger capabilities available.
 
 Start with [docs/iterate-in-obsidian.md](docs/iterate-in-obsidian.md) for vault recipes and [docs/iterate-in-code.md](docs/iterate-in-code.md) for TypeScript extension points.
 

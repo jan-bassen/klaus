@@ -50,7 +50,7 @@ Klaus is easiest to understand as one tree. The structure is the architecture: s
 │   │   │   ├── config.ts             # effective agent/config facts
 │   │   │   ├── snippets.ts           # loads Klaus/snippets/*.md after base variables
 │   │   │   └── trigger.ts            # message/schedule/timer/dispatch trigger context
-│   │   └── tools/                    # model-callable tools and lazy toolsets
+│   │   └── tools/                    # model-callable tools and lazy-loaded tool groups
 │   │       ├── index.ts              # ToolDefinition, ToolsetDefinition, registries, loader, load_<toolset>
 │   │       ├── reply.ts              # send WhatsApp replies or collect inline dispatch replies
 │   │       ├── react.ts              # react to a WhatsApp message
@@ -59,7 +59,7 @@ Klaus is easiest to understand as one tree. The structure is the architecture: s
 │   │       ├── provider.ts           # OpenRouter/provider tool pass-through definitions
 │   │       ├── math.ts               # pure calculation helper
 │   │       ├── image.ts              # image generation tool
-│   │       └── sets/                 # lazy-loaded tool groups
+│   │       └── sets/                 # grouped tools hidden behind load_<name> until needed
 │   │           ├── vault.ts          # vault read/search/list/write/append/delete with permissions + simulation
 │   │           ├── dispatch.ts       # inline/later/scheduled agent dispatch
 │   │           └── files.ts          # file upload/read/list helpers backed by the file store
