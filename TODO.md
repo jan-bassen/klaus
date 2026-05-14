@@ -4,13 +4,13 @@ We'll be opening this up as "the agent for tinkerers". Polish the codebase and t
 
 ## Docs
 
-- [ ] Remove any personal artifacts (janbassen1/klaus, ...)
-- [ ] Update README to be perfect and poignant (short intro + quick setup + architecture pointers to /docs)
-- [ ] Add `docs/`:
-  - [ ] setup-guide — deeper common setups + issues
-  - [ ] codebase-walkthrough — patterns, structure, key files/flows ("how to work with klaus' codebase 101")
-  - [ ] iterate-in-obsidian — most useful patterns with examples
-  - [ ] iterate-in-code — adding a command / variable / tool
+- [x] Remove personal image/repo artifacts from user-facing docs
+- [x] Update README to be perfect and poignant (short intro + quick setup + architecture pointers to /docs)
+- [x] Add `docs/`:
+  - [x] setup-guide — deeper common setups + issues
+  - [x] codebase-walkthrough — patterns, structure, key files/flows ("how to work with klaus' codebase 101")
+  - [x] iterate-in-obsidian — most useful patterns with examples
+  - [x] iterate-in-code — adding a command / variable / tool
 
 ## Comments
 
