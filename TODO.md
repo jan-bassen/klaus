@@ -2,13 +2,10 @@
 
 We'll be opening this up as "the agent for tinkerers". Polish the codebase and the docs before that.
 
-## Code
-
-_(done)_
 
 ## Config
 
-- [ ] pin dependency versions? (or simpler fix for protection against supply chain attacks)
+- [x] pin dependency versions? (or simpler fix for protection against supply chain attacks)
 - [ ] remove and cleanup after fallow
 - [ ] remove and cleanup after claude tooling + 
 - [ ] remove .agent skills with simple docs guide in agents.md
