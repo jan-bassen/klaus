@@ -4,6 +4,7 @@ Guidance for Codex when working in this repository.
 
 ## Status
 - We are in developent, nothing is deployed yet. If we change something, clean up after - no legacy code!
+- Always keep documentation (docs/, README.md, and AGENTS.md) up-to-date with all changes.
 
 ## Code conventions
 

@@ -1,4 +1,4 @@
-# Iterate In Code
+# Development
 
 Code-level changes are for new primitives and runtime behavior. They are auto-discovered at startup, so add the file, export the right shape, test it, and restart the container.
 
@@ -83,17 +83,19 @@ export const shoutTool: ToolDefinition<typeof schema> = {
 };
 ```
 
-Every tool must declare `sideEffect`:
+Every tool declares `sideEffect`:
 
-- `pure`: read-only; simulation calls the real tool.
-- `stateful`: mutates local durable state; simulation uses the tool's `simulate` handler if present, otherwise records a fake success.
-- `external`: touches the outside world; simulation never performs the real action.
+| Value | Meaning under `!simulate` |
+| --- | --- |
+| `pure` | Read-only. Calls the real tool. |
+| `stateful` | Mutates local durable state. Uses `simulate` handler if present, otherwise records a fake success. |
+| `external` | Touches the outside world. Does not call the real tool. Records a plausible fake. |
 
 Use Zod schemas for inputs. Avoid `any` and type assertions. Return clear values the model can act on, including error objects or strings when user-correctable input is wrong.
 
 ## Add A Toolset
 
-Toolsets are lazy-loaded groups of related tools. They keep the initial context small: the agent sees a `load_<name>` meta-tool first, and after it calls that, the real tools are injected for the next step.
+Toolsets are lazy-loaded groups of related tools. The agent sees a `load_<name>` meta-tool first. After it calls that, the real tools are injected for the next step.
 
 Use a toolset when several tools belong together but are only useful on some turns, such as vault file operations, dispatch scheduling, or file-store helpers. Use standalone `tools: [...]` for tiny always-needed tools like `reply` or `react`.
 
@@ -159,5 +161,3 @@ Requires restart:
 - Store behavior
 - Pipeline behavior
 - Infra behavior
-
-That split is intentional: prompt and vault iteration should feel instant; code changes stay explicit.

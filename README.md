@@ -1,6 +1,6 @@
 # Klaus
 
-**Klaus is a headless personal AI agent for tinkerers written in TypeScript.**
+**Klaus is a simple headless personal AI agent for tinkerers that lives in Obsidian and WhatsApp.**
 
 It is built for people who want their assistant minimal, easily configurable and self-hosted. The name is a nod to the infamous [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), who allegedly walked past his crew after being beheaded — because this stack is headless. 
 
@@ -8,12 +8,7 @@ If you're looking for a simpler and more complete setup, projects like [Hermes A
 
 ## Quick Start
 
-Prerequisites:
-
-- Docker
-- An Obsidian Sync account
-- A WhatsApp account to link as a device
-- An OpenRouter API key, unless you reconfigure every provider endpoint
+You need Docker, Obsidian Sync, a WhatsApp account to link as a device, and an OpenRouter API key unless you change the provider settings.
 
 ```bash
 git clone https://github.com/jan-bassen/klaus.git
@@ -30,7 +25,7 @@ OBSIDIAN_PASSWORD=
 OBSIDIAN_VAULT_NAME=
 ```
 
-Build and run the local image:
+Build and run:
 
 ```bash
 docker build -t klaus .
@@ -43,31 +38,32 @@ docker run -d --restart unless-stopped \
   klaus
 ```
 
-On first boot, Klaus hydrates `/app/vault` from Obsidian Sync, creates `/app/vault/Klaus` if it is missing, and generates a temporary login folder:
+On first boot, Klaus hydrates `/app/vault` from Obsidian Sync, creates `/app/vault/Klaus` if it is missing, and writes a temporary login folder:
 
 ```text
 {vault}/Klaus/_login/
 ```
 
-Open `{vault}/Klaus/_login/instructions.md` first. It explains the two setup modes:
+Open `{vault}/Klaus/_login/instructions.md`, choose solo mode or active chat mode, then scan `{vault}/Klaus/_login/qr-code.svg` from WhatsApp Linked Devices.
 
-- **Solo mode**: Klaus runs on the WhatsApp account you are linking. Tick the solo checkbox before scanning the QR.
-- **Active chat mode**: Klaus listens to another chat. Leave the checkbox unticked, scan the QR, then send the generated six-digit setup code from the chat Klaus should listen to.
+For the full install path, E2EE vaults, self-mode, and fixes for common startup problems, use [docs/setup-guide.md](docs/setup-guide.md).
 
-The QR itself is written to `{vault}/Klaus/_login/qr-code.svg`. Scan it from WhatsApp -> Linked Devices. When setup completes, Klaus writes the right `basics.allowedChat` and `whatsapp.selfMode` settings for you, sends the welcome message, and removes `_login`.
+## First Messages
 
-For the full install path, self-mode, E2EE vaults, and troubleshooting, see [docs/setup-guide.md](docs/setup-guide.md).
-
-## Use It
-
-Route to an agent with `@name`:
+Unprefixed messages go to the chat's default agent:
 
 ```text
-@assistant what changed in my project notes?
-@dispatch remind me tomorrow morning to pack the charger
+what changed in my project notes?
 ```
 
-Use commands when you want deterministic behavior instead of an LLM turn:
+Route to a specific agent with `@name` or an alias:
+
+```text
+@assistant summarize my inbox note
+@d remind me tomorrow morning to pack the charger
+```
+
+Use commands for deterministic changes:
 
 ```text
 /help
@@ -79,51 +75,39 @@ Use commands when you want deterministic behavior instead of an LLM turn:
 /retry
 ```
 
-Use `!overrides` anywhere in a message to tweak a single turn:
+Use `!overrides` anywhere after the route to tweak one turn:
 
 ```text
 @assistant !large !voice think through this plan with me
 @assistant !simulate clean up the inbox note
-@assistant !clean answer without using our chat history
+@assistant !clean answer without using chat history
 ```
 
-Voice notes are transcribed, images are sent as vision input, common document formats are parsed to text, and quoted messages can carry their original media through the turn.
-
-## Shape
-
-The runtime is deliberately flat:
-
-- `src/index.ts` boots sync, stores, tools, agents, variables, commands, WhatsApp, schedules, and timers.
-- `src/pipeline/` owns the per-turn flow: auth, parse, config, persistence, context, prompt rendering, model loop, reports.
-- `src/primitives/` holds extension points: commands, variables, tools, toolsets.
-- `src/infra/` wraps external systems and durable state: config, vault, stores, WhatsApp, sync, logging.
-- `vault/` is the first-run template copied into a new `{vault}/Klaus/` folder.
-
-The deeper map is in [docs/codebase-overview.md](docs/codebase-overview.md).
+Voice notes are transcribed, images become vision input, common documents are parsed to text, and quoted messages can carry their original media through the turn.
 
 ## Tinker
 
-Most everyday iteration happens in Obsidian:
+Most changes happen in Obsidian and hot-reload:
 
-- Agents live in `{vault}/Klaus/agents/*.md`.
-- Snippets live in `{vault}/Klaus/snippets/*.md`.
-- Skills live in `{vault}/Klaus/skills/*.md` (as simplified single-file Markdown references).
-- Overrides live in `{vault}/Klaus/overrides.yml`.
-- Settings live in `{vault}/Klaus/settings.yml`.
-- Reports can mirror into `{vault}/Klaus/reports/`.
+- Agents: `{vault}/Klaus/agents/*.md`
+- Snippets: `{vault}/Klaus/snippets/*.md`
+- Skills: `{vault}/Klaus/skills/*.md`
+- Overrides: `{vault}/Klaus/overrides.yml`
+- Settings: `{vault}/Klaus/settings.yml`
+- Templates: `{vault}/Klaus/templates/*.md`
 
-Those files hot-reload. Edit, save, message again.
+Tools, variables, and commands are also easy to add in code, but require a restart to take effect.
 
-Code-level primitives are just as direct, but they need a restart:
+Start with [docs/manual.md](docs/manual.md) for the product model, [docs/recipes.md](docs/recipes.md) for copy-paste changes, and [docs/reference.md](docs/reference.md) for the full list of knobs.
 
-- Add a command in `src/primitives/commands/`.
-- Add a variable in `src/primitives/variables/`.
-- Add a tool or toolset in `src/primitives/tools/`.
-- Add focused Vitest coverage under matching paths in `test/`.
+## Docs Map
 
-Tools are functions an agent can call directly. Toolsets are lazy-loaded groups of related tools, such as vault, dispatch, or files: the agent first sees a small `load_<name>` tool, then gets the full group only when the turn actually needs it. That keeps everyday prompts lean while still making larger capabilities available.
-
-Start with [docs/iterate-in-obsidian.md](docs/iterate-in-obsidian.md) for vault recipes and [docs/iterate-in-code.md](docs/iterate-in-code.md) for TypeScript extension points.
+- [Setup Guide](docs/setup-guide.md): Docker, Obsidian Sync, WhatsApp login, troubleshooting.
+- [Manual](docs/manual.md): how routing, agents, snippets, skills, overrides, reports, and automation fit together.
+- [Recipes](docs/recipes.md): small edits for common tinkering tasks.
+- [Reference](docs/reference.md): frontmatter, settings, commands, tools, variables, and file locations.
+- [Development](docs/development.md): adding TypeScript commands, variables, tools, and toolsets.
+- [Internals](docs/internals.md): codebase map and runtime flow.
 
 ## Develop
 

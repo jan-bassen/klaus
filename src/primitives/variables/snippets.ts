@@ -35,7 +35,7 @@ function compile(content: string, vars: Record<string, unknown>): string {
  * Each snippet is compiled against the full assembled namespace, making it a
  * true reusable template. Snippets may reference other snippets via
  * `{{snippets.<name>}}` — resolved by fixed-point iteration up to
- * `MAX_RECURSION_PASSES`. The `user.md` snippet is handled by the `user` variable.
+ * `MAX_RECURSION_PASSES`.
  */
 const MAX_RECURSION_PASSES = 5;
 
@@ -50,7 +50,6 @@ export const snippetsVariable: Variable = {
 
 		for await (const file of scanFiles(snippetsDir, "*.md")) {
 			const stem = path.basename(file, ".md");
-			if (stem === "user") continue; // owned by user variable
 			raw[stem] = await readSnippet(path.join(snippetsDir, file));
 		}
 

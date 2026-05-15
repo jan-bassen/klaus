@@ -57,11 +57,11 @@ describe("primitives/variables/snippets", () => {
 		expect(out.voice).toBe("Be terse and direct.");
 	});
 
-	it("excludes the special user.md file (owned by user variable)", async () => {
+	it("loads user.md like any other snippet", async () => {
 		writeSnippet(tmp, "user", "name: Jan");
 		writeSnippet(tmp, "tone", "polite");
 		const out = await runSnippets();
-		expect(out.user).toBeUndefined();
+		expect(out.user).toBe("name: Jan");
 		expect(out.tone).toBe("polite");
 	});
 
