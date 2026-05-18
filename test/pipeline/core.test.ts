@@ -263,6 +263,64 @@ describe("pipeline/core.executeAgent", () => {
 		});
 	});
 
+	it("renders # Message with dispatch metadata for dispatch and timer runs", async () => {
+		sendMock.mockResolvedValueOnce(chatResponse({ content: "ok" }));
+
+		const def = makeAgent(tmpDir, {
+			prompt: {
+				system: "You are core-test.",
+				message: "Objective: {{dispatch.prompt}} / {{test}}",
+			},
+		});
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 1, skipHistory: true },
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+			dispatchContext: { prompt: "run the check" },
+		});
+
+		const result = await executeAgent({
+			turn,
+			def,
+			variables: [
+				{
+					key: "dispatch",
+					run: async (t) => t.dispatchContext ?? null,
+				},
+				{
+					key: "test",
+					run: async () => "value",
+				},
+			],
+		});
+
+		expect(result.userMessage).toBe("Objective: run the check / value");
+		expect(firstChatRequest().messages).toContainEqual({
+			role: "user",
+			content: "Objective: run the check / value",
+		});
+	});
+
+	it("uses the raw dispatch objective when an agent has no # Message section", async () => {
+		sendMock.mockResolvedValueOnce(chatResponse({ content: "ok" }));
+
+		const def = makeAgent(tmpDir);
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 1, skipHistory: true },
+			trigger: { kind: "timer", timerId: "timer-1" },
+			dispatchContext: { prompt: "raw objective" },
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(result.userMessage).toBe("raw objective");
+		expect(firstChatRequest().messages).toContainEqual({
+			role: "user",
+			content: "raw objective",
+		});
+	});
+
 	it("throws LlmTimeoutError without retrying when the model call times out", async () => {
 		settings.agent.timeout = 5;
 		settings.agent.retries.max = 3;

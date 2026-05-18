@@ -87,9 +87,10 @@ Without recognized H1 sections, the whole Markdown body is the system prompt.
 With sections:
 
 - `# System` is the stable agent instruction.
-- `# Message` is the synthetic user message for frontmatter schedules.
+- `# Message` is the synthetic user message for frontmatter schedules, timers, and dispatch runs.
 
 Frontmatter schedules expose `{{schedule.id}}`, `{{schedule.pattern}}`, and optional `{{schedule.label}}` while rendering `# Message`.
+Timer and dispatch runs expose the requested objective as `{{dispatch.prompt}}`; if an agent has no `# Message` section, Klaus falls back to using that objective directly as the user message.
 
 ## Tools
 

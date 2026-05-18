@@ -191,7 +191,7 @@ function renderUserText(turn: TurnContext): string {
 
 /**
  * Assemble the model's user-turn content:
- *   - dispatch/timer turns      → the dispatch objective
+ *   - dispatch/timer turns      → the agent's # Message template or dispatch objective
  *   - frontmatter schedules     → the agent's # Message template
  *   - vision turns (img or quoted img) → [image, text] parts
  *   - everything else           → rendered template text
@@ -224,7 +224,13 @@ export async function buildUserMessage(
 
 	if (turn.message) return renderUserText(turn);
 
-	if (turn.dispatchContext) return turn.dispatchContext.prompt;
+	if (turn.dispatchContext) {
+		if (turn.agent.prompt.message) {
+			return buildAgentMessage(turn.agent.prompt.message, turn.vars);
+		}
+		return turn.dispatchContext.prompt;
+	}
+
 	if (turn.schedule && turn.agent.prompt.message) {
 		return buildAgentMessage(turn.agent.prompt.message, turn.vars);
 	}

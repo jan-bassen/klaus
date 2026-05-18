@@ -61,7 +61,7 @@ Dispatch runs do not start from an inbound WhatsApp message. They synthesize a `
 - Dynamic persistence follow-ups
 - Inline `dispatch` tool calls
 
-Frontmatter schedules render the agent's `# Message` section with `{{schedule.*}}`. Dynamic persistence forces a final `persist` tool call after the main turn; if that call fails, the chain breaks visibly.
+Frontmatter schedules render the agent's `# Message` section with `{{schedule.*}}`. Timer and dispatch-tool runs prefer the agent's `# Message` section with `{{dispatch.prompt}}`, falling back to the raw objective for agents without that section. Dynamic persistence forces a final `persist` tool call after the main turn; if that call fails, the chain breaks visibly.
 
 ## Reports
 

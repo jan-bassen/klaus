@@ -100,6 +100,7 @@ src/
 5. **Execute agent** — `executeAgent`: assemble context (vars + tools + history) → compile prompts → `runLoop` (multi-step `completeChat` calls until the model stops calling tools) → report → reschedule if persistent.
 
 Dispatched runs (cron, timer, `dispatch` tool) start at step 5 with a synthesised `Trigger`.
+Frontmatter schedules render `# Message` with `{{schedule.*}}`; timer and dispatch-tool runs prefer `# Message` with `{{dispatch.prompt}}`, falling back to the raw objective when no `# Message` exists.
 
 ## Agents
 
@@ -142,7 +143,7 @@ Scheduled-run message with {{schedule.label}} metadata.
 ```
 
 Persistence:
-- `schedules` — recurring cron entries fire with the agent's `# Message` as the synthetic user message.
+- `schedules` — recurring cron entries fire with the agent's `# Message` as the synthetic user message. Timer and dispatch-tool runs also use `# Message` when present, with `{{dispatch.prompt}}` carrying the objective.
 - `persist: true` — after each run, a forced `persist` tool call produces `{nextRun, prompt, overrides?}`; one-shot timer created, chain unbreakable.
 
 ## Primitives
