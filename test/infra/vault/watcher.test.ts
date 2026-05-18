@@ -17,16 +17,21 @@ function writeAgent(
 	filename: string,
 	options: {
 		name: string;
-		schedule?: string;
-		prompt?: string;
-		overrides?: string[];
+		schedules?: Array<{
+			pattern: string;
+			label?: string;
+			overrides?: string[];
+		}>;
 	},
 ): void {
-	const persistence = options.schedule
-		? `persistenceMode: static
-persistenceSchedule: "${options.schedule}"
-persistencePrompt: "${options.prompt ?? "check in"}"
-persistenceOverrides: [${(options.overrides ?? []).join(", ")}]
+	const schedules = options.schedules
+		? `schedules:
+${options.schedules
+	.map(
+		(s) => `  - pattern: "${s.pattern}"
+${s.label ? `    label: ${s.label}\n` : ""}    overrides: [${(s.overrides ?? []).join(", ")}]`,
+	)
+	.join("\n")}
 `
 		: "";
 	writeFileSync(
@@ -34,8 +39,12 @@ persistenceOverrides: [${(options.overrides ?? []).join(", ")}]
 		`---
 name: ${options.name}
 aliases: []
-${persistence}---
+${schedules}---
+# System
 Prompt body.
+
+# Message
+{{schedule.label}} check.
 `,
 	);
 }
@@ -57,22 +66,22 @@ describe("infra/vault/watcher.handleAgentChange", () => {
 		rmTmpDir(tmpDir);
 	});
 
-	it("renames the frontmatter schedule when an agent file changes names", async () => {
+	it("renames frontmatter schedules when an agent file changes names", async () => {
 		const filename = "daily.md";
 		writeAgent(agentsDir, filename, {
 			name: "oldName",
-			schedule: "0 8 * * *",
-			prompt: "daily check",
-			overrides: ["voice"],
+			schedules: [
+				{ pattern: "0 8 * * *", label: "morning", overrides: ["voice"] },
+			],
 		});
 		await handleAgentChange(agentsDir, filename);
-		expect(getSchedules().map((s) => s.id)).toEqual(["frontmatter:oldName"]);
+		expect(getSchedules().map((s) => s.id)).toEqual(["frontmatter:oldName:0"]);
 
 		writeAgent(agentsDir, filename, {
 			name: "newName",
-			schedule: "0 8 * * *",
-			prompt: "daily check",
-			overrides: ["voice"],
+			schedules: [
+				{ pattern: "0 8 * * *", label: "morning", overrides: ["voice"] },
+			],
 		});
 		await handleAgentChange(agentsDir, filename);
 
@@ -80,21 +89,21 @@ describe("infra/vault/watcher.handleAgentChange", () => {
 		expect(agentRegistry.get("newName")?.name).toBe("newName");
 		expect(getSchedules()).toEqual([
 			expect.objectContaining({
-				id: "frontmatter:newName",
+				id: "frontmatter:newName:0",
 				agentName: "newName",
 				pattern: "0 8 * * *",
-				objective: "daily check",
+				objective: "# Message",
+				label: "morning",
 				overrides: ["voice"],
 			}),
 		]);
 	});
 
-	it("removes the frontmatter schedule when static persistence is removed", async () => {
+	it("removes frontmatter schedules when they are removed", async () => {
 		const filename = "daily.md";
 		writeAgent(agentsDir, filename, {
 			name: "daily",
-			schedule: "0 8 * * *",
-			prompt: "daily check",
+			schedules: [{ pattern: "0 8 * * *", label: "morning" }],
 		});
 		await handleAgentChange(agentsDir, filename);
 
@@ -108,8 +117,7 @@ describe("infra/vault/watcher.handleAgentChange", () => {
 		const filename = "daily.md";
 		writeAgent(agentsDir, filename, {
 			name: "daily",
-			schedule: "0 8 * * *",
-			prompt: "daily check",
+			schedules: [{ pattern: "0 8 * * *", label: "morning" }],
 		});
 		await handleAgentChange(agentsDir, filename);
 		await addSchedule({

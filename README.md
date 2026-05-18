@@ -4,7 +4,9 @@
 
 It is built for people who want their assistant minimal, easily configurable and self-hosted. The name is a nod to the infamous [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), who allegedly walked past his crew after being beheaded — because this stack is headless. 
 
-If you're looking for a simpler and more complete setup, projects like [Hermes Agent](https://github.com/NousResearch/hermes-agent) or [OpenClaw](https://github.com/openclaw/openclaw) may be a calmer harbor. Klaus is for when you would rather sail with your strange little ship. 
+The core pieces are already wired up: WhatsApp intake, agent routing, prompts, tools, variables, commands, schedules, timers, vault reads and writes, reports, simulation, and flat-file storage. Anything beyond that is up to you — drop your own ideas straight into those primitives. Just copy the repo and start tinkering.
+
+If you're looking for a simpler and more complete setup, projects like [Hermes Agent](https://github.com/NousResearch/hermes-agent) or [OpenClaw](https://github.com/openclaw/openclaw) may be a calmer harbor. Klaus is for when you would rather sail with your strange little ship.
 
 ## Quick Start
 
@@ -59,8 +61,8 @@ what changed in my project notes?
 Route to a specific agent with `@name` or an alias:
 
 ```text
-@assistant summarize my inbox note
-@d remind me tomorrow morning to pack the charger
+@meta always reply in Italian from now on
+@m move the daily brief to 7am
 ```
 
 Use commands for deterministic changes:
@@ -78,9 +80,8 @@ Use commands for deterministic changes:
 Use `!overrides` anywhere after the route to tweak one turn:
 
 ```text
-@assistant !large !voice think through this plan with me
-@assistant !simulate clean up the inbox note
-@assistant !clean answer without using chat history
+!large !voice think through this plan with me
+@meta !simulate remove the test agent 
 ```
 
 Voice notes are transcribed, images become vision input, common documents are parsed to text, and quoted messages can carry their original media through the turn.

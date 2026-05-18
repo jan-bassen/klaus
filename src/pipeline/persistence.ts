@@ -40,6 +40,7 @@ interface PersistDynamicInput {
 	userContent: UserContent;
 	replyContent: string;
 	hint: string;
+	overrides: string[];
 	signal?: AbortSignal;
 }
 
@@ -114,6 +115,7 @@ export async function persistDynamic(
 
 	const parsed = persistInputSchema.parse(parseArgs(call.function.arguments));
 	const runAt = computeNextRun(parsed.nextRun);
+	const overrides = mergeOverrides(input.overrides, parsed.overrides);
 
 	await addTimer({
 		id: crypto.randomUUID(),
@@ -123,12 +125,14 @@ export async function persistDynamic(
 		runAt,
 		createdBy: "persistent",
 		createdAt: new Date().toISOString(),
-		...(parsed.overrides && parsed.overrides.length > 0
-			? { overrides: parsed.overrides }
-			: {}),
+		...(overrides.length > 0 ? { overrides } : {}),
 	});
 
 	log.info(`[persist] @${input.def.name} rescheduled for ${runAt}`);
+}
+
+function mergeOverrides(base: string[], next: string[] | undefined): string[] {
+	return [...new Set([...base, ...(next ?? [])])];
 }
 
 /**

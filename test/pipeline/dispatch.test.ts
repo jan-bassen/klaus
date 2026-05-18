@@ -231,7 +231,11 @@ function makeAgent(
 		tools: patch.tools ?? [],
 		report: false,
 	});
-	return { ...parsed, promptPath: path.join("/tmp", `${name}.md`) };
+	return {
+		...parsed,
+		promptPath: path.join("/tmp", `${name}.md`),
+		prompt: { system: `You are ${name}.` },
+	};
 }
 
 function writeAgentFile(dir: string, name: string): void {

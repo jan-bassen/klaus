@@ -20,7 +20,6 @@ import { OpenRouterError } from "@openrouter/sdk/models/errors";
 import { toJSONSchema } from "zod/v4";
 import { type ModelTier, resolveModel, settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
-import { readText } from "../infra/runtime.ts";
 import { appendTrace, type TraceStep } from "../infra/store/history.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
 import { enqueueMessage } from "../infra/whatsapp/send.ts";
@@ -50,7 +49,7 @@ import { emitReport } from "./reports.ts";
  * named for what it points to so destructuring stays self-documenting.
  *
  * - `message`  — a user-typed WhatsApp message
- * - `schedule` — a cron-fired schedule (`Klaus/agents/*.md` static persistence)
+ * - `schedule` — a cron-fired schedule (`Klaus/agents/*.md` frontmatter schedule)
  * - `timer`    — a one-shot timer (incl. dynamic-persistence reschedules)
  * - `dispatch` — another agent invoked us inline via the dispatch tool
  */
@@ -59,6 +58,12 @@ export type Trigger =
 	| { kind: "schedule"; scheduleId: string }
 	| { kind: "timer"; timerId: string }
 	| { kind: "dispatch"; parentRunId: string };
+
+export interface ScheduleContext {
+	id: string;
+	pattern: string;
+	label?: string;
+}
 
 /**
  * The full per-turn state carried through `executeAgent`. Partial variants
@@ -82,8 +87,10 @@ export interface TurnContext {
 	vars: Record<string, unknown>;
 	/** Label → externalId mapping for message references (reply/react tools). */
 	messageRefs: Record<string, { externalId: string; role: string }>;
-	/** The prompt the parent/scheduler handed to this agent. Undefined unless trigger.kind === "dispatch". */
+	/** The prompt a parent, timer, or tool-created schedule handed to this agent. */
 	dispatchContext?: { prompt: string };
+	/** Present for generated frontmatter schedules while rendering # Message. */
+	schedule?: ScheduleContext;
 	/**
 	 * Ordered slots for inline-dispatched sub-agent replies. Each slot is an
 	 * array of reply strings filled by a sub-agent while its turn runs. At end
@@ -181,9 +188,7 @@ export async function executeAgent(
 		});
 		fullTurn = input.turn as TurnContext;
 
-		const promptRaw = await readText(input.def.promptPath);
-		const promptBody = promptRaw.replace(/^---\n[\s\S]*?\n---\n?/, "");
-		const system = buildSystemPrompt(promptBody, ctx.vars);
+		const system = buildSystemPrompt(input.def.prompt.system, ctx.vars);
 		const userContent = await buildUserMessage(fullTurn);
 
 		const result = await runAgent({
@@ -196,7 +201,7 @@ export async function executeAgent(
 			...(input.signal ? { signal: input.signal } : {}),
 		});
 
-		if (input.def.persistence?.mode === "dynamic") {
+		if (input.def.persistence) {
 			await persistDynamic({
 				def: input.def,
 				turn: fullTurn,
@@ -205,6 +210,7 @@ export async function executeAgent(
 				userContent,
 				replyContent: result.replyContent,
 				hint: input.def.persistence.hint,
+				overrides: input.def.persistence.overrides,
 				...(input.signal ? { signal: input.signal } : {}),
 			});
 		}

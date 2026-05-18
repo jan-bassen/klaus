@@ -17,13 +17,13 @@ import { settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
 import { getVariables } from "../primitives/variables/index.ts";
 import { getOrLoadAgent } from "./agents.ts";
-import type { Trigger, TurnContext } from "./core.ts";
+import type { ScheduleContext, Trigger, TurnContext } from "./core.ts";
 import { executeAgent } from "./core.ts";
 import { buildTurnConfig } from "./overrides.ts";
 
 interface DispatchOptions {
 	agent: string;
-	prompt: string;
+	prompt?: string;
 	overrides?: string[];
 	chatId: string;
 	/** What kicked off this dispatch — schedule, timer, message, or another agent. */
@@ -42,19 +42,13 @@ interface DispatchOptions {
 	 * inline children without depending on a user-editable preset name.
 	 */
 	simulate?: boolean;
+	schedule?: ScheduleContext;
 }
 
 export async function dispatch(
 	opts: DispatchOptions,
 ): Promise<string | undefined> {
-	const {
-		agent: agentName,
-		prompt,
-		chatId,
-		trigger,
-		depth = 0,
-		replyCollector,
-	} = opts;
+	const { agent: agentName, chatId, trigger, depth = 0, replyCollector } = opts;
 
 	if (depth >= settings.agent.maxChainDepth) {
 		log.warn(
@@ -83,8 +77,11 @@ export async function dispatch(
 		overrides: {},
 		config,
 		messageRefs: {},
-		dispatchContext: { prompt },
 		pendingSubReplies: [],
+		...(opts.prompt !== undefined
+			? { dispatchContext: { prompt: opts.prompt } }
+			: {}),
+		...(opts.schedule ? { schedule: opts.schedule } : {}),
 		...(replyCollector ? { _replyCollector: replyCollector } : {}),
 	};
 

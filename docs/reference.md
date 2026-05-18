@@ -40,13 +40,16 @@ This page is the compact list of Klaus knobs. For explanations and examples, use
 | `showTrace` | boolean | Show compact tool trace rows in future history. |
 | `report` | boolean | Emit run reports for this agent. |
 | `vaultAccess` | string array | Per-agent vault permissions, formatted as `path:permission`. |
-| `persistenceMode` | `static`, `dynamic` | Make the agent persistent. |
-| `persistenceSchedule` | cron string | Required for static persistence. |
-| `persistencePrompt` | string | Required for static persistence. |
-| `persistenceOverrides` | string array | Optional override names for static persistence. |
-| `persistenceHint` | string | Required for dynamic persistence. |
+| `persist` | boolean | Enable dynamic self-rescheduling after each run. |
+| `persistHint` | string | Required when `persist: true`; policy for choosing the next run. |
+| `persistOverrides` | string array | Override names applied to dynamically created timers. |
+| `schedules` | object array | Recurring frontmatter schedules; each item has `pattern`, optional `label`, optional `overrides`. |
 
 Agent defaults come from `settings.agentDefaults`. Per-message overrides win over both.
+
+## Agent Prompt Sections
+
+Without recognized H1 sections, the whole agent body is the system prompt. If the body contains `# System` or `# Message`, Klaus uses `# System` for stable instructions and `# Message` as the synthetic user message for frontmatter schedules. Frontmatter schedules expose `{{schedule.id}}`, `{{schedule.pattern}}`, and optional `{{schedule.label}}` while rendering `# Message`.
 
 ## Voice Modes
 
@@ -60,20 +63,21 @@ Agent defaults come from `settings.agentDefaults`. Per-message overrides win ove
 
 ## Persistence
 
-Static persistence:
+Recurring frontmatter schedules:
 
 ```yaml
-persistenceMode: static
-persistenceSchedule: "0 8 * * *"
-persistencePrompt: "Morning check-in."
-persistenceOverrides: [voice]
+schedules:
+  - pattern: "0 8 * * *"
+    label: morning
+    overrides: [voice]
 ```
 
 Dynamic persistence:
 
 ```yaml
-persistenceMode: dynamic
-persistenceHint: "Schedule the next run based on the user's last commitment."
+persist: true
+persistHint: "Schedule the next run based on the user's last commitment."
+persistOverrides: [voice]
 ```
 
 Dynamic persistence forces a final `persist` tool call with:
@@ -203,6 +207,7 @@ Variables are available to agent prompts and templates.
 | `{{tasks.*}}` | Active schedules and timers. |
 | `{{config.*}}` | Effective agent and turn config facts. |
 | `{{dispatch.*}}` | Dispatch trigger prompt and context. |
+| `{{schedule.*}}` | Current frontmatter schedule metadata (`id`, `pattern`, optional `label`). |
 | `{{trigger.*}}` | Message, schedule, timer, or dispatch trigger facts. |
 | `{{snippets.*}}` | Compiled Markdown snippets from `{vault}/Klaus/snippets/*.md`. |
 

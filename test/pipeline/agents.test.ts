@@ -16,10 +16,15 @@ import {
 } from "../../src/pipeline/agents.ts";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 
-function writeAgent(dir: string, name: string, extra = ""): void {
+function writeAgent(
+	dir: string,
+	name: string,
+	extra = "",
+	body = `You are ${name}.`,
+): void {
 	writeFileSync(
 		path.join(dir, `${name}.md`),
-		`---\nname: ${name}\ntools: [reply]\n${extra}---\nYou are ${name}.`,
+		`---\nname: ${name}\ntools: [reply]\n${extra}---\n${body}`,
 	);
 }
 
@@ -65,29 +70,61 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 		expect(def.aliases).toEqual(["fit", "gym"]);
 	});
 
-	it("parses static persistence block", async () => {
+	it("parses schedules and prompt sections", async () => {
 		writeAgent(
 			tmpDir,
 			"daily",
-			'persistenceMode: static\npersistenceSchedule: "0 8 * * *"\npersistencePrompt: "Good morning"\n',
+			'schedules:\n  - pattern: "0 8 * * *"\n    label: morning\n    overrides: [voice]\n',
+			"# System\nYou are daily.\n\n# Message\nGood morning, {{schedule.label}}.",
 		);
 		const def = await loadAgentDefinition(path.join(tmpDir, "daily.md"));
-		expect(def.persistence?.mode).toBe("static");
-		if (def.persistence?.mode !== "static") return;
-		expect(def.persistence.schedule).toBe("0 8 * * *");
-		expect(def.persistence.prompt).toBe("Good morning");
+		expect(def.prompt.system).toBe("You are daily.");
+		expect(def.prompt.message).toBe("Good morning, {{schedule.label}}.");
+		expect(def.schedules).toEqual([
+			{ pattern: "0 8 * * *", label: "morning", overrides: ["voice"] },
+		]);
 	});
 
-	it("parses dynamic persistence block", async () => {
+	it("parses dynamic persistence policy", async () => {
 		writeAgent(
 			tmpDir,
 			"adaptive",
-			'persistenceMode: dynamic\npersistenceHint: "schedule based on user"\n',
+			'persist: true\npersistHint: "schedule based on user"\npersistOverrides: [voice]\n',
 		);
 		const def = await loadAgentDefinition(path.join(tmpDir, "adaptive.md"));
-		expect(def.persistence?.mode).toBe("dynamic");
-		if (def.persistence?.mode !== "dynamic") return;
-		expect(def.persistence.hint).toBe("schedule based on user");
+		expect(def.persistence).toEqual({
+			hint: "schedule based on user",
+			overrides: ["voice"],
+		});
+	});
+
+	it("keeps the whole body as system prompt without recognized sections", async () => {
+		writeAgent(tmpDir, "plain", "", "# Notes\nStill system.");
+		const def = await loadAgentDefinition(path.join(tmpDir, "plain.md"));
+		expect(def.prompt).toEqual({ system: "# Notes\nStill system." });
+	});
+
+	it("requires # Message when schedules are declared", async () => {
+		writeAgent(
+			tmpDir,
+			"daily",
+			'schedules:\n  - pattern: "0 8 * * *"\n',
+			"# System\nYou are daily.",
+		);
+		await expect(
+			loadAgentDefinition(path.join(tmpDir, "daily.md")),
+		).rejects.toThrow("has no # Message section");
+	});
+
+	it("rejects old persistence frontmatter", async () => {
+		writeAgent(
+			tmpDir,
+			"old",
+			'persistenceMode: static\npersistenceSchedule: "0 8 * * *"\npersistencePrompt: "Good morning"\n',
+		);
+		await expect(
+			loadAgentDefinition(path.join(tmpDir, "old.md")),
+		).rejects.toThrow();
 	});
 
 	it("parses flat settings", async () => {
@@ -118,9 +155,7 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 	});
 
 	it("parses the bundled meta agent contract", async () => {
-		const def = await loadAgentDefinition(
-			path.resolve("vault/agents/meta.md"),
-		);
+		const def = await loadAgentDefinition(path.resolve("vault/agents/meta.md"));
 		const expectedTools = [
 			"reply",
 			"react",

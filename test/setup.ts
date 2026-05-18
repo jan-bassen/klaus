@@ -8,9 +8,8 @@
  * 2. Per-test cleanup of in-memory registries that survive between suites.
  */
 
-import { settings } from "../src/infra/config.ts";
-
 import { afterEach } from "vitest";
+import { settings } from "../src/infra/config.ts";
 import { agentRegistry } from "../src/pipeline/agents.ts";
 import { overrideRegistry } from "../src/pipeline/overrides.ts";
 import {

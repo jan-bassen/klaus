@@ -187,6 +187,25 @@ describe("pipeline/persistence.persistDynamic", () => {
 		expect(listTimers()[0]).not.toHaveProperty("overrides");
 	});
 
+	it("merges agent persist overrides with tool-returned overrides", async () => {
+		sendMock.mockResolvedValueOnce(
+			chatResponse(
+				persistCall({
+					nextRun: "5m",
+					prompt: "with overrides",
+					overrides: ["large", "voice"],
+				}),
+			),
+		);
+
+		await persistDynamic({
+			...baseInput(tmpDir),
+			overrides: ["voice", "clean"],
+		});
+
+		expect(listTimers()[0]?.overrides).toEqual(["voice", "clean", "large"]);
+	});
+
 	it("throws and does not schedule when the forced response omits the persist tool", async () => {
 		sendMock.mockResolvedValueOnce(chatResponse());
 
@@ -215,6 +234,7 @@ function baseInput(tmpDir: string) {
 		userContent: "current user",
 		replyContent: "main reply",
 		hint: "choose a useful next run",
+		overrides: [],
 	};
 }
 
@@ -222,10 +242,14 @@ function makeAgent(tmpDir: string): AgentDefinition {
 	const parsed = AgentSchema.parse({
 		name: "persistent-agent",
 		report: false,
-		persistenceMode: "dynamic",
-		persistenceHint: "choose a useful next run",
+		persist: true,
+		persistHint: "choose a useful next run",
 	});
-	return { ...parsed, promptPath: path.join(tmpDir, "persistent-agent.md") };
+	return {
+		...parsed,
+		promptPath: path.join(tmpDir, "persistent-agent.md"),
+		prompt: { system: "system prompt" },
+	};
 }
 
 function chatResponse(toolCall?: ReturnType<typeof persistCall>) {

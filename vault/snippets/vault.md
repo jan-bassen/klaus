@@ -2,7 +2,7 @@ The Obsidian vault is the primary place for the user's notes, projects, and know
 
 You have your own subfolder `Klaus/`:
 ```
-Klaus/agents/               agent-specific system prompt templates
+Klaus/agents/               agent frontmatter + prompt section templates
 Klaus/snippets/             static snippets for reusable prompt sections
 Klaus/skills/               on-demand instructions (read via the skill tool)
 Klaus/notes/                your own notes (read/write via vault tools)

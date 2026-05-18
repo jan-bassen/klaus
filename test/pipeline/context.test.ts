@@ -452,7 +452,7 @@ function makeAgent(
 		tools,
 		report: false,
 	});
-	return { ...parsed, promptPath };
+	return { ...parsed, promptPath, prompt: { system: `You are ${name}.` } };
 }
 
 function baseTurn(

@@ -148,6 +148,8 @@ vaultAccess:
   - "*:read"
   - "Projects:full"
 ---
+# System
+
 You are a careful research assistant.
 
 It is {{time.weekday}} ({{time.date}}, {{time.time}}).
@@ -155,9 +157,15 @@ It is {{time.weekday}} ({{time.date}}, {{time.time}}).
 Use the vault when the answer depends on notes.
 {{snippets.personality}}
 {{snippets.user}}
+
+# Message
+
+{{#if (eq schedule.label "morning")}}
+Review active tasks and send a short morning plan.
+{{/if}}
 ```
 
-The frontmatter controls routing, model config, tools, history, reports, permissions, and persistence. The body is the system prompt.
+The frontmatter controls routing, model config, tools, history, reports, permissions, schedules, and persistence. Without recognized H1 sections the whole body is the system prompt. With `# System` / `# Message`, `# System` is the stable prompt and `# Message` is used for frontmatter schedules.
 
 ## Snippets
 
@@ -245,23 +253,24 @@ Klaus has three automation paths:
 | Path | Use |
 | --- | --- |
 | `dispatch` toolset | Let one agent run another agent now, later, or on a schedule. |
-| Static persistence | Give an agent a fixed recurring cron prompt. |
+| Frontmatter schedules | Give an agent one or more recurring cron runs. |
 | Dynamic persistence | Let an agent decide its next run after each run. |
 
-Static persistence lives in agent frontmatter:
+Recurring schedules live in agent frontmatter and use the agent's `# Message` section:
 
 ```yaml
-persistenceMode: static
-persistenceSchedule: "0 8 * * *"
-persistencePrompt: "Morning check-in. Review active tasks and reply with the plan."
-persistenceOverrides: [voice]
+schedules:
+  - pattern: "0 8 * * *"
+    label: morning
+    overrides: [voice]
 ```
 
 Dynamic persistence also lives in frontmatter:
 
 ```yaml
-persistenceMode: dynamic
-persistenceHint: "Schedule the next follow-up based on the user's last commitment."
+persist: true
+persistHint: "Schedule the next follow-up based on the user's last commitment."
+persistOverrides: [voice]
 ```
 
 For dynamic persistence, Klaus forces a final `persist` tool call after the main reply. The agent must return the next run time, prompt, and optional overrides. If that fails, the chain breaks visibly instead of silently vanishing.

@@ -224,6 +224,45 @@ describe("pipeline/core.executeAgent", () => {
 		expect(result.replyContent).toBe("first\n---\nsecond");
 	});
 
+	it("renders # Message with schedule metadata for frontmatter schedule runs", async () => {
+		sendMock.mockResolvedValueOnce(chatResponse({ content: "ok" }));
+
+		const def = makeAgent(tmpDir, {
+			prompt: {
+				system: "You are core-test.",
+				message:
+					'{{#if (eq schedule.label "morning")}}Morning {{schedule.pattern}}{{else}}Other{{/if}}',
+			},
+		});
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 1, skipHistory: true },
+			trigger: { kind: "schedule", scheduleId: "frontmatter:core-test:0" },
+			schedule: {
+				id: "frontmatter:core-test:0",
+				pattern: "0 8 * * *",
+				label: "morning",
+			},
+		});
+
+		const result = await executeAgent({
+			turn,
+			def,
+			variables: [
+				{
+					key: "schedule",
+					run: async (t) => t.schedule ?? null,
+				},
+			],
+		});
+
+		expect(result.userMessage).toBe("Morning 0 8 * * *");
+		expect(firstChatRequest().messages).toContainEqual({
+			role: "user",
+			content: "Morning 0 8 * * *",
+		});
+	});
+
 	it("throws LlmTimeoutError without retrying when the model call times out", async () => {
 		settings.agent.timeout = 5;
 		settings.agent.retries.max = 3;
@@ -512,7 +551,7 @@ describe("pipeline/core.executeAgent", () => {
 
 		const def = makeAgent(tmpDir, {
 			tools: ["reply"],
-			persistence: { mode: "dynamic", hint: "Pick a useful follow-up." },
+			persistence: { hint: "Pick a useful follow-up.", overrides: [] },
 		});
 		const turn = makeTurn({
 			agent: def,
@@ -548,7 +587,7 @@ describe("pipeline/core.executeAgent", () => {
 			.mockResolvedValueOnce(chatResponse({ content: "no tool" }));
 
 		const def = makeAgent(tmpDir, {
-			persistence: { mode: "dynamic", hint: "Pick a useful follow-up." },
+			persistence: { hint: "Pick a useful follow-up.", overrides: [] },
 		});
 		const turn = makeTurn({
 			agent: def,
@@ -568,6 +607,7 @@ function makeAgent(
 	patch: {
 		tools?: string[];
 		persistence?: AgentDefinition["persistence"];
+		prompt?: AgentDefinition["prompt"];
 	} = {},
 ): AgentDefinition {
 	const promptPath = path.join(dir, `${crypto.randomUUID()}.md`);
@@ -577,14 +617,19 @@ function makeAgent(
 		tools: patch.tools ?? [],
 		report: false,
 		stepLimit: 2,
-		...(patch.persistence?.mode === "dynamic"
+		...(patch.persistence
 			? {
-					persistenceMode: "dynamic",
-					persistenceHint: patch.persistence.hint,
+					persist: true,
+					persistHint: patch.persistence.hint,
+					persistOverrides: patch.persistence.overrides,
 				}
 			: {}),
 	});
-	return { ...parsed, promptPath };
+	return {
+		...parsed,
+		promptPath,
+		prompt: patch.prompt ?? { system: "You are core-test." },
+	};
 }
 
 function chatResponse(

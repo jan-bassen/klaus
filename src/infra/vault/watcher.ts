@@ -11,7 +11,11 @@ import { parseSkillMeta, skillRegistry } from "../../primitives/tools/skill.ts";
 import { loadSettingsFromDisk, settings } from "../config.ts";
 import { log } from "../logger.ts";
 import { readText } from "../runtime.ts";
-import { addSchedule, removeSchedule } from "../store/schedules.ts";
+import {
+	addSchedule,
+	getSchedules,
+	removeSchedule,
+} from "../store/schedules.ts";
 import { enqueueMessage } from "../whatsapp/send.ts";
 
 const watchers: FSWatcher[] = [];
@@ -41,14 +45,9 @@ function findAgentByPath(promptPath: string): { name: string } | undefined {
 	return undefined;
 }
 
-function frontmatterScheduleId(agentName: string): string {
-	return `frontmatter:${agentName}`;
+function frontmatterScheduleId(agentName: string, index: number): string {
+	return `frontmatter:${agentName}:${index}`;
 }
-
-type StaticPersistence = Extract<
-	NonNullable<AgentDefinition["persistence"]>,
-	{ mode: "static" }
->;
 
 interface AgentChange {
 	old?: { name: string };
@@ -67,7 +66,7 @@ async function removeAgentByPath(promptPath: string): Promise<void> {
 	const oldDef = agentRegistry.get(old.name);
 	agentRegistry.delete(old.name);
 	if (oldDef) deleteAgentAliases(oldDef);
-	await removeSchedule(frontmatterScheduleId(old.name));
+	await removeFrontmatterSchedules(old.name);
 	log.info(`[watcher] agent removed: @${old.name}`);
 }
 
@@ -91,62 +90,54 @@ function replaceAgentDefinition(newDef: AgentDefinition): AgentChange {
 	};
 }
 
-function staticPersistence(
-	def: AgentDefinition | undefined,
-): StaticPersistence | null {
-	return def?.persistence?.mode === "static" ? def.persistence : null;
-}
-
-function staticScheduleChanged(change: AgentChange): boolean {
-	const oldStatic = staticPersistence(change.oldDef);
-	const newStatic = staticPersistence(change.newDef);
+function frontmatterSchedulesChanged(change: AgentChange): boolean {
 	const nameChanged =
 		change.old !== undefined && change.old.name !== change.newDef.name;
 
 	return (
 		nameChanged ||
-		oldStatic?.schedule !== newStatic?.schedule ||
-		oldStatic?.prompt !== newStatic?.prompt ||
-		JSON.stringify(oldStatic?.overrides ?? []) !==
-			JSON.stringify(newStatic?.overrides ?? [])
+		change.oldDef?.prompt.message !== change.newDef.prompt.message ||
+		JSON.stringify(change.oldDef?.schedules ?? []) !==
+			JSON.stringify(change.newDef.schedules)
 	);
 }
 
-async function syncFrontmatterSchedule(change: AgentChange): Promise<void> {
-	if (!staticScheduleChanged(change)) return;
+async function removeFrontmatterSchedules(agentName: string): Promise<void> {
+	for (const schedule of getSchedules()) {
+		if (
+			schedule.agentName === agentName &&
+			schedule.createdBy === "scheduler" &&
+			schedule.id.startsWith("frontmatter:")
+		) {
+			await removeSchedule(schedule.id);
+		}
+	}
+}
+
+async function syncFrontmatterSchedules(change: AgentChange): Promise<void> {
+	if (!frontmatterSchedulesChanged(change)) return;
 
 	const oldName = change.old?.name;
 	const newName = change.newDef.name;
-	const removedOld = oldName
-		? await removeSchedule(frontmatterScheduleId(oldName))
-		: false;
-	const removedNew =
-		oldName !== newName
-			? await removeSchedule(frontmatterScheduleId(newName))
-			: false;
-	if (removedOld || removedNew) {
-		log.info(`[watcher] schedule removed for @${oldName ?? newName}`);
+	if (oldName) await removeFrontmatterSchedules(oldName);
+	if (oldName !== newName) await removeFrontmatterSchedules(newName);
+
+	for (const [index, schedule] of change.newDef.schedules.entries()) {
+		await addSchedule({
+			id: frontmatterScheduleId(newName, index),
+			agentName: newName,
+			pattern: schedule.pattern,
+			chatId: "system",
+			objective: "# Message",
+			...(schedule.overrides.length > 0
+				? { overrides: schedule.overrides }
+				: {}),
+			...(schedule.label ? { label: schedule.label } : {}),
+			createdBy: "scheduler",
+			createdAt: new Date().toISOString(),
+		});
 	}
-
-	const nextStatic = staticPersistence(change.newDef);
-	if (!nextStatic) return;
-
-	await addSchedule({
-		id: frontmatterScheduleId(newName),
-		agentName: newName,
-		pattern: nextStatic.schedule,
-		chatId: "system",
-		objective: nextStatic.prompt,
-		...(nextStatic.overrides.length > 0
-			? { overrides: nextStatic.overrides }
-			: {}),
-		label: `${newName} (frontmatter)`,
-		createdBy: "scheduler",
-		createdAt: new Date().toISOString(),
-	});
-	log.info(
-		`[watcher] schedule registered for @${newName}: ${nextStatic.schedule}`,
-	);
+	log.info(`[watcher] schedules synced for @${newName}`);
 }
 
 export async function handleAgentChange(
@@ -163,7 +154,7 @@ export async function handleAgentChange(
 
 	try {
 		const newDef = await loadAgentDefinition(promptPath);
-		await syncFrontmatterSchedule(replaceAgentDefinition(newDef));
+		await syncFrontmatterSchedules(replaceAgentDefinition(newDef));
 		log.info(`[watcher] agent reloaded: @${newDef.name}`);
 	} catch (err) {
 		log.warn(`[watcher] failed to reload agent: ${filename}`, {

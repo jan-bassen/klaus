@@ -20,14 +20,14 @@ Klaus is easiest to understand as one tree. Startup lives in `src/index.ts`, tur
 │   │   ├── index.ts                  # top-level turn handler: auth/setup, parse, config, persist, execute
 │   │   ├── message.ts                # STT/doc/link parsing, /commands, @agent routing, !override extraction
 │   │   ├── media.ts                  # speech-to-text, text-to-speech, docs, images
-│   │   ├── agents.ts                 # agent frontmatter schema, registry, aliases, defaults, persistence config
+│   │   ├── agents.ts                 # agent frontmatter schema, prompt sections, registry, aliases, defaults
 │   │   ├── overrides.ts              # overrides.yml registry and TurnConfig merge
 │   │   ├── context.ts                # variables, tools, toolsets, provider tools, history, message refs
 │   │   ├── prompts.ts                # template loading, Handlebars helpers, system/user message rendering
 │   │   ├── core.ts                   # chat-completions loop, tool calls, traces, dynamic persistence, reports
 │   │   ├── outbound.ts               # reply/react preparation, quotes, dedup keys, trace persistence
 │   │   ├── dispatch.ts               # run an agent from schedules, timers, persistence, or another agent
-│   │   ├── persistence.ts            # static cron persistence and dynamic self-rescheduling
+│   │   ├── persistence.ts            # dynamic self-rescheduling timer creation
 │   │   └── reports.ts                # per-run JSON reports and optional vault Markdown mirrors
 │   ├── primitives/                   # auto-discovered extension surface
 │   │   ├── commands/                 # deterministic WhatsApp commands; bypass the LLM
@@ -36,7 +36,8 @@ Klaus is easiest to understand as one tree. Startup lives in `src/index.ts`, tur
 │   │   │   ├── time.ts               # localized date/time
 │   │   │   ├── media.ts              # current turn media/document/image context
 │   │   │   ├── tasks.ts              # task-oriented vault context
-│   │   │   ├── dispatch.ts           # dispatch/scheduling context
+│   │   │   ├── dispatch.ts           # dispatch/timer objective context
+│   │   │   ├── schedule.ts           # frontmatter schedule metadata
 │   │   │   ├── config.ts             # effective agent/config facts
 │   │   │   ├── snippets.ts           # loads Klaus/snippets/*.md after base variables
 │   │   │   └── trigger.ts            # message/schedule/timer/dispatch trigger context
@@ -77,7 +78,7 @@ infra/whatsapp/receive.ts
   -> primitives/tools/* + pipeline/outbound.ts + pipeline/reports.ts
 ```
 
-Scheduled, timer, persistence, and inline-dispatch runs skip inbound parsing and enter through `pipeline/dispatch.ts`, then converge on `pipeline/core.ts`.
+Scheduled, timer, persistence, and inline-dispatch runs skip inbound parsing and enter through `pipeline/dispatch.ts`, then converge on `pipeline/core.ts`. Frontmatter schedules render the agent's `# Message` at run time with `{{schedule.*}}` metadata.
 
 ## Startup Flow
 

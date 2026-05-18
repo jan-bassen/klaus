@@ -109,20 +109,24 @@ report: true|false
 vaultAccess:
   - "*:full"
   - "Private:none"
-persistenceMode: static
-persistenceSchedule: "0 3 * * *"
-persistencePrompt: "daily check-in"
-persistenceOverrides: [voice]
-# OR
-# persistenceMode: dynamic
-# persistenceHint: "reschedule based on user's next workout"
+persist: true
+persistHint: "reschedule based on user's next workout"
+persistOverrides: [voice]
+schedules:
+  - pattern: "0 8 * * *"
+    label: morning
+    overrides: [voice]
 ---
-Prompt body with {{var}} Handlebars interpolation.
+# System
+Stable agent instructions with {{var}} Handlebars interpolation.
+
+# Message
+Scheduled-run message with {{schedule.label}} metadata.
 ```
 
 Persistence:
-- `static` — cron fires at `schedule` with fixed `prompt` + `overrides`.
-- `dynamic` — after each run, a forced `persist` tool call produces `{nextRun, prompt, overrides?}`; one-shot timer created, chain unbreakable.
+- `schedules` — recurring cron entries fire with the agent's `# Message` as the synthetic user message.
+- `persist: true` — after each run, a forced `persist` tool call produces `{nextRun, prompt, overrides?}`; one-shot timer created, chain unbreakable.
 
 ## Primitives
 

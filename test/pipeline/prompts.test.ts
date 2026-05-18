@@ -7,6 +7,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { settings } from "../../src/infra/config.ts";
 import {
+	buildAgentMessage,
 	buildSystemPrompt,
 	invalidateTemplate,
 	loadTemplates,
@@ -191,6 +192,16 @@ describe("pipeline/prompts: buildSystemPrompt", () => {
 
 	it("returns empty string for empty body with whitespace", () => {
 		expect(buildSystemPrompt("   ", {})).toBe("");
+	});
+});
+
+describe("pipeline/prompts: buildAgentMessage", () => {
+	it("interpolates variables and supports user-var shortcuts", () => {
+		const out = buildAgentMessage(
+			'{{#if (eq schedule.label "morning")}}Hello $user.name{{/if}}',
+			{ schedule: { label: "morning" }, user: { name: "Jan" } },
+		);
+		expect(out).toBe("Hello Jan");
 	});
 });
 

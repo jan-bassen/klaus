@@ -22,6 +22,8 @@ skills:
 modelTier: medium
 historyLimit: 20
 ---
+# System
+
 {{snippets.personality}}
 
 {{snippets.communication}}

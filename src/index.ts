@@ -16,8 +16,10 @@ import {
 import { initReportStore } from "./infra/store/report.ts";
 import {
 	addSchedule,
+	getSchedules,
 	initSchedulesStore,
 	loadSchedules,
+	removeSchedule,
 	type ScheduleEntry,
 	setOnCronFire,
 	startAllSchedules,
@@ -54,7 +56,11 @@ import {
 	enqueueMessage,
 	setSocket,
 } from "./infra/whatsapp/send.ts";
-import { agentRegistry, loadAgents } from "./pipeline/agents.ts";
+import {
+	type AgentDefinition,
+	agentRegistry,
+	loadAgents,
+} from "./pipeline/agents.ts";
 import type { Trigger } from "./pipeline/core.ts";
 import { dispatch } from "./pipeline/dispatch.ts";
 import { loadOverrides } from "./pipeline/overrides.ts";
@@ -111,12 +117,21 @@ async function runScheduledDispatch(
 	trigger: Trigger,
 ): Promise<void> {
 	try {
+		const frontmatterSchedule =
+			source === "cron" && isFrontmatterSchedule(entry)
+				? {
+						id: entry.id,
+						pattern: entry.pattern,
+						...(entry.label ? { label: entry.label } : {}),
+					}
+				: undefined;
 		await dispatch({
 			agent: entry.agentName,
-			prompt: entry.objective,
+			...(frontmatterSchedule ? {} : { prompt: entry.objective }),
 			...(entry.overrides ? { overrides: entry.overrides } : {}),
 			chatId: entry.chatId,
 			trigger,
+			...(frontmatterSchedule ? { schedule: frontmatterSchedule } : {}),
 		});
 	} catch (err) {
 		log.error(`[${source}] dispatch failed`, {
@@ -128,6 +143,54 @@ async function runScheduledDispatch(
 			content: `⚠️ Scheduled @${entry.agentName} run failed:\n${formatUserError(err)}`,
 			dedupKey: `${source}-error:${entry.id}:${Date.now()}`,
 			label: settings.whatsapp.systemLabel,
+		});
+	}
+}
+
+function frontmatterScheduleId(agentName: string, index: number): string {
+	return `frontmatter:${agentName}:${index}`;
+}
+
+function isFrontmatterSchedule(
+	entry: ScheduleEntry | TimerEntry,
+): entry is ScheduleEntry {
+	return (
+		"pattern" in entry &&
+		entry.createdBy === "scheduler" &&
+		entry.id.startsWith("frontmatter:")
+	);
+}
+
+async function syncAgentSchedules(def: AgentDefinition): Promise<void> {
+	const desired = new Set(
+		def.schedules.map((_schedule, index) =>
+			frontmatterScheduleId(def.name, index),
+		),
+	);
+	for (const existing of getSchedules()) {
+		if (
+			existing.agentName === def.name &&
+			existing.createdBy === "scheduler" &&
+			existing.id.startsWith("frontmatter:") &&
+			!desired.has(existing.id)
+		) {
+			await removeSchedule(existing.id);
+		}
+	}
+
+	for (const [index, schedule] of def.schedules.entries()) {
+		await addSchedule({
+			id: frontmatterScheduleId(def.name, index),
+			agentName: def.name,
+			pattern: schedule.pattern,
+			chatId: "system",
+			objective: "# Message",
+			...(schedule.overrides.length > 0
+				? { overrides: schedule.overrides }
+				: {}),
+			...(schedule.label ? { label: schedule.label } : {}),
+			createdBy: "scheduler",
+			createdAt: new Date().toISOString(),
 		});
 	}
 }
@@ -255,24 +318,15 @@ async function main(): Promise<void> {
 	await rebuildFileIndex();
 
 	await loadSchedules();
+	const scheduledAgents = new Set<string>();
 	for (const def of agentRegistry.values()) {
-		if (def.persistence?.mode !== "static") continue;
+		if (scheduledAgents.has(def.name)) continue;
+		scheduledAgents.add(def.name);
+		if (def.schedules.length === 0) continue;
 		log.info(
-			`[startup] registering static schedule for @${def.name}: ${def.persistence.schedule}`,
+			`[startup] registering ${def.schedules.length} schedule(s) for @${def.name}`,
 		);
-		await addSchedule({
-			id: `frontmatter:${def.name}`,
-			agentName: def.name,
-			pattern: def.persistence.schedule,
-			chatId: "system",
-			objective: def.persistence.prompt,
-			...(def.persistence.overrides.length > 0
-				? { overrides: def.persistence.overrides }
-				: {}),
-			label: `${def.name} (frontmatter)`,
-			createdBy: "scheduler",
-			createdAt: new Date().toISOString(),
-		});
+		await syncAgentSchedules(def);
 	}
 
 	setOnCronFire(async (entry) => {

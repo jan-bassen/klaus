@@ -384,7 +384,7 @@ function makeAgent(name: string, dir: string, report = false): AgentDefinition {
 		report,
 		stepLimit: 1,
 	});
-	return { ...parsed, promptPath };
+	return { ...parsed, promptPath, prompt: { system: `You are ${name}.` } };
 }
 
 function makeMsg(

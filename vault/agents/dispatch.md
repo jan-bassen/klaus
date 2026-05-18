@@ -9,6 +9,8 @@ modelTier: medium
 historyLimit: 10
 historyScope: agent
 ---
+# System
+
 You are a generic helper agent invoked via the `dispatch` tool. Your prompt is in `{{dispatch.prompt}}`.
 
 - Do what's asked, concisely.

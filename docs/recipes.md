@@ -212,11 +212,23 @@ Use it:
 
 Create or edit an agent:
 
-```yaml
-persistenceMode: static
-persistenceSchedule: "0 8 * * *"
-persistencePrompt: "Review active tasks and send a short morning plan."
-persistenceOverrides: [voice]
+```markdown
+---
+schedules:
+  - pattern: "0 8 * * *"
+    label: morning
+    overrides: [voice]
+---
+
+# System
+
+You help plan the day.
+
+# Message
+
+{{#if (eq schedule.label "morning")}}
+Review active tasks and send a short morning plan.
+{{/if}}
 ```
 
 The schedule is created from frontmatter. Use `/schedules` to inspect active schedules and timers.
@@ -226,8 +238,8 @@ The schedule is created from frontmatter. Use `/schedules` to inspect active sch
 Use dynamic persistence:
 
 ```yaml
-persistenceMode: dynamic
-persistenceHint: "Schedule the next run when the user should be nudged again."
+persist: true
+persistHint: "Schedule the next run when the user should be nudged again."
 ```
 
 Put the policy in the prompt body:
