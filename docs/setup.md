@@ -1,4 +1,4 @@
-# Setup Guide
+# Setup
 
 This guide is the practical path from clone to a running Klaus container. The short version lives in the README; this page fills in the fiddly parts.
 

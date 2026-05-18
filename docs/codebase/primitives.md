@@ -1,12 +1,10 @@
-# Development
+# Primitives
 
-Code-level changes are for new primitives and runtime behavior. They are auto-discovered at startup, so add the file, export the right shape, test it, and restart the container.
+Primitives are the pluggable extension surface under `src/primitives/`. Add a file, export the expected shape, test it, and restart the container.
 
-Use explicit relative imports with `.ts` extensions. Keep the dependency list short. Prefer returning typed error values to throwing, except at true system boundaries.
+## Commands
 
-## Add A Command
-
-Commands bypass the LLM. Add a file under `src/primitives/commands/` and export a `Command`.
+Commands live in `src/primitives/commands/`. They start with `/`, bypass the LLM, and are for deterministic runtime actions.
 
 ```ts
 import { settings } from "../../infra/config.ts";
@@ -29,11 +27,11 @@ export const pingCommand: Command = {
 };
 ```
 
-Test commands under `test/primitives/commands/`. Mock WhatsApp sends and assert the enqueued message, argument parsing, and error cases.
+Test commands under `test/primitives/commands/`. Mock WhatsApp sends and cover argument parsing, success, and user-facing errors.
 
-## Add A Variable
+## Variables
 
-Variables become top-level Handlebars namespaces in prompts. Add a file under `src/primitives/variables/` and export a `Variable`.
+Variables live in `src/primitives/variables/` and become top-level Handlebars namespaces.
 
 ```ts
 import type { Variable } from "./index.ts";
@@ -58,9 +56,9 @@ Agents can then use:
 
 If a variable depends on earlier variables, set `after: true` and read `turn.vars`. Use that sparingly.
 
-## Add A Tool
+## Tools
 
-Tools are model-callable functions. Add standalone tools to `src/primitives/tools/`, or grouped tools to a toolset under `src/primitives/tools/sets/`.
+Tools are model-callable functions. Add standalone tools to `src/primitives/tools/`, or grouped tools to `src/primitives/tools/sets/`.
 
 ```ts
 import { z } from "zod";
@@ -83,21 +81,19 @@ export const shoutTool: ToolDefinition<typeof schema> = {
 };
 ```
 
-Every tool declares `sideEffect`:
+Every tool declares a side-effect category:
 
 | Value | Meaning under `!simulate` |
 | --- | --- |
 | `pure` | Read-only. Calls the real tool. |
-| `stateful` | Mutates local durable state. Uses `simulate` handler if present, otherwise records a fake success. |
+| `stateful` | Mutates local durable state. Uses `simulate` when present, otherwise records fake success. |
 | `external` | Touches the outside world. Does not call the real tool. Records a plausible fake. |
 
-Use Zod schemas for inputs. Avoid `any` and type assertions. Return clear values the model can act on, including error objects or strings when user-correctable input is wrong.
+Use Zod schemas for inputs. Avoid `any` and type assertions. Return clear values the model can act on, including error objects or strings when input is wrong.
 
-## Add A Toolset
+## Toolsets
 
-Toolsets are lazy-loaded groups of related tools. The agent sees a `load_<name>` meta-tool first. After it calls that, the real tools are injected for the next step.
-
-Use a toolset when several tools belong together but are only useful on some turns, such as vault file operations, dispatch scheduling, or file-store helpers. Use standalone `tools: [...]` for tiny always-needed tools like `reply` or `react`.
+Toolsets are lazy groups. The agent first sees a `load_<name>` meta-tool; after it calls the loader, the actual tools are injected on the next model step.
 
 ```ts
 import type { ToolsetDefinition } from "../index.ts";
@@ -116,30 +112,17 @@ Reference a toolset from agent frontmatter:
 toolsets: [text]
 ```
 
-After `load_text` runs, the tools in the set are called by their normal tool names, for example `shout`.
+Use toolsets for clusters like vault operations, dispatch scheduling, or file-store helpers. Use always-visible `tools` for tiny core tools like `reply` and `react`. The scoped `skill_get` tool is generated automatically for agents that declare `skills`.
 
 ## Provider Tools
 
 Provider tools are not local TypeScript tools. Agents declare them in frontmatter:
 
 ```yaml
-providerTools: [web_search]
+providerTools: [web_search, web_fetch]
 ```
 
 Klaus passes these through to the OpenRouter-compatible request. The provider executes them server-side, and the local tool loop does not see a client-side tool call.
-
-## Tests
-
-Tests live in `test/` mirroring `src/`.
-
-Good targets:
-
-- Commands: parsing, success response, invalid args, store/config updates.
-- Variables: returned namespace shape and dependency behavior.
-- Tools: schema validation assumptions, permission checks, success values, error values, simulation behavior.
-- Pipeline changes: turn config, prompt rendering, report shape, store round-trips.
-
-Use Vitest. For module isolation, the project config uses `pool: forks`. For settings overrides, mutate the live `settings` object in `beforeEach` and let `test/setup.ts` clean registries between tests.
 
 ## Restart Boundary
 
@@ -161,3 +144,5 @@ Requires restart:
 - Store behavior
 - Pipeline behavior
 - Infra behavior
+
+For vault-side configuration of commands, tools, variables, and overrides, see [../vault/settings.md](../vault/settings.md).

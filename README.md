@@ -48,7 +48,7 @@ On first boot, Klaus hydrates `/app/vault` from Obsidian Sync, creates `/app/vau
 
 Open `{vault}/Klaus/_login/instructions.md`, choose solo mode or active chat mode, then scan `{vault}/Klaus/_login/qr-code.svg` from WhatsApp Linked Devices.
 
-For the full install path, E2EE vaults, self-mode, and fixes for common startup problems, use [docs/setup-guide.md](docs/setup-guide.md).
+For the full install path, E2EE vaults, self-mode, and fixes for common startup problems, use [docs/setup.md](docs/setup.md).
 
 ## First Messages
 
@@ -99,16 +99,20 @@ Most changes happen in Obsidian and hot-reload:
 
 Tools, variables, and commands are also easy to add in code, but require a restart to take effect.
 
-Start with [docs/manual.md](docs/manual.md) for the product model, [docs/recipes.md](docs/recipes.md) for copy-paste changes, and [docs/reference.md](docs/reference.md) for the full list of knobs.
+Start with [docs/architecture.md](docs/architecture.md) for the product model, then follow the vault or codebase pages depending on what you want to change.
 
 ## Docs Map
 
-- [Setup Guide](docs/setup-guide.md): Docker, Obsidian Sync, WhatsApp login, troubleshooting.
-- [Manual](docs/manual.md): how routing, agents, snippets, skills, overrides, reports, and automation fit together.
-- [Recipes](docs/recipes.md): small edits for common tinkering tasks.
-- [Reference](docs/reference.md): frontmatter, settings, commands, tools, variables, and file locations.
-- [Development](docs/development.md): adding TypeScript commands, variables, tools, and toolsets.
-- [Internals](docs/internals.md): codebase map and runtime flow.
+- [Setup](docs/setup.md): Docker, Obsidian Sync, WhatsApp login, troubleshooting.
+- [Architecture](docs/architecture.md): the main map from WhatsApp to pipeline, tools, vault, stores, and reports.
+- [Codebase Pipeline](docs/codebase/pipeline.md): parse, config, context, model loop, dispatch, persistence, reports.
+- [Codebase Primitives](docs/codebase/primitives.md): adding TypeScript commands, variables, tools, toolsets, and provider tools.
+- [Codebase Infra](docs/codebase/infra.md): config, vault/sync, WhatsApp, stores, simulation, logging.
+- [Vault Agents](docs/vault/agents.md): agent files, frontmatter, routing, tools, schedules, persistence, permissions.
+- [Vault Prompts](docs/vault/prompts.md): snippets and skills as reusable prompt context.
+- [Vault Templates](docs/vault/templates.md): message, help, error, welcome, and report render wrappers.
+- [Vault Settings](docs/vault/settings.md): `settings.yml` and `overrides.yml`.
+- [Vault Reports](docs/vault/reports.md): JSON reports, Markdown mirrors, simulation, debugging.
 
 ## Develop
 

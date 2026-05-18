@@ -5,6 +5,7 @@ Guidance for Codex when working in this repository.
 ## Status
 - We are in developent, nothing is deployed yet. If we change something, clean up after - no legacy code!
 - Always keep documentation (docs/, README.md, and AGENTS.md) up-to-date with all changes.
+- Docs mirror the architecture, not audience categories: `docs/setup.md`, `docs/architecture.md`, `docs/codebase/`, and `docs/vault/`.
 
 ## Code conventions
 
@@ -42,6 +43,22 @@ npm run build
 A maximally simple, headless personal AI agent: **WhatsApp → TypeScript → Obsidian vault → Docker**.
 
 Stack: Node 25, native TypeScript, strict TypeScript, Zod, Handlebars, Baileys. Models via a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default only OpenRouter); request/response types come from the `openrouter` sdk. Liteparse for docs, sharp for images. JSONL for conversations/reports, JSON for schedules/timers. No database.
+
+## Docs layout
+
+```
+README.md                  # public front door
+docs/setup.md              # install, first boot, WhatsApp login, troubleshooting
+docs/architecture.md       # high-level map of runtime and authoring surfaces
+docs/codebase/pipeline.md  # turn flow, config, context, model loop, dispatch
+docs/codebase/primitives.md # commands, variables, tools, toolsets, provider tools
+docs/codebase/infra.md     # config, vault/sync, WhatsApp, stores, simulation
+docs/vault/agents.md       # agent frontmatter, prompts, schedules, persistence
+docs/vault/prompts.md      # snippets and skills
+docs/vault/templates.md    # message/help/error/welcome/report templates
+docs/vault/settings.md     # settings.yml and overrides.yml
+docs/vault/reports.md      # reports, simulation output, debugging
+```
 
 ## Directory layout
 The repo is itentionally flat and opinionated in structure. One glance and a new user should be able to find where to look.
