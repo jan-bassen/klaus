@@ -246,7 +246,7 @@ _Reply as voice message_`);
 						toolCalls: [{ tool: "vault_read", args: { path: "A.md" } }],
 					},
 				],
-				systemPrompt: "system\nprompt",
+				systemPrompt: "system\n```text\nprompt\n```",
 				userMessage: "user msg",
 				historyTranscript: [{ role: "user", content: "past msg" }],
 			},
@@ -264,7 +264,9 @@ _Reply as voice message_`);
 		expect(rendered).toContain("- ⚠ **SIMULATION** — no real side effects");
 		expect(rendered).toContain("## Message");
 		expect(rendered).toContain("## LLM");
-		expect(rendered).toContain("### System prompt\n```\nsystem\nprompt\n```");
+		expect(rendered).toContain(
+			"### System prompt\n````\nsystem\n```text\nprompt\n```\n````",
+		);
 		expect(rendered).toContain("### User message\n```\nuser msg\n```");
 		expect(rendered).toContain("### History transcript");
 		expect(rendered).toContain("## Variables\n- time: 20 chars");

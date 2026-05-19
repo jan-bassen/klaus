@@ -32,6 +32,8 @@ Reports include:
 
 They intentionally include verbatim prompt and history text so prompt bugs, injection, missing variables, and wrong history scope are visible.
 
+Markdown report prompt blocks use fences long enough to contain nested code blocks from snippets, skills, or user messages without breaking the rendered report.
+
 ## Simulation
 
 `!simulate` turns always emit reports and are tagged as simulation runs.

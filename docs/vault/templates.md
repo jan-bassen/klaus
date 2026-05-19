@@ -35,6 +35,8 @@ Templates use the same Handlebars environment as prompts. Common namespaces incl
 | `{{trigger.*}}` | Message, schedule, timer, or dispatch trigger facts. |
 | `{{snippets.*}}` | Compiled snippets from `{vault}/Klaus/snippets/*.md`. |
 
+The shared helper `{{codeFence value}}` wraps report/debug text in a Markdown fence that is longer than any backtick run inside `value`, so nested code blocks render safely.
+
 For the TypeScript side of variables, see [../codebase/primitives.md](../codebase/primitives.md).
 
 ## Editing

@@ -55,6 +55,15 @@ hbs.registerHelper("json", (value: unknown) =>
 	typeof value === "string" ? value : JSON.stringify(value ?? ""),
 );
 
+/** `{{codeFence text}}` — wrap text in a fence that cannot be closed by nested backticks. */
+hbs.registerHelper("codeFence", (value: unknown) => {
+	const text = value == null ? "" : String(value);
+	const runs = text.match(/`+/g) ?? [];
+	const longestRun = runs.reduce((max, run) => Math.max(max, run.length), 0);
+	const fence = "`".repeat(Math.max(3, longestRun + 1));
+	return `${fence}\n${text}\n${fence}`;
+});
+
 export { hbs };
 
 // -- Frontmatter --

@@ -48,23 +48,17 @@
 
 {{#if llm.systemPrompt}}
 ### System prompt
-```
-{{llm.systemPrompt}}
-```
+{{codeFence llm.systemPrompt}}
 {{/if}}
 {{#if llm.userMessage}}
 ### User message
-```
-{{llm.userMessage}}
-```
+{{codeFence llm.userMessage}}
 {{/if}}
 {{#if llm.historyTranscript.length}}
 ### History transcript
 {{#each llm.historyTranscript}}
 **{{role}}**
-```
-{{json content}}
-```
+{{codeFence (json content)}}
 {{/each}}
 {{/if}}
 {{/if}}
