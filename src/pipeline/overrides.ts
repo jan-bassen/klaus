@@ -31,6 +31,7 @@ export interface TurnConfig {
 	modelTier?: (typeof modelTiers)[number];
 	forceVoice?: boolean;
 	suppressVoice?: boolean;
+	voiceId?: string;
 	temperaturePreset?: "cold" | "hot";
 	topPPreset?: "creative" | "rigid";
 	reasoningEffort?: "low" | "high";
@@ -193,6 +194,7 @@ function fromFrontmatter(def: AgentDefinition): TurnConfig {
 
 	if (s.voice === "on") out.forceVoice = true;
 	else if (s.voice === "off") out.suppressVoice = true;
+	if (s.voiceId !== undefined) out.voiceId = s.voiceId;
 
 	if (s.temp === "cold") out.temperaturePreset = "cold";
 	else if (s.temp === "hot") out.temperaturePreset = "hot";

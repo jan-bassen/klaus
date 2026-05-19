@@ -63,11 +63,14 @@ export async function transcribe(
 const TTS_BASE = "https://api.elevenlabs.io/v1/text-to-speech";
 
 /** Synthesise speech via ElevenLabs. Returns an MP3 buffer or an Error value. */
-export async function textToSpeech(text: string): Promise<Buffer | Error> {
+export async function textToSpeech(
+	text: string,
+	voiceIdOverride?: string,
+): Promise<Buffer | Error> {
 	const apiKey = process.env.ELEVENLABS_API_KEY;
 	if (!apiKey) return new Error("textToSpeech: ELEVENLABS_API_KEY not set");
 
-	const voiceId = settings.media.voice.tts.voiceId;
+	const voiceId = voiceIdOverride ?? settings.media.voice.tts.voiceId;
 	if (!voiceId) return new Error("textToSpeech: tts.voiceId is not set");
 
 	try {

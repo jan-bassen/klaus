@@ -28,6 +28,9 @@ For the TypeScript side of commands, variables, tools, and toolsets, see [../cod
 
 If code adds a tunable setting, add it to both `vault/settings.yml` and `src/infra/config.ts`. Do not use Zod `.default()` fallbacks for runtime settings.
 
+`media.voice.tts.voiceId` is the global ElevenLabs TTS voice. Individual
+agents can set `voiceId` in frontmatter to override it for that agent.
+
 `whatsapp.presenceRefreshMs` is the interval for re-sending WhatsApp
 `composing`/`recording` updates while Klaus is working on an inbound message.
 WhatsApp clients can clear the bubble quickly, so the bundled template uses a

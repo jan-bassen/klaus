@@ -12,11 +12,13 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { settings } from "../../src/infra/config.ts";
 import {
 	isParseableDocument,
 	parseDocument,
 	prepareImage,
+	textToSpeech,
 } from "../../src/pipeline/media.ts";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 
@@ -134,5 +136,37 @@ describe("pipeline/media: prepareImage", () => {
 		const meta = await sharp(out).metadata();
 		expect(meta.width).toBe(100);
 		expect(meta.height).toBe(80);
+	});
+});
+
+describe("pipeline/media: textToSpeech", () => {
+	const originalApiKey = process.env.ELEVENLABS_API_KEY;
+	const originalVoiceId = settings.media.voice.tts.voiceId;
+
+	afterEach(() => {
+		if (originalApiKey === undefined) {
+			delete process.env.ELEVENLABS_API_KEY;
+		} else {
+			process.env.ELEVENLABS_API_KEY = originalApiKey;
+		}
+		settings.media.voice.tts.voiceId = originalVoiceId;
+		vi.unstubAllGlobals();
+	});
+
+	it("uses the per-call voiceId when provided", async () => {
+		process.env.ELEVENLABS_API_KEY = "test-key";
+		settings.media.voice.tts.voiceId = "global-voice";
+		const fetchMock = vi.fn(
+			async () => new Response(new Uint8Array([1, 2, 3])),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const result = await textToSpeech("hello", "agent-voice");
+
+		expect(Buffer.isBuffer(result)).toBe(true);
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://api.elevenlabs.io/v1/text-to-speech/agent-voice",
+			expect.objectContaining({ method: "POST" }),
+		);
 	});
 });

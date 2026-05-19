@@ -60,7 +60,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			!context.config?.suppressVoice && (voice || context.config?.forceVoice);
 		if (useVoice) {
 			setPresenceKind(context.chatId, "recording");
-			const audio = await textToSpeech(content);
+			const audio = await textToSpeech(content, context.config?.voiceId);
 			if (audio instanceof Error) {
 				log.warn("[reply] TTS failed, falling back to text", {
 					error: audio.message,

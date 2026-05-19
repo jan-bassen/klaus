@@ -117,6 +117,7 @@ skills: [workout-plan]
 provider: Codex|openai|gemini|qwen|deepseek
 modelTier: small|medium|large
 voice: on|auto|off
+voiceId: optional ElevenLabs voice ID for this agent
 temp: cold|default|hot
 topP: creative|default|rigid
 reasoningEffort: low|default|high

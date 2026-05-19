@@ -131,10 +131,11 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 		writeAgent(
 			tmpDir,
 			"custom",
-			"voice: on\ntemp: cold\nreport: false\nhistoryLimit: 5\n",
+			"voice: on\nvoiceId: agent-voice\ntemp: cold\nreport: false\nhistoryLimit: 5\n",
 		);
 		const def = await loadAgentDefinition(path.join(tmpDir, "custom.md"));
 		expect(def.settings.voice).toBe("on");
+		expect(def.settings.voiceId).toBe("agent-voice");
 		expect(def.settings.temp).toBe("cold");
 		expect(def.settings.report).toBe(false);
 		expect(def.settings.historyLimit).toBe(5);
@@ -160,7 +161,6 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 			"reply",
 			"react",
 			"conversation",
-			"skill",
 			"math",
 			"vault_read",
 			"vault_search",
