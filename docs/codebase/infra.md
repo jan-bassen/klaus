@@ -10,6 +10,7 @@
 - There are no `.default()` fallbacks for missing runtime fields.
 - New tunable settings must be added to both `vault/settings.yml` and the schema.
 - Runtime does not merge repo defaults into an existing user vault.
+- Startup fails if the synced runtime `settings.yml` exists but is invalid. Hot reload keeps the last valid config and warns the user.
 
 The exported `settings` object is live and mutable, which tests use for targeted overrides.
 

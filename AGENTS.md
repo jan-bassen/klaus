@@ -216,6 +216,6 @@ settings.yml  # YAML settings (hot-reloaded via Zod validation)
 
 `ensureDefaults()` checks only whether the vault's internal `Klaus/` folder exists. If it does not exist, it copies the repo's `vault/` tree once. If `Klaus/` exists, the whole folder is user-owned state: do not merge repo defaults into it, do not backfill files, and do not overwrite user edits.
 
-Runtime settings are read from `{vault}/Klaus/settings.yml` after startup vault sync/hydration. If startup says settings are invalid or missing while sync downloaded `Klaus/settings.yml`, debug path resolution, file contents, YAML parsing, and strict Zod validation. Do not solve this class of issue by merging the defaults folder.
+Runtime settings are read from `{vault}/Klaus/settings.yml` after startup vault sync/hydration. Startup fails if the synced settings file is invalid. If startup says settings are invalid or missing while sync downloaded `Klaus/settings.yml`, debug path resolution, file contents, YAML parsing, and strict Zod validation. Do not solve this class of issue by merging the defaults folder.
 
 Templates are required — `runAgent()` throws if `message-user.md` etc. are missing.

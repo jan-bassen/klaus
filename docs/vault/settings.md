@@ -9,6 +9,8 @@ For the TypeScript side of commands, variables, tools, and toolsets, see [../cod
 ## Runtime Settings
 
 `settings.yml` is strict. Klaus validates it but does not fill missing fields.
+Startup fails if the synced file is invalid; live edits after startup keep the
+last valid config and send a warning.
 
 | Section | Purpose |
 | --- | --- |

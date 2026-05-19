@@ -245,10 +245,9 @@ async function main(): Promise<void> {
 	await ensureVaultDefaults(settings.vault.internalPath);
 	const settingsResult = await loadSettingsFromDisk();
 	if (!settingsResult.ok) {
-		log.warn("[startup] settings.yml invalid, using bundled defaults", {
-			error: settingsResult.error,
-			path: path.join(settings.vault.internalPath, "settings.yml"),
-		});
+		throw new Error(
+			`Invalid settings.yml at ${path.join(settings.vault.internalPath, "settings.yml")}: ${settingsResult.error}`,
+		);
 	}
 
 	const required = requiredStartupApiKeyEnvVars();

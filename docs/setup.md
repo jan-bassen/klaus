@@ -190,7 +190,7 @@ Set `OBSIDIAN_E2EE_PASSWORD` in `.env`. Klaus passes it to `ob sync-setup` only 
 
 Runtime settings are read from `{vault}/Klaus/settings.yml` and validated strictly with Zod. The repo `vault/settings.yml` is only a first-run template. Once `{vault}/Klaus/` exists, that folder is user-owned state: Klaus does not merge new defaults into it or backfill missing fields.
 
-If logs say `settings.yml` was invalid, inspect the synced file itself:
+If startup fails because `settings.yml` is invalid, inspect the synced file itself:
 
 - YAML syntax must be valid.
 - Top-level sections and fields must match the schema in `src/infra/config.ts`.
