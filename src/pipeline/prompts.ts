@@ -34,6 +34,8 @@ const OMITTED_IMAGE_TEXT = "[image omitted from text-only follow-up/report]";
 // ── Template loader ────────────────────────────────────────────────────────
 
 type TemplateName =
+	| "history-agent"
+	| "history-user"
 	| "message-agent"
 	| "message-user"
 	| "error"

@@ -438,6 +438,14 @@ function writeTemplates(tmpDir: string): void {
 		path.join(settings.vault.templatesDir, "message-agent.md"),
 		"{{label}}:{{message}}",
 	);
+	writeFileSync(
+		path.join(settings.vault.templatesDir, "history-user.md"),
+		"{{label}}:{{messageText}}",
+	);
+	writeFileSync(
+		path.join(settings.vault.templatesDir, "history-agent.md"),
+		"{{label}}:{{message}}",
+	);
 }
 
 function makeAgent(

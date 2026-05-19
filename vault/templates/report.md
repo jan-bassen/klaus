@@ -50,15 +50,19 @@
 ### System prompt
 {{codeFence llm.systemPrompt}}
 {{/if}}
-{{#if llm.userMessage}}
-### User message
-{{codeFence llm.userMessage}}
-{{/if}}
 {{#if llm.historyTranscript.length}}
 ### History transcript
 {{#each llm.historyTranscript}}
 **{{role}}**
 {{codeFence (json content)}}
 {{/each}}
+{{/if}}
+{{#if llm.userMessage}}
+### User message
+{{codeFence llm.userMessage}}
+{{/if}}
+{{#if llm.assistantMessage}}
+### Agent answer
+{{codeFence llm.assistantMessage}}
 {{/if}}
 {{/if}}

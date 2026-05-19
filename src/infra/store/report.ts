@@ -60,6 +60,7 @@ const ReportLlmSchema = z.object({
 	steps: z.array(ReportStepSchema),
 	systemPrompt: z.string(),
 	userMessage: z.string(),
+	assistantMessage: z.string(),
 	historyTranscript: z.array(z.unknown()),
 });
 

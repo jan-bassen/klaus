@@ -9,7 +9,9 @@ Prompt content and reusable context live in [agents.md](agents.md) and [prompts.
 | File | Purpose |
 | --- | --- |
 | `message-user.md` | Renders inbound user turns before the model sees them. |
-| `message-agent.md` | Renders prior agent messages in history. |
+| `message-agent.md` | Renders outbound agent replies before they are sent. |
+| `history-user.md` | Renders prior user messages for model history replay. |
+| `history-agent.md` | Renders prior assistant messages for model history replay. |
 | `persistence.md` | Renders the forced follow-up instruction for persistent agents. |
 | `report.md` | Renders optional Markdown reports into the vault. |
 | `help.md` | Renders `/help`. |
@@ -18,7 +20,7 @@ Prompt content and reusable context live in [agents.md](agents.md) and [prompts.
 
 Templates are required. If a required template is missing, execution fails visibly instead of silently falling back.
 
-`message-user.md` is the right place for per-turn context such as current time, active tasks, voice transcripts, attachments, quoted text, and the user's actual message. Keeping that dynamic material out of agent `# System` prompts helps provider prompt caching.
+`message-user.md` is the right place for live per-turn context such as active tasks, voice transcripts, attachments, quoted text, and the user's actual message. `history-user.md` and `history-agent.md` intentionally avoid live context so replayed chat turns do not duplicate stale state. Keeping dynamic material out of agent `# System` prompts helps provider prompt caching.
 
 ## Variables
 
@@ -49,4 +51,4 @@ For risky tool turns, use:
 @assistant !simulate test this template path
 ```
 
-Then inspect the report to verify the rendered system prompt, user message, history, and template output.
+Then inspect the report to verify the rendered system prompt, history, current user message, agent answer, and template output.

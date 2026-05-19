@@ -24,7 +24,7 @@ Reports include:
 
 - Agent, trigger, model, provider, and overrides
 - Variable summaries
-- Rendered system prompt, user message, and history transcript
+- Rendered system prompt, history transcript, current user message, and agent answer
 - LLM steps
 - Tool calls and results
 - Simulated actions
@@ -51,7 +51,7 @@ For a weird reply:
 1. Send a narrow reproduction message.
 2. Add `!simulate` if tools could write, schedule, upload, or send.
 3. Open the newest report.
-4. Check the rendered system prompt, user message, variables, history, and tool calls.
+4. Check the rendered system prompt, history, current user message, agent answer, variables, and tool calls.
 5. Fix the smallest agent, snippet, skill, override, setting, or template that explains the behavior.
 
 For pipeline internals, see [../codebase/pipeline.md](../codebase/pipeline.md).

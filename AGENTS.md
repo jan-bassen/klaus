@@ -55,7 +55,7 @@ docs/codebase/primitives.md # commands, variables, tools, toolsets, provider too
 docs/codebase/infra.md     # config, vault/sync, WhatsApp, stores, simulation
 docs/vault/agents.md       # agent frontmatter, prompts, schedules, persistence
 docs/vault/prompts.md      # snippets and skills
-docs/vault/templates.md    # message/help/error/welcome/report templates
+docs/vault/templates.md    # message/history/help/error/welcome/report templates
 docs/vault/settings.md     # settings.yml and overrides.yml
 docs/vault/reports.md      # reports, simulation output, debugging
 ```
@@ -207,8 +207,8 @@ Schedules and timers store future work, not chat routing. Klaus has one configur
 agents/       # agent .md files
 skills/       # on-demand reference docs
 snippets/     # prompt fragments compiled into {{snippets.<name>}}
-templates/    # message-user.md, message-agent.md, persistence.md,
-              # report.md, error.md, welcome.md
+templates/    # message-user.md, message-agent.md, history-user.md,
+              # history-agent.md, persistence.md, report.md, error.md, welcome.md
 reports/      # optional vault-markdown report mirror
 overrides.yml # !preset definitions
 settings.yml  # YAML settings (hot-reloaded via Zod validation)

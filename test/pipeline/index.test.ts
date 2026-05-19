@@ -101,6 +101,14 @@ describe("pipeline/index.handleTurn", () => {
 			"{{#if isNotDefaultAgent}}[{{agentLabel}}] {{/if}}{{message}}",
 		);
 		writeFileSync(
+			path.join(settings.vault.templatesDir, "history-user.md"),
+			"{{messageText}}",
+		);
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "history-agent.md"),
+			"{{#if isNotDefaultAgent}}[{{agentLabel}}] {{/if}}{{message}}",
+		);
+		writeFileSync(
 			path.join(settings.vault.templatesDir, "welcome.md"),
 			"Hey! Klaus is set up and ready to go 🤙",
 		);

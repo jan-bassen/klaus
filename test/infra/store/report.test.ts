@@ -119,6 +119,7 @@ describe("infra/store/report", () => {
 				steps: [],
 				systemPrompt: "SYS",
 				userMessage: "USR",
+				assistantMessage: "AST",
 				historyTranscript: [{ role: "user", content: "hi" }],
 			},
 		});
@@ -126,6 +127,7 @@ describe("infra/store/report", () => {
 		const out = await readReports({ runId: e.runId });
 		expect(out[0]?.llm?.systemPrompt).toBe("SYS");
 		expect(out[0]?.llm?.userMessage).toBe("USR");
+		expect(out[0]?.llm?.assistantMessage).toBe("AST");
 		expect(out[0]?.llm?.historyTranscript).toEqual([
 			{ role: "user", content: "hi" },
 		]);

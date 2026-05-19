@@ -115,6 +115,7 @@ function pickConfig(c: TurnConfig): ReportEntry["config"] {
 function buildLlmSection(result: AgentRunResult): ReportLlm {
 	const userMessage = sanitizeReportText(result.userMessage);
 	const systemPrompt = sanitizeReportText(result.systemPrompt);
+	const assistantMessage = sanitizeReportText(result.replyContent);
 
 	return {
 		model: result.model,
@@ -131,6 +132,7 @@ function buildLlmSection(result: AgentRunResult): ReportLlm {
 		steps: result.steps.map(toReportStep),
 		systemPrompt,
 		userMessage,
+		assistantMessage,
 		historyTranscript: sanitizeHistoryTranscript(result.historyMessages),
 	};
 }

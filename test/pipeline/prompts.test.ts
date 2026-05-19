@@ -101,6 +101,8 @@ describe("pipeline/prompts: resolveSampling", () => {
 });
 
 const ALL_TEMPLATE_NAMES = [
+	"history-user",
+	"history-agent",
 	"message-user",
 	"message-agent",
 	"error",

@@ -439,7 +439,7 @@ function renderHistoryUserMessage(
 
 	return {
 		role: "user",
-		content: renderTemplate("message-user", {
+		content: renderTemplate("history-user", {
 			label,
 			messageText: row.content ?? "",
 			isVoice,
@@ -473,7 +473,7 @@ function renderHistoryAssistantMessage(
 	const reactionEmojis = reactionSummary(row);
 	return {
 		role: "assistant",
-		content: renderTemplate("message-agent", {
+		content: renderTemplate("history-agent", {
 			label,
 			message: row.content ?? "",
 			agentLabel: row.agent ?? "",
@@ -495,7 +495,7 @@ function renderHistoryRow(
 
 /**
  * Read the conversation log, trim to `limit`, and render each chat turn via
- * the unified `message-user` / `message-agent` templates.
+ * replay-only `history-user` / `history-agent` templates.
  *
  * Tool calls/results are deliberately *not* replayed — past tool scratch
  * doesn't earn its place in future-turn context. The trace remains in the

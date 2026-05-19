@@ -20,56 +20,79 @@ describe("template goldens", () => {
 	});
 
 	it("renders message-user variants without drifting markers or whitespace", () => {
-		const contextVars = {
-			time: { weekday: "Tuesday", date: "2026-05-19", time: "10:16" },
-			tasks: { active: [] },
-		};
-		const contextText =
-			"Context:\n- Time: Tuesday (2026-05-19, 10:16)\n- Active tasks: none";
-
 		expect(
 			renderTemplate("message-user", {
-				...contextVars,
+				tasks: { active: [] },
 				isVoice: true,
 				voiceCaption: "walking home",
 				messageText: "turn left",
 				label: 7,
 			}),
 		).toBe(
-			`${contextText}\n\nTranscript of voice note. Caption: "walking home"\n\n[#7] turn left`,
+			'Transcript of voice note. Caption: "walking home"\n\n[#7] turn left',
 		);
 
 		expect(
 			renderTemplate("message-user", {
-				...contextVars,
+				tasks: { active: [] },
 				isImage: true,
 				quotedText: "previous note",
 				quotedRole: "user",
 				messageText: "what is this?",
 			}),
-		).toBe(
-			`${contextText}\n\nImage\n> Quoted (user): previous note\n\nwhat is this?`,
-		);
+		).toBe("Image\n> Quoted (user): previous note\n\nwhat is this?");
 
 		expect(
 			renderTemplate("message-user", {
-				...contextVars,
+				tasks: { active: [] },
 				isDocument: true,
 				fileName: "plan.pdf",
 				mimeType: "application/pdf",
 				messageText: "summarise",
 			}),
-		).toBe(
-			`${contextText}\n\nAttached: plan.pdf (application/pdf)\n\nsummarise`,
-		);
+		).toBe("Attached: plan.pdf (application/pdf)\n\nsummarise");
 
 		expect(
 			renderTemplate("message-user", {
-				...contextVars,
+				tasks: { active: [] },
 				label: 3,
 				messageText: "plain hello",
 			}),
-		).toBe(`${contextText}\n\n[#3] plain hello`);
+		).toBe("[#3] plain hello");
+
+		expect(
+			renderTemplate("message-user", {
+				tasks: {
+					active: [
+						{
+							kind: "timer",
+							runAt: "2026-05-19T12:00:00.000Z",
+							objective: "check soup",
+						},
+					],
+				},
+				messageText: "plain hello",
+			}),
+		).toBe(
+			"Context:\n- Active tasks:\n  - [timer 2026-05-19T12:00:00.000Z] check soup\n\nplain hello",
+		);
+	});
+
+	it("renders history messages without live context", () => {
+		expect(
+			renderTemplate("history-user", {
+				label: 3,
+				messageText: "plain hello",
+			}),
+		).toBe("[#3] plain hello");
+
+		expect(
+			renderTemplate("history-agent", {
+				label: 7,
+				message: "with reactions",
+				reactionEmojis: "👍 ❤️",
+			}),
+		).toBe("[#7] with reactions\n👍 ❤️");
 	});
 
 	it("renders message-agent with optional non-default-agent prefix, history label, and reactions", () => {
@@ -248,6 +271,7 @@ _Reply as voice message_`);
 				],
 				systemPrompt: "system\n```text\nprompt\n```",
 				userMessage: "user msg",
+				assistantMessage: "agent msg",
 				historyTranscript: [{ role: "user", content: "past msg" }],
 			},
 			variablesSummary: { time: 20 },
@@ -267,8 +291,9 @@ _Reply as voice message_`);
 		expect(rendered).toContain(
 			"### System prompt\n````\nsystem\n```text\nprompt\n```\n````",
 		);
-		expect(rendered).toContain("### User message\n```\nuser msg\n```");
 		expect(rendered).toContain("### History transcript");
+		expect(rendered).toContain("### User message\n```\nuser msg\n```");
+		expect(rendered).toContain("### Agent answer\n```\nagent msg\n```");
 		expect(rendered).toContain("## Variables\n- time: 20 chars");
 		expect(rendered).toContain(
 			"## Simulated actions\n- **reply** (external) — Would reply",

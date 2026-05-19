@@ -93,6 +93,14 @@ describe("pipeline/core.executeAgent", () => {
 			"{{message}}",
 		);
 		writeFileSync(
+			path.join(settings.vault.templatesDir, "history-user.md"),
+			"{{messageText}}",
+		);
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "history-agent.md"),
+			"{{message}}",
+		);
+		writeFileSync(
 			path.join(settings.vault.templatesDir, "persistence.md"),
 			"{{prompt}}",
 		);
