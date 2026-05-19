@@ -63,6 +63,7 @@ Route to a specific agent with `@name` or an alias:
 ```text
 @meta always reply in Italian from now on
 @m move the daily brief to 7am
+@research compare these sources with my project notes
 ```
 
 Use commands for deterministic changes:

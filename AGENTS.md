@@ -106,6 +106,12 @@ Frontmatter schedules render `# Message` with `{{schedule.*}}`; timer and dispat
 
 `.md` files in `{vault}/Klaus/agents/` with YAML frontmatter:
 
+Bundled first-run agents:
+- `assistant` — general daily driver.
+- `research` (`@r`) — read-oriented web/vault investigation and synthesis.
+- `meta` (`@m`) — edits the user-owned `Klaus/` configuration folder.
+- `dispatch` (`@d`) — generic delegated worker used by the dispatch tool.
+
 ```yaml
 ---
 name: agentName

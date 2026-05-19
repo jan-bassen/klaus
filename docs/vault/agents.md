@@ -6,6 +6,17 @@ Reusable snippets and skills are covered in [prompts.md](prompts.md). Render wra
 
 Tip: keep agent `# System` prompts as static as possible so providers can reuse prompt caches. Put per-turn values such as current time, active tasks, incoming media, and quoted messages in templates or variables that render into the user message instead.
 
+## Bundled Agents
+
+The first-run vault template includes four agents:
+
+| Agent | Alias | Role |
+| --- | --- | --- |
+| `assistant` |  | General daily driver with conversation, vault, files, dispatch, image, math, and web access. |
+| `research` | `r` | Read-oriented investigation agent with web search/fetch, vault/file context, careful synthesis, and no broad vault write permission. |
+| `meta` | `m` | Klaus-folder maintainer for agents, skills, snippets, templates, overrides, and settings. |
+| `dispatch` | `d` | Generic helper used by the dispatch tool for delegated work. |
+
 ## Shape
 
 ```markdown

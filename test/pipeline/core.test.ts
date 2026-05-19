@@ -92,6 +92,10 @@ describe("pipeline/core.executeAgent", () => {
 			path.join(settings.vault.templatesDir, "message-agent.md"),
 			"{{message}}",
 		);
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "persistence.md"),
+			"{{prompt}}",
+		);
 
 		registerTool(replyTool);
 		registerTool(probeTool);
