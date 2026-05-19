@@ -199,7 +199,7 @@ Overlay gives read-from-write coherence: a `vault_write` followed by `vault_read
 
 All under `{dataDir}` (default `./data`). The vault is separate — it's the knowledge graph (notes, wikilinks, frontmatter).
 
-Schedules and timers store future work, not chat routing. Klaus has one configured chat; fired runs resolve `settings.allowedChat` at execution time. Future-work clocks stay paused until setup has produced `settings.allowedChat` and WhatsApp is connected, and pause again during reconnects.
+Schedules and timers store future work, not chat routing. Klaus has one configured chat; fired runs resolve `settings.allowedChat` at execution time. Future-work clocks stay paused until setup has produced `settings.allowedChat` and WhatsApp is connected, and pause again during reconnects. Repeated checks in the same wait state log only once.
 
 ## Vault layout (`{vault}/Klaus/`)
 

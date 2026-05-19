@@ -41,6 +41,11 @@ Klaus is fail-closed. It processes only the configured allowed chat unless it is
 comfortably below the client expiry window; the bundled default is deliberately
 short so long model/tool runs still show visible activity.
 
+Baileys can close the stream with `restartRequired` (`515`) immediately after
+QR login or credential sync. Klaus treats that as a normal socket restart:
+it reconnects with the same auth state at info level and suppresses Baileys'
+raw stream-error log for that expected case.
+
 ## Stores
 
 Runtime state lives under `{dataDir}`:
@@ -57,7 +62,7 @@ Stores should stay simple and typed. Prefer flat files and explicit migrations o
 
 Schedules and timers persist only the future work to run. They do not carry chat IDs; scheduled dispatch resolves the single configured chat from `settings.allowedChat` at fire time.
 
-The stores can be loaded while paused. `src/infra/future.ts` activates both clocks only when setup has produced `settings.allowedChat` and the WhatsApp socket is connected, and the connection close handler pauses them again during reconnects.
+The stores can be loaded while paused. `src/infra/future.ts` activates both clocks only when setup has produced `settings.allowedChat` and the WhatsApp socket is connected, and the connection close handler pauses them again during reconnects. The wait-state log is deduplicated so repeated reconnect checks do not spam the same setup/connection message.
 
 ## Simulation
 

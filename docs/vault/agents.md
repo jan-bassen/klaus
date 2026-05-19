@@ -183,4 +183,4 @@ For dynamic persistence, Klaus forces a final `persist` tool call after the main
 
 Frontmatter schedules, dispatch-created schedules, and persistence timers all run in the single configured chat. They do not store their own chat target; Klaus resolves `settings.allowedChat` when the run fires.
 
-At startup, Klaus registers schedules before WhatsApp setup may be complete, but keeps schedule and timer clocks paused until the configured chat exists and WhatsApp is connected. Clocks pause again during WhatsApp reconnects.
+At startup, Klaus registers schedules before WhatsApp setup may be complete, but keeps schedule and timer clocks paused until the configured chat exists and WhatsApp is connected. Clocks pause again during WhatsApp reconnects. Repeated checks in the same wait state are logged only once.

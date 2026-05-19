@@ -17,9 +17,11 @@ const baileysLogger: ILogger = {
 	debug: () => {},
 	info: () => {},
 	warn: (obj: unknown, msg?: string) =>
-		log.warn(`[baileys] ${msg ?? ""}`, obj as Record<string, unknown>),
-	error: (obj: unknown, msg?: string) =>
-		log.error(`[baileys] ${msg ?? ""}`, obj as Record<string, unknown>),
+		log.warn(`[baileys] ${msg ?? ""}`, logObject(obj)),
+	error: (obj: unknown, msg?: string) => {
+		if (isRestartRequiredStreamError(obj, msg)) return;
+		log.error(`[baileys] ${msg ?? ""}`, logObject(obj));
+	},
 	child: () => baileysLogger,
 };
 
@@ -34,6 +36,23 @@ type ConnectionHandlers = {
 	onClose?: () => void | Promise<void>;
 	onQr?: (qr: string) => void | Promise<void>;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+function logObject(value: unknown): Record<string, unknown> {
+	if (isRecord(value)) return value;
+	return { value };
+}
+
+function isRestartRequiredStreamError(obj: unknown, msg?: string): boolean {
+	if (msg !== "stream errored out" || !isRecord(obj)) return false;
+	const node = obj.fullErrorNode;
+	if (!isRecord(node)) return false;
+	const attrs = node.attrs;
+	return isRecord(attrs) && attrs.code === `${DisconnectReason.restartRequired}`;
+}
 
 /**
  * Initialize Baileys, handle QR pairing on first run, and manage reconnects.
@@ -135,9 +154,15 @@ export async function startConnection(
 								Math.min(30_000, 1_500 * 2 ** retryCount) +
 								Math.floor(Math.random() * 500);
 							retryCount++;
-							log.warn(
-								`[connection] disconnected (code ${code ?? "unknown"}), reconnecting (attempt ${retryCount})`,
-							);
+							if (code === DisconnectReason.restartRequired) {
+								log.info(
+									`[connection] WhatsApp requested socket restart, reconnecting (attempt ${retryCount})`,
+								);
+							} else {
+								log.warn(
+									`[connection] disconnected (code ${code ?? "unknown"}), reconnecting (attempt ${retryCount})`,
+								);
+							}
 							reconnectTimer = setTimeout(() => {
 								reconnectTimer = null;
 								connect();
