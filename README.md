@@ -110,7 +110,7 @@ Start with [docs/architecture.md](docs/architecture.md) for the product model, t
 - [Codebase Infra](docs/codebase/infra.md): config, vault/sync, WhatsApp, stores, simulation, logging.
 - [Vault Agents](docs/vault/agents.md): agent files, frontmatter, routing, tools, schedules, persistence, permissions.
 - [Vault Prompts](docs/vault/prompts.md): snippets and skills as reusable prompt context.
-- [Vault Templates](docs/vault/templates.md): message, help, error, welcome, and report render wrappers.
+- [Vault Templates](docs/vault/templates.md): message, persistence, help, error, welcome, and report render wrappers.
 - [Vault Settings](docs/vault/settings.md): `settings.yml` and `overrides.yml`.
 - [Vault Reports](docs/vault/reports.md): JSON reports, Markdown mirrors, simulation, debugging.
 

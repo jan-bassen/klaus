@@ -1,6 +1,6 @@
 # Templates
 
-Templates live in `{vault}/Klaus/templates/`. They render the message wrappers, reports, help text, errors, and welcome message.
+Templates live in `{vault}/Klaus/templates/`. They render the message wrappers, persistence prompt, reports, help text, errors, and welcome message.
 
 Prompt content and reusable context live in [agents.md](agents.md) and [prompts.md](prompts.md). Templates are the rendering layer around that content.
 
@@ -10,6 +10,7 @@ Prompt content and reusable context live in [agents.md](agents.md) and [prompts.
 | --- | --- |
 | `message-user.md` | Renders inbound user turns before the model sees them. |
 | `message-agent.md` | Renders prior agent messages in history. |
+| `persistence.md` | Renders the forced follow-up instruction for persistent agents. |
 | `report.md` | Renders optional Markdown reports into the vault. |
 | `help.md` | Renders `/help`. |
 | `error.md` | Renders user-facing error messages. |

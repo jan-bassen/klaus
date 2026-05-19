@@ -105,6 +105,7 @@ const ALL_TEMPLATE_NAMES = [
 	"message-agent",
 	"error",
 	"report",
+	"persistence",
 ] as const;
 
 describe("pipeline/prompts: renderTemplate", () => {

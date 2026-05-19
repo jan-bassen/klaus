@@ -38,6 +38,7 @@ type TemplateName =
 	| "message-user"
 	| "error"
 	| "report"
+	| "persistence"
 	| "welcome"
 	| "help";
 

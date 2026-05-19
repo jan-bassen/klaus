@@ -11,7 +11,11 @@ import { log } from "../infra/logger.ts";
 import { addTimer } from "../infra/store/timers.ts";
 import type { AgentDefinition } from "./agents.ts";
 import type { TurnContext } from "./core.ts";
-import { textOnlyUserContent, type UserContent } from "./prompts.ts";
+import {
+	renderTemplate,
+	textOnlyUserContent,
+	type UserContent,
+} from "./prompts.ts";
 
 const PERSIST_TOOL_NAME = "persist";
 
@@ -67,7 +71,10 @@ export async function persistDynamic(
 	}
 	messages.push({
 		role: "user",
-		content: `Now schedule your next run by calling the \`${PERSIST_TOOL_NAME}\` tool. Hint: ${input.hint}`,
+		content: renderTemplate("persistence", {
+			toolName: PERSIST_TOOL_NAME,
+			hint: input.hint,
+		}),
 	});
 
 	log.info(`[persist] forcing tool call for @${input.def.name}`);

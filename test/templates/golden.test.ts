@@ -20,41 +20,56 @@ describe("template goldens", () => {
 	});
 
 	it("renders message-user variants without drifting markers or whitespace", () => {
+		const contextVars = {
+			time: { weekday: "Tuesday", date: "2026-05-19", time: "10:16" },
+			tasks: { active: [] },
+		};
+		const contextText =
+			"Context:\n- Time: Tuesday (2026-05-19, 10:16)\n- Active tasks: none";
+
 		expect(
 			renderTemplate("message-user", {
+				...contextVars,
 				isVoice: true,
 				voiceCaption: "walking home",
 				messageText: "turn left",
 				label: 7,
 			}),
 		).toBe(
-			'Transcript of voice note. Caption: "walking home"\n\n[#7] turn left',
+			`${contextText}\n\nTranscript of voice note. Caption: "walking home"\n\n[#7] turn left`,
 		);
 
 		expect(
 			renderTemplate("message-user", {
+				...contextVars,
 				isImage: true,
 				quotedText: "previous note",
 				quotedRole: "user",
 				messageText: "what is this?",
 			}),
-		).toBe("Image\n> Quoted (user): previous note\n\nwhat is this?");
+		).toBe(
+			`${contextText}\n\nImage\n> Quoted (user): previous note\n\nwhat is this?`,
+		);
 
 		expect(
 			renderTemplate("message-user", {
+				...contextVars,
 				isDocument: true,
 				fileName: "plan.pdf",
 				mimeType: "application/pdf",
 				messageText: "summarise",
 			}),
-		).toBe("Attached: plan.pdf (application/pdf)\n\nsummarise");
+		).toBe(
+			`${contextText}\n\nAttached: plan.pdf (application/pdf)\n\nsummarise`,
+		);
 
 		expect(
 			renderTemplate("message-user", {
+				...contextVars,
 				label: 3,
 				messageText: "plain hello",
 			}),
-		).toBe("[#3] plain hello");
+		).toBe(`${contextText}\n\n[#3] plain hello`);
 	});
 
 	it("renders message-agent with optional non-default-agent prefix, history label, and reactions", () => {
@@ -106,6 +121,17 @@ describe("template goldens", () => {
 				message: "Something low-level broke",
 			}),
 		).toBe("Something went wrong: Something low-level broke");
+	});
+
+	it("renders the persistence follow-up nudge", () => {
+		expect(
+			renderTemplate("persistence", {
+				toolName: "persist",
+				hint: "choose a useful next run",
+			}),
+		).toBe(
+			"Now schedule your next run by calling the `persist` tool. Hint: choose a useful next run",
+		);
 	});
 
 	it("renders help with WhatsApp emphasis applied consistently to values and headings", () => {

@@ -7,7 +7,10 @@ import {
 	AgentSchema,
 } from "../../src/pipeline/agents.ts";
 import { persistDynamic } from "../../src/pipeline/persistence.ts";
-import type { UserContent } from "../../src/pipeline/prompts.ts";
+import {
+	invalidateTemplate,
+	type UserContent,
+} from "../../src/pipeline/prompts.ts";
 import { initAllStores } from "../helpers/stores.ts";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 import { makeTurn } from "../helpers/turn.ts";
@@ -28,6 +31,7 @@ describe("pipeline/persistence.persistDynamic", () => {
 	let tmpDir: string;
 	let originalApiKey: string | undefined;
 	let originalPersistence: typeof settings.persistence;
+	let originalTemplatesDir: string;
 
 	beforeEach(() => {
 		tmpDir = makeTmpDir();
@@ -35,11 +39,17 @@ describe("pipeline/persistence.persistDynamic", () => {
 
 		originalApiKey = process.env.OPENROUTER_API_KEY;
 		originalPersistence = structuredClone(settings.persistence);
+		originalTemplatesDir = settings.vault.templatesDir;
 
 		process.env.OPENROUTER_API_KEY = "test-key";
+		settings.vault.templatesDir = path.resolve(
+			process.cwd(),
+			"vault/templates",
+		);
 		settings.persistence.minNextRun = 1_000;
 		settings.persistence.maxNextRun = 60 * 60 * 1_000;
 		settings.persistence.defaultNextRun = "15m";
+		invalidateTemplate("persistence");
 	});
 
 	afterEach(() => {
@@ -50,6 +60,8 @@ describe("pipeline/persistence.persistDynamic", () => {
 		} else {
 			process.env.OPENROUTER_API_KEY = originalApiKey;
 		}
+		settings.vault.templatesDir = originalTemplatesDir;
+		invalidateTemplate("persistence");
 		sendMock.mockReset();
 		rmTmpDir(tmpDir);
 	});
