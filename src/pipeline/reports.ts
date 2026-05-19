@@ -147,6 +147,7 @@ function toReportStep(s: AgentRunResult["steps"][number]): ReportStep {
 		})),
 	};
 	if (s.reasoning) step.reasoning = sanitizeReportText(s.reasoning);
+	if (s.fallback) step.fallback = s.fallback;
 	if (s.finishReason) step.finishReason = s.finishReason;
 	if (s.usage) step.usage = s.usage;
 	return step;

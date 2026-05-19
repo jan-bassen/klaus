@@ -35,6 +35,7 @@ const ReportStepSchema = z.object({
 			result: z.unknown(),
 		}),
 	),
+	fallback: z.enum(["assistant_content_reply"]).optional(),
 	finishReason: z.string().optional(),
 	usage: z
 		.object({

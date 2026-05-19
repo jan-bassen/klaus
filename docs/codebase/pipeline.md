@@ -50,6 +50,8 @@ Overrides are config only. They should not carry prompt content. Agent prompts a
 
 `executeAgent` gathers variables, tool definitions, provider tools, and history. `prompts.ts` renders the templates, then `core.ts` runs the chat-completions loop until the model stops calling tools or the turn reaches its step limit.
 
+Agents should send user-visible text through the `reply` tool. If a reply-capable turn ends with plain assistant content instead of tool calls, `core.ts` treats that text as a fallback `reply` call, logs a warning, and marks the report step with `fallback: "assistant_content_reply"`. Empty assistant content still means no reply, and `toolChoice: "none"` keeps tools disabled.
+
 Tools return values for the model to act on. User-correctable failures should be returned as values, not thrown. Throw only at system boundaries where continuing would hide a runtime problem.
 
 ## Dispatch And Persistence

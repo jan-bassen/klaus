@@ -1,8 +1,3 @@
-P2: Invalid synced settings.yml logs a warning and continues with bundled defaults.
-
-src/index.ts (line 234) falls back silently-ish. For a test deploy this is risky: wrong provider, timezone, sync tuning, vault permissions, or allowlist could be used while logs say only a warning. Given the docs say runtime settings are strict/user-owned, I’d fail startup here unless there’s an explicit recovery mode.
-
-
 P2: If the model answers with normal assistant content instead of calling reply, Klaus drops it.
 
 The loop stops when there are no tool calls at src/pipeline/core.ts (line 481), and replyContent is derived only from reply tool calls at src/pipeline/core.ts (line 326). The prompt tells models not to use direct output, but deploy reality says one eventually will. I’d either force toolChoice: required for reply-capable turns, or treat plain assistant content as a fallback reply/reportable error.

@@ -97,7 +97,7 @@ src/
 2. **Parse** — `parseMessage`: STT transcribe → doc extract → link fetch → voice transcript rewrite → `/command` → `@agent` → `!overrides`.
 3. **Resolve agent + build config** — `getOrLoadAgent` + `buildTurnConfig` (globalDefaults → frontmatter → `!overrides`).
 4. **Persist message** — append to day-partitioned JSONL, resolve quoted media.
-5. **Execute agent** — `executeAgent`: assemble context (vars + tools + history) → compile prompts → `runLoop` (multi-step `completeChat` calls until the model stops calling tools) → report → reschedule if persistent.
+5. **Execute agent** — `executeAgent`: assemble context (vars + tools + history) → compile prompts → `runLoop` (multi-step `completeChat` calls until the model stops calling tools) → recover plain assistant content as a visible fallback `reply` when reply is active → report → reschedule if persistent.
 
 Dispatched runs (cron, timer, `dispatch` tool) start at step 5 with a synthesised `Trigger`.
 Frontmatter schedules render `# Message` with `{{schedule.*}}`; timer and dispatch-tool runs prefer `# Message` with `{{dispatch.prompt}}`, falling back to the raw objective when no `# Message` exists.

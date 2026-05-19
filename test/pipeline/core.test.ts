@@ -228,6 +228,71 @@ describe("pipeline/core.executeAgent", () => {
 		expect(result.replyContent).toBe("first\n---\nsecond");
 	});
 
+	it("recovers direct assistant content as a visible fallback reply", async () => {
+		sendMock.mockResolvedValueOnce(
+			chatResponse({ content: "  I should have used reply.  " }),
+		);
+
+		const def = makeAgent(tmpDir, { tools: ["reply"] });
+		const turn = makeTurn({
+			agent: def,
+			runId: "run-direct-reply",
+			config: { report: true, stepLimit: 1, skipHistory: true },
+			dispatchContext: { prompt: "objective" },
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(result.replyContent).toBe("I should have used reply.");
+		expect(result.steps[0]).toMatchObject({
+			fallback: "assistant_content_reply",
+			toolCalls: [
+				{
+					toolCallId: "fallback-reply-1",
+					toolName: "reply",
+					args: { content: "I should have used reply." },
+				},
+			],
+			toolResults: [
+				{ toolCallId: "fallback-reply-1", toolName: "reply", result: "sent" },
+			],
+		});
+
+		const report = await waitForReport("run-direct-reply");
+		expect(report.llm?.steps[0]).toMatchObject({
+			fallback: "assistant_content_reply",
+			toolCalls: [
+				{ tool: "reply", args: { content: "I should have used reply." } },
+			],
+			toolResults: [{ tool: "reply", result: "sent" }],
+		});
+	});
+
+	it("does not recover direct assistant content when tools are disabled", async () => {
+		sendMock.mockResolvedValueOnce(chatResponse({ content: "plain text" }));
+
+		const def = makeAgent(tmpDir, { tools: ["reply"] });
+		const turn = makeTurn({
+			agent: def,
+			config: {
+				report: false,
+				stepLimit: 1,
+				skipHistory: true,
+				toolChoice: "none",
+			},
+			dispatchContext: { prompt: "objective" },
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(result.replyContent).toBe("");
+		expect(result.steps[0]).toMatchObject({
+			toolCalls: [],
+			toolResults: [],
+		});
+		expect(result.steps[0]?.fallback).toBeUndefined();
+	});
+
 	it("renders # Message with schedule metadata for frontmatter schedule runs", async () => {
 		sendMock.mockResolvedValueOnce(chatResponse({ content: "ok" }));
 

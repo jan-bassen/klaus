@@ -87,6 +87,8 @@ Use `!overrides` anywhere after the route to tweak one turn:
 
 Voice notes are transcribed, images become vision input, common documents are parsed to text, and quoted messages can carry their original media through the turn.
 
+Agents are expected to use the `reply` tool for user-visible messages. If a reply-capable turn accidentally ends with plain assistant text, Klaus sends it as a fallback reply and marks the run report so the formatting miss is visible.
+
 ## Tinker
 
 Most changes happen in Obsidian and hot-reload:

@@ -126,6 +126,7 @@ export interface ModelCallStep {
 		toolName: string;
 		result: unknown;
 	}>;
+	fallback?: "assistant_content_reply" | undefined;
 	finishReason?: string | undefined;
 	usage?: { inputTokens: number; outputTokens: number } | undefined;
 }
@@ -438,47 +439,50 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 		const rawCalls = (msg.toolCalls ?? []).filter(
 			(tc): tc is ChatToolCall => tc.type === "function",
 		);
-		const toolCalls = rawCalls.map((tc) => ({
+		let toolCalls = rawCalls.map((tc) => ({
 			toolCallId: tc.id,
 			toolName: tc.function.name,
 			args: parseArgs(tc.function.arguments),
 		}));
 
-		const toolResults = await Promise.all(
-			toolCalls.map(async (tc) => {
-				const t = tools.functionTools[tc.toolName];
-				if (!t) {
-					return {
-						toolCallId: tc.toolCallId,
-						toolName: tc.toolName,
-						result: { error: `Unknown tool: ${tc.toolName}` },
-					};
-				}
-				try {
-					const result = await t.execute(tc.args);
-					return { toolCallId: tc.toolCallId, toolName: tc.toolName, result };
-				} catch (err) {
-					return {
-						toolCallId: tc.toolCallId,
-						toolName: tc.toolName,
-						result: {
-							error: err instanceof Error ? err.message : String(err),
-						},
-					};
-				}
-			}),
-		);
+		let fallback: ModelCallStep["fallback"];
+		if (toolCalls.length === 0) {
+			const fallbackReply = directReplyFallback(
+				msg.content,
+				active,
+				opts.toolChoice,
+				steps.some((step) =>
+					step.toolCalls.some((call) => call.toolName === REPLY_TOOL_NAME),
+				),
+			);
+			if (fallbackReply) {
+				log.warn(
+					`[agent] @${opts.agentName} returned direct assistant content; sending as fallback reply`,
+				);
+				toolCalls = [
+					{
+						toolCallId: `fallback-reply-${i + 1}`,
+						toolName: REPLY_TOOL_NAME,
+						args: { content: fallbackReply },
+					},
+				];
+				fallback = "assistant_content_reply";
+			}
+		}
+
+		const toolResults = await executeToolCalls(toolCalls, tools);
 
 		const reasoning = typeof msg.reasoning === "string" ? msg.reasoning : "";
 		steps.push({
 			reasoning,
 			toolCalls,
 			toolResults,
+			fallback,
 			finishReason: choice.finishReason ?? undefined,
 			usage: { inputTokens, outputTokens },
 		});
 
-		if (toolCalls.length === 0) break;
+		if (toolCalls.length === 0 || fallback) break;
 
 		// Append assistant message + tool responses to the running conversation
 		// for the next step. Pass through the raw toolCalls (unparsed args) to
@@ -505,6 +509,54 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 		steps,
 		durationMs: Date.now() - startTime,
 	};
+}
+
+async function executeToolCalls(
+	toolCalls: ModelCallStep["toolCalls"],
+	tools: AssembledTools,
+): Promise<ModelCallStep["toolResults"]> {
+	return Promise.all(
+		toolCalls.map(async (tc) => {
+			const t = tools.functionTools[tc.toolName];
+			if (!t) {
+				return {
+					toolCallId: tc.toolCallId,
+					toolName: tc.toolName,
+					result: { error: `Unknown tool: ${tc.toolName}` },
+				};
+			}
+			try {
+				const result = await t.execute(tc.args);
+				return { toolCallId: tc.toolCallId, toolName: tc.toolName, result };
+			} catch (err) {
+				return {
+					toolCallId: tc.toolCallId,
+					toolName: tc.toolName,
+					result: {
+						error: err instanceof Error ? err.message : String(err),
+					},
+				};
+			}
+		}),
+	);
+}
+
+function directReplyFallback(
+	content: unknown,
+	activeTools: string[],
+	toolChoice: RunLoopOptions["toolChoice"],
+	hasPriorReply: boolean,
+): string | undefined {
+	if (
+		hasPriorReply ||
+		toolChoice === "none" ||
+		!activeTools.includes(REPLY_TOOL_NAME)
+	) {
+		return undefined;
+	}
+	if (typeof content !== "string") return undefined;
+	const trimmed = content.trim();
+	return trimmed ? trimmed : undefined;
 }
 
 function parseArgs(raw: string): Record<string, unknown> {
