@@ -218,6 +218,8 @@ Open `{vault}/Klaus/_login/instructions.md` first; it is created before the QR. 
 docker logs -f klaus
 ```
 
+If `basics.allowedChat` or `ALLOWED_CHAT_ID` is already configured, setup mode is skipped; just scan the QR in `_login` to link WhatsApp.
+
 If you see `WhatsApp pairing/connection is taking longer than expected`, keep the container running a little longer unless another error appears.
 
 **WhatsApp QR keeps rotating**
