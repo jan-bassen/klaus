@@ -28,6 +28,14 @@ Vault context:
 {{snippets.vault}}
 ```
 
+If a snippet needs to mention its own variable name as documentation, escape it with a Handlebars raw block:
+
+```handlebars
+This content is available as {{{{raw}}}}{{snippets.user}}{{{{/raw}}}}.
+```
+
+Direct self-references such as `{{snippets.user}}` inside `user.md` render as empty to prevent recursive self-expansion.
+
 Example snippet:
 
 ```markdown

@@ -30,6 +30,15 @@ function compile(content: string, vars: Record<string, unknown>): string {
 	}
 }
 
+function withoutSelfReference(
+	snippets: Record<string, string>,
+	key: string,
+): Record<string, string> {
+	const scoped = { ...snippets };
+	scoped[key] = "";
+	return scoped;
+}
+
 /**
  * Loads snippets from `{vault}/Klaus/snippets/*.md`.
  * Each snippet is compiled against the full assembled namespace, making it a
@@ -60,7 +69,10 @@ export const snippetsVariable: Variable = {
 		for (let pass = 0; pass < MAX_RECURSION_PASSES; pass++) {
 			const next: Record<string, string> = {};
 			for (const [k, content] of Object.entries(raw)) {
-				next[k] = compile(content, { ...vars, snippets: prev });
+				next[k] = compile(content, {
+					...vars,
+					snippets: withoutSelfReference(prev, k),
+				});
 			}
 			let stable = true;
 			for (const k of Object.keys(raw)) {

@@ -90,6 +90,16 @@ describe("primitives/variables/snippets", () => {
 		expect(out.outer).toBe("[Hello, Klaus!]");
 	});
 
+	it("does not recursively expand a snippet's reference to itself", async () => {
+		writeSnippet(
+			tmp,
+			"user",
+			"Describe yourself.\nThis content is available as {{snippets.user}}.",
+		);
+		const out = await runSnippets();
+		expect(out.user).toBe("Describe yourself.\nThis content is available as .");
+	});
+
 	it("falls back to raw content when Handlebars compilation throws", async () => {
 		// Unclosed expression triggers a parse error inside hbs.compile.
 		writeSnippet(tmp, "broken", "Hello {{unclosed");
