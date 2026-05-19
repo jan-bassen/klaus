@@ -49,6 +49,7 @@ import {
 	removeSchedule,
 	type ScheduleEntry,
 	setOnCronFire,
+	startAllSchedules,
 	stopAllSchedules,
 } from "../../../src/infra/store/schedules.ts";
 import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
@@ -58,7 +59,6 @@ function makeEntry(overrides: Partial<ScheduleEntry> = {}): ScheduleEntry {
 		id: overrides.id ?? crypto.randomUUID(),
 		agentName: "fitness",
 		pattern: "0 8 * * *",
-		chatId: "c1",
 		objective: "morning check",
 		createdBy: "tester",
 		createdAt: new Date().toISOString(),
@@ -112,9 +112,20 @@ describe("infra/store/schedules: add/list/remove", () => {
 		expect(findSchedule("fitness", "nope")).toBeUndefined();
 	});
 
-	it("addSchedule with same id replaces existing + stops old cron", async () => {
+	it("addSchedule stays paused until schedules are started", async () => {
 		const e = makeEntry({ pattern: "0 8 * * *" });
 		await addSchedule(e);
+		expect(cronInstances.list).toHaveLength(0);
+
+		startAllSchedules();
+		expect(cronInstances.list).toHaveLength(1);
+	});
+
+	it("addSchedule with same id replaces existing + stops old cron when active", async () => {
+		const e = makeEntry({ pattern: "0 8 * * *" });
+		await addSchedule(e);
+		startAllSchedules();
+
 		const replaced = makeEntry({ id: e.id, pattern: "0 9 * * *" });
 		await addSchedule(replaced);
 		expect(getSchedules()).toEqual([replaced]);
@@ -184,6 +195,7 @@ describe("infra/store/schedules: cron firing", () => {
 		});
 		const e = makeEntry();
 		await addSchedule(e);
+		startAllSchedules();
 		expect(cronInstances.list).toHaveLength(1);
 		cronInstances.list[0]?.fire();
 		// fire() invokes the on-fire handler synchronously, but the chain through
@@ -198,6 +210,7 @@ describe("infra/store/schedules: cron firing", () => {
 		});
 		const e = makeEntry();
 		await addSchedule(e);
+		startAllSchedules();
 		expect(() => cronInstances.list[0]?.fire()).not.toThrow();
 	});
 });

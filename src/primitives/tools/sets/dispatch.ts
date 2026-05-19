@@ -30,14 +30,13 @@ interface ScheduleInput {
 
 function scheduleEntry(
 	input: ScheduleInput,
-	context: TurnContext,
+	context: Pick<TurnContext, "agent">,
 	id: string,
 ): ScheduleEntry {
 	return {
 		id,
 		agentName: input.agent,
 		pattern: input.pattern,
-		chatId: context.chatId,
 		objective: input.prompt,
 		label: input.label,
 		createdBy: context.agent.name,
@@ -84,7 +83,6 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 			await addTimer({
 				id,
 				agentName: agent,
-				chatId: context.chatId,
 				objective: input.prompt,
 				runAt,
 				createdBy: context.agent.name,

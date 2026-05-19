@@ -63,6 +63,10 @@ Dispatch runs do not start from an inbound WhatsApp message. They synthesize a `
 
 Frontmatter schedules render the agent's `# Message` section with `{{schedule.*}}`. Timer and dispatch-tool runs prefer the agent's `# Message` section with `{{dispatch.prompt}}`, falling back to the raw objective for agents without that section. Dynamic persistence forces a final `persist` tool call after the main turn; if that call fails, the chain breaks visibly.
 
+Schedules and timers do not store a chat target. Klaus is a single-chat runtime: when future work fires, it resolves the current `settings.allowedChat`.
+
+Startup loads and syncs schedules/timers while their clocks are paused. `activateFutureWorkIfReady()` starts them only after `settings.allowedChat` exists and WhatsApp is connected. If WhatsApp disconnects, clocks pause again and resume on reconnect. Cron schedules do not backfill missed ticks; timers whose `runAt` is already past fire as soon as activation starts them.
+
 ## Reports
 
 Reports are emitted unless `turn.config.report === false`. Simulation turns always report and include simulated actions. The report path and vault Markdown mirror are configured in `settings.yml`; see [../vault/reports.md](../vault/reports.md).

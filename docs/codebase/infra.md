@@ -54,6 +54,10 @@ Runtime state lives under `{dataDir}`:
 
 Stores should stay simple and typed. Prefer flat files and explicit migrations only when a real format change requires them.
 
+Schedules and timers persist only the future work to run. They do not carry chat IDs; scheduled dispatch resolves the single configured chat from `settings.allowedChat` at fire time.
+
+The stores can be loaded while paused. `src/infra/future.ts` activates both clocks only when setup has produced `settings.allowedChat` and the WhatsApp socket is connected, and the connection close handler pauses them again during reconnects.
+
 ## Simulation
 
 `src/infra/simulation.ts` holds the per-turn simulation overlay. Under `!simulate`, pure tools run normally while stateful and external tools route through their `simulate` handler or a generic fake result.

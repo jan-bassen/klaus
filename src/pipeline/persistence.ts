@@ -127,7 +127,6 @@ export async function persistDynamic(
 	await addTimer({
 		id: crypto.randomUUID(),
 		agentName: input.def.name,
-		chatId: input.turn.chatId,
 		objective: parsed.prompt,
 		runAt,
 		createdBy: "persistent",

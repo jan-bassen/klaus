@@ -627,7 +627,6 @@ describe("pipeline/core.executeAgent", () => {
 		expect(timers).toHaveLength(1);
 		expect(timers[0]).toMatchObject({
 			agentName: "core-test",
-			chatId: "c1",
 			objective: "check in again",
 			overrides: ["voice"],
 			createdBy: "persistent",

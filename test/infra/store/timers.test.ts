@@ -24,7 +24,6 @@ function makeEntry(overrides: Partial<TimerEntry> = {}): TimerEntry {
 	return {
 		id: overrides.id ?? crypto.randomUUID(),
 		agentName: "test",
-		chatId: "c1",
 		objective: "do thing",
 		runAt: new Date(Date.now() + 60_000).toISOString(),
 		createdBy: "tester",
@@ -90,6 +89,7 @@ describe("infra/store/timers: firing", () => {
 
 		const e = makeEntry({ runAt: new Date(Date.now() + 10).toISOString() });
 		await store.add(e);
+		store.startAll();
 		expect(store.list()).toHaveLength(1);
 
 		await new Promise((r) => setTimeout(r, 60));
@@ -112,9 +112,26 @@ describe("infra/store/timers: firing", () => {
 
 		const e = makeEntry({ runAt: new Date(Date.now() - 10_000).toISOString() });
 		await store.add(e);
+		store.startAll();
 
 		await new Promise((r) => setTimeout(r, 30));
 		expect(fired).toEqual([e]);
+	});
+
+	it("does not fire before timers are started", async () => {
+		const store = createTimerStore({ dataDir: tmpDir });
+		const fired: TimerEntry[] = [];
+		store.setOnFire(async (e) => {
+			fired.push(e);
+		});
+
+		await store.add(
+			makeEntry({ runAt: new Date(Date.now() + 10).toISOString() }),
+		);
+
+		await new Promise((r) => setTimeout(r, 40));
+		expect(fired).toEqual([]);
+		store.stopAll();
 	});
 
 	it("stopAll cancels pending timers (no fire)", async () => {
@@ -127,6 +144,7 @@ describe("infra/store/timers: firing", () => {
 		await store.add(
 			makeEntry({ runAt: new Date(Date.now() + 20).toISOString() }),
 		);
+		store.startAll();
 		store.stopAll();
 
 		await new Promise((r) => setTimeout(r, 50));
@@ -157,11 +175,10 @@ describe("infra/store/timers: persistence + reload", () => {
 		expect(parsed).toEqual([e]);
 	});
 
-	it("load on a fresh store restores entries AND re-schedules timeouts", async () => {
+	it("load on a fresh store restores entries and starts them on demand", async () => {
 		const first = createTimerStore({ dataDir: tmpDir });
 		const e = makeEntry({ runAt: new Date(Date.now() + 30).toISOString() });
 		await first.add(e);
-		first.stopAll();
 
 		const second = createTimerStore({ dataDir: tmpDir });
 		const fired: TimerEntry[] = [];
@@ -171,6 +188,7 @@ describe("infra/store/timers: persistence + reload", () => {
 		await second.load();
 		expect(second.list()).toEqual([e]);
 
+		second.startAll();
 		await new Promise((r) => setTimeout(r, 80));
 		expect(fired).toHaveLength(1);
 		expect(fired[0]?.id).toBe(e.id);

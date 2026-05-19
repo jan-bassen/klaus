@@ -28,6 +28,10 @@ export function setSocket(socket: WASocket): void {
 	_socket = socket;
 }
 
+export function clearSendSocket(): void {
+	_socket = null;
+}
+
 /**
  * Returns a promise that resolves when the current send queue has fully drained.
  * Use during graceful shutdown to avoid dropping in-flight messages.

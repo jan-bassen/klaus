@@ -87,6 +87,7 @@ Startup does this in order:
 7. Loads stores, tools, agents, variables, commands, skills, templates, overrides, schedules, and timers.
 8. Creates the WhatsApp login folder if no allowed chat is configured.
 9. Connects WhatsApp and writes the QR code when Baileys provides one.
+10. Starts schedule and timer clocks once the allowed chat is configured and WhatsApp is connected.
 
 ## WhatsApp Login
 

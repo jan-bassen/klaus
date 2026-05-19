@@ -21,7 +21,6 @@ const ScheduleEntrySchema = z.object({
 	id: z.string(),
 	agentName: z.string(),
 	pattern: z.string(),
-	chatId: z.string(),
 	objective: z.string(),
 	overrides: z.array(z.string()).optional(),
 	label: z.string().optional(),
@@ -40,6 +39,7 @@ export function createScheduleStore(env: ScheduleStoreEnv): ScheduleStore {
 	const schedules = new Map<string, ScheduleEntry>();
 	const cronJobs = new Map<string, Cron>();
 	let onFire: ((entry: ScheduleEntry) => Promise<void>) | null = null;
+	let active = false;
 
 	const schedulesPath = (): string => path.join(env.dataDir, "schedules.json");
 
@@ -87,7 +87,7 @@ export function createScheduleStore(env: ScheduleStoreEnv): ScheduleStore {
 
 		schedules.set(entry.id, entry);
 		await persist();
-		startCron(entry);
+		if (active) startCron(entry);
 	}
 
 	async function remove(id: string): Promise<boolean> {
@@ -104,12 +104,14 @@ export function createScheduleStore(env: ScheduleStoreEnv): ScheduleStore {
 	}
 
 	function startAll(): void {
+		active = true;
 		for (const entry of schedules.values()) {
 			startCron(entry);
 		}
 	}
 
 	function stopAll(): void {
+		active = false;
 		for (const job of cronJobs.values()) {
 			job.stop();
 		}

@@ -11,13 +11,13 @@ interface TimerStore {
 	add(entry: TimerEntry): Promise<void>;
 	remove(id: string): Promise<boolean>;
 	list(): TimerEntry[];
+	startAll(): void;
 	stopAll(): void;
 }
 
 const TimerEntrySchema = z.object({
 	id: z.string(),
 	agentName: z.string(),
-	chatId: z.string(),
 	objective: z.string(),
 	overrides: z.array(z.string()).optional(),
 	runAt: z.string(),
@@ -35,6 +35,7 @@ export function createTimerStore(env: TimerStoreEnv): TimerStore {
 	const timers = new Map<string, TimerEntry>();
 	const timeouts = new Map<string, ReturnType<typeof setTimeout>>();
 	let onFire: ((entry: TimerEntry) => Promise<void>) | null = null;
+	let active = false;
 
 	const timersPath = (): string => path.join(env.dataDir, "timers.json");
 
@@ -79,7 +80,6 @@ export function createTimerStore(env: TimerStoreEnv): TimerStore {
 			const entries = z.array(TimerEntrySchema).parse(JSON.parse(text));
 			for (const entry of entries) {
 				timers.set(entry.id, entry);
-				scheduleTimeout(entry);
 			}
 			log.info(`[timers] loaded (${timers.size} timers)`);
 		} catch {
@@ -90,7 +90,7 @@ export function createTimerStore(env: TimerStoreEnv): TimerStore {
 	async function add(entry: TimerEntry): Promise<void> {
 		timers.set(entry.id, entry);
 		await persist();
-		scheduleTimeout(entry);
+		if (active) scheduleTimeout(entry);
 	}
 
 	async function remove(id: string): Promise<boolean> {
@@ -106,7 +106,15 @@ export function createTimerStore(env: TimerStoreEnv): TimerStore {
 		return [...timers.values()];
 	}
 
+	function startAll(): void {
+		active = true;
+		for (const entry of timers.values()) {
+			scheduleTimeout(entry);
+		}
+	}
+
 	function stopAll(): void {
+		active = false;
 		for (const handle of timeouts.values()) {
 			clearTimeout(handle);
 		}
@@ -121,6 +129,7 @@ export function createTimerStore(env: TimerStoreEnv): TimerStore {
 		add,
 		remove,
 		list,
+		startAll,
 		stopAll,
 	};
 }
@@ -156,6 +165,10 @@ export function removeTimer(id: string): Promise<boolean> {
 
 export function listTimers(): TimerEntry[] {
 	return store().list();
+}
+
+export function startAllTimers(): void {
+	store().startAll();
 }
 
 export function stopAllTimers(): void {

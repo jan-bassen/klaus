@@ -31,6 +31,7 @@ const AUTH_DIR = path.join(settings.dataDir, "baileys-auth");
 
 type ConnectionHandlers = {
 	onOpen?: (socket: WASocket) => void | Promise<void>;
+	onClose?: () => void | Promise<void>;
 	onQr?: (qr: string) => void | Promise<void>;
 };
 
@@ -103,6 +104,15 @@ export async function startConnection(
 						}
 					} else if (connection === "close") {
 						socket = null;
+						if (handlers.onClose) {
+							try {
+								await handlers.onClose();
+							} catch (err) {
+								log.error("[connection] onClose callback failed", {
+									error: err instanceof Error ? err.message : String(err),
+								});
+							}
+						}
 						if (closing) return;
 						const code = (
 							lastDisconnect?.error as

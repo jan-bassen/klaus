@@ -124,7 +124,6 @@ describe("infra/vault/watcher.handleAgentChange", () => {
 			id: "manual:daily",
 			agentName: "daily",
 			pattern: "0 9 * * *",
-			chatId: "chat",
 			objective: "manual",
 			label: "manual",
 			createdBy: "tester",

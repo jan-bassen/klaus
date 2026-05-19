@@ -10,6 +10,7 @@
 
 import { formatUserError } from "../errors.ts";
 import { settings, updateAllowedChat } from "../infra/config.ts";
+import { activateFutureWorkIfReady } from "../infra/future.ts";
 import { log } from "../infra/logger.ts";
 import {
 	findFileByExternalId,
@@ -212,6 +213,7 @@ async function handleSetupMode(msg: InboundMessage): Promise<void> {
 		}
 		log.info("[pipeline] self-mode: auto-setup");
 		await updateAllowedChat(ownJid);
+		activateFutureWorkIfReady();
 		clearSetupCode();
 		clearLoginFolder().catch(() => {});
 		enqueueMessage({
@@ -227,6 +229,7 @@ async function handleSetupMode(msg: InboundMessage): Promise<void> {
 	if (setupCode && msg.text?.trim() === setupCode) {
 		log.info("[pipeline] setup code matched, configuring allowed chat");
 		await updateAllowedChat(msg.chatId);
+		activateFutureWorkIfReady();
 		clearSetupCode();
 		clearLoginFolder().catch(() => {});
 		enqueueMessage({

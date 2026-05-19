@@ -127,7 +127,6 @@ async function syncFrontmatterSchedules(change: AgentChange): Promise<void> {
 			id: frontmatterScheduleId(newName, index),
 			agentName: newName,
 			pattern: schedule.pattern,
-			chatId: "system",
 			objective: "# Message",
 			...(schedule.overrides.length > 0
 				? { overrides: schedule.overrides }

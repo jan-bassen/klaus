@@ -3,6 +3,7 @@ import { watch as fsWatch, mkdir, readFile, rm } from "node:fs/promises";
 import QRCode from "qrcode";
 import { renderTemplate } from "../../pipeline/prompts.ts";
 import { settings, updateAllowedChat, updateSelfMode } from "../config.ts";
+import { activateFutureWorkIfReady } from "../future.ts";
 import { log } from "../logger.ts";
 import { readText, writeData } from "../runtime.ts";
 import { getSocket, normalizeJid } from "./connection.ts";
@@ -168,6 +169,7 @@ export async function completeSoloSetup(): Promise<boolean> {
 	}
 	log.info("[login] solo mode chosen — auto-configuring");
 	await updateAllowedChat(ownJid);
+	activateFutureWorkIfReady();
 	clearSetupCode();
 	enqueueMessage({
 		chatId: ownJid,

@@ -7,6 +7,10 @@ import {
 	requiredStartupApiKeyEnvVars,
 	settings,
 } from "./infra/config.ts";
+import {
+	activateFutureWorkIfReady,
+	deactivateFutureWork,
+} from "./infra/future.ts";
 import { log } from "./infra/logger.ts";
 import { initFilesStore, rebuildFileIndex } from "./infra/store/files.ts";
 import {
@@ -22,7 +26,6 @@ import {
 	removeSchedule,
 	type ScheduleEntry,
 	setOnCronFire,
-	startAllSchedules,
 	stopAllSchedules,
 } from "./infra/store/schedules.ts";
 import {
@@ -52,6 +55,7 @@ import {
 } from "./infra/whatsapp/login.ts";
 import { attachReceiveHandler } from "./infra/whatsapp/receive.ts";
 import {
+	clearSendSocket,
 	drainQueue,
 	enqueueMessage,
 	setSocket,
@@ -91,6 +95,7 @@ async function shutdown(signal: string): Promise<void> {
 	stopWatching();
 	stopAllSchedules();
 	stopAllTimers();
+	deactivateFutureWork();
 
 	log.info("[shutdown] complete");
 	process.exit(0);
@@ -116,6 +121,14 @@ async function runScheduledDispatch(
 	entry: ScheduleEntry | TimerEntry,
 	trigger: Trigger,
 ): Promise<void> {
+	const chatId = settings.allowedChat;
+	if (!chatId) {
+		log.warn(`[${source}] skipped @${entry.agentName}; allowedChat is unset`, {
+			id: entry.id,
+		});
+		return;
+	}
+
 	try {
 		const frontmatterSchedule =
 			source === "cron" && isFrontmatterSchedule(entry)
@@ -129,7 +142,7 @@ async function runScheduledDispatch(
 			agent: entry.agentName,
 			...(frontmatterSchedule ? {} : { prompt: entry.objective }),
 			...(entry.overrides ? { overrides: entry.overrides } : {}),
-			chatId: entry.chatId,
+			chatId,
 			trigger,
 			...(frontmatterSchedule ? { schedule: frontmatterSchedule } : {}),
 		});
@@ -139,7 +152,7 @@ async function runScheduledDispatch(
 			error: err,
 		});
 		enqueueMessage({
-			chatId: entry.chatId,
+			chatId,
 			content: `⚠️ Scheduled @${entry.agentName} run failed:\n${formatUserError(err)}`,
 			dedupKey: `${source}-error:${entry.id}:${Date.now()}`,
 			label: settings.whatsapp.systemLabel,
@@ -183,7 +196,6 @@ async function syncAgentSchedules(def: AgentDefinition): Promise<void> {
 			id: frontmatterScheduleId(def.name, index),
 			agentName: def.name,
 			pattern: schedule.pattern,
-			chatId: "system",
 			objective: "# Message",
 			...(schedule.overrides.length > 0
 				? { overrides: schedule.overrides }
@@ -335,7 +347,6 @@ async function main(): Promise<void> {
 			scheduleId: entry.id,
 		});
 	});
-	startAllSchedules();
 
 	setOnTimerFire(async (entry) => {
 		await runScheduledDispatch("timer", entry, {
@@ -374,7 +385,14 @@ async function main(): Promise<void> {
 				);
 			}
 			attachReceiveHandler(socket);
+			activateFutureWorkIfReady();
 			log.info("[startup] WhatsApp receive handler attached");
+		},
+		onClose: () => {
+			clearSendSocket();
+			stopAllSchedules();
+			stopAllTimers();
+			deactivateFutureWork();
 		},
 	}).catch((err: unknown) => {
 		clearTimeout(connectionWarnTimer);

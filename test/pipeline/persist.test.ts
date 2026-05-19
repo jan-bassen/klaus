@@ -103,7 +103,6 @@ describe("pipeline/persistence.persistDynamic", () => {
 		expect(timers).toHaveLength(1);
 		expect(timers[0]).toMatchObject({
 			agentName: "persistent-agent",
-			chatId: "chat-1",
 			objective: "next objective",
 			overrides: ["voice", "large"],
 			createdBy: "persistent",

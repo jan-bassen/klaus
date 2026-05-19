@@ -56,7 +56,6 @@ describe("primitives/variables/tasks", () => {
 		await addTimer({
 			id: "t-1",
 			agentName: "coach",
-			chatId: "c1",
 			objective: "morning checkin",
 			runAt,
 			createdBy: "user",
@@ -72,7 +71,6 @@ describe("primitives/variables/tasks", () => {
 		await addTimer({
 			id: "t-2",
 			agentName: "coach",
-			chatId: "c1",
 			objective: "x",
 			runAt: new Date(Date.now() + 60_000).toISOString(),
 			createdBy: "user",
