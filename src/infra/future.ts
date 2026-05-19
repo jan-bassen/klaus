@@ -9,11 +9,15 @@ let active = false;
 export function activateFutureWorkIfReady(): boolean {
 	if (active) return true;
 	if (!settings.allowedChat) {
-		log.info("[future] waiting for allowedChat before starting schedules/timers");
+		log.info(
+			"[future] waiting for allowedChat before starting schedules/timers",
+		);
 		return false;
 	}
 	if (!isConnected()) {
-		log.info("[future] waiting for WhatsApp connection before starting schedules/timers");
+		log.info(
+			"[future] waiting for WhatsApp connection before starting schedules/timers",
+		);
 		return false;
 	}
 
