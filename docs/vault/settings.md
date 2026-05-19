@@ -28,6 +28,11 @@ For the TypeScript side of commands, variables, tools, and toolsets, see [../cod
 
 If code adds a tunable setting, add it to both `vault/settings.yml` and `src/infra/config.ts`. Do not use Zod `.default()` fallbacks for runtime settings.
 
+`whatsapp.presenceRefreshMs` is the interval for re-sending WhatsApp
+`composing`/`recording` updates while Klaus is working on an inbound message.
+WhatsApp clients can clear the bubble quickly, so the bundled template uses a
+short interval.
+
 ## Overrides
 
 Overrides are `!preset` words in messages. They are parsed out of the message and merged into `TurnConfig` on top of settings and agent frontmatter.

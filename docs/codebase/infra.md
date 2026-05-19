@@ -31,9 +31,14 @@ Vault permissions are layered from settings defaults, agent frontmatter, and per
 | `login.ts` | First-run QR, setup code, self-mode, allowed chat setup. |
 | `receive.ts` | Inbound message normalization. |
 | `send.ts` | Outbound queue, labels, retries, media sends. |
-| `presence.ts` | Typing and presence behavior. |
+| `presence.ts` | Typing/recording indicators, refreshed during long turns. |
 
 Klaus is fail-closed. It processes only the configured allowed chat unless it is still in setup mode.
+
+`settings.whatsapp.presenceRefreshMs` controls how often Klaus re-sends
+`composing`/`recording` while an inbound WhatsApp turn is running. Keep it
+comfortably below the client expiry window; the bundled default is deliberately
+short so long model/tool runs still show visible activity.
 
 ## Stores
 
