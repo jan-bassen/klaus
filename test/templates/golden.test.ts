@@ -303,7 +303,7 @@ _Reply as voice message_`);
 		expect(rendered).toContain("### User message\n```\nuser msg\n```");
 		expect(rendered).toContain("### Agent messages\n```\nagent msg\n```");
 		expect(rendered).toContain(
-			'### Steps\n**1) vault_read** (10↑/20↓)\n> thinking\n`{"path":"A.md"}`',
+			'### Steps\n**1) vault_read** (10↑/20↓)\n> thinking\n\n`{"path":"A.md"}`',
 		);
 		expect(rendered).toContain(
 			"### Simulated actions\n- **reply** (external) — Would reply",

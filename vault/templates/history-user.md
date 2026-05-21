@@ -4,3 +4,4 @@
 {{#if quotedText}}> Quoted{{#if quotedRole}} ({{quotedRole}}){{/if}}: {{quotedText}}{{/if}}
 
 {{#if label}}[#{{label}}] {{/if}}{{messageText}}
+{{#if reactions}}Reactions: {{reactions}}{{/if}}

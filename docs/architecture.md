@@ -84,4 +84,6 @@ The Obsidian vault is knowledge and user-owned configuration. The data directory
 | `schedules` | JSON + croner | Recurring runs. |
 | `timers` | JSON + setTimeout | One-shot future runs. |
 
+Reactions are stored against WhatsApp message IDs and rendered on selected history message rows. Agent reactions include agent/run attribution where Klaus produced them.
+
 Reports are the main debugging surface. They include the rendered prompt, variables, history, tool calls, results, simulated actions, and errors. See [vault/reports.md](vault/reports.md).

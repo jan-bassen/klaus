@@ -392,6 +392,13 @@ function followedByAgentReply(
 	return false;
 }
 
+function hasReactionFromAgent(row: ConversationRow, agentName: string): boolean {
+	return row.reactions.some(
+		(reaction) =>
+			reaction.fromMe && (!reaction.agent || reaction.agent === agentName),
+	);
+}
+
 function filterAgentHistory(
 	rows: ConversationRow[],
 	agentName: string | undefined,
@@ -400,7 +407,10 @@ function filterAgentHistory(
 	if (scope !== "agent" || !agentName) return rows;
 	return rows.filter((row, index, allRows) => {
 		if (row.role === "assistant") return row.agent === agentName;
-		return followedByAgentReply(allRows, index, agentName);
+		return (
+			followedByAgentReply(allRows, index, agentName) ||
+			hasReactionFromAgent(row, agentName)
+		);
 	});
 }
 
@@ -436,12 +446,14 @@ function renderHistoryUserMessage(
 	const sidecar = isDocument ? `${media.path}.parsed.txt` : null;
 	const extractedText =
 		sidecar && existsSync(sidecar) ? readFileSync(sidecar, "utf-8") : undefined;
+	const reactions = reactionSummary(row);
 
 	return {
 		role: "user",
 		content: renderTemplate("history-user", {
 			label,
 			messageText: row.content ?? "",
+			...(reactions ? { reactions } : {}),
 			isVoice,
 			isImage,
 			isDocument,
@@ -460,9 +472,14 @@ function renderHistoryUserMessage(
 
 function reactionSummary(row: ConversationRow): string {
 	return row.reactions
-		.map((reaction) => reaction.emoji)
+		.map((reaction) => {
+			const source = reaction.fromMe
+				? (reaction.agent ?? "assistant")
+				: "user";
+			return `${source} ${reaction.emoji}`;
+		})
 		.filter((emoji) => emoji.length > 0)
-		.join(" ");
+		.join(", ");
 }
 
 function renderHistoryAssistantMessage(
@@ -470,7 +487,7 @@ function renderHistoryAssistantMessage(
 	label: number,
 	defaultAgent: string,
 ): ChatMessage {
-	const reactionEmojis = reactionSummary(row);
+	const reactions = reactionSummary(row);
 	return {
 		role: "assistant",
 		content: renderTemplate("history-agent", {
@@ -478,7 +495,7 @@ function renderHistoryAssistantMessage(
 			message: row.content ?? "",
 			agentLabel: row.agent ?? "",
 			isNotDefaultAgent: row.agent ? row.agent !== defaultAgent : false,
-			...(reactionEmojis ? { reactionEmojis } : {}),
+			...(reactions ? { reactions, reactionEmojis: reactions } : {}),
 		}),
 	};
 }

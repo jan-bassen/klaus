@@ -122,7 +122,7 @@ describe("infra/store/history: reactions", () => {
 		});
 		let conv = await getConversation();
 		expect(conv[0]?.reactions).toEqual([
-			{ emoji: "👍", senderId: "u", fromMe: true },
+			expect.objectContaining({ emoji: "👍", senderId: "u", fromMe: true }),
 		]);
 
 		await appendReaction({
@@ -133,7 +133,7 @@ describe("infra/store/history: reactions", () => {
 		});
 		conv = await getConversation();
 		expect(conv[0]?.reactions).toEqual([
-			{ emoji: "❤️", senderId: "u", fromMe: true },
+			expect.objectContaining({ emoji: "❤️", senderId: "u", fromMe: true }),
 		]);
 
 		await appendReaction({
@@ -144,6 +144,35 @@ describe("infra/store/history: reactions", () => {
 		});
 		conv = await getConversation();
 		expect(conv[0]?.reactions).toEqual([]);
+	});
+
+	it("round-trips reaction attribution", async () => {
+		await appendMessage({
+			role: "user",
+			content: "ok?",
+			externalId: "ext-1",
+		});
+
+		await appendReaction({
+			messageExternalId: "ext-1",
+			emoji: "✅",
+			senderId: "bot",
+			fromMe: true,
+			agent: "assistant",
+			runId: "run-1",
+		});
+
+		const conv = await getConversation();
+		expect(conv[0]?.reactions).toEqual([
+			expect.objectContaining({
+				emoji: "✅",
+				senderId: "bot",
+				fromMe: true,
+				agent: "assistant",
+				runId: "run-1",
+				createdAt: expect.any(String),
+			}),
+		]);
 	});
 });
 

@@ -22,6 +22,8 @@ Templates are required. If a required template is missing, execution fails visib
 
 `message-user.md` is the right place for live per-turn context such as active tasks, voice transcripts, attachments, quoted text, and the user's actual message. `history-user.md` and `history-agent.md` intentionally avoid live context so replayed chat turns do not duplicate stale state. Keeping dynamic material out of agent `# System` prompts helps provider prompt caching.
 
+History templates receive `{{reactions}}` when the selected message has active WhatsApp reactions. Entries include the source, for example `assistant ✅`, `alpha 👍`, or `user ❤️`. Reactions ride along with selected messages and do not consume `historyLimit` slots.
+
 ## Variables
 
 Templates use the same Handlebars environment as prompts. Common namespaces include:

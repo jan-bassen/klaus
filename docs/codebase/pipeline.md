@@ -52,6 +52,8 @@ Overrides are config only. They should not carry prompt content. Agent prompts a
 
 Agents should send user-visible text through the `reply` tool. If a reply-capable turn ends with plain assistant content instead of tool calls, `core.ts` treats that text as a fallback `reply` call, logs a warning, and marks the report step with `fallback: "assistant_content_reply"`. Empty assistant content still means no reply, and `toolChoice: "none"` keeps tools disabled.
 
+Reactions are replayed as metadata on real history messages, not as separate history slots. `historyLimit` still counts message rows; selected rows can include `{{reactions}}` such as `alpha ✅` or `user ❤️`, so a reaction-only agent turn is visible without shrinking the transcript window.
+
 Tools return values for the model to act on. User-correctable failures should be returned as values, not thrown. Throw only at system boundaries where continuing would hide a runtime problem.
 
 ## Dispatch And Persistence

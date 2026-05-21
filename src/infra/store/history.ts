@@ -44,6 +44,8 @@ interface ConversationStore {
 		emoji: string;
 		senderId: string;
 		fromMe: boolean;
+		agent?: string;
+		runId?: string;
 	}): Promise<void>;
 	appendTrace(
 		runId: string,
@@ -114,6 +116,9 @@ const ConversationReactionEventSchema = z.object({
 	emoji: z.string(),
 	senderId: z.string(),
 	fromMe: z.boolean(),
+	createdAt: z.string().optional(),
+	agent: z.string().optional(),
+	runId: z.string().optional(),
 });
 
 const TraceStepSchema = z.object({
@@ -188,7 +193,14 @@ interface ConversationMessage {
 	runId?: string;
 	/** Assistant rows: turn ended in an error. */
 	failed?: boolean;
-	reactions: Array<{ emoji: string; senderId: string; fromMe: boolean }>;
+	reactions: Array<{
+		emoji: string;
+		senderId: string;
+		fromMe: boolean;
+		createdAt?: string;
+		agent?: string;
+		runId?: string;
+	}>;
 }
 
 interface AgentTrace {
@@ -291,12 +303,18 @@ function applyReaction(
 			emoji: reaction.emoji,
 			senderId: reaction.senderId,
 			fromMe: reaction.fromMe,
+			...(reaction.createdAt ? { createdAt: reaction.createdAt } : {}),
+			...(reaction.agent ? { agent: reaction.agent } : {}),
+			...(reaction.runId ? { runId: reaction.runId } : {}),
 		};
 	} else {
 		msg.reactions.push({
 			emoji: reaction.emoji,
 			senderId: reaction.senderId,
 			fromMe: reaction.fromMe,
+			...(reaction.createdAt ? { createdAt: reaction.createdAt } : {}),
+			...(reaction.agent ? { agent: reaction.agent } : {}),
+			...(reaction.runId ? { runId: reaction.runId } : {}),
 		});
 	}
 }
@@ -410,6 +428,8 @@ export function createConversationStore(
 		emoji: string;
 		senderId: string;
 		fromMe: boolean;
+		agent?: string;
+		runId?: string;
 	}): Promise<void> {
 		await appendEvent({
 			kind: "reaction",
@@ -417,6 +437,9 @@ export function createConversationStore(
 			emoji: reaction.emoji,
 			senderId: reaction.senderId,
 			fromMe: reaction.fromMe,
+			createdAt: new Date().toISOString(),
+			...(reaction.agent ? { agent: reaction.agent } : {}),
+			...(reaction.runId ? { runId: reaction.runId } : {}),
 		});
 	}
 
@@ -635,6 +658,8 @@ export function appendReaction(reaction: {
 	emoji: string;
 	senderId: string;
 	fromMe: boolean;
+	agent?: string;
+	runId?: string;
 }): Promise<void> {
 	return store().appendReaction(reaction);
 }
