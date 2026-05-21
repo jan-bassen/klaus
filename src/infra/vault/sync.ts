@@ -57,6 +57,7 @@ export type SyncError =
 
 const MARKER_FILENAME = ".klaus-sync-ready";
 const MIN_TIMER_MS = 1;
+const ROUTINE_SYNC_STATUS_RE = /\bfully synced\b/i;
 
 export function readSyncEnv(
 	env: NodeJS.ProcessEnv = process.env,
@@ -104,6 +105,7 @@ function pipeWithPrefix(stream: Readable, kind: "out" | "err"): void {
 }
 
 function emitLine(line: string, kind: "out" | "err"): void {
+	if (kind === "out" && ROUTINE_SYNC_STATUS_RE.test(line)) return;
 	if (kind === "err") log.warn(`[sync] ${line}`);
 	else log.info(`[sync] ${line}`);
 }
