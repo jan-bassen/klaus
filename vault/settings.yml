@@ -100,7 +100,7 @@ media:
         - dear
   image:
     vision:
-      maxSize: 2048
+      maxSize: 1568
     gen:
       endpoint: openrouter
       model: openai/gpt-5.4-image-2
