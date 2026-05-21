@@ -51,7 +51,9 @@ function isRestartRequiredStreamError(obj: unknown, msg?: string): boolean {
 	const node = obj.fullErrorNode;
 	if (!isRecord(node)) return false;
 	const attrs = node.attrs;
-	return isRecord(attrs) && attrs.code === `${DisconnectReason.restartRequired}`;
+	return (
+		isRecord(attrs) && attrs.code === `${DisconnectReason.restartRequired}`
+	);
 }
 
 /**

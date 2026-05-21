@@ -311,9 +311,7 @@ _Reply as voice message_`);
 		expect(rendered).toContain(
 			"**Tools**\n```\nreply, openrouter:web_search\n```",
 		);
-		expect(rendered).toContain(
-			"**Toolsets**\n```\nvault\n```",
-		);
+		expect(rendered).toContain("**Toolsets**\n```\nvault\n```");
 		expect(rendered).toContain("**Skills**\n```\nobsidian-markdown\n```");
 		expect(rendered).toContain(
 			"### System\n````\nsystem\n```text\nprompt\n```\n````",

@@ -408,7 +408,10 @@ function followedByAgentReply(
 	return false;
 }
 
-function hasReactionFromAgent(row: ConversationRow, agentName: string): boolean {
+function hasReactionFromAgent(
+	row: ConversationRow,
+	agentName: string,
+): boolean {
 	return row.reactions.some(
 		(reaction) =>
 			reaction.fromMe && (!reaction.agent || reaction.agent === agentName),
@@ -489,9 +492,7 @@ function renderHistoryUserMessage(
 function reactionSummary(row: ConversationRow): string {
 	return row.reactions
 		.map((reaction) => {
-			const source = reaction.fromMe
-				? (reaction.agent ?? "assistant")
-				: "user";
+			const source = reaction.fromMe ? (reaction.agent ?? "assistant") : "user";
 			return `${source} ${reaction.emoji}`;
 		})
 		.filter((emoji) => emoji.length > 0)
