@@ -4,12 +4,13 @@
  *   1. Auth (allowlist)
  *   2. Normalize + parse (STT, doc, links, commands, @agent, !overrides)
  *   3. Resolve agent + build effective config
- *   4. Persist message + resolve quoted media
+ *   4. Resolve quoted media + persist message
  *   5. Execute agent (assemble context, prompts, run loop)
  */
 
 import { formatUserError } from "../errors.ts";
 import { settings, updateAllowedChat } from "../infra/config.ts";
+import { activateFutureWorkIfReady } from "../infra/future.ts";
 import { log } from "../infra/logger.ts";
 import {
 	findFileByExternalId,
@@ -27,7 +28,7 @@ import {
 	clearSetupCode,
 	getSetupCode,
 } from "../infra/whatsapp/login.ts";
-import { startTyping, stopTyping } from "../infra/whatsapp/presence.ts";
+import { startPresence, stopPresence } from "../infra/whatsapp/presence.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
 import { enqueueMessage, sendReaction } from "../infra/whatsapp/send.ts";
 import { registry as commandRegistry } from "../primitives/commands/index.ts";
@@ -82,11 +83,12 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			settings.media.voice.stt.agentTriggers,
 		);
 		const processedMsg = parsed.msg;
+		const effectiveMsg = resolveQuotedMedia(processedMsg);
 
 		if (parsed.command) {
 			log.info(`[pipeline] dispatching /${parsed.command.name} command`);
 			const command = commandRegistry.get(parsed.command.name);
-			if (command) await command.execute(processedMsg, parsed.command.args);
+			if (command) await command.execute(effectiveMsg, parsed.command.args);
 			return;
 		}
 
@@ -94,8 +96,6 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		const def = await getOrLoadAgent(agentName);
 		log.info(`[pipeline] routing to @${agentName}`);
 		const config = buildTurnConfig(def, parsed.overrides);
-
-		const effectiveMsg = resolveQuotedMedia(processedMsg);
 
 		let messageId: string | undefined;
 		if (!config.ghost) {
@@ -164,11 +164,15 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			config,
 			message: effectiveMsg,
 			messageRefs: {},
-			pendingSubReplies: [],
 		};
 
 		try {
-			if (msg.kind === "whatsapp") await startTyping(effectiveMsg.chatId);
+			if (msg.kind === "whatsapp") {
+				startPresence(
+					effectiveMsg.chatId,
+					config.forceVoice ? "recording" : "composing",
+				);
+			}
 			await executeAgent({
 				turn: partialTurn,
 				def,
@@ -176,7 +180,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 				signal: ac.signal,
 			});
 		} finally {
-			if (msg.kind === "whatsapp") await stopTyping(effectiveMsg.chatId);
+			if (msg.kind === "whatsapp") await stopPresence(effectiveMsg.chatId);
 			if (activeTurns.get(turnKey) === activeEntry) {
 				activeTurns.delete(turnKey);
 			}
@@ -207,6 +211,7 @@ async function handleSetupMode(msg: InboundMessage): Promise<void> {
 		}
 		log.info("[pipeline] self-mode: auto-setup");
 		await updateAllowedChat(ownJid);
+		activateFutureWorkIfReady();
 		clearSetupCode();
 		clearLoginFolder().catch(() => {});
 		enqueueMessage({
@@ -222,6 +227,7 @@ async function handleSetupMode(msg: InboundMessage): Promise<void> {
 	if (setupCode && msg.text?.trim() === setupCode) {
 		log.info("[pipeline] setup code matched, configuring allowed chat");
 		await updateAllowedChat(msg.chatId);
+		activateFutureWorkIfReady();
 		clearSetupCode();
 		clearLoginFolder().catch(() => {});
 		enqueueMessage({

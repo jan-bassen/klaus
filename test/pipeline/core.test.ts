@@ -6,7 +6,6 @@ import { settings } from "../../src/infra/config.ts";
 import { getTraces } from "../../src/infra/store/history.ts";
 import { readReports } from "../../src/infra/store/report.ts";
 import { listTimers, stopAllTimers } from "../../src/infra/store/timers.ts";
-import { enqueueMessage } from "../../src/infra/whatsapp/send.ts";
 import {
 	type AgentDefinition,
 	AgentSchema,
@@ -14,6 +13,7 @@ import {
 import { executeAgent, LlmTimeoutError } from "../../src/pipeline/core.ts";
 import {
 	registerTool,
+	registerToolset,
 	type ToolDefinition,
 } from "../../src/primitives/tools/index.ts";
 import { initAllStores } from "../helpers/stores.ts";
@@ -23,6 +23,7 @@ import { makeTurn } from "../helpers/turn.ts";
 const sendMock = vi.hoisted(() => vi.fn());
 const replySchema = z.object({ content: z.string() });
 const probeSchema = z.object({ value: z.string().optional() });
+const hiddenSchema = z.object({});
 
 vi.mock("@openrouter/sdk", () => ({
 	OpenRouter: vi.fn(function OpenRouter() {
@@ -34,15 +35,12 @@ vi.mock("@openrouter/sdk", () => ({
 	}),
 }));
 
-vi.mock("../../src/infra/whatsapp/send.ts", () => ({
-	enqueueMessage: vi.fn(),
-}));
-
 const replyTool: ToolDefinition<typeof replySchema> = {
 	name: "reply",
 	description: "Reply with text",
 	inputSchema: replySchema,
-	execute: async () => "sent",
+	execute: async ({ content }) =>
+		content === "not actually sent" ? { error: "not sent" } : "sent",
 	sideEffect: "pure",
 	kind: "builtin",
 	capability: "tool",
@@ -53,6 +51,16 @@ const probeTool: ToolDefinition<typeof probeSchema> = {
 	description: "Record a probe value",
 	inputSchema: probeSchema,
 	execute: async ({ value }) => ({ ok: true, value: value ?? "default" }),
+	sideEffect: "pure",
+	kind: "builtin",
+	capability: "tool",
+};
+
+const hiddenTool: ToolDefinition<typeof hiddenSchema> = {
+	name: "bundle_hidden",
+	description: "Hidden toolset member",
+	inputSchema: hiddenSchema,
+	execute: async () => ({ ok: true }),
 	sideEffect: "pure",
 	kind: "builtin",
 	capability: "tool",
@@ -92,9 +100,26 @@ describe("pipeline/core.executeAgent", () => {
 			path.join(settings.vault.templatesDir, "message-agent.md"),
 			"{{message}}",
 		);
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "history-user.md"),
+			"{{messageText}}",
+		);
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "history-agent.md"),
+			"{{message}}",
+		);
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "persistence.md"),
+			"{{prompt}}",
+		);
 
 		registerTool(replyTool);
 		registerTool(probeTool);
+		registerToolset({
+			name: "bundle",
+			description: "Grouped test tools",
+			tools: [hiddenTool],
+		});
 	});
 
 	afterEach(() => {
@@ -108,7 +133,6 @@ describe("pipeline/core.executeAgent", () => {
 			process.env.OPENROUTER_API_KEY = originalApiKey;
 		}
 		sendMock.mockReset();
-		vi.mocked(enqueueMessage).mockReset();
 		rmTmpDir(tmpDir);
 	});
 
@@ -143,7 +167,7 @@ describe("pipeline/core.executeAgent", () => {
 		const result = await executeAgent({ turn, def, variables: [] });
 
 		expect(result).toMatchObject({
-			model: "anthropic/claude-sonnet-4-6",
+			model: "anthropic/claude-sonnet-4.6",
 			tier: "medium",
 			usage: { promptTokens: 16, completionTokens: 20 },
 			systemPrompt: "You are core-test.",
@@ -172,7 +196,7 @@ describe("pipeline/core.executeAgent", () => {
 			],
 		});
 		expect(firstChatRequest()).toMatchObject({
-			model: "anthropic/claude-sonnet-4-6",
+			model: "anthropic/claude-sonnet-4.6",
 			messages: [
 				{ role: "system", content: "You are core-test." },
 				{ role: "user", content: "objective" },
@@ -222,6 +246,221 @@ describe("pipeline/core.executeAgent", () => {
 		const result = await executeAgent({ turn, def, variables: [] });
 
 		expect(result.replyContent).toBe("first\n---\nsecond");
+	});
+
+	it("reports explicit tools and toolsets without flattening hidden toolset members", async () => {
+		sendMock.mockResolvedValueOnce(chatResponse({ content: "done" }));
+
+		const def = makeAgent(tmpDir, {
+			tools: ["reply"],
+			toolsets: ["bundle"],
+		});
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 1, skipHistory: true },
+			dispatchContext: { prompt: "objective" },
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(result.context).toEqual({
+			variables: [],
+			tools: ["reply"],
+			toolsets: ["bundle"],
+			skills: [],
+		});
+	});
+
+	it("derives replyContent from accepted reply tool calls only", async () => {
+		sendMock
+			.mockResolvedValueOnce(
+				chatResponse({
+					toolCalls: [
+						toolCall("reply", {}, "reply-empty-args"),
+						toolCall("reply", { content: "   " }, "reply-blank"),
+						toolCall(
+							"reply",
+							{ content: "not actually sent", messageRef: "missing" },
+							"reply-bad-ref",
+						),
+						toolCall("reply", { content: "actual reply" }, "reply-ok"),
+					],
+				}),
+			)
+			.mockResolvedValueOnce(chatResponse());
+
+		const def = makeAgent(tmpDir, { tools: ["reply"] });
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 2, skipHistory: true },
+			dispatchContext: { prompt: "objective" },
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(result.replyContent).toBe("actual reply");
+	});
+
+	it("recovers direct assistant content as a visible fallback reply", async () => {
+		sendMock.mockResolvedValueOnce(
+			chatResponse({ content: "  I should have used reply.  " }),
+		);
+
+		const def = makeAgent(tmpDir, { tools: ["reply"] });
+		const turn = makeTurn({
+			agent: def,
+			runId: "run-direct-reply",
+			config: { report: true, stepLimit: 1, skipHistory: true },
+			dispatchContext: { prompt: "objective" },
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(result.replyContent).toBe("I should have used reply.");
+		expect(result.steps[0]).toMatchObject({
+			fallback: "assistant_content_reply",
+			toolCalls: [
+				{
+					toolCallId: "fallback-reply-1",
+					toolName: "reply",
+					args: { content: "I should have used reply." },
+				},
+			],
+			toolResults: [
+				{ toolCallId: "fallback-reply-1", toolName: "reply", result: "sent" },
+			],
+		});
+
+		const report = await waitForReport("run-direct-reply");
+		expect(report.llm?.steps[0]).toMatchObject({
+			fallback: "assistant_content_reply",
+			toolCalls: [
+				{ tool: "reply", args: { content: "I should have used reply." } },
+			],
+			toolResults: [{ tool: "reply", result: "sent" }],
+		});
+	});
+
+	it("does not recover direct assistant content when tools are disabled", async () => {
+		sendMock.mockResolvedValueOnce(chatResponse({ content: "plain text" }));
+
+		const def = makeAgent(tmpDir, { tools: ["reply"] });
+		const turn = makeTurn({
+			agent: def,
+			config: {
+				report: false,
+				stepLimit: 1,
+				skipHistory: true,
+				toolChoice: "none",
+			},
+			dispatchContext: { prompt: "objective" },
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(result.replyContent).toBe("");
+		expect(result.steps[0]).toMatchObject({
+			toolCalls: [],
+			toolResults: [],
+		});
+		expect(result.steps[0]?.fallback).toBeUndefined();
+	});
+
+	it("renders # Message with schedule metadata for frontmatter schedule runs", async () => {
+		sendMock.mockResolvedValueOnce(chatResponse({ content: "ok" }));
+
+		const def = makeAgent(tmpDir, {
+			prompt: {
+				system: "You are core-test.",
+				message:
+					'{{#if (eq schedule.label "morning")}}Morning {{schedule.pattern}}{{else}}Other{{/if}}',
+			},
+		});
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 1, skipHistory: true },
+			trigger: { kind: "schedule", scheduleId: "frontmatter:core-test:0" },
+			schedule: {
+				id: "frontmatter:core-test:0",
+				pattern: "0 8 * * *",
+				label: "morning",
+			},
+		});
+
+		const result = await executeAgent({
+			turn,
+			def,
+			variables: [
+				{
+					key: "schedule",
+					run: async (t) => t.schedule ?? null,
+				},
+			],
+		});
+
+		expect(result.userMessage).toBe("Morning 0 8 * * *");
+		expect(firstChatRequest().messages).toContainEqual({
+			role: "user",
+			content: "Morning 0 8 * * *",
+		});
+	});
+
+	it("renders # Message with dispatch metadata for dispatch and timer runs", async () => {
+		sendMock.mockResolvedValueOnce(chatResponse({ content: "ok" }));
+
+		const def = makeAgent(tmpDir, {
+			prompt: {
+				system: "You are core-test.",
+				message: "Objective: {{dispatch.prompt}} / {{test}}",
+			},
+		});
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 1, skipHistory: true },
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+			dispatchContext: { prompt: "run the check" },
+		});
+
+		const result = await executeAgent({
+			turn,
+			def,
+			variables: [
+				{
+					key: "dispatch",
+					run: async (t) => t.dispatchContext ?? null,
+				},
+				{
+					key: "test",
+					run: async () => "value",
+				},
+			],
+		});
+
+		expect(result.userMessage).toBe("Objective: run the check / value");
+		expect(firstChatRequest().messages).toContainEqual({
+			role: "user",
+			content: "Objective: run the check / value",
+		});
+	});
+
+	it("uses the raw dispatch objective when an agent has no # Message section", async () => {
+		sendMock.mockResolvedValueOnce(chatResponse({ content: "ok" }));
+
+		const def = makeAgent(tmpDir);
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 1, skipHistory: true },
+			trigger: { kind: "timer", timerId: "timer-1" },
+			dispatchContext: { prompt: "raw objective" },
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(result.userMessage).toBe("raw objective");
+		expect(firstChatRequest().messages).toContainEqual({
+			role: "user",
+			content: "raw objective",
+		});
 	});
 
 	it("throws LlmTimeoutError without retrying when the model call times out", async () => {
@@ -305,7 +544,7 @@ describe("pipeline/core.executeAgent", () => {
 			agent: "core-test",
 			outcome: { kind: "ok" },
 			llm: {
-				model: "anthropic/claude-sonnet-4-6",
+				model: "anthropic/claude-sonnet-4.6",
 				steps: [
 					{
 						toolCalls: [{ tool: "probe", args: { value: "reported" } }],
@@ -414,81 +653,6 @@ describe("pipeline/core.executeAgent", () => {
 		expect((await getTraces()).has("run-ghost")).toBe(false);
 	});
 
-	it("flushes pending sub-replies to WhatsApp in slot order and clears them", async () => {
-		sendMock.mockResolvedValueOnce(chatResponse());
-		const def = makeAgent(tmpDir);
-		const turn = makeTurn({
-			agent: def,
-			runId: "run-sub",
-			config: { report: false, stepLimit: 1, skipHistory: true },
-			dispatchContext: { prompt: "objective" },
-			pendingSubReplies: [["first"], ["second", "third"]],
-		});
-
-		await executeAgent({ turn, def, variables: [] });
-
-		expect(vi.mocked(enqueueMessage).mock.calls.map((call) => call[0])).toEqual(
-			[
-				expect.objectContaining({
-					chatId: "c1",
-					content: "first",
-					label: "core-test",
-				}),
-				expect.objectContaining({
-					chatId: "c1",
-					content: "second",
-					label: "core-test",
-				}),
-				expect.objectContaining({
-					chatId: "c1",
-					content: "third",
-					label: "core-test",
-				}),
-			],
-		);
-		expect(turn.pendingSubReplies).toEqual([]);
-	});
-
-	it("bubbles pending sub-replies into a parent collector instead of WhatsApp", async () => {
-		sendMock.mockResolvedValueOnce(chatResponse());
-		const collector: string[] = [];
-		const def = makeAgent(tmpDir);
-		const turn = makeTurn({
-			agent: def,
-			config: { report: false, stepLimit: 1, skipHistory: true },
-			dispatchContext: { prompt: "objective" },
-			pendingSubReplies: [["alpha"], ["beta"]],
-			_replyCollector: collector,
-		});
-
-		await executeAgent({ turn, def, variables: [] });
-
-		expect(collector).toEqual(["alpha", "beta"]);
-		expect(enqueueMessage).not.toHaveBeenCalled();
-		expect(turn.pendingSubReplies).toEqual([]);
-	});
-
-	it("drops top-level pending sub-replies during simulation", async () => {
-		sendMock.mockResolvedValueOnce(chatResponse());
-		const def = makeAgent(tmpDir);
-		const turn = makeTurn({
-			agent: def,
-			config: {
-				simulate: true,
-				report: false,
-				stepLimit: 1,
-				skipHistory: true,
-			},
-			dispatchContext: { prompt: "objective" },
-			pendingSubReplies: [["dry run"]],
-		});
-
-		await executeAgent({ turn, def, variables: [] });
-
-		expect(enqueueMessage).not.toHaveBeenCalled();
-		expect(turn.pendingSubReplies).toEqual([]);
-	});
-
 	it("forces a dynamic-persistence tool call and schedules the returned timer", async () => {
 		const started = Date.now();
 		sendMock
@@ -512,7 +676,7 @@ describe("pipeline/core.executeAgent", () => {
 
 		const def = makeAgent(tmpDir, {
 			tools: ["reply"],
-			persistence: { mode: "dynamic", hint: "Pick a useful follow-up." },
+			persistence: { hint: "Pick a useful follow-up.", overrides: [] },
 		});
 		const turn = makeTurn({
 			agent: def,
@@ -526,7 +690,6 @@ describe("pipeline/core.executeAgent", () => {
 		expect(timers).toHaveLength(1);
 		expect(timers[0]).toMatchObject({
 			agentName: "core-test",
-			chatId: "c1",
 			objective: "check in again",
 			overrides: ["voice"],
 			createdBy: "persistent",
@@ -548,7 +711,7 @@ describe("pipeline/core.executeAgent", () => {
 			.mockResolvedValueOnce(chatResponse({ content: "no tool" }));
 
 		const def = makeAgent(tmpDir, {
-			persistence: { mode: "dynamic", hint: "Pick a useful follow-up." },
+			persistence: { hint: "Pick a useful follow-up.", overrides: [] },
 		});
 		const turn = makeTurn({
 			agent: def,
@@ -567,7 +730,9 @@ function makeAgent(
 	dir: string,
 	patch: {
 		tools?: string[];
+		toolsets?: string[];
 		persistence?: AgentDefinition["persistence"];
+		prompt?: AgentDefinition["prompt"];
 	} = {},
 ): AgentDefinition {
 	const promptPath = path.join(dir, `${crypto.randomUUID()}.md`);
@@ -575,16 +740,22 @@ function makeAgent(
 	const parsed = AgentSchema.parse({
 		name: "core-test",
 		tools: patch.tools ?? [],
+		toolsets: patch.toolsets ?? [],
 		report: false,
 		stepLimit: 2,
-		...(patch.persistence?.mode === "dynamic"
+		...(patch.persistence
 			? {
-					persistenceMode: "dynamic",
-					persistenceHint: patch.persistence.hint,
+					persist: true,
+					persistHint: patch.persistence.hint,
+					persistOverrides: patch.persistence.overrides,
 				}
 			: {}),
 	});
-	return { ...parsed, promptPath };
+	return {
+		...parsed,
+		promptPath,
+		prompt: patch.prompt ?? { system: "You are core-test." },
+	};
 }
 
 function chatResponse(

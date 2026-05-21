@@ -9,6 +9,15 @@ import type { Command } from "./index.ts";
 const VALID = new Set(["on", "off", "auto"] as const);
 type VoiceMode = "on" | "off" | "auto";
 
+function send(msg: InboundMessage, content: string, suffix: string): void {
+	enqueueMessage({
+		chatId: msg.chatId,
+		content,
+		dedupKey: `${msg.id}:${suffix}`,
+		label: settings.whatsapp.systemLabel,
+	});
+}
+
 export const voiceCommand: Command = {
 	name: "voice",
 	aliases: ["v"],
@@ -19,46 +28,30 @@ export const voiceCommand: Command = {
 		const def = agentRegistry.get(agentName);
 
 		if (!def) {
-			enqueueMessage({
-				chatId: msg.chatId,
-				content: `Default agent "${agentName}" not found in registry.`,
-				dedupKey: `${msg.id}:voice-error`,
-				label: settings.whatsapp.systemLabel,
-			});
-			return;
+			return send(
+				msg,
+				`Default agent "${agentName}" not found in registry.`,
+				"voice-error",
+			);
 		}
 
 		const current = def.settings.voice;
 
 		if (!args[0]) {
-			enqueueMessage({
-				chatId: msg.chatId,
-				content: `@${agentName} voice: *${current}*`,
-				dedupKey: `${msg.id}:voice`,
-				label: settings.whatsapp.systemLabel,
-			});
-			return;
+			return send(msg, `@${agentName} voice: *${current}*`, "voice");
 		}
 
 		const input = args[0].toLowerCase() as VoiceMode;
 		if (!VALID.has(input)) {
-			enqueueMessage({
-				chatId: msg.chatId,
-				content: `Unknown voice setting. Options: on, off, auto`,
-				dedupKey: `${msg.id}:voice-unknown`,
-				label: settings.whatsapp.systemLabel,
-			});
-			return;
+			return send(
+				msg,
+				`Unknown voice setting. Options: on, off, auto`,
+				"voice-unknown",
+			);
 		}
 
 		if (input === current) {
-			enqueueMessage({
-				chatId: msg.chatId,
-				content: `Voice already set to "${input}".`,
-				dedupKey: `${msg.id}:voice-noop`,
-				label: settings.whatsapp.systemLabel,
-			});
-			return;
+			return send(msg, `Voice already set to "${input}".`, "voice-noop");
 		}
 
 		try {
@@ -69,19 +62,13 @@ export const voiceCommand: Command = {
 			await writeData(def.promptPath, updated);
 			def.settings.voice = input;
 
-			enqueueMessage({
-				chatId: msg.chatId,
-				content: `@${agentName} voice set to *${input}*.`,
-				dedupKey: `${msg.id}:voice`,
-				label: settings.whatsapp.systemLabel,
-			});
+			send(msg, `@${agentName} voice set to *${input}*.`, "voice");
 		} catch (err) {
-			enqueueMessage({
-				chatId: msg.chatId,
-				content: `Failed to update voice: ${err instanceof Error ? err.message : String(err)}`,
-				dedupKey: `${msg.id}:voice-error`,
-				label: settings.whatsapp.systemLabel,
-			});
+			send(
+				msg,
+				`Failed to update voice: ${err instanceof Error ? err.message : String(err)}`,
+				"voice-error",
+			);
 		}
 	},
 };

@@ -133,6 +133,11 @@ describe("pipeline/overrides.buildTurnConfig", () => {
 		expect(cfg.forceVoice).toBe(true);
 	});
 
+	it("carries the agent voiceId into turn config", () => {
+		const cfg = buildTurnConfig(makeAgent({ voiceId: "agent-voice" }), {});
+		expect(cfg.voiceId).toBe("agent-voice");
+	});
+
 	it("simulate force-elevates ghost + skipHistory", () => {
 		const cfg = buildTurnConfig(makeAgent(), { simulate: true });
 		expect(cfg.simulate).toBe(true);

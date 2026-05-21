@@ -7,6 +7,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { settings } from "../../src/infra/config.ts";
 import {
+	buildAgentMessage,
 	buildSystemPrompt,
 	invalidateTemplate,
 	loadTemplates,
@@ -32,12 +33,6 @@ describe("pipeline/prompts: resolveSampling", () => {
 		expect(resolveSampling({})).toEqual({});
 	});
 
-	it("cold preset → coldTemperature (falls back to 0 when unset)", () => {
-		settings.sampling = {};
-		const result = resolveSampling({ temperaturePreset: "cold" });
-		expect(result.temperature).toBe(0);
-	});
-
 	it("cold preset → coldTemperature from settings", () => {
 		settings.sampling = { coldTemperature: 0.1 };
 		expect(resolveSampling({ temperaturePreset: "cold" }).temperature).toBe(
@@ -45,29 +40,14 @@ describe("pipeline/prompts: resolveSampling", () => {
 		);
 	});
 
-	it("hot preset → hotTemperature (falls back to 1 when unset)", () => {
-		settings.sampling = {};
-		expect(resolveSampling({ temperaturePreset: "hot" }).temperature).toBe(1);
-	});
-
 	it("hot preset → hotTemperature from settings", () => {
 		settings.sampling = { hotTemperature: 0.9 };
 		expect(resolveSampling({ temperaturePreset: "hot" }).temperature).toBe(0.9);
 	});
 
-	it("creative topP preset → creativeTopP (falls back to 0.95)", () => {
-		settings.sampling = {};
-		expect(resolveSampling({ topPPreset: "creative" }).topP).toBe(0.95);
-	});
-
 	it("creative topP preset → creativeTopP from settings", () => {
 		settings.sampling = { creativeTopP: 0.98 };
 		expect(resolveSampling({ topPPreset: "creative" }).topP).toBe(0.98);
-	});
-
-	it("rigid topP preset → rigidTopP (falls back to 0.1)", () => {
-		settings.sampling = {};
-		expect(resolveSampling({ topPPreset: "rigid" }).topP).toBe(0.1);
 	});
 
 	it("rigid topP preset → rigidTopP from settings", () => {
@@ -100,10 +80,13 @@ describe("pipeline/prompts: resolveSampling", () => {
 });
 
 const ALL_TEMPLATE_NAMES = [
+	"history-user",
+	"history-agent",
 	"message-user",
 	"message-agent",
 	"error",
 	"report",
+	"persistence",
 ] as const;
 
 describe("pipeline/prompts: renderTemplate", () => {
@@ -166,11 +149,7 @@ describe("pipeline/prompts: renderTemplate", () => {
 
 	it("template registered as Handlebars partial can be used via {{> name}}", () => {
 		writeTemplate(tmpDir, "message-user", "inner {{val}}");
-		writeTemplate(
-			tmpDir,
-			"error",
-			"outer: {{> message-user val=kind}}",
-		);
+		writeTemplate(tmpDir, "error", "outer: {{> message-user val=kind}}");
 		loadTemplates();
 		const out = renderTemplate("error", { kind: "timeout" });
 		expect(out).toBe("outer: inner timeout");
@@ -198,8 +177,18 @@ describe("pipeline/prompts: buildSystemPrompt", () => {
 	});
 });
 
+describe("pipeline/prompts: buildAgentMessage", () => {
+	it("interpolates variables and supports user-var shortcuts", () => {
+		const out = buildAgentMessage(
+			'{{#if (eq schedule.label "morning")}}Hello $user.name{{/if}}',
+			{ schedule: { label: "morning" }, user: { name: "Jan" } },
+		);
+		expect(out).toBe("Hello Jan");
+	});
+});
+
 describe("pipeline/prompts: textOnlyUserContent", () => {
-	it("keeps text parts and replaces image data URLs with a marker", () => {
+	it("keeps text parts and drops image data URLs", () => {
 		const content: UserContent = [
 			{
 				type: "image_url",
@@ -208,8 +197,17 @@ describe("pipeline/prompts: textOnlyUserContent", () => {
 			{ type: "text", text: "what is this?" },
 		];
 
-		expect(textOnlyUserContent(content)).toBe(
-			"[image omitted from text-only follow-up/report]\nwhat is this?",
-		);
+		expect(textOnlyUserContent(content)).toBe("what is this?");
+	});
+
+	it("uses a compact image marker when there is no text part", () => {
+		const content: UserContent = [
+			{
+				type: "image_url",
+				imageUrl: { url: "data:image/png;base64,AAAABBBB" },
+			},
+		];
+
+		expect(textOnlyUserContent(content)).toBe("Image");
 	});
 });

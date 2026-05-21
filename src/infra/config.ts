@@ -222,6 +222,7 @@ const WhatsAppSchema = z
 		mediaDownloadTimeout: z.number(),
 		offlineWindow: z.number(),
 		maxSeenSize: z.number(),
+		presenceRefreshMs: z.number(),
 	})
 	.strict();
 
@@ -248,7 +249,7 @@ const PersistenceSchema = z
 
 const ReportsSchema = z
 	.object({
-		/** Mirror each turn's report as rendered markdown into `{vault}/reports/`. */
+		/** Mirror each turn's report as rendered markdown into `{vault}/Klaus/reports/`. */
 		vaultMarkdown: z.boolean(),
 		/** Days of report history surfaced via read APIs. */
 		lookbackDays: z.number(),
@@ -300,6 +301,22 @@ const SettingsSchema = z
 
 type YamlSettings = z.output<typeof SettingsSchema>;
 
+function parseYamlSettings(
+	raw: string,
+): { ok: true; value: YamlSettings } | { ok: false; error: string } {
+	const parsed = parseYaml(raw);
+	const result = SettingsSchema.safeParse(parsed ?? {});
+	if (!result.success) {
+		return {
+			ok: false,
+			error: result.error.issues
+				.map((i) => `${i.path.join(".")}: ${i.message}`)
+				.join("; "),
+		};
+	}
+	return { ok: true, value: result.data };
+}
+
 // ── Bundled defaults ───────────────────────────────────────────────────────
 
 const BUNDLED_SETTINGS_PATH = path.join(bundledVaultDir, "settings.yml");
@@ -316,17 +333,13 @@ function loadBundledDefaults(): YamlSettings {
 		);
 	}
 
-	const parsed = parseYaml(raw);
-	const result = SettingsSchema.safeParse(parsed ?? {});
-	if (!result.success) {
-		const issues = result.error.issues
-			.map((i) => `${i.path.join(".")}: ${i.message}`)
-			.join("; ");
+	const result = parseYamlSettings(raw);
+	if (!result.ok) {
 		throw new Error(
-			`Bundled default settings at ${BUNDLED_SETTINGS_PATH} failed validation: ${issues}`,
+			`Bundled default settings at ${BUNDLED_SETTINGS_PATH} failed validation: ${result.error}`,
 		);
 	}
-	return result.data;
+	return result.value;
 }
 
 // ── Live settings object ───────────────────────────────────────────────────
@@ -350,7 +363,9 @@ function buildSettings(yaml: YamlSettings) {
 		log: { format: logFormat },
 		startup: { connectionWarnAfterMs },
 		get allowedChat(): string | undefined {
-			return yaml.basics.allowedChat ?? process.env.ALLOWED_CHAT_ID ?? undefined;
+			return (
+				yaml.basics.allowedChat ?? process.env.ALLOWED_CHAT_ID ?? undefined
+			);
 		},
 		get locale() {
 			return yaml.basics.locale;
@@ -378,7 +393,7 @@ function applyYaml(next: YamlSettings): void {
 export async function loadSettingsFromDisk(): Promise<
 	{ ok: true } | { ok: false; error: string }
 > {
-	const filePath = vaultPaths.settingsPath;
+	const filePath = settings.vault.settingsPath;
 
 	if (!existsSync(filePath)) {
 		log.info("[config] no settings.yml in vault, using bundled defaults");
@@ -387,17 +402,10 @@ export async function loadSettingsFromDisk(): Promise<
 
 	try {
 		const raw = await readText(filePath);
-		const parsed = parseYaml(raw);
-		const result = SettingsSchema.safeParse(parsed ?? {});
+		const result = parseYamlSettings(raw);
+		if (!result.ok) return { ok: false, error: result.error };
 
-		if (!result.success) {
-			const issues = result.error.issues
-				.map((i) => `${i.path.join(".")}: ${i.message}`)
-				.join("; ");
-			return { ok: false, error: issues };
-		}
-
-		applyYaml(result.data);
+		applyYaml(result.value);
 		log.info("[config] loaded from disk");
 		return { ok: true };
 	} catch (err) {
@@ -408,72 +416,54 @@ export async function loadSettingsFromDisk(): Promise<
 	}
 }
 
-export async function updateAllowedChat(chatId: string): Promise<void> {
-	const filePath = vaultPaths.settingsPath;
-	let parsed: Record<string, unknown> = {};
+/**
+ * Set a single field inside `settings.yml` (creating the section if missing),
+ * persist, and reload through Zod. Throws if the post-write file fails
+ * validation — callers can assume a successful return means live settings now
+ * reflect the change.
+ */
+async function setYamlField(
+	section: string,
+	field: string,
+	value: unknown,
+): Promise<void> {
+	const filePath = settings.vault.settingsPath;
+	let parsed: Record<string, unknown>;
 
 	if (existsSync(filePath)) {
 		const raw = await readText(filePath);
 		parsed = (parseYaml(raw) as Record<string, unknown>) ?? {};
+	} else {
+		// Seed from bundled defaults so the written file passes full schema
+		// validation on reload — partial files would fail Zod's strict object check.
+		const raw = readFileSync(BUNDLED_SETTINGS_PATH, "utf8");
+		parsed = (parseYaml(raw) as Record<string, unknown>) ?? {};
 	}
 
-	const basics = (parsed.basics as Record<string, unknown>) ?? {};
-	basics.allowedChat = chatId;
-	parsed.basics = basics;
+	const current = (parsed[section] as Record<string, unknown>) ?? {};
+	current[field] = value;
+	parsed[section] = current;
 
-	const yaml = stringifyYaml(parsed, { lineWidth: 120 });
-	await writeData(filePath, yaml);
+	await writeData(filePath, stringifyYaml(parsed, { lineWidth: 120 }));
 
 	const result = await loadSettingsFromDisk();
 	if (!result.ok) {
 		throw new Error(`Updated settings.yml failed validation: ${result.error}`);
 	}
+}
+
+export async function updateAllowedChat(chatId: string): Promise<void> {
+	await setYamlField("basics", "allowedChat", chatId);
 	log.info("[config] updated allowedChat");
 }
 
 export async function updateDefaultAgent(agentName: string): Promise<void> {
-	const filePath = vaultPaths.settingsPath;
-	let parsed: Record<string, unknown> = {};
-
-	if (existsSync(filePath)) {
-		const raw = await readText(filePath);
-		parsed = (parseYaml(raw) as Record<string, unknown>) ?? {};
-	}
-
-	const agent = (parsed.agent as Record<string, unknown>) ?? {};
-	agent.defaultAgent = agentName;
-	parsed.agent = agent;
-
-	const yaml = stringifyYaml(parsed, { lineWidth: 120 });
-	await writeData(filePath, yaml);
-
-	const result = await loadSettingsFromDisk();
-	if (!result.ok) {
-		throw new Error(`Updated settings.yml failed validation: ${result.error}`);
-	}
+	await setYamlField("agent", "defaultAgent", agentName);
 	log.info("[config] updated defaultAgent", { agentName });
 }
 
 export async function updateSelfMode(selfMode: boolean): Promise<void> {
-	const filePath = vaultPaths.settingsPath;
-	let parsed: Record<string, unknown> = {};
-
-	if (existsSync(filePath)) {
-		const raw = await readText(filePath);
-		parsed = (parseYaml(raw) as Record<string, unknown>) ?? {};
-	}
-
-	const whatsapp = (parsed.whatsapp as Record<string, unknown>) ?? {};
-	whatsapp.selfMode = selfMode;
-	parsed.whatsapp = whatsapp;
-
-	const yaml = stringifyYaml(parsed, { lineWidth: 120 });
-	await writeData(filePath, yaml);
-
-	const result = await loadSettingsFromDisk();
-	if (!result.ok) {
-		throw new Error(`Updated settings.yml failed validation: ${result.error}`);
-	}
+	await setYamlField("whatsapp", "selfMode", selfMode);
 	log.info("[config] updated selfMode", { selfMode });
 }
 

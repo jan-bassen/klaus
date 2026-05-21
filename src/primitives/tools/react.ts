@@ -54,6 +54,8 @@ export const reactTool: ToolDefinition<typeof reactSchema> = {
 			emoji,
 			senderId: botId,
 			fromMe: true,
+			agent: context.agent.name,
+			runId: context.runId,
 		});
 		return "reacted";
 	},

@@ -3,6 +3,7 @@ import { watch as fsWatch, mkdir, readFile, rm } from "node:fs/promises";
 import QRCode from "qrcode";
 import { renderTemplate } from "../../pipeline/prompts.ts";
 import { settings, updateAllowedChat, updateSelfMode } from "../config.ts";
+import { activateFutureWorkIfReady } from "../future.ts";
 import { log } from "../logger.ts";
 import { readText, writeData } from "../runtime.ts";
 import { getSocket, normalizeJid } from "./connection.ts";
@@ -34,7 +35,7 @@ export function clearSetupCode(): void {
 	_setupCode = null;
 }
 
-export async function ensureLoginFolder(): Promise<void> {
+async function ensureLoginFolder(): Promise<void> {
 	const dir = settings.vault.loginDir;
 	await mkdir(dir, { recursive: true });
 
@@ -102,7 +103,7 @@ export async function clearLoginFolder(): Promise<void> {
  * The choice is persisted into settings because self-mode changes both receive
  * and send behavior after setup.
  */
-export function startLoginModeWatcher(): void {
+function startLoginModeWatcher(): void {
 	if (_watcherCtl) return;
 	const ctl = new AbortController();
 	_watcherCtl = ctl;
@@ -168,6 +169,7 @@ export async function completeSoloSetup(): Promise<boolean> {
 	}
 	log.info("[login] solo mode chosen — auto-configuring");
 	await updateAllowedChat(ownJid);
+	activateFutureWorkIfReady();
 	clearSetupCode();
 	enqueueMessage({
 		chatId: ownJid,

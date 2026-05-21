@@ -35,6 +35,7 @@ const ReportStepSchema = z.object({
 			result: z.unknown(),
 		}),
 	),
+	fallback: z.enum(["assistant_content_reply"]).optional(),
 	finishReason: z.string().optional(),
 	usage: z
 		.object({
@@ -47,6 +48,12 @@ const ReportStepSchema = z.object({
 const ReportLlmSchema = z.object({
 	model: z.string(),
 	tier: z.string(),
+	context: z.object({
+		variables: z.array(z.string()),
+		tools: z.array(z.string()),
+		toolsets: z.array(z.string()),
+		skills: z.array(z.string()),
+	}),
 	durationMs: z.number(),
 	usage: z.object({
 		promptTokens: z.number(),
@@ -59,6 +66,7 @@ const ReportLlmSchema = z.object({
 	steps: z.array(ReportStepSchema),
 	systemPrompt: z.string(),
 	userMessage: z.string(),
+	assistantMessage: z.string(),
 	historyTranscript: z.array(z.unknown()),
 });
 
@@ -106,8 +114,6 @@ const ReportEntrySchema = z.object({
 	config: ReportConfigSchema,
 	llm: ReportLlmSchema.optional(),
 	message: ReportMessageSchema.optional(),
-	/** Map of var key → JSON-stringified char count. */
-	variablesSummary: z.record(z.string(), z.number()).optional(),
 	/** True when the run was a `!simulate` dry-run — surfaced in templates. */
 	simulation: z.boolean().optional(),
 	/** Faked actions captured by the simulation overlay (only when `simulation`). */

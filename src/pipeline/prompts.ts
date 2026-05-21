@@ -29,15 +29,18 @@ import type { TurnConfig } from "./overrides.ts";
 
 /** User-message content as accepted by the chat completions API. */
 export type UserContent = ChatUserMessage["content"];
-const OMITTED_IMAGE_TEXT = "[image omitted from text-only follow-up/report]";
+const IMAGE_TEXT = "Image";
 
 // ── Template loader ────────────────────────────────────────────────────────
 
 type TemplateName =
+	| "history-agent"
+	| "history-user"
 	| "message-agent"
 	| "message-user"
 	| "error"
 	| "report"
+	| "persistence"
 	| "welcome"
 	| "help";
 
@@ -134,6 +137,20 @@ export function buildSystemPrompt(
 		.trim();
 }
 
+/** Compile an agent # Message body with the unified variable namespace. */
+export function buildAgentMessage(
+	body: string,
+	vars: Record<string, unknown>,
+): string {
+	const template = hbs.compile(body, { noEscape: true });
+	return interpolateUserVars(
+		template(vars)
+			.replace(/\n{3,}/g, "\n\n")
+			.trim(),
+		vars,
+	);
+}
+
 // ── User message ───────────────────────────────────────────────────────────
 
 /**
@@ -158,7 +175,7 @@ function renderUserText(turn: TurnContext): string {
 		isVoice,
 		isImage,
 		isDocument,
-		...(media?.fileName ? { fileName: media.fileName } : {}),
+		...(media ? { fileName: media.fileName ?? path.basename(media.path) } : {}),
 		...(media?.mimeType ? { mimeType: media.mimeType } : {}),
 		...(isDocument && media?.extractedText
 			? { extractedText: media.extractedText }
@@ -177,7 +194,8 @@ function renderUserText(turn: TurnContext): string {
 
 /**
  * Assemble the model's user-turn content:
- *   - dispatch-only turns       → the dispatch objective
+ *   - dispatch/timer turns      → the agent's # Message template or dispatch objective
+ *   - frontmatter schedules     → the agent's # Message template
  *   - vision turns (img or quoted img) → [image, text] parts
  *   - everything else           → rendered template text
  */
@@ -209,18 +227,37 @@ export async function buildUserMessage(
 
 	if (turn.message) return renderUserText(turn);
 
-	return turn.dispatchContext?.prompt ?? "";
+	if (turn.dispatchContext) {
+		if (turn.agent.prompt.message) {
+			return buildAgentMessage(turn.agent.prompt.message, turn.vars);
+		}
+		return turn.dispatchContext.prompt;
+	}
+
+	if (turn.schedule && turn.agent.prompt.message) {
+		return buildAgentMessage(turn.agent.prompt.message, turn.vars);
+	}
+
+	return "";
 }
 
 export function textOnlyUserContent(content: UserContent): string {
 	if (typeof content === "string") return content;
 
-	return content
+	const text = content
 		.map((part) => {
 			if (part.type === "text") return part.text;
-			if (part.type === "image_url") return OMITTED_IMAGE_TEXT;
-			return `[${part.type} omitted from text-only follow-up/report]`;
+			return "";
 		})
+		.join("\n")
+		.trim();
+	if (text) return text;
+
+	const hasImage = content.some((part) => part.type === "image_url");
+	if (hasImage) return IMAGE_TEXT;
+
+	return content
+		.map((part) => `[${part.type} omitted from text-only follow-up/report]`)
 		.join("\n")
 		.trim();
 }

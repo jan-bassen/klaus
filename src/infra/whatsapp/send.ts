@@ -8,8 +8,6 @@ import { log } from "../logger.ts";
 
 // -- Send queue types (owned by this domain) --
 
-type MessageOrdinal = number;
-
 interface OutboundMessage {
 	chatId: string;
 	content: string | Buffer;
@@ -22,14 +20,16 @@ interface OutboundMessage {
 	label?: string;
 }
 
-import { getSocket } from "./connection.ts";
-
 // Module-level socket reference set by attachReceiveHandler at startup.
 let _socket: WASocket | null = null;
 
 /** Called by receive.ts when the Baileys socket is established. */
 export function setSocket(socket: WASocket): void {
 	_socket = socket;
+}
+
+export function clearSendSocket(): void {
+	_socket = null;
 }
 
 /**
@@ -177,8 +177,11 @@ export async function sendReaction(
 	msgKey: WAMessageKey,
 	emoji: string,
 ): Promise<undefined | Error> {
+	const socket = _socket;
+	if (!socket)
+		return new Error("No WhatsApp socket — call setSocket() before sending");
 	try {
-		await getSocket().sendMessage(chatId, {
+		await socket.sendMessage(chatId, {
 			react: { key: msgKey, text: emoji },
 		});
 		log.debug("[send] reaction sent");

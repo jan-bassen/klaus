@@ -6,6 +6,7 @@ import { settings } from "../config.ts";
 import { log } from "../logger.ts";
 import { readText } from "../runtime.ts";
 import { localDateString } from "./index.ts";
+
 /** Mirrors the `Trigger` discriminated union in `src/types.ts`. */
 export const TriggerSchema = z.discriminatedUnion("kind", [
 	z.object({ kind: z.literal("message"), messageId: z.string() }),
@@ -32,6 +33,7 @@ type AppendMessageInput =
 			role: "assistant";
 			agent: string;
 			runId: string;
+			voice?: boolean;
 			failed?: boolean;
 	  });
 
@@ -43,6 +45,8 @@ interface ConversationStore {
 		emoji: string;
 		senderId: string;
 		fromMe: boolean;
+		agent?: string;
+		runId?: string;
 	}): Promise<void>;
 	appendTrace(
 		runId: string,
@@ -62,11 +66,22 @@ interface ConversationStore {
 		contextWindow?: number;
 	}): Promise<ConversationMessage[]>;
 	findByExternalId(externalId: string): { messageId: string } | null;
-	resolveExternalId(externalId: string): string | null;
-	resolveMessageId(messageId: string): string | null;
 	/** Indexed by `runId` — the new stable id for an agent run. */
 	getTraces(): Promise<Map<string, AgentTrace>>;
 	rebuildIndexes(): Promise<void>;
+}
+
+async function readNonEmptyLines(filePaths: string[]): Promise<string[]> {
+	const lines: string[] = [];
+	for (const filePath of filePaths) {
+		try {
+			const text = await readText(filePath);
+			for (const line of text.split("\n")) {
+				if (line.trim()) lines.push(line);
+			}
+		} catch {}
+	}
+	return lines;
 }
 
 // -- Event schemas & types --
@@ -86,6 +101,8 @@ const ConversationMessageEventSchema = z.object({
 	agent: z.string().optional(),
 	/** Assistant rows: the run that produced the reply (links to the trace). */
 	runId: z.string().optional(),
+	/** Assistant rows: reply was sent as a voice note. */
+	voice: z.boolean().optional(),
 	/** Assistant rows: the turn ended in an error (used by /retry). */
 	failed: z.boolean().optional(),
 });
@@ -102,6 +119,9 @@ const ConversationReactionEventSchema = z.object({
 	emoji: z.string(),
 	senderId: z.string(),
 	fromMe: z.boolean(),
+	createdAt: z.string().optional(),
+	agent: z.string().optional(),
+	runId: z.string().optional(),
 });
 
 const TraceStepSchema = z.object({
@@ -153,11 +173,9 @@ const ConversationEventSchema = z.discriminatedUnion("kind", [
 ]);
 
 type ConversationMessageEvent = z.infer<typeof ConversationMessageEventSchema>;
-type ConversationAckEvent = z.infer<typeof ConversationAckEventSchema>;
 type ConversationReactionEvent = z.infer<
 	typeof ConversationReactionEventSchema
 >;
-type ConversationBreakEvent = z.infer<typeof ConversationBreakEventSchema>;
 type ConversationEvent = z.infer<typeof ConversationEventSchema>;
 
 // -- Merged message type returned by getConversation --
@@ -176,9 +194,18 @@ interface ConversationMessage {
 	agent?: string;
 	/** Assistant rows: the run id (links to the trace). Required for new rows. */
 	runId?: string;
+	/** Assistant rows: reply was sent as a voice note. */
+	voice?: boolean;
 	/** Assistant rows: turn ended in an error. */
 	failed?: boolean;
-	reactions: Array<{ emoji: string; senderId: string; fromMe: boolean }>;
+	reactions: Array<{
+		emoji: string;
+		senderId: string;
+		fromMe: boolean;
+		createdAt?: string;
+		agent?: string;
+		runId?: string;
+	}>;
 }
 
 interface AgentTrace {
@@ -187,8 +214,136 @@ interface AgentTrace {
 	steps: TraceStep[];
 }
 
+interface ParsedConversationEvents {
+	messages: Map<string, ConversationMessage>;
+	acks: Map<string, string>;
+	reactions: ConversationReactionEvent[];
+	order: string[];
+}
+
 interface ConversationStoreEnv {
 	dataDir: string;
+}
+
+function conversationMessageFromEvent(
+	event: ConversationMessageEvent,
+): ConversationMessage {
+	return {
+		id: event.id,
+		role: event.role,
+		content: event.content,
+		createdAt: event.createdAt,
+		...(event.externalId ? { externalId: event.externalId } : {}),
+		...(event.quotedText ? { quotedText: event.quotedText } : {}),
+		...(event.quotedRole ? { quotedRole: event.quotedRole } : {}),
+		...(event.overrides ? { overrides: event.overrides } : {}),
+		...(event.command != null ? { command: event.command } : {}),
+		...(event.agent ? { agent: event.agent } : {}),
+		...(event.runId ? { runId: event.runId } : {}),
+		...(event.voice ? { voice: true } : {}),
+		...(event.failed ? { failed: true } : {}),
+		reactions: [],
+	};
+}
+
+function parseConversationEvents(lines: string[]): ParsedConversationEvents {
+	const messages = new Map<string, ConversationMessage>();
+	const acks = new Map<string, string>();
+	const reactions: ConversationReactionEvent[] = [];
+	const order: string[] = [];
+
+	for (const line of lines) {
+		if (!line.trim()) continue;
+		try {
+			const event = ConversationEventSchema.parse(JSON.parse(line));
+
+			if (event.kind === "msg") {
+				messages.set(event.id, conversationMessageFromEvent(event));
+				order.push(event.id);
+			} else if (event.kind === "ack") {
+				acks.set(event.messageId, event.externalId);
+			} else if (event.kind === "reaction") {
+				reactions.push(event);
+			}
+		} catch {
+			log.warn("[conversation] skipping corrupt line", {
+				line: line.slice(0, 100),
+			});
+		}
+	}
+
+	return { messages, acks, reactions, order };
+}
+
+function applyAcks(
+	messages: Map<string, ConversationMessage>,
+	acks: Map<string, string>,
+): void {
+	for (const [messageId, externalId] of acks) {
+		const msg = messages.get(messageId);
+		if (msg) msg.externalId = externalId;
+	}
+}
+
+function externalMessageIds(
+	messages: Map<string, ConversationMessage>,
+): Map<string, string> {
+	const out = new Map<string, string>();
+	for (const msg of messages.values()) {
+		if (msg.externalId) out.set(msg.externalId, msg.id);
+	}
+	return out;
+}
+
+function applyReaction(
+	msg: ConversationMessage,
+	reaction: ConversationReactionEvent,
+): void {
+	const existing = msg.reactions.findIndex(
+		(rx) => rx.senderId === reaction.senderId,
+	);
+	if (reaction.emoji === "") {
+		if (existing >= 0) msg.reactions.splice(existing, 1);
+	} else if (existing >= 0) {
+		msg.reactions[existing] = {
+			emoji: reaction.emoji,
+			senderId: reaction.senderId,
+			fromMe: reaction.fromMe,
+			...(reaction.createdAt ? { createdAt: reaction.createdAt } : {}),
+			...(reaction.agent ? { agent: reaction.agent } : {}),
+			...(reaction.runId ? { runId: reaction.runId } : {}),
+		};
+	} else {
+		msg.reactions.push({
+			emoji: reaction.emoji,
+			senderId: reaction.senderId,
+			fromMe: reaction.fromMe,
+			...(reaction.createdAt ? { createdAt: reaction.createdAt } : {}),
+			...(reaction.agent ? { agent: reaction.agent } : {}),
+			...(reaction.runId ? { runId: reaction.runId } : {}),
+		});
+	}
+}
+
+function applyReactions(
+	messages: Map<string, ConversationMessage>,
+	reactions: ConversationReactionEvent[],
+): void {
+	const extToMsg = externalMessageIds(messages);
+	for (const reaction of reactions) {
+		const msgId = extToMsg.get(reaction.messageExternalId);
+		const msg = msgId ? messages.get(msgId) : undefined;
+		if (msg) applyReaction(msg, reaction);
+	}
+}
+
+function orderedMessages(
+	messages: Map<string, ConversationMessage>,
+	order: string[],
+): ConversationMessage[] {
+	return order
+		.map((id) => messages.get(id))
+		.filter((x): x is ConversationMessage => Boolean(x));
 }
 
 export function createConversationStore(
@@ -219,83 +374,10 @@ export function createConversationStore(
 	}
 
 	function mergeEvents(lines: string[]): ConversationMessage[] {
-		const messages = new Map<string, ConversationMessage>();
-		const acks = new Map<string, string>();
-		const reactions: ConversationReactionEvent[] = [];
-		const order: string[] = [];
-
-		for (const line of lines) {
-			if (!line.trim()) continue;
-			try {
-				const event = ConversationEventSchema.parse(JSON.parse(line));
-
-				if (event.kind === "msg") {
-					messages.set(event.id, {
-						id: event.id,
-						role: event.role,
-						content: event.content,
-						createdAt: event.createdAt,
-						...(event.externalId ? { externalId: event.externalId } : {}),
-						...(event.quotedText ? { quotedText: event.quotedText } : {}),
-						...(event.quotedRole ? { quotedRole: event.quotedRole } : {}),
-						...(event.overrides ? { overrides: event.overrides } : {}),
-						...(event.command != null ? { command: event.command } : {}),
-						...(event.agent ? { agent: event.agent } : {}),
-						...(event.runId ? { runId: event.runId } : {}),
-						...(event.failed ? { failed: true } : {}),
-						reactions: [],
-					});
-					order.push(event.id);
-				} else if (event.kind === "ack") {
-					acks.set(event.messageId, event.externalId);
-				} else if (event.kind === "reaction") {
-					reactions.push(event);
-				}
-			} catch {
-				log.warn("[conversation] skipping corrupt line", {
-					line: line.slice(0, 100),
-				});
-			}
-		}
-
-		for (const [messageId, externalId] of acks) {
-			const msg = messages.get(messageId);
-			if (msg) msg.externalId = externalId;
-		}
-
-		const extToMsg = new Map<string, string>();
-		for (const msg of messages.values()) {
-			if (msg.externalId) extToMsg.set(msg.externalId, msg.id);
-		}
-
-		for (const r of reactions) {
-			const msgId = extToMsg.get(r.messageExternalId);
-			if (!msgId) continue;
-			const msg = messages.get(msgId);
-			if (!msg) continue;
-			const existing = msg.reactions.findIndex(
-				(rx) => rx.senderId === r.senderId,
-			);
-			if (r.emoji === "") {
-				if (existing >= 0) msg.reactions.splice(existing, 1);
-			} else if (existing >= 0) {
-				msg.reactions[existing] = {
-					emoji: r.emoji,
-					senderId: r.senderId,
-					fromMe: r.fromMe,
-				};
-			} else {
-				msg.reactions.push({
-					emoji: r.emoji,
-					senderId: r.senderId,
-					fromMe: r.fromMe,
-				});
-			}
-		}
-
-		return order
-			.map((id) => messages.get(id))
-			.filter((x): x is ConversationMessage => Boolean(x));
+		const parsed = parseConversationEvents(lines);
+		applyAcks(parsed.messages, parsed.acks);
+		applyReactions(parsed.messages, parsed.reactions);
+		return orderedMessages(parsed.messages, parsed.order);
 	}
 
 	async function ensureDir(): Promise<void> {
@@ -326,6 +408,7 @@ export function createConversationStore(
 				? {
 						agent: msg.agent,
 						runId: msg.runId,
+						...(msg.voice ? { voice: true } : {}),
 						...(msg.failed ? { failed: true } : {}),
 					}
 				: {}),
@@ -352,6 +435,8 @@ export function createConversationStore(
 		emoji: string;
 		senderId: string;
 		fromMe: boolean;
+		agent?: string;
+		runId?: string;
 	}): Promise<void> {
 		await appendEvent({
 			kind: "reaction",
@@ -359,6 +444,9 @@ export function createConversationStore(
 			emoji: reaction.emoji,
 			senderId: reaction.senderId,
 			fromMe: reaction.fromMe,
+			createdAt: new Date().toISOString(),
+			...(reaction.agent ? { agent: reaction.agent } : {}),
+			...(reaction.runId ? { runId: reaction.runId } : {}),
 		});
 	}
 
@@ -382,17 +470,7 @@ export function createConversationStore(
 		const cutoff = allFiles.length > lookback ? allFiles.length - lookback : 0;
 		const relevantFiles = allFiles.slice(cutoff);
 
-		const allLines: string[] = [];
-		for (const filePath of relevantFiles) {
-			try {
-				const text = await readText(filePath);
-				for (const line of text.split("\n")) {
-					if (line.trim()) allLines.push(line);
-				}
-			} catch {
-				// File doesn't exist or read error — skip
-			}
-		}
+		const allLines = await readNonEmptyLines(relevantFiles);
 
 		let startIndex = 0;
 		for (let i = allLines.length - 1; i >= 0; i--) {
@@ -414,16 +492,7 @@ export function createConversationStore(
 
 	async function readAllMessages(): Promise<ConversationMessage[]> {
 		const allFiles = await listConversationFiles();
-		const allLines: string[] = [];
-
-		for (const filePath of allFiles) {
-			try {
-				const text = await readText(filePath);
-				for (const line of text.split("\n")) {
-					if (line.trim()) allLines.push(line);
-				}
-			} catch {}
-		}
+		const allLines = await readNonEmptyLines(allFiles);
 
 		return mergeEvents(allLines);
 	}
@@ -475,14 +544,6 @@ export function createConversationStore(
 	function findByExternalId(externalId: string): { messageId: string } | null {
 		const messageId = externalToId.get(externalId);
 		return messageId ? { messageId } : null;
-	}
-
-	function resolveExternalId(externalId: string): string | null {
-		return externalToId.get(externalId) ?? null;
-	}
-
-	function resolveMessageId(messageId: string): string | null {
-		return idToExternal.get(messageId) ?? null;
 	}
 
 	async function getTraces(): Promise<Map<string, AgentTrace>> {
@@ -570,8 +631,6 @@ export function createConversationStore(
 		readAllMessages,
 		searchConversation,
 		findByExternalId,
-		resolveExternalId,
-		resolveMessageId,
 		getTraces,
 		rebuildIndexes,
 	};
@@ -606,6 +665,8 @@ export function appendReaction(reaction: {
 	emoji: string;
 	senderId: string;
 	fromMe: boolean;
+	agent?: string;
+	runId?: string;
 }): Promise<void> {
 	return store().appendReaction(reaction);
 }
@@ -646,14 +707,6 @@ export function findByExternalId(
 	externalId: string,
 ): { messageId: string } | null {
 	return store().findByExternalId(externalId);
-}
-
-function resolveExternalId(externalId: string): string | null {
-	return store().resolveExternalId(externalId);
-}
-
-function resolveMessageId(messageId: string): string | null {
-	return store().resolveMessageId(messageId);
 }
 
 export function getTraces(): Promise<Map<string, AgentTrace>> {

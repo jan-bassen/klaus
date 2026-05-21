@@ -4,7 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { settings } from "../../src/infra/config.ts";
 import { getOverlay } from "../../src/infra/simulation.ts";
-import { appendMessage, appendTrace } from "../../src/infra/store/history.ts";
+import {
+	appendMessage,
+	appendReaction,
+	appendTrace,
+} from "../../src/infra/store/history.ts";
 import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
 import {
 	type AgentDefinition,
@@ -12,6 +16,7 @@ import {
 } from "../../src/pipeline/agents.ts";
 import { assembleContext } from "../../src/pipeline/context.ts";
 import type { TurnContext } from "../../src/pipeline/core.ts";
+import { imageGenerateTool } from "../../src/primitives/tools/image.ts";
 import {
 	registerTool,
 	type ToolDefinition,
@@ -192,6 +197,85 @@ describe("pipeline/context.assembleHistory", () => {
 		]);
 	});
 
+	it("keeps a reaction-only agent turn visible on the user message", async () => {
+		await appendUser("u-alpha", "Confirm this");
+		await appendReaction({
+			messageExternalId: "u-alpha",
+			emoji: "✅",
+			senderId: "bot",
+			fromMe: true,
+			agent: "alpha",
+			runId: "run-alpha",
+		});
+
+		const def = makeAgent(tmpDir, "alpha");
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			message: inbound("current", "Current question"),
+			config: { historyLimit: 10, historyScope: "agent" },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.history.messages).toEqual([
+			{ role: "user", content: "1:Confirm this\nReactions: alpha ✅" },
+		]);
+	});
+
+	it("renders user reactions on assistant messages", async () => {
+		await appendMessage({
+			role: "assistant",
+			agent: "alpha",
+			runId: "run-alpha",
+			content: "All set",
+			externalId: "a-alpha",
+		});
+		await appendReaction({
+			messageExternalId: "a-alpha",
+			emoji: "❤️",
+			senderId: "user",
+			fromMe: false,
+		});
+
+		const def = makeAgent(tmpDir, "alpha");
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			message: inbound("current", "Current question"),
+			config: { historyLimit: 10 },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.history.messages).toEqual([
+			{ role: "assistant", content: "1:All set\nReactions: user ❤️" },
+		]);
+	});
+
+	it("does not let reactions consume historyLimit slots", async () => {
+		await appendUser("u1", "Old question");
+		await appendReaction({
+			messageExternalId: "u1",
+			emoji: "👍",
+			senderId: "bot",
+			fromMe: true,
+			agent: "alpha",
+			runId: "run-react",
+		});
+		await appendUser("u2", "Recent question");
+		await appendAssistant("Recent answer", "alpha", "run-recent");
+
+		const def = makeAgent(tmpDir, "alpha");
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			message: inbound("current", "Current question"),
+			config: { historyLimit: 2 },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.history.messages).toEqual([
+			{ role: "user", content: "1:Recent question" },
+			{ role: "assistant", content: "2:Recent answer" },
+		]);
+	});
+
 	it("applies historyLimit after excluding the current inbound message", async () => {
 		await appendUser("u1", "Old question");
 		await appendAssistant("Old answer", "alpha", "run-old");
@@ -302,6 +386,7 @@ describe("pipeline/context.invokeTool simulation wrapper", () => {
 		registerTool(
 			makeTool("custom_sim", "external", simulatedExecute, simulateHandler),
 		);
+		registerTool(imageGenerateTool);
 	});
 
 	afterEach(() => {
@@ -331,6 +416,24 @@ describe("pipeline/context.invokeTool simulation wrapper", () => {
 
 		expect(pureExecute).toHaveBeenCalledOnce();
 		expect(externalExecute).toHaveBeenCalledOnce();
+	});
+
+	it("returns a tool error instead of executing invalid tool input", async () => {
+		const def = makeAgent(tmpDir, "alpha", ["pure_echo"]);
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			config: { skipHistory: true },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		const result = await ctx.tools.functionTools.pure_echo?.execute({
+			value: 42,
+		});
+
+		expect(result).toEqual({
+			error: expect.stringContaining("Invalid pure_echo input"),
+		});
+		expect(pureExecute).not.toHaveBeenCalled();
 	});
 
 	it("passes pure tools through during simulation", async () => {
@@ -425,6 +528,33 @@ describe("pipeline/context.invokeTool simulation wrapper", () => {
 			}),
 		]);
 	});
+
+	it("records image_generate simulation once", async () => {
+		const def = makeAgent(tmpDir, "alpha", ["image_generate"]);
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			config: { simulate: true, skipHistory: true },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		const result = await ctx.tools.functionTools.image_generate?.execute({
+			prompt: "make it cinematic",
+			sourceMessageRef: "current",
+		});
+
+		expect(result).toEqual({ sent: true, fileId: null, simulated: true });
+		expect(getOverlay(turn as TurnContext).actions).toEqual([
+			expect.objectContaining({
+				tool: "image_generate",
+				sideEffect: "external",
+				args: {
+					prompt: "make it cinematic",
+					sourceMessageRef: "current",
+				},
+				result: { sent: true, fileId: null, simulated: true },
+			}),
+		]);
+	});
 });
 
 function writeTemplates(tmpDir: string): void {
@@ -437,6 +567,14 @@ function writeTemplates(tmpDir: string): void {
 	writeFileSync(
 		path.join(settings.vault.templatesDir, "message-agent.md"),
 		"{{label}}:{{message}}",
+	);
+	writeFileSync(
+		path.join(settings.vault.templatesDir, "history-user.md"),
+		"{{label}}:{{messageText}}{{#if reactions}}\nReactions: {{reactions}}{{/if}}",
+	);
+	writeFileSync(
+		path.join(settings.vault.templatesDir, "history-agent.md"),
+		"{{label}}:{{message}}{{#if reactions}}\nReactions: {{reactions}}{{/if}}",
 	);
 }
 
@@ -452,7 +590,7 @@ function makeAgent(
 		tools,
 		report: false,
 	});
-	return { ...parsed, promptPath };
+	return { ...parsed, promptPath, prompt: { system: `You are ${name}.` } };
 }
 
 function baseTurn(

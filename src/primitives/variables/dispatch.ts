@@ -2,13 +2,13 @@ import type { Variable } from "./index.ts";
 
 /**
  * The prompt the dispatcher handed to this agent. Null when the run isn't a
- * dispatched sub (message/schedule/timer triggers supply no dispatch context).
+ * dispatched sub, tool-created schedule, or timer. Frontmatter schedules use
+ * the separate `schedule` variable and the agent's # Message section.
  * Who/what dispatched lives on the separate `trigger` variable.
  */
 export const dispatchVariable: Variable = {
 	key: "dispatch",
 	description: "Dispatch prompt",
-	hidden: true,
 	async run(turn) {
 		const ctx = turn.dispatchContext;
 		if (!ctx) return null;

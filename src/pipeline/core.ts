@@ -20,10 +20,8 @@ import { OpenRouterError } from "@openrouter/sdk/models/errors";
 import { toJSONSchema } from "zod/v4";
 import { type ModelTier, resolveModel, settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
-import { readText } from "../infra/runtime.ts";
 import { appendTrace, type TraceStep } from "../infra/store/history.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
-import { enqueueMessage } from "../infra/whatsapp/send.ts";
 import { REPLY_TOOL_NAME } from "../primitives/tools/reply.ts";
 import type { Variable } from "../primitives/variables/index.ts";
 import type { AgentDefinition } from "./agents.ts";
@@ -50,7 +48,7 @@ import { emitReport } from "./reports.ts";
  * named for what it points to so destructuring stays self-documenting.
  *
  * - `message`  — a user-typed WhatsApp message
- * - `schedule` — a cron-fired schedule (`Klaus/agents/*.md` static persistence)
+ * - `schedule` — a cron-fired schedule (`Klaus/agents/*.md` frontmatter schedule)
  * - `timer`    — a one-shot timer (incl. dynamic-persistence reschedules)
  * - `dispatch` — another agent invoked us inline via the dispatch tool
  */
@@ -59,6 +57,12 @@ export type Trigger =
 	| { kind: "schedule"; scheduleId: string }
 	| { kind: "timer"; timerId: string }
 	| { kind: "dispatch"; parentRunId: string };
+
+export interface ScheduleContext {
+	id: string;
+	pattern: string;
+	label?: string;
+}
 
 /**
  * The full per-turn state carried through `executeAgent`. Partial variants
@@ -82,16 +86,10 @@ export interface TurnContext {
 	vars: Record<string, unknown>;
 	/** Label → externalId mapping for message references (reply/react tools). */
 	messageRefs: Record<string, { externalId: string; role: string }>;
-	/** The prompt the parent/scheduler handed to this agent. Undefined unless trigger.kind === "dispatch". */
+	/** The prompt a parent, timer, or tool-created schedule handed to this agent. */
 	dispatchContext?: { prompt: string };
-	/**
-	 * Ordered slots for inline-dispatched sub-agent replies. Each slot is an
-	 * array of reply strings filled by a sub-agent while its turn runs. At end
-	 * of this turn, slots flush in index order — either into `_replyCollector`
-	 * (if this turn is itself a sub) or to WhatsApp (if top-level). Preserves
-	 * dispatch-call order even when sub-agents run in parallel.
-	 */
-	pendingSubReplies: string[][];
+	/** Present for generated frontmatter schedules while rendering # Message. */
+	schedule?: ScheduleContext;
 	/** @internal — collects reply content for inline-dispatched agents instead of sending to WhatsApp */
 	_replyCollector?: string[];
 }
@@ -119,6 +117,7 @@ export interface ModelCallStep {
 		toolName: string;
 		result: unknown;
 	}>;
+	fallback?: "assistant_content_reply" | undefined;
 	finishReason?: string | undefined;
 	usage?: { inputTokens: number; outputTokens: number } | undefined;
 }
@@ -129,6 +128,12 @@ export interface AgentRunResult {
 	steps: ModelCallStep[];
 	model: string;
 	tier: string;
+	context: {
+		variables: string[];
+		tools: string[];
+		toolsets: string[];
+		skills: string[];
+	};
 	historyMessages: ChatMessage[];
 	systemPrompt: string;
 	userMessage: string;
@@ -140,6 +145,7 @@ interface RunAgentInput {
 	def: AgentDefinition;
 	system: string;
 	userContent: UserContent;
+	variables: Variable[];
 	tools: AssembledTools;
 	historyMessages: ChatMessage[];
 	signal?: AbortSignal;
@@ -161,7 +167,7 @@ interface ExecuteAgentInput {
  * Assembles context (vars + tools + history), compiles prompts, then calls
  * `runAgent`. Used by both the inbound pipeline and dispatch.
  *
- * Emits a per-turn report (when `turn.config.report !== "none"`) on both
+ * Emits a per-turn report (when `turn.config.report !== false`) on both
  * success and failure paths. Reporting catches its own errors so it cannot
  * mask the original turn result, but executeAgent waits for it so writes and
  * report logs are flushed before the turn is considered complete.
@@ -181,9 +187,7 @@ export async function executeAgent(
 		});
 		fullTurn = input.turn as TurnContext;
 
-		const promptRaw = await readText(input.def.promptPath);
-		const promptBody = promptRaw.replace(/^---\n[\s\S]*?\n---\n?/, "");
-		const system = buildSystemPrompt(promptBody, ctx.vars);
+		const system = buildSystemPrompt(input.def.prompt.system, ctx.vars);
 		const userContent = await buildUserMessage(fullTurn);
 
 		const result = await runAgent({
@@ -191,12 +195,13 @@ export async function executeAgent(
 			def: input.def,
 			system,
 			userContent,
+			variables: input.variables,
 			tools: ctx.tools,
 			historyMessages: ctx.history.messages,
 			...(input.signal ? { signal: input.signal } : {}),
 		});
 
-		if (input.def.persistence?.mode === "dynamic") {
+		if (input.def.persistence) {
 			await persistDynamic({
 				def: input.def,
 				turn: fullTurn,
@@ -205,11 +210,10 @@ export async function executeAgent(
 				userContent,
 				replyContent: result.replyContent,
 				hint: input.def.persistence.hint,
+				overrides: input.def.persistence.overrides,
 				...(input.signal ? { signal: input.signal } : {}),
 			});
 		}
-
-		flushPendingSubReplies(fullTurn);
 
 		if (reportEnabled) {
 			await emitReport({ turn: fullTurn, startedAt, result });
@@ -225,45 +229,13 @@ export async function executeAgent(
 }
 
 /**
- * After the agent's loop completes, drain the indexed sub-reply slots in
- * dispatch-call order. When this turn is itself a sub (has its own
- * `_replyCollector`), bubble the slots up to the parent. Otherwise this is a
- * top-level run — enqueue each slot entry as its own WhatsApp message.
- *
- * Under `!simulate` at the top level, the sim report already captured the
- * reply intents (via each reply tool's simulate handler logged on the
- * overlay), so we drop the slots without enqueuing.
- */
-function flushPendingSubReplies(turn: TurnContext): void {
-	if (turn.pendingSubReplies.length === 0) return;
-
-	if (turn._replyCollector) {
-		for (const slot of turn.pendingSubReplies) {
-			for (const content of slot) turn._replyCollector.push(content);
-		}
-	} else if (!turn.config?.simulate) {
-		for (const slot of turn.pendingSubReplies) {
-			for (const content of slot) {
-				enqueueMessage({
-					chatId: turn.chatId,
-					content,
-					dedupKey: `${turn.runId}:sub:${crypto.randomUUID()}`,
-					label: turn.agent.name,
-				});
-			}
-		}
-	}
-
-	turn.pendingSubReplies.length = 0;
-}
-
-/**
  * Low-level: take a fully-prepared turn (config, context, prompts) and
  * drive the chat-completions API to produce an `AgentRunResult`.
  * Most callers want `executeAgent` instead.
  */
 async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
-	const { turn, def, system, userContent, tools, historyMessages } = input;
+	const { turn, def, system, userContent, variables, tools, historyMessages } =
+		input;
 
 	const provider = turn.config?.provider ?? settings.defaultProvider;
 	const tier: ModelTier =
@@ -318,12 +290,7 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 	}
 
 	const replyContent = result.steps
-		.flatMap((s) => s.toolCalls)
-		.filter((tc) => tc.toolName === REPLY_TOOL_NAME)
-		.map((tc) => {
-			const content = tc.args?.content;
-			return typeof content === "string" ? content : "";
-		})
+		.flatMap((step) => acceptedReplyContents(step))
 		.join("\n---\n");
 
 	const userMessageStr = textOnlyUserContent(userContent);
@@ -334,11 +301,51 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 		steps: result.steps,
 		model: modelId,
 		tier,
+		context: {
+			variables: sortedUnique(variables.map((v) => v.key)),
+			tools: sortedUnique([
+				...def.tools.filter((name) => tools.functionTools[name] !== undefined),
+				...tools.serverTools.map((t) => t.type),
+			]),
+			toolsets: sortedUnique(
+				(def.toolsets ?? []).filter((name) =>
+					tools.initialActive.includes(`load_${name}`),
+				),
+			),
+			skills: sortedUnique(def.skills ?? []),
+		},
 		historyMessages,
 		systemPrompt: system,
 		userMessage: userMessageStr,
 		replyContent,
 	};
+}
+
+function sortedUnique(values: string[]): string[] {
+	return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+}
+
+function acceptedReplyContents(step: ModelCallStep): string[] {
+	return step.toolCalls.flatMap((call) => {
+		if (call.toolName !== REPLY_TOOL_NAME) return [];
+
+		const result = step.toolResults.find(
+			(toolResult) => toolResult.toolCallId === call.toolCallId,
+		);
+		if (isToolError(result?.result)) return [];
+
+		const content = call.args.content;
+		return typeof content === "string" && content.trim() ? [content] : [];
+	});
+}
+
+function isToolError(result: unknown): boolean {
+	return (
+		typeof result === "object" &&
+		result !== null &&
+		"error" in result &&
+		typeof result.error === "string"
+	);
 }
 
 // ── Loop core (private) ────────────────────────────────────────────────────
@@ -432,47 +439,50 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 		const rawCalls = (msg.toolCalls ?? []).filter(
 			(tc): tc is ChatToolCall => tc.type === "function",
 		);
-		const toolCalls = rawCalls.map((tc) => ({
+		let toolCalls = rawCalls.map((tc) => ({
 			toolCallId: tc.id,
 			toolName: tc.function.name,
 			args: parseArgs(tc.function.arguments),
 		}));
 
-		const toolResults = await Promise.all(
-			toolCalls.map(async (tc) => {
-				const t = tools.functionTools[tc.toolName];
-				if (!t) {
-					return {
-						toolCallId: tc.toolCallId,
-						toolName: tc.toolName,
-						result: { error: `Unknown tool: ${tc.toolName}` },
-					};
-				}
-				try {
-					const result = await t.execute(tc.args);
-					return { toolCallId: tc.toolCallId, toolName: tc.toolName, result };
-				} catch (err) {
-					return {
-						toolCallId: tc.toolCallId,
-						toolName: tc.toolName,
-						result: {
-							error: err instanceof Error ? err.message : String(err),
-						},
-					};
-				}
-			}),
-		);
+		let fallback: ModelCallStep["fallback"];
+		if (toolCalls.length === 0) {
+			const fallbackReply = directReplyFallback(
+				msg.content,
+				active,
+				opts.toolChoice,
+				steps.some((step) =>
+					step.toolCalls.some((call) => call.toolName === REPLY_TOOL_NAME),
+				),
+			);
+			if (fallbackReply) {
+				log.warn(
+					`[agent] @${opts.agentName} returned direct assistant content; sending as fallback reply`,
+				);
+				toolCalls = [
+					{
+						toolCallId: `fallback-reply-${i + 1}`,
+						toolName: REPLY_TOOL_NAME,
+						args: { content: fallbackReply },
+					},
+				];
+				fallback = "assistant_content_reply";
+			}
+		}
+
+		const toolResults = await executeToolCalls(toolCalls, tools);
 
 		const reasoning = typeof msg.reasoning === "string" ? msg.reasoning : "";
 		steps.push({
 			reasoning,
 			toolCalls,
 			toolResults,
+			fallback,
 			finishReason: choice.finishReason ?? undefined,
 			usage: { inputTokens, outputTokens },
 		});
 
-		if (toolCalls.length === 0) break;
+		if (toolCalls.length === 0 || fallback) break;
 
 		// Append assistant message + tool responses to the running conversation
 		// for the next step. Pass through the raw toolCalls (unparsed args) to
@@ -499,6 +509,54 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 		steps,
 		durationMs: Date.now() - startTime,
 	};
+}
+
+async function executeToolCalls(
+	toolCalls: ModelCallStep["toolCalls"],
+	tools: AssembledTools,
+): Promise<ModelCallStep["toolResults"]> {
+	return Promise.all(
+		toolCalls.map(async (tc) => {
+			const t = tools.functionTools[tc.toolName];
+			if (!t) {
+				return {
+					toolCallId: tc.toolCallId,
+					toolName: tc.toolName,
+					result: { error: `Unknown tool: ${tc.toolName}` },
+				};
+			}
+			try {
+				const result = await t.execute(tc.args);
+				return { toolCallId: tc.toolCallId, toolName: tc.toolName, result };
+			} catch (err) {
+				return {
+					toolCallId: tc.toolCallId,
+					toolName: tc.toolName,
+					result: {
+						error: err instanceof Error ? err.message : String(err),
+					},
+				};
+			}
+		}),
+	);
+}
+
+function directReplyFallback(
+	content: unknown,
+	activeTools: string[],
+	toolChoice: RunLoopOptions["toolChoice"],
+	hasPriorReply: boolean,
+): string | undefined {
+	if (
+		hasPriorReply ||
+		toolChoice === "none" ||
+		!activeTools.includes(REPLY_TOOL_NAME)
+	) {
+		return undefined;
+	}
+	if (typeof content !== "string") return undefined;
+	const trimmed = content.trim();
+	return trimmed ? trimmed : undefined;
 }
 
 function parseArgs(raw: string): Record<string, unknown> {

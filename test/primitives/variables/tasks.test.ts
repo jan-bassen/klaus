@@ -4,6 +4,10 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+	initSchedulesStore,
+	stopAllSchedules,
+} from "../../../src/infra/store/schedules.ts";
+import {
 	addTimer,
 	initTimersStore,
 	stopAllTimers,
@@ -33,10 +37,12 @@ describe("primitives/variables/tasks", () => {
 	beforeEach(() => {
 		tmp = makeTmpDir();
 		initTimersStore({ dataDir: tmp });
+		initSchedulesStore({ dataDir: tmp, timezone: "UTC" });
 	});
 
 	afterEach(() => {
 		stopAllTimers();
+		stopAllSchedules();
 		rmTmpDir(tmp);
 	});
 
@@ -50,7 +56,6 @@ describe("primitives/variables/tasks", () => {
 		await addTimer({
 			id: "t-1",
 			agentName: "coach",
-			chatId: "c1",
 			objective: "morning checkin",
 			runAt,
 			createdBy: "user",
@@ -66,7 +71,6 @@ describe("primitives/variables/tasks", () => {
 		await addTimer({
 			id: "t-2",
 			agentName: "coach",
-			chatId: "c1",
 			objective: "x",
 			runAt: new Date(Date.now() + 60_000).toISOString(),
 			createdBy: "user",

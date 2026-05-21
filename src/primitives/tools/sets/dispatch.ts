@@ -30,14 +30,13 @@ interface ScheduleInput {
 
 function scheduleEntry(
 	input: ScheduleInput,
-	context: TurnContext,
+	context: Pick<TurnContext, "agent">,
 	id: string,
 ): ScheduleEntry {
 	return {
 		id,
 		agentName: input.agent,
 		pattern: input.pattern,
-		chatId: context.chatId,
 		objective: input.prompt,
 		label: input.label,
 		createdBy: context.agent.name,
@@ -62,7 +61,7 @@ const dispatchSchema = z.object({
 		.string()
 		.optional()
 		.describe(
-			"Omit to run inline now and auto-forward the reply. Set to a duration (e.g. '2h', '30m') or ISO datetime to schedule a one-shot timer.",
+			"Omit to run inline now and return the reply to the caller. Set to a duration (e.g. '2h', '30m') or ISO datetime to schedule a one-shot timer.",
 		),
 });
 
@@ -72,7 +71,7 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 		const names = [...agentRegistry.keys()];
 		const list =
 			names.length > 0 ? ` Available agents: ${names.join(", ")}.` : "";
-		return `Invoke another agent. Omit \`when\` to run inline (reply auto-forwarded to the user); set \`when\` to schedule a one-shot timer.${list}`;
+		return `Invoke another agent. Omit \`when\` to run inline and return its reply to you; set \`when\` to schedule a one-shot timer.${list}`;
 	},
 	inputSchema: dispatchSchema,
 	execute: async (input, context) => {
@@ -84,7 +83,6 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 			await addTimer({
 				id,
 				agentName: agent,
-				chatId: context.chatId,
 				objective: input.prompt,
 				runAt,
 				createdBy: context.agent.name,
@@ -95,7 +93,6 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 		}
 
 		const slot: string[] = [];
-		context.pendingSubReplies.push(slot);
 		const result = await dispatchFn({
 			agent,
 			prompt: input.prompt,
@@ -114,14 +111,14 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 		}
 
 		const slot: string[] = [];
-		context.pendingSubReplies.push(slot);
 		const result = await dispatchFn({
 			agent,
 			prompt: input.prompt,
-			overrides: ["simulate", ...(input.overrides ?? [])],
+			...(input.overrides ? { overrides: input.overrides } : {}),
 			chatId: context.chatId,
 			trigger: { kind: "dispatch", parentRunId: context.runId },
 			replyCollector: slot,
+			simulate: true,
 		});
 		return result ?? "(sim) done";
 	},

@@ -11,7 +11,11 @@ import { log } from "../infra/logger.ts";
 import { addTimer } from "../infra/store/timers.ts";
 import type { AgentDefinition } from "./agents.ts";
 import type { TurnContext } from "./core.ts";
-import { textOnlyUserContent, type UserContent } from "./prompts.ts";
+import {
+	renderTemplate,
+	textOnlyUserContent,
+	type UserContent,
+} from "./prompts.ts";
 
 const PERSIST_TOOL_NAME = "persist";
 
@@ -40,6 +44,7 @@ interface PersistDynamicInput {
 	userContent: UserContent;
 	replyContent: string;
 	hint: string;
+	overrides: string[];
 	signal?: AbortSignal;
 }
 
@@ -66,7 +71,10 @@ export async function persistDynamic(
 	}
 	messages.push({
 		role: "user",
-		content: `Now schedule your next run by calling the \`${PERSIST_TOOL_NAME}\` tool. Hint: ${input.hint}`,
+		content: renderTemplate("persistence", {
+			toolName: PERSIST_TOOL_NAME,
+			hint: input.hint,
+		}),
 	});
 
 	log.info(`[persist] forcing tool call for @${input.def.name}`);
@@ -114,21 +122,23 @@ export async function persistDynamic(
 
 	const parsed = persistInputSchema.parse(parseArgs(call.function.arguments));
 	const runAt = computeNextRun(parsed.nextRun);
+	const overrides = mergeOverrides(input.overrides, parsed.overrides);
 
 	await addTimer({
 		id: crypto.randomUUID(),
 		agentName: input.def.name,
-		chatId: input.turn.chatId,
 		objective: parsed.prompt,
 		runAt,
 		createdBy: "persistent",
 		createdAt: new Date().toISOString(),
-		...(parsed.overrides && parsed.overrides.length > 0
-			? { overrides: parsed.overrides }
-			: {}),
+		...(overrides.length > 0 ? { overrides } : {}),
 	});
 
 	log.info(`[persist] @${input.def.name} rescheduled for ${runAt}`);
+}
+
+function mergeOverrides(base: string[], next: string[] | undefined): string[] {
+	return [...new Set([...base, ...(next ?? [])])];
 }
 
 /**

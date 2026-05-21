@@ -39,16 +39,20 @@ body`;
 describe("primitives/commands/default", () => {
 	let tmp: string;
 	let savedAgentsDir: string;
+	let savedSettingsPath: string;
 
 	beforeEach(() => {
 		tmp = makeTmpDir();
 		savedAgentsDir = settings.vault.agentsDir;
+		savedSettingsPath = settings.vault.settingsPath;
 		settings.vault.agentsDir = tmp;
+		settings.vault.settingsPath = path.join(tmp, "settings.yml");
 		enqueueMock.mockReset();
 	});
 
 	afterEach(() => {
 		settings.vault.agentsDir = savedAgentsDir;
+		settings.vault.settingsPath = savedSettingsPath;
 		agentRegistry.delete("coach");
 		agentRegistry.delete("preloaded");
 		rmTmpDir(tmp);

@@ -10,7 +10,6 @@ import {
 import type { ILogger } from "baileys/lib/Utils/logger.js";
 import { settings } from "../config.ts";
 import { log } from "../logger.ts";
-import { writeQrToVault } from "./login.ts";
 
 const baileysLogger: ILogger = {
 	level: "warn",
@@ -18,9 +17,11 @@ const baileysLogger: ILogger = {
 	debug: () => {},
 	info: () => {},
 	warn: (obj: unknown, msg?: string) =>
-		log.warn(`[baileys] ${msg ?? ""}`, obj as Record<string, unknown>),
-	error: (obj: unknown, msg?: string) =>
-		log.error(`[baileys] ${msg ?? ""}`, obj as Record<string, unknown>),
+		log.warn(`[baileys] ${msg ?? ""}`, logObject(obj)),
+	error: (obj: unknown, msg?: string) => {
+		if (isRestartRequiredStreamError(obj, msg)) return;
+		log.error(`[baileys] ${msg ?? ""}`, logObject(obj));
+	},
 	child: () => baileysLogger,
 };
 
@@ -28,18 +29,32 @@ let socket: WASocket | null = null;
 let closing = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-type WhatsAppConnectionState =
-	| "idle"
-	| "connecting"
-	| "pairing"
-	| "connected"
-	| "disconnected"
-	| "logged_out";
-
-let connectionState: WhatsAppConnectionState = "idle";
-let latestQr: string | null = null;
-
 const AUTH_DIR = path.join(settings.dataDir, "baileys-auth");
+
+type ConnectionHandlers = {
+	onOpen?: (socket: WASocket) => void | Promise<void>;
+	onClose?: () => void | Promise<void>;
+	onQr?: (qr: string) => void | Promise<void>;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+function logObject(value: unknown): Record<string, unknown> {
+	if (isRecord(value)) return value;
+	return { value };
+}
+
+function isRestartRequiredStreamError(obj: unknown, msg?: string): boolean {
+	if (msg !== "stream errored out" || !isRecord(obj)) return false;
+	const node = obj.fullErrorNode;
+	if (!isRecord(node)) return false;
+	const attrs = node.attrs;
+	return (
+		isRecord(attrs) && attrs.code === `${DisconnectReason.restartRequired}`
+	);
+}
 
 /**
  * Initialize Baileys, handle QR pairing on first run, and manage reconnects.
@@ -50,7 +65,7 @@ const AUTH_DIR = path.join(settings.dataDir, "baileys-auth");
  * On any other disconnect: waits 1.5s and reconnects with the same auth state.
  */
 export async function startConnection(
-	onOpen?: (socket: WASocket) => void | Promise<void>,
+	handlers: ConnectionHandlers = {},
 ): Promise<WASocket> {
 	closing = false;
 	const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -65,7 +80,6 @@ export async function startConnection(
 				clearTimeout(reconnectTimer);
 				reconnectTimer = null;
 			}
-			connectionState = "connecting";
 			const sock = makeWASocket({
 				version,
 				auth: state,
@@ -79,13 +93,11 @@ export async function startConnection(
 				"connection.update",
 				async ({ connection, lastDisconnect, qr }) => {
 					if (qr) {
-						connectionState = "pairing";
-						latestQr = qr;
 						log.info(
 							"[connection] QR code written to vault — open in Obsidian to scan",
 						);
-						writeQrToVault(qr).catch((err) =>
-							log.error("[connection] failed to write QR to vault", {
+						handlers.onQr?.(qr)?.catch((err) =>
+							log.error("[connection] QR handler failed", {
 								error: err instanceof Error ? err.message : String(err),
 							}),
 						);
@@ -96,12 +108,10 @@ export async function startConnection(
 							reconnectTimer = null;
 						}
 						socket = sock;
-						connectionState = "connected";
-						latestQr = null;
 						retryCount = 0;
-						if (onOpen) {
+						if (handlers.onOpen) {
 							try {
-								await onOpen(sock);
+								await handlers.onOpen(sock);
 							} catch (err) {
 								log.error("[connection] onOpen callback failed", {
 									error: err instanceof Error ? err.message : String(err),
@@ -115,6 +125,15 @@ export async function startConnection(
 						}
 					} else if (connection === "close") {
 						socket = null;
+						if (handlers.onClose) {
+							try {
+								await handlers.onClose();
+							} catch (err) {
+								log.error("[connection] onClose callback failed", {
+									error: err instanceof Error ? err.message : String(err),
+								});
+							}
+						}
 						if (closing) return;
 						const code = (
 							lastDisconnect?.error as
@@ -123,7 +142,6 @@ export async function startConnection(
 						)?.output?.statusCode;
 
 						if (code === DisconnectReason.loggedOut) {
-							connectionState = "logged_out";
 							log.error(
 								"[connection] logged out, delete auth folder and restart",
 							);
@@ -134,14 +152,19 @@ export async function startConnection(
 								process.exit(1);
 							}
 						} else {
-							connectionState = "disconnected";
 							const delayMs =
 								Math.min(30_000, 1_500 * 2 ** retryCount) +
 								Math.floor(Math.random() * 500);
 							retryCount++;
-							log.warn(
-								`[connection] disconnected (code ${code ?? "unknown"}), reconnecting (attempt ${retryCount})`,
-							);
+							if (code === DisconnectReason.restartRequired) {
+								log.info(
+									`[connection] WhatsApp requested socket restart, reconnecting (attempt ${retryCount})`,
+								);
+							} else {
+								log.warn(
+									`[connection] disconnected (code ${code ?? "unknown"}), reconnecting (attempt ${retryCount})`,
+								);
+							}
 							reconnectTimer = setTimeout(() => {
 								reconnectTimer = null;
 								connect();
@@ -166,8 +189,6 @@ export function getSocket(): WASocket {
 
 export function closeSocket(): void {
 	closing = true;
-	connectionState = "idle";
-	latestQr = null;
 	if (reconnectTimer) {
 		clearTimeout(reconnectTimer);
 		reconnectTimer = null;
@@ -178,14 +199,6 @@ export function closeSocket(): void {
 
 export function isConnected(): boolean {
 	return socket !== null;
-}
-
-export function getConnectionState(): WhatsAppConnectionState {
-	return connectionState;
-}
-
-function getLatestQr(): string | null {
-	return latestQr;
 }
 
 /** Normalize a raw JID to user@s.whatsapp.net form. */

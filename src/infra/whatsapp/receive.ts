@@ -78,6 +78,10 @@ type WhatsAppMessageContent = {
 		caption?: string | null;
 		fileLength?: number | bigint | null;
 	};
+	stickerMessage?: {
+		mimetype?: string | null;
+		fileLength?: number | bigint | null;
+	};
 	audioMessage?: {
 		mimetype?: string | null;
 		ptt?: boolean | null;
@@ -183,7 +187,6 @@ export function attachReceiveHandler(socket: WASocket): void {
 						error: err instanceof Error ? err.message : String(err),
 					});
 				});
-
 			}
 		}
 	});
@@ -191,7 +194,7 @@ export function attachReceiveHandler(socket: WASocket): void {
 
 /**
  * Normalize a raw Baileys message into an InboundMessage.
- * Downloads and persists media blobs (voice, images, documents) before returning.
+ * Downloads and persists media blobs (voice, images, stickers, documents) before returning.
  *
  * Returns null for outbound, non-media/text, or unsupported message types.
  */
@@ -297,6 +300,14 @@ function extractMediaDescriptor(
 		return {
 			mimeType: cleanMimeType(message.imageMessage.mimetype),
 			fileLength: fileLength(message.imageMessage.fileLength),
+			isVoiceNote: false,
+		};
+	}
+
+	if (message.stickerMessage) {
+		return {
+			mimeType: cleanMimeType(message.stickerMessage.mimetype),
+			fileLength: fileLength(message.stickerMessage.fileLength),
 			isVoiceNote: false,
 		};
 	}

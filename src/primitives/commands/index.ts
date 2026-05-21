@@ -53,7 +53,7 @@ export const registry = new CommandRegistry();
 export function parseCommand(
 	msg: InboundMessage,
 ): { name: string; args: string[] } | null {
-	if (!msg.text || !msg.text.startsWith("/")) return null;
+	if (!msg.text?.startsWith("/")) return null;
 
 	const parts = msg.text.split(/\s+/).filter(Boolean);
 	const raw = parts[0]?.slice(1);

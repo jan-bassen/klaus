@@ -42,6 +42,14 @@ describe("infra/vault/markdown: hbs helpers", () => {
 		expect(t({ v: "raw" })).toBe("raw");
 	});
 
+	it("codeFence uses a longer fence than nested backtick runs", () => {
+		const t = hbs.compile("{{{codeFence v}}}");
+		expect(t({ v: "plain" })).toBe("```\nplain\n```");
+		expect(t({ v: "before\n```ts\nx\n```\nafter" })).toBe(
+			"````\nbefore\n```ts\nx\n```\nafter\n````",
+		);
+	});
+
 	it("eq / and / or / not / default", () => {
 		expect(
 			hbs.compile("{{#if (eq a b)}}y{{else}}n{{/if}}")({ a: 1, b: 1 }),

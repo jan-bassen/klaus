@@ -8,6 +8,24 @@ import {
 } from "../../pipeline/agents.ts";
 import type { Command } from "./index.ts";
 
+function send(msg: InboundMessage, content: string, suffix: string): void {
+	enqueueMessage({
+		chatId: msg.chatId,
+		content,
+		dedupKey: `${msg.id}:${suffix}`,
+		label: settings.whatsapp.systemLabel,
+	});
+}
+
+async function setDefault(
+	msg: InboundMessage,
+	agentName: string,
+): Promise<void> {
+	setDefaultAgent(msg.chatId, agentName);
+	await updateDefaultAgent(agentName);
+	send(msg, `Default agent set to @${agentName}.`, "default");
+}
+
 export const defaultCommand: Command = {
 	name: "default",
 	params: [{ name: "agent" }],
@@ -16,49 +34,32 @@ export const defaultCommand: Command = {
 		const agentName = args[0];
 
 		if (!agentName) {
-			enqueueMessage({
-				chatId: msg.chatId,
-				content: "Provide a name! Usage: /default <agent_name>",
-				dedupKey: `${msg.id}:default-usage`,
-				label: settings.whatsapp.systemLabel,
-			});
+			send(
+				msg,
+				"Provide a name! Usage: /default <agent_name>",
+				"default-usage",
+			);
 			return;
 		}
 
-		// Check registry first
 		if (agentRegistry.get(agentName)) {
-			setDefaultAgent(msg.chatId, agentName);
-			await updateDefaultAgent(agentName);
-			enqueueMessage({
-				chatId: msg.chatId,
-				content: `Default agent set to @${agentName}.`,
-				dedupKey: `${msg.id}:default`,
-				label: settings.whatsapp.systemLabel,
-			});
+			await setDefault(msg, agentName);
 			return;
 		}
 
-		// Try loading from disk
+		// Registry miss — try loading the agent from disk
 		try {
 			const def = await loadAgentDefinition(
 				`${settings.vault.agentsDir}/${agentName}.md`,
 			);
 			agentRegistry.set(def.name, def);
-			setDefaultAgent(msg.chatId, agentName);
-			await updateDefaultAgent(agentName);
-			enqueueMessage({
-				chatId: msg.chatId,
-				content: `Default agent set to @${agentName}.`,
-				dedupKey: `${msg.id}:default`,
-				label: settings.whatsapp.systemLabel,
-			});
+			await setDefault(msg, agentName);
 		} catch {
-			enqueueMessage({
-				chatId: msg.chatId,
-				content: `Unknown agent: "${agentName}". Check your agent files.`,
-				dedupKey: `${msg.id}:default-error`,
-				label: settings.whatsapp.systemLabel,
-			});
+			send(
+				msg,
+				`Unknown agent: "${agentName}". Check your agent files.`,
+				"default-error",
+			);
 		}
 	},
 };

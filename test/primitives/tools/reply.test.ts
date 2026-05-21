@@ -15,14 +15,6 @@ vi.mock("../../../src/infra/whatsapp/send.ts", () => ({
 	enqueueMessage: vi.fn(),
 }));
 
-describe("primitives/tools/reply: shape", () => {
-	it("declares the canonical name + side effect", () => {
-		expect(replyTool.name).toBe("reply");
-		expect(replyTool.sideEffect).toBe("external");
-		expect(replyTool.kind).toBe("builtin");
-	});
-});
-
 describe("primitives/tools/reply: collector branch", () => {
 	it("pushes content into the parent's _replyCollector and short-circuits", async () => {
 		const collector: string[] = [];

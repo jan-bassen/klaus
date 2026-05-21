@@ -34,6 +34,12 @@ function makeResult(patch: Partial<AgentRunResult> = {}): AgentRunResult {
 		],
 		model: "openrouter/auto",
 		tier: "medium",
+		context: {
+			variables: ["time", "user"],
+			tools: ["reply", "openrouter:web_search"],
+			toolsets: ["vault"],
+			skills: ["obsidian-markdown"],
+		},
 		historyMessages: [{ role: "user", content: "earlier" }],
 		systemPrompt: "you are a helpful agent",
 		userMessage: "hello",
@@ -58,7 +64,7 @@ describe("pipeline/reports: emitReport", () => {
 		rmTmpDir(tmp);
 	});
 
-	it("writes a full report with verbatim prompts, message metadata, and variables summary", async () => {
+	it("writes a full report with verbatim prompts, message metadata, and available context", async () => {
 		const message: InboundMessage = {
 			kind: "whatsapp",
 			id: "m-42",
@@ -91,9 +97,44 @@ describe("pipeline/reports: emitReport", () => {
 		expect(entry?.message?.text).toBe("hello");
 		expect(entry?.message?.hasMedia).toBe(true);
 		expect(entry?.message?.mediaType).toBe("image/png");
-		expect(entry?.variablesSummary).toBeDefined();
-		expect(entry?.variablesSummary?.user).toBeGreaterThan(0);
+		expect(entry?.llm?.context).toEqual({
+			variables: ["time", "user"],
+			tools: ["reply", "openrouter:web_search"],
+			toolsets: ["vault"],
+			skills: ["obsidian-markdown"],
+		});
 		expect(entry?.overrides).toEqual(["voice"]);
+	});
+
+	it("keeps reply voice metadata before long content in report step args", async () => {
+		const turn: TurnContext = makeTurn();
+
+		await emitReport({
+			turn,
+			startedAt: Date.now() - 10,
+			result: makeResult({
+				steps: [
+					{
+						reasoning: "",
+						toolCalls: [
+							{
+								toolCallId: "t1",
+								toolName: "reply",
+								args: { content: "long spoken answer", voice: true },
+							},
+						],
+						toolResults: [
+							{ toolCallId: "t1", toolName: "reply", result: "sent" },
+						],
+					},
+				],
+			}),
+		});
+
+		const [entry] = await readReports({ days: 1 });
+		expect(JSON.stringify(entry?.llm?.steps[0]?.toolCalls[0]?.args)).toBe(
+			'{"voice":true,"content":"long spoken answer"}',
+		);
 	});
 
 	it("redacts base64 data URLs from report prompts and history", async () => {

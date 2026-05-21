@@ -23,6 +23,7 @@ import {
 	writeReport,
 } from "../infra/store/report.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
+import { REPLY_TOOL_NAME } from "../primitives/tools/reply.ts";
 import type { AgentRunResult, TurnContext } from "./core.ts";
 import type { TurnConfig } from "./overrides.ts";
 import { renderTemplate } from "./prompts.ts";
@@ -45,16 +46,14 @@ export async function emitReport(input: EmitReportInput): Promise<void> {
 	try {
 		const entry = buildReport(input);
 		const filename = reportFilename(entry);
-		const jsonPath = await writeReport(entry, filename);
+		await writeReport(entry, filename);
 		let vaultPath: string | undefined;
 		if (settings.reports.vaultMarkdown) {
 			vaultPath = await mirrorToVault(entry, filename);
 		}
 		log.info("[reports] emitted", {
-			runId: entry.runId,
-			agent: entry.agent,
-			jsonPath,
-			...(vaultPath ? { vaultPath } : {}),
+			name: filename,
+			...(vaultPath ? { vaultMirror: true } : {}),
 		});
 	} catch (err) {
 		log.warn("[reports] failed to emit", {
@@ -83,9 +82,6 @@ function buildReport(input: EmitReportInput): ReportEntry {
 
 	if (result) entry.llm = buildLlmSection(result);
 	if (turn.message) entry.message = buildMessageSection(turn.message);
-	if (turn.vars && Object.keys(turn.vars).length > 0) {
-		entry.variablesSummary = summarizeVars(turn.vars);
-	}
 
 	if (turn.config?.simulate) {
 		entry.simulation = true;
@@ -115,10 +111,12 @@ function pickConfig(c: TurnConfig): ReportEntry["config"] {
 function buildLlmSection(result: AgentRunResult): ReportLlm {
 	const userMessage = sanitizeReportText(result.userMessage);
 	const systemPrompt = sanitizeReportText(result.systemPrompt);
+	const assistantMessage = sanitizeReportText(result.replyContent);
 
 	return {
 		model: result.model,
 		tier: result.tier,
+		context: result.context,
 		durationMs: result.durationMs,
 		usage: {
 			promptTokens: result.usage.promptTokens,
@@ -131,6 +129,7 @@ function buildLlmSection(result: AgentRunResult): ReportLlm {
 		steps: result.steps.map(toReportStep),
 		systemPrompt,
 		userMessage,
+		assistantMessage,
 		historyTranscript: sanitizeHistoryTranscript(result.historyMessages),
 	};
 }
@@ -139,7 +138,7 @@ function toReportStep(s: AgentRunResult["steps"][number]): ReportStep {
 	const step: ReportStep = {
 		toolCalls: s.toolCalls.map((tc) => ({
 			tool: tc.toolName,
-			args: sanitizeReportValue(tc.args),
+			args: sanitizeReportValue(reorderReportArgs(tc.toolName, tc.args)),
 		})),
 		toolResults: s.toolResults.map((tr) => ({
 			tool: tr.toolName,
@@ -147,9 +146,26 @@ function toReportStep(s: AgentRunResult["steps"][number]): ReportStep {
 		})),
 	};
 	if (s.reasoning) step.reasoning = sanitizeReportText(s.reasoning);
+	if (s.fallback) step.fallback = s.fallback;
 	if (s.finishReason) step.finishReason = s.finishReason;
 	if (s.usage) step.usage = s.usage;
 	return step;
+}
+
+function reorderReportArgs(toolName: string, args: unknown): unknown {
+	if (toolName !== REPLY_TOOL_NAME || !isRecord(args) || !("voice" in args)) {
+		return args;
+	}
+
+	const out: Record<string, unknown> = { voice: args.voice };
+	for (const [key, value] of Object.entries(args)) {
+		if (key !== "voice") out[key] = value;
+	}
+	return out;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function sanitizeHistoryTranscript(
@@ -190,32 +206,20 @@ function buildMessageSection(msg: InboundMessage): ReportEntry["message"] {
 	return out;
 }
 
-function summarizeVars(vars: Record<string, unknown>): Record<string, number> {
-	const out: Record<string, number> = {};
-	for (const [k, v] of Object.entries(vars)) {
-		try {
-			out[k] = JSON.stringify(v ?? null).length;
-		} catch {
-			out[k] = 0;
-		}
-	}
-	return out;
-}
-
 // ── Vault mirror ───────────────────────────────────────────────────────────
 
 async function mirrorToVault(
 	entry: ReportEntry,
 	filename: string,
 ): Promise<string> {
-	const date = localDateString(settings.timezone);
-	const dir = path.join(settings.vault.reportsDir, date);
-	await mkdir(dir, { recursive: true });
-	const filePath = path.join(dir, `${filename}.md`);
 	const rendered = renderTemplate(
 		"report",
 		entry as unknown as Record<string, unknown>,
 	);
+	const date = localDateString(settings.timezone);
+	const dir = path.join(settings.vault.reportsDir, date);
+	await mkdir(dir, { recursive: true });
+	const filePath = path.join(dir, `${filename}.md`);
 	await writeFile(filePath, `${rendered}\n`);
 	return filePath;
 }

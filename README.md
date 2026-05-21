@@ -1,203 +1,132 @@
 # Klaus
 
-A lean, self-hosted personal AI agent: **WhatsApp → TypeScript → Obsidian vault**. *Klaus* is named after [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), the pirate who allegedly walked past his crew after being beheaded — because this stack is *headless*. Personal hobby project.
+**Klaus is a simple headless personal AI agent for tinkerers that lives in Obsidian and WhatsApp.**
 
-**It is:** a single Docker container that routes WhatsApp messages to agents you define as `.md` files in your Obsidian vault. Edit a prompt, save, message — live.
+It is built for people who want their assistant minimal, easily configurable and self-hosted. The name is a nod to the infamous [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), who allegedly walked past his crew after being beheaded — because this stack is headless. 
 
-**It isn't:** a multi-user assistant, a customer-facing bot, a rich UI, or a general-purpose framework. It's opinionated and tuned for one user.
+The core pieces are already wired up: WhatsApp intake, agent routing, prompts, tools, variables, commands, schedules, timers, vault reads and writes, reports, simulation, and flat-file storage. Anything beyond that is up to you — drop your own ideas straight into those primitives. Just copy the repo and start tinkering.
 
-## Stack
+If you're looking for a simpler and more complete setup, projects like [Hermes Agent](https://github.com/NousResearch/hermes-agent) or [OpenClaw](https://github.com/openclaw/openclaw) may be a calmer harbor. Klaus is for when you would rather sail with your strange little ship.
 
-| Layer | Tech |
-|---|---|
-| Runtime | Node 25 + native TypeScript (strict) |
-| LLM | Custom loop · any OpenAI-compatible endpoint (default: OpenRouter) |
-| STT / TTS | ElevenLabs |
-| WhatsApp | Baileys (unofficial multi-device) |
-| Knowledge | Obsidian vault (notes, wikilinks, frontmatter) |
-| Storage | JSONL + JSON flat files |
-| Hosting | Docker (`janbassen1/klaus`) |
+## Quick Start
 
-## Quick start
-
-Prereqs: Docker, an Anthropic API key, an Obsidian Sync subscription (the container bundles `obsidian-headless` and keeps your vault in sync).
+You need Docker, Obsidian Sync, a WhatsApp account to link as a device, and an OpenRouter API key unless you change the provider settings.
 
 ```bash
-git clone <repo-url> && cd klaus
-cp .env.example .env    # fill in OPENROUTER_API_KEY, OBSIDIAN_*, etc.
+git clone https://github.com/jan-bassen/klaus.git
+cd klaus
+cp .env.example .env
+```
+
+Fill in at least:
+
+```dotenv
+OPENROUTER_API_KEY=
+OBSIDIAN_EMAIL=
+OBSIDIAN_PASSWORD=
+OBSIDIAN_VAULT_NAME=
+```
+
+Build and run:
+
+```bash
+docker build -t klaus .
 
 docker run -d --restart unless-stopped \
+  --name klaus \
   --env-file .env \
   -v klaus-vault:/app/vault \
   -v klaus-data:/app/data \
-  -p 3000:3000 \
-  janbassen1/klaus:latest
+  klaus
 ```
 
-`.env` must include `OBSIDIAN_EMAIL`, `OBSIDIAN_PASSWORD`, and `OBSIDIAN_VAULT_NAME` (the remote vault to sync). `OBSIDIAN_MFA` and `OBSIDIAN_E2EE_PASSWORD` are optional — set the latter if your vault is end-to-end encrypted.
+On first boot, Klaus hydrates `/app/vault` from Obsidian Sync, creates `/app/vault/Klaus` if it is missing, and writes a temporary login folder:
 
-1. On first start, Klaus logs into Obsidian Sync, links `/app/vault` to the remote vault, then writes a WhatsApp QR to `{vault}/Klaus/_login/qr-code.svg`. Scan it from WhatsApp → Linked Devices.
-2. Send any message to the paired number. Klaus is in **setup mode** and replies with your chat ID.
-3. Add the chat ID under `basics.allowedChat` in `{vault}/Klaus/settings.yml` — hot-reloaded, no restart.
-
-```yaml
-basics:
-  allowedChat: "<id>"
+```text
+{vault}/Klaus/_login/
 ```
 
-If MFA isn't accepted via `OBSIDIAN_MFA` (Obsidian Sync may not honour it on every login), seed the token interactively once:
+Open `{vault}/Klaus/_login/instructions.md`, choose solo mode or active chat mode, then scan `{vault}/Klaus/_login/qr-code.svg` from WhatsApp Linked Devices.
+
+For the full install path, E2EE vaults, self-mode, and fixes for common startup problems, use [docs/setup.md](docs/setup.md).
+
+## First Messages
+
+Unprefixed messages go to the chat's default agent:
+
+```text
+what changed in my project notes?
+```
+
+Route to a specific agent with `@name` or an alias:
+
+```text
+@meta always reply in Italian from now on
+@m move the daily brief to 7am
+@research compare these sources with my project notes
+```
+
+Use commands for deterministic changes:
+
+```text
+/help
+/default assistant
+/model large
+/provider openai
+/voice off
+/schedules
+/image make a small watercolor map
+/break
+/retry   # re-run the latest failed turn
+```
+
+Use `!overrides` anywhere after the route to tweak one turn:
+
+```text
+!large !voice think through this plan with me
+@meta !simulate remove the test agent 
+```
+
+Voice notes are transcribed, images and stickers become vision input, common documents are parsed to text, and quoted messages can carry their original media through the turn. Reports keep the readable media marker and stored filename, while redacting image data URLs.
+
+Agents are expected to use the `reply` tool for user-visible messages. If a reply-capable turn accidentally ends with plain assistant text, Klaus sends it as a fallback reply and marks the run report so the formatting miss is visible.
+
+## Tinker
+
+Most changes happen in Obsidian and hot-reload:
+
+- Agents: `{vault}/Klaus/agents/*.md`
+- Snippets: `{vault}/Klaus/snippets/*.md`
+- Skills: `{vault}/Klaus/skills/*.md`
+- Overrides: `{vault}/Klaus/overrides.yml`
+- Settings: `{vault}/Klaus/settings.yml`
+- Templates: `{vault}/Klaus/templates/*.md`
+
+Tools, variables, and commands are also easy to add in code, but require a restart to take effect.
+
+Start with [docs/architecture.md](docs/architecture.md) for the product model, then follow the vault or codebase pages depending on what you want to change.
+
+## Docs Map
+
+- [Setup](docs/setup.md): Docker, Obsidian Sync, WhatsApp login, troubleshooting.
+- [Architecture](docs/architecture.md): the main map from WhatsApp to pipeline, tools, vault, stores, and reports.
+- [Codebase Pipeline](docs/codebase/pipeline.md): parse, config, context, model loop, dispatch, persistence, reports.
+- [Codebase Primitives](docs/codebase/primitives.md): adding TypeScript commands, variables, tools, toolsets, and provider tools.
+- [Codebase Infra](docs/codebase/infra.md): config, vault/sync, WhatsApp, stores, simulation, logging.
+- [Vault Agents](docs/vault/agents.md): agent files, frontmatter, routing, tools, schedules, persistence, permissions.
+- [Vault Prompts](docs/vault/prompts.md): snippets and skills as reusable prompt context.
+- [Vault Templates](docs/vault/templates.md): message, history, persistence, help, error, welcome, and report render wrappers.
+- [Vault Settings](docs/vault/settings.md): `settings.yml` and `overrides.yml`.
+- [Vault Reports](docs/vault/reports.md): JSON reports, Markdown mirrors, simulation, debugging.
+
+## Develop
+
+Local development uses Node 25 and npm:
 
 ```bash
-docker run --rm -it -v klaus-data:/app/data janbassen1/klaus:latest \
-  env HOME=/app/data/obsidian-headless \
-    XDG_CACHE_HOME=/app/data/obsidian-headless/cache \
-    XDG_CONFIG_HOME=/app/data/obsidian-headless/config \
-    XDG_DATA_HOME=/app/data/obsidian-headless/data \
-    ob login
+npm run typecheck
+npm run test
+npm run test:watch
+npx biome check --write .
+npm run build
 ```
-
-### Self-mode (single number)
-
-Set `whatsapp.selfMode: true` in `settings.yml`. Klaus runs on your own number — you message the "Note to Self" chat and Klaus replies there. Outbound messages are prefixed with `[AgentName]:` so you can tell them apart from your own text.
-
-## Usage
-
-### @agent routing
-
-`@name` at the start of a message routes to a specific agent:
-
-```
-@dispatch summarise my inbox
-@fitness plan tomorrow's session
-```
-
-Default agent per chat is settable with `/default <name>`.
-
-### /commands
-
-Bypass the LLM entirely:
-
-- `/help`, `/schedules`
-- `/default <agent>` — set the default agent for this chat
-- `/model [small|medium|large]` — show or switch model tier
-- `/provider [claude|openai|gemini|...]` — show or switch provider
-- `/voice on|off|auto` — toggle agent frontmatter flags
-- `/break` — hide prior conversation from the next turn (fresh context)
-- `/retry` — re-run the last turn with the same input
-
-### !overrides
-
-`!word` anywhere in a message tweaks pipeline/agent behavior for that turn. Presets live in `Klaus/overrides.yml` (hot-reloaded). Built-ins include:
-
-| Override | Effect |
-|---|---|
-| `!voice` (`!v`) / `!text` (`!txt`) | Guaranteed TTS / text-only reply |
-| `!clean` (`!cl`) | Skip conversation history |
-| `!small` / `!medium` / `!large` (`!s`/`!m`/`!l`) | Model tier |
-| `!claude` / `!openai` / `!gemini` / `!qwen` / `!deepseek` | Provider |
-| `!cold` / `!hot` (`!c`/`!h`) | Temperature preset |
-| `!creative` / `!rigid` (`!cr`/`!r`) | topP preset |
-| `!low` / `!high` (`!lo`/`!hi`) | Reasoning effort |
-| `!fast` (`!f`) | Fast inference |
-| `!no-tools` (`!nt`) | Disable tool use |
-| `!ghost` (`!g`) | Ephemeral, no persistence |
-| `!simulate` (`!sim`) | Dry-run — fake external/stateful tools, no real side effects |
-
-Combine freely: `@fitness !voice !large plan tomorrow's session`.
-
-### Media
-
-Voice notes are transcribed (STT). Images are sent to the model as vision input. Documents (PDF, Word, Excel, PowerPoint) are parsed to text via `@llamaindex/liteparse`. Quoted messages carry their original media through.
-
-## Architecture
-
-Every WhatsApp message goes through a fixed pipeline:
-
-1. **Auth** — allowlist (fail-closed)
-2. **Parse** — STT, doc extract, web-link fetch, voice transcript rewrite, `/command`, `@agent`, `!overrides`
-3. **Resolve agent + config** — agent frontmatter merged with overrides into a `TurnConfig`
-4. **Persist** — append to day-partitioned conversation JSONL
-5. **Execute** — assemble context (variables + tools + history), render prompts, run the model loop, emit a structured report
-
-Cron schedules and one-shot timers (including dynamic-persistence reschedules and `dispatch(when: ...)`) also enter at step 5 with a synthesised trigger.
-
-See [CLAUDE.md](CLAUDE.md) for directory layout, per-module concerns, and code conventions.
-
-## Extending
-
-All primitives are auto-discovered — drop a file, export the right shape, restart.
-
-**New agent** — `.md` file in `{vault}/Klaus/agents/` with YAML frontmatter:
-
-```yaml
----
-name: research
-aliases: [r]
-tools: [reply, react]
-toolsets: [vault]
-providerTools: [web_search]
-skills: [obsidian-markdown]
-provider: claude
-modelTier: large
----
-You are a research assistant. {{time.date}} — use web_search + vault.
-
-{{snippets.personality}}
-{{snippets.user}}
-```
-
-**New tool** — `.ts` file in `src/primitives/tools/` exporting a `ToolDefinition` with a `sideEffect: "external" | "stateful" | "pure"` declaration.
-
-**New variable** — `.ts` file in `src/primitives/variables/` exporting a `Variable`. The `key` becomes a top-level entry in the `{{namespace}}`.
-
-**New command** — `.ts` file in `src/primitives/commands/` exporting a `Command`. Invoked as `/name`.
-
-**New override** — entry in `{vault}/Klaus/overrides.yml`. Hot-reloaded.
-
-**New skill** — `.md` file in `{vault}/Klaus/skills/` with a `description:` frontmatter field. Reference it from an agent's `skills: [...]` list.
-
-Hot-reload covers agent files, skills, snippets, templates, `overrides.yml`, and `settings.yml`. Code-level primitives need a restart.
-
-## Configuration
-
-`.env` — API keys and paths (gitignored):
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `OPENROUTER_API_KEY` | — | Required (default endpoint) |
-| `ELEVENLABS_API_KEY` | — | For voice notes (STT/TTS) |
-| `OBSIDIAN_EMAIL` | — | Required — Obsidian Sync account email |
-| `OBSIDIAN_PASSWORD` | — | Required — Obsidian Sync account password |
-| `OBSIDIAN_VAULT_NAME` | — | Required — name of the remote vault to sync |
-| `OBSIDIAN_MFA` | — | Optional — TOTP code for first login |
-| `OBSIDIAN_E2EE_PASSWORD` | — | Optional — vault E2EE password (if enabled) |
-| `ALLOWED_CHAT_ID` | — | Fallback — prefer `basics.allowedChat` in settings.yml |
-| `LOG_FORMAT` | `text` | `text` or `json` (NAS log viewers prefer `json`) |
-
-`{vault}/Klaus/settings.yml` — everything tunable (providers, model tiers, media, whatsapp, vault folders + permissions, persistence bounds, reports). Hot-reloaded with strict Zod validation. It must match the schema in `src/infra/config.ts`; the repo `vault/settings.yml` is only the first-run template.
-
-On startup Klaus first hydrates `/app/vault` from Obsidian Sync, then checks whether `/app/vault/Klaus` exists. If that folder already exists, Klaus keeps it exactly as synced user-owned state. It does not merge, backfill, or overwrite files from the image defaults. If the log says `Klaus/settings.yml` was downloaded and then settings are invalid or missing, the bug is in reading, parsing, path resolution, or schema validation of that vault file.
-
-The Docker image runs from `/app`, so those defaults become `/app/vault` and `/app/data`; WhatsApp credentials live at `/app/data/baileys-auth`. Keep two volumes: `klaus-vault` for Obsidian-facing notes and agent config, `klaus-data` for operational state.
-
-## Deploy + operate
-
-```bash
-# Pull new version
-docker pull janbassen1/klaus:latest && docker restart <container>
-
-# Publish (maintainer)
-docker login
-docker buildx create --name klaus-builder --driver docker-container --use
-npm run publish   # builds linux/amd64, pushes :<version> + :latest
-
-# Logs
-docker logs -f <container>
-
-# Wipe (destructive)
-docker rm -f <container> && docker volume rm klaus-vault klaus-data
-```
-
----
-
-See [CLAUDE.md](CLAUDE.md) for working in the codebase.

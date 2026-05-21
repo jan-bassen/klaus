@@ -157,6 +157,32 @@ describe("infra/whatsapp/receive.normalizeMessage", () => {
 		expect(msg?.media?.path).toContain(tmpDir);
 	});
 
+	it("downloads sticker media so vision can inspect it", async () => {
+		baileysMocks.downloadMediaMessage.mockResolvedValue(Buffer.from("sticker"));
+
+		const msg = await normalizeMessage(
+			rawMessage({
+				id: "sticker-1",
+				message: {
+					stickerMessage: {
+						mimetype: "image/webp",
+						fileLength: 7,
+					},
+				},
+			}),
+		);
+
+		expect(baileysMocks.downloadMediaMessage).toHaveBeenCalledOnce();
+		expect(msg).toMatchObject({
+			media: {
+				mimeType: "image/webp",
+			},
+		});
+		expect(msg?.text).toBeUndefined();
+		expect(msg?.media?.fileId).toBeTruthy();
+		expect(msg?.media?.path).toContain(tmpDir);
+	});
+
 	it("keeps document filenames on persisted media", async () => {
 		baileysMocks.downloadMediaMessage.mockResolvedValue(Buffer.from("doc"));
 

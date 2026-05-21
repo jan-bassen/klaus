@@ -7,6 +7,10 @@ import {
 	requiredStartupApiKeyEnvVars,
 	settings,
 } from "./infra/config.ts";
+import {
+	activateFutureWorkIfReady,
+	deactivateFutureWork,
+} from "./infra/future.ts";
 import { log } from "./infra/logger.ts";
 import { initFilesStore, rebuildFileIndex } from "./infra/store/files.ts";
 import {
@@ -16,11 +20,12 @@ import {
 import { initReportStore } from "./infra/store/report.ts";
 import {
 	addSchedule,
+	getSchedules,
 	initSchedulesStore,
 	loadSchedules,
+	removeSchedule,
 	type ScheduleEntry,
 	setOnCronFire,
-	startAllSchedules,
 	stopAllSchedules,
 } from "./infra/store/schedules.ts";
 import {
@@ -33,6 +38,7 @@ import {
 import { ensureVaultDefaults } from "./infra/vault/defaults.ts";
 import {
 	hydrateInitialVault,
+	type SyncError,
 	type SyncHandle,
 	startSync,
 } from "./infra/vault/sync.ts";
@@ -45,14 +51,20 @@ import {
 import {
 	completeSoloSetup,
 	prepareLoginFolderForStartup,
+	writeQrToVault,
 } from "./infra/whatsapp/login.ts";
 import { attachReceiveHandler } from "./infra/whatsapp/receive.ts";
 import {
+	clearSendSocket,
 	drainQueue,
 	enqueueMessage,
 	setSocket,
 } from "./infra/whatsapp/send.ts";
-import { agentRegistry, loadAgents } from "./pipeline/agents.ts";
+import {
+	type AgentDefinition,
+	agentRegistry,
+	loadAgents,
+} from "./pipeline/agents.ts";
 import type { Trigger } from "./pipeline/core.ts";
 import { dispatch } from "./pipeline/dispatch.ts";
 import { loadOverrides } from "./pipeline/overrides.ts";
@@ -83,6 +95,7 @@ async function shutdown(signal: string): Promise<void> {
 	stopWatching();
 	stopAllSchedules();
 	stopAllTimers();
+	deactivateFutureWork();
 
 	log.info("[shutdown] complete");
 	process.exit(0);
@@ -108,13 +121,30 @@ async function runScheduledDispatch(
 	entry: ScheduleEntry | TimerEntry,
 	trigger: Trigger,
 ): Promise<void> {
+	const chatId = settings.allowedChat;
+	if (!chatId) {
+		log.warn(`[${source}] skipped @${entry.agentName}; allowedChat is unset`, {
+			id: entry.id,
+		});
+		return;
+	}
+
 	try {
+		const frontmatterSchedule =
+			source === "cron" && isFrontmatterSchedule(entry)
+				? {
+						id: entry.id,
+						pattern: entry.pattern,
+						...(entry.label ? { label: entry.label } : {}),
+					}
+				: undefined;
 		await dispatch({
 			agent: entry.agentName,
-			prompt: entry.objective,
+			...(frontmatterSchedule ? {} : { prompt: entry.objective }),
 			...(entry.overrides ? { overrides: entry.overrides } : {}),
-			chatId: entry.chatId,
+			chatId,
 			trigger,
+			...(frontmatterSchedule ? { schedule: frontmatterSchedule } : {}),
 		});
 	} catch (err) {
 		log.error(`[${source}] dispatch failed`, {
@@ -122,7 +152,7 @@ async function runScheduledDispatch(
 			error: err,
 		});
 		enqueueMessage({
-			chatId: entry.chatId,
+			chatId,
 			content: `⚠️ Scheduled @${entry.agentName} run failed:\n${formatUserError(err)}`,
 			dedupKey: `${source}-error:${entry.id}:${Date.now()}`,
 			label: settings.whatsapp.systemLabel,
@@ -130,9 +160,71 @@ async function runScheduledDispatch(
 	}
 }
 
+function frontmatterScheduleId(agentName: string, index: number): string {
+	return `frontmatter:${agentName}:${index}`;
+}
+
+function isFrontmatterSchedule(
+	entry: ScheduleEntry | TimerEntry,
+): entry is ScheduleEntry {
+	return (
+		"pattern" in entry &&
+		entry.createdBy === "scheduler" &&
+		entry.id.startsWith("frontmatter:")
+	);
+}
+
+async function syncAgentSchedules(def: AgentDefinition): Promise<void> {
+	const desired = new Set(
+		def.schedules.map((_schedule, index) =>
+			frontmatterScheduleId(def.name, index),
+		),
+	);
+	for (const existing of getSchedules()) {
+		if (
+			existing.agentName === def.name &&
+			existing.createdBy === "scheduler" &&
+			existing.id.startsWith("frontmatter:") &&
+			!desired.has(existing.id)
+		) {
+			await removeSchedule(existing.id);
+		}
+	}
+
+	for (const [index, schedule] of def.schedules.entries()) {
+		await addSchedule({
+			id: frontmatterScheduleId(def.name, index),
+			agentName: def.name,
+			pattern: schedule.pattern,
+			objective: "# Message",
+			...(schedule.overrides.length > 0
+				? { overrides: schedule.overrides }
+				: {}),
+			...(schedule.label ? { label: schedule.label } : {}),
+			createdBy: "scheduler",
+			createdAt: new Date().toISOString(),
+		});
+	}
+}
+
+function failOnSyncError(err: SyncError, failureMsg: string): never {
+	if (err.kind === "missing-env") {
+		log.error("[startup] obsidian sync env vars missing", {
+			missing: err.vars,
+		});
+	} else {
+		log.error(failureMsg, {
+			step: err.step,
+			exitCode: err.exitCode,
+			stderr: err.stderr,
+		});
+	}
+	process.exit(1);
+}
+
 async function main(): Promise<void> {
 	await mkdir(settings.vault.root, { recursive: true });
-	const defaultSyncDeps = {
+	const syncDeps = {
 		vaultRoot: settings.vault.root,
 		configDir: path.join(settings.dataDir, "obsidian-headless"),
 		signal: shutdownController.signal,
@@ -145,30 +237,17 @@ async function main(): Promise<void> {
 	log.info(
 		"[startup] hydrating vault via obsidian-headless in mirror-remote mode",
 	);
-	const pullResult = await hydrateInitialVault(defaultSyncDeps);
+	const pullResult = await hydrateInitialVault(syncDeps);
 	if (!pullResult.ok) {
-		const err = pullResult.error;
-		if (err.kind === "missing-env") {
-			log.error("[startup] obsidian sync env vars missing", {
-				missing: err.vars,
-			});
-		} else {
-			log.error("[startup] obsidian initial pull failed", {
-				step: err.step,
-				exitCode: err.exitCode,
-				stderr: err.stderr,
-			});
-		}
-		process.exit(1);
+		failOnSyncError(pullResult.error, "[startup] obsidian initial pull failed");
 	}
 
 	await ensureVaultDefaults(settings.vault.internalPath);
 	const settingsResult = await loadSettingsFromDisk();
 	if (!settingsResult.ok) {
-		log.warn("[startup] settings.yml invalid, using bundled defaults", {
-			error: settingsResult.error,
-			path: path.join(settings.vault.internalPath, "settings.yml"),
-		});
+		throw new Error(
+			`Invalid settings.yml at ${path.join(settings.vault.internalPath, "settings.yml")}: ${settingsResult.error}`,
+		);
 	}
 
 	const required = requiredStartupApiKeyEnvVars();
@@ -202,29 +281,9 @@ async function main(): Promise<void> {
 	}
 
 	log.info("[startup] starting bundled obsidian-headless sync");
-	const syncResult = await startSync({
-		vaultRoot: settings.vault.root,
-		configDir: path.join(settings.dataDir, "obsidian-headless"),
-		signal: shutdownController.signal,
-		shutdownTimeoutMs: settings.sync.shutdownTimeoutMs,
-		fileTypes: settings.sync.fileTypes,
-		backoff: settings.sync.restartBackoff,
-		firstSync: settings.sync.firstSync,
-	});
+	const syncResult = await startSync(syncDeps);
 	if (!syncResult.ok) {
-		const err = syncResult.error;
-		if (err.kind === "missing-env") {
-			log.error("[startup] obsidian sync env vars missing", {
-				missing: err.vars,
-			});
-		} else {
-			log.error("[startup] obsidian sync setup failed", {
-				step: err.step,
-				exitCode: err.exitCode,
-				stderr: err.stderr,
-			});
-		}
-		process.exit(1);
+		failOnSyncError(syncResult.error, "[startup] obsidian sync setup failed");
 	}
 	syncHandle = syncResult.handle;
 
@@ -270,24 +329,15 @@ async function main(): Promise<void> {
 	await rebuildFileIndex();
 
 	await loadSchedules();
+	const scheduledAgents = new Set<string>();
 	for (const def of agentRegistry.values()) {
-		if (def.persistence?.mode !== "static") continue;
+		if (scheduledAgents.has(def.name)) continue;
+		scheduledAgents.add(def.name);
+		if (def.schedules.length === 0) continue;
 		log.info(
-			`[startup] registering static schedule for @${def.name}: ${def.persistence.schedule}`,
+			`[startup] registering ${def.schedules.length} schedule(s) for @${def.name}`,
 		);
-		await addSchedule({
-			id: `frontmatter:${def.name}`,
-			agentName: def.name,
-			pattern: def.persistence.schedule,
-			chatId: "system",
-			objective: def.persistence.prompt,
-			...(def.persistence.overrides.length > 0
-				? { overrides: def.persistence.overrides }
-				: {}),
-			label: `${def.name} (frontmatter)`,
-			createdBy: "scheduler",
-			createdAt: new Date().toISOString(),
-		});
+		await syncAgentSchedules(def);
 	}
 
 	setOnCronFire(async (entry) => {
@@ -296,7 +346,6 @@ async function main(): Promise<void> {
 			scheduleId: entry.id,
 		});
 	});
-	startAllSchedules();
 
 	setOnTimerFire(async (entry) => {
 		await runScheduledDispatch("timer", entry, {
@@ -322,18 +371,28 @@ async function main(): Promise<void> {
 		}
 	}, warnAfterMs);
 
-	startConnection(async (socket) => {
-		clearTimeout(connectionWarnTimer);
-		setSocket(socket);
-		if (!settings.allowedChat && settings.whatsapp.selfMode) {
-			await completeSoloSetup().catch((err) =>
-				log.error("[startup] solo setup failed", {
-					error: err instanceof Error ? err.message : String(err),
-				}),
-			);
-		}
-		attachReceiveHandler(socket);
-		log.info("[startup] WhatsApp receive handler attached");
+	startConnection({
+		onQr: writeQrToVault,
+		onOpen: async (socket) => {
+			clearTimeout(connectionWarnTimer);
+			setSocket(socket);
+			if (!settings.allowedChat && settings.whatsapp.selfMode) {
+				await completeSoloSetup().catch((err) =>
+					log.error("[startup] solo setup failed", {
+						error: err instanceof Error ? err.message : String(err),
+					}),
+				);
+			}
+			attachReceiveHandler(socket);
+			activateFutureWorkIfReady();
+			log.info("[startup] WhatsApp receive handler attached");
+		},
+		onClose: () => {
+			clearSendSocket();
+			stopAllSchedules();
+			stopAllTimers();
+			deactivateFutureWork();
+		},
 	}).catch((err: unknown) => {
 		clearTimeout(connectionWarnTimer);
 		log.error("[startup] WhatsApp connection failed", {

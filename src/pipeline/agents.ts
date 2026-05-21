@@ -35,6 +35,7 @@ const AgentSettingsSchema = z
 		provider: z.string().optional(),
 		modelTier: z.enum(modelTiers).optional(),
 		voice: z.enum(["on", "auto", "off"]).default("auto"),
+		voiceId: z.string().optional(),
 		temp: z.enum(["cold", "default", "hot"]).default("default"),
 		topP: z.enum(["creative", "default", "rigid"]).default("default"),
 		reasoningEffort: z.enum(["low", "default", "high"]).default("default"),
@@ -51,28 +52,18 @@ const AgentSettingsSchema = z
 		modelTier: s.modelTier as ModelTier | undefined,
 	}));
 
-type AgentSettings = z.infer<typeof AgentSettingsSchema>;
+// ── Persistence + schedules ────────────────────────────────────────────────
 
-// ── Persistence ────────────────────────────────────────────────────────────
+const AgentScheduleSchema = z.object({
+	pattern: z.string().min(1),
+	label: z.string().min(1).optional(),
+	overrides: z.array(z.string()).default([]),
+});
 
-/**
- * Static = recurring schedule with a fixed prompt + override set.
- * Dynamic = the agent decides its own next run by calling the `persist` tool.
- */
-const PersistenceSchema = z.discriminatedUnion("mode", [
-	z.object({
-		mode: z.literal("static"),
-		schedule: z.string(),
-		prompt: z.string(),
-		overrides: z.array(z.string()).default([]),
-	}),
-	z.object({
-		mode: z.literal("dynamic"),
-		hint: z.string(),
-	}),
-]);
-
-type Persistence = z.infer<typeof PersistenceSchema>;
+interface Persistence {
+	hint: string;
+	overrides: string[];
+}
 
 // ── Agent ──────────────────────────────────────────────────────────────────
 
@@ -123,6 +114,7 @@ const AgentFrontmatterSchema = z
 		provider: z.string().optional(),
 		modelTier: z.enum(modelTiers).optional(),
 		voice: z.enum(["on", "auto", "off"]).default("auto"),
+		voiceId: z.string().optional(),
 		temp: z.enum(["cold", "default", "hot"]).default("default"),
 		topP: z.enum(["creative", "default", "rigid"]).default("default"),
 		reasoningEffort: z.enum(["low", "default", "high"]).default("default"),
@@ -132,50 +124,26 @@ const AgentFrontmatterSchema = z
 		showTrace: z.boolean().default(true),
 		report: z.boolean().default(true),
 		vaultAccess: z.array(z.string()).default([]),
-		persistenceMode: z.enum(["static", "dynamic"]).optional(),
-		persistenceSchedule: z.string().optional(),
-		persistencePrompt: z.string().optional(),
-		persistenceOverrides: z.array(z.string()).default([]),
-		persistenceHint: z.string().optional(),
+		persist: z.boolean().default(false),
+		persistHint: z.string().optional(),
+		persistOverrides: z.array(z.string()).default([]),
+		schedules: z.array(AgentScheduleSchema).default([]),
 	})
 	.strict()
 	.transform((front, ctx) => {
 		let persistence: Persistence | undefined;
-		if (front.persistenceMode === "static") {
-			if (front.persistenceSchedule === undefined) {
+		if (front.persist) {
+			if (front.persistHint === undefined) {
 				ctx.addIssue({
 					code: "custom",
-					path: ["persistenceSchedule"],
-					message: "Required when persistenceMode is static",
-				});
-			}
-			if (front.persistencePrompt === undefined) {
-				ctx.addIssue({
-					code: "custom",
-					path: ["persistencePrompt"],
-					message: "Required when persistenceMode is static",
-				});
-			}
-			if (
-				front.persistenceSchedule !== undefined &&
-				front.persistencePrompt !== undefined
-			) {
-				persistence = {
-					mode: "static",
-					schedule: front.persistenceSchedule,
-					prompt: front.persistencePrompt,
-					overrides: front.persistenceOverrides,
-				};
-			}
-		} else if (front.persistenceMode === "dynamic") {
-			if (front.persistenceHint === undefined) {
-				ctx.addIssue({
-					code: "custom",
-					path: ["persistenceHint"],
-					message: "Required when persistenceMode is dynamic",
+					path: ["persistHint"],
+					message: "Required when persist is true",
 				});
 			} else {
-				persistence = { mode: "dynamic", hint: front.persistenceHint };
+				persistence = {
+					hint: front.persistHint,
+					overrides: front.persistOverrides,
+				};
 			}
 		}
 
@@ -190,6 +158,7 @@ const AgentFrontmatterSchema = z
 				provider: front.provider,
 				modelTier: front.modelTier,
 				voice: front.voice,
+				voiceId: front.voiceId,
 				temp: front.temp,
 				topP: front.topP,
 				reasoningEffort: front.reasoningEffort,
@@ -201,6 +170,7 @@ const AgentFrontmatterSchema = z
 				vault: parseVaultAccess(front.vaultAccess, ctx),
 			}),
 			...(persistence ? { persistence } : {}),
+			schedules: front.schedules,
 		};
 	});
 
@@ -209,7 +179,30 @@ export const AgentSchema = AgentFrontmatterSchema;
 export type AgentDefinition = z.infer<typeof AgentSchema> & {
 	/** Absolute path to the .md file — used for hot-reload. */
 	promptPath: string;
+	prompt: {
+		system: string;
+		message?: string;
+	};
 };
+
+function parsePromptSections(body: string): AgentDefinition["prompt"] {
+	const heading = /^# +(system|message) *$/gim;
+	const matches = [...body.matchAll(heading)];
+	if (matches.length === 0) return { system: body };
+
+	const sections = new Map<string, string>();
+	for (const [index, match] of matches.entries()) {
+		const name = match[1]?.toLowerCase();
+		if (!name) continue;
+		const start = (match.index ?? 0) + match[0].length;
+		const end = matches[index + 1]?.index ?? body.length;
+		sections.set(name, body.slice(start, end).trim());
+	}
+
+	const system = sections.get("system") ?? "";
+	const message = sections.get("message");
+	return message === undefined ? { system } : { system, message };
+}
 
 /** Parses YAML frontmatter from the .md file at `promptPath`. */
 export async function loadAgentDefinition(
@@ -222,8 +215,15 @@ export async function loadAgentDefinition(
 
 	const rawFront = parseYaml(match[1] ?? "");
 	const front = AgentSchema.parse(rawFront);
+	const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, "");
+	const prompt = parsePromptSections(body);
+	if (front.schedules.length > 0 && prompt.message === undefined) {
+		throw new Error(
+			`Agent @${front.name} defines schedules but has no # Message section`,
+		);
+	}
 
-	return { ...front, promptPath };
+	return { ...front, promptPath, prompt };
 }
 
 /**

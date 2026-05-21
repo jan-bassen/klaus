@@ -28,6 +28,10 @@ hbs.registerHelper(
 hbs.registerHelper("join", (arr: unknown, sep: unknown) =>
 	Array.isArray(arr) ? arr.join(String(sep)) : arr,
 );
+hbs.registerHelper("inc", (value: unknown) => {
+	const n = Number(value);
+	return Number.isFinite(n) ? n + 1 : 1;
+});
 
 /** Hard char cap. `{{trunc text 5000}}` — returns up to `max` chars, appending `…` when truncated. */
 hbs.registerHelper(
@@ -55,12 +59,20 @@ hbs.registerHelper("json", (value: unknown) =>
 	typeof value === "string" ? value : JSON.stringify(value ?? ""),
 );
 
+/** `{{codeFence text}}` — wrap text in a fence that cannot be closed by nested backticks. */
+hbs.registerHelper("codeFence", (value: unknown) => {
+	const text = value == null ? "" : String(value);
+	const runs = text.match(/`+/g) ?? [];
+	const longestRun = runs.reduce((max, run) => Math.max(max, run.length), 0);
+	const fence = "`".repeat(Math.max(3, longestRun + 1));
+	return `${fence}\n${text}\n${fence}`;
+});
+
 export { hbs };
 
 // -- Frontmatter --
 
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { readText } from "../runtime.ts";
 
 const fmEnvelope = /^---\n([\s\S]*?)\n---/;
 
@@ -192,23 +204,6 @@ export function wikilinkTargetPattern(noteName: string, flags = "i"): RegExp {
 
 function escapeRegExp(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// -- Interpolation --
-
-const fmPattern = /^---\n[\s\S]*?\n---\n?/;
-
-/**
- * Read a .md prompt file and return the body after stripping YAML frontmatter.
- * Returns empty string on failure.
- */
-async function readPromptBody(promptPath: string): Promise<string> {
-	try {
-		const raw = await readText(promptPath);
-		return raw.replace(fmPattern, "").trim();
-	} catch {
-		return "";
-	}
 }
 
 // -- User message $var interpolation --

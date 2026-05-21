@@ -6,7 +6,7 @@ export async function readText(filePath: string): Promise<string> {
 	return await readFile(filePath, "utf8");
 }
 
-export async function readBytes(filePath: string): Promise<Uint8Array> {
+async function readBytes(filePath: string): Promise<Uint8Array> {
 	return await readFile(filePath);
 }
 
@@ -15,10 +15,6 @@ export async function readArrayBuffer(filePath: string): Promise<ArrayBuffer> {
 	const copy = new ArrayBuffer(bytes.byteLength);
 	new Uint8Array(copy).set(bytes);
 	return copy;
-}
-
-export async function readBlob(filePath: string): Promise<Blob> {
-	return new Blob([await readArrayBuffer(filePath)]);
 }
 
 export async function writeData(

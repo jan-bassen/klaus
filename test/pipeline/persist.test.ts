@@ -7,7 +7,10 @@ import {
 	AgentSchema,
 } from "../../src/pipeline/agents.ts";
 import { persistDynamic } from "../../src/pipeline/persistence.ts";
-import type { UserContent } from "../../src/pipeline/prompts.ts";
+import {
+	invalidateTemplate,
+	type UserContent,
+} from "../../src/pipeline/prompts.ts";
 import { initAllStores } from "../helpers/stores.ts";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 import { makeTurn } from "../helpers/turn.ts";
@@ -28,6 +31,7 @@ describe("pipeline/persistence.persistDynamic", () => {
 	let tmpDir: string;
 	let originalApiKey: string | undefined;
 	let originalPersistence: typeof settings.persistence;
+	let originalTemplatesDir: string;
 
 	beforeEach(() => {
 		tmpDir = makeTmpDir();
@@ -35,11 +39,17 @@ describe("pipeline/persistence.persistDynamic", () => {
 
 		originalApiKey = process.env.OPENROUTER_API_KEY;
 		originalPersistence = structuredClone(settings.persistence);
+		originalTemplatesDir = settings.vault.templatesDir;
 
 		process.env.OPENROUTER_API_KEY = "test-key";
+		settings.vault.templatesDir = path.resolve(
+			process.cwd(),
+			"vault/templates",
+		);
 		settings.persistence.minNextRun = 1_000;
 		settings.persistence.maxNextRun = 60 * 60 * 1_000;
 		settings.persistence.defaultNextRun = "15m";
+		invalidateTemplate("persistence");
 	});
 
 	afterEach(() => {
@@ -50,6 +60,8 @@ describe("pipeline/persistence.persistDynamic", () => {
 		} else {
 			process.env.OPENROUTER_API_KEY = originalApiKey;
 		}
+		settings.vault.templatesDir = originalTemplatesDir;
+		invalidateTemplate("persistence");
 		sendMock.mockReset();
 		rmTmpDir(tmpDir);
 	});
@@ -70,7 +82,7 @@ describe("pipeline/persistence.persistDynamic", () => {
 
 		expect(sendMock).toHaveBeenCalledOnce();
 		expect(firstChatRequest()).toMatchObject({
-			model: "anthropic/claude-sonnet-4-6",
+			model: "anthropic/claude-sonnet-4.6",
 			toolChoice: { type: "function", function: { name: "persist" } },
 			stream: false,
 		});
@@ -91,7 +103,6 @@ describe("pipeline/persistence.persistDynamic", () => {
 		expect(timers).toHaveLength(1);
 		expect(timers[0]).toMatchObject({
 			agentName: "persistent-agent",
-			chatId: "chat-1",
 			objective: "next objective",
 			overrides: ["voice", "large"],
 			createdBy: "persistent",
@@ -127,8 +138,7 @@ describe("pipeline/persistence.persistDynamic", () => {
 
 		expect(firstChatRequest().messages).toContainEqual({
 			role: "user",
-			content:
-				"[image omitted from text-only follow-up/report]\ncaption",
+			content: "caption",
 		});
 		expect(JSON.stringify(firstChatRequest())).not.toContain("AAAABBBB");
 	});
@@ -188,6 +198,25 @@ describe("pipeline/persistence.persistDynamic", () => {
 		expect(listTimers()[0]).not.toHaveProperty("overrides");
 	});
 
+	it("merges agent persist overrides with tool-returned overrides", async () => {
+		sendMock.mockResolvedValueOnce(
+			chatResponse(
+				persistCall({
+					nextRun: "5m",
+					prompt: "with overrides",
+					overrides: ["large", "voice"],
+				}),
+			),
+		);
+
+		await persistDynamic({
+			...baseInput(tmpDir),
+			overrides: ["voice", "clean"],
+		});
+
+		expect(listTimers()[0]?.overrides).toEqual(["voice", "clean", "large"]);
+	});
+
 	it("throws and does not schedule when the forced response omits the persist tool", async () => {
 		sendMock.mockResolvedValueOnce(chatResponse());
 
@@ -216,6 +245,7 @@ function baseInput(tmpDir: string) {
 		userContent: "current user",
 		replyContent: "main reply",
 		hint: "choose a useful next run",
+		overrides: [],
 	};
 }
 
@@ -223,10 +253,14 @@ function makeAgent(tmpDir: string): AgentDefinition {
 	const parsed = AgentSchema.parse({
 		name: "persistent-agent",
 		report: false,
-		persistenceMode: "dynamic",
-		persistenceHint: "choose a useful next run",
+		persist: true,
+		persistHint: "choose a useful next run",
 	});
-	return { ...parsed, promptPath: path.join(tmpDir, "persistent-agent.md") };
+	return {
+		...parsed,
+		promptPath: path.join(tmpDir, "persistent-agent.md"),
+		prompt: { system: "system prompt" },
+	};
 }
 
 function chatResponse(toolCall?: ReturnType<typeof persistCall>) {

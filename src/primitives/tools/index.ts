@@ -24,9 +24,8 @@ export interface ToolDefinition<TInput extends z.ZodTypeAny = z.ZodTypeAny> {
 	execute(input: z.infer<TInput>, context: TurnContext): Promise<unknown>;
 	/**
 	 * Optional under-sim handler. When set, called instead of `execute` when
-	 * the turn is in simulation mode and `sideEffect` is `"stateful"`. Use it
-	 * for tools whose write-then-read consistency matters within a turn (e.g.
-	 * `dispatch.agent` propagating sim into inline children).
+	 * the turn is in simulation mode. Use it for tools whose fake result or
+	 * read-after-write consistency needs tool-specific behavior.
 	 */
 	simulate?(input: z.infer<TInput>, context: TurnContext): Promise<unknown>;
 	sideEffect: SideEffect;
@@ -157,12 +156,4 @@ function isToolsetDefinition(x: unknown): x is ToolsetDefinition {
 
 function isToolDefinition(x: unknown): x is ToolDefinition<z.ZodTypeAny> {
 	return ToolShape.safeParse(x).success;
-}
-
-/** Returns all registered tools whose name starts with `{toolsetName}.` */
-export function getToolsForToolset(
-	toolsetName: string,
-): ToolDefinition<z.ZodTypeAny>[] {
-	const prefix = `${toolsetName}.`;
-	return [...toolRegistry.values()].filter((t) => t.name.startsWith(prefix));
 }
