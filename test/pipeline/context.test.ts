@@ -16,6 +16,7 @@ import {
 } from "../../src/pipeline/agents.ts";
 import { assembleContext } from "../../src/pipeline/context.ts";
 import type { TurnContext } from "../../src/pipeline/core.ts";
+import { imageGenerateTool } from "../../src/primitives/tools/image.ts";
 import {
 	registerTool,
 	type ToolDefinition,
@@ -385,6 +386,7 @@ describe("pipeline/context.invokeTool simulation wrapper", () => {
 		registerTool(
 			makeTool("custom_sim", "external", simulatedExecute, simulateHandler),
 		);
+		registerTool(imageGenerateTool);
 	});
 
 	afterEach(() => {
@@ -523,6 +525,33 @@ describe("pipeline/context.invokeTool simulation wrapper", () => {
 				args: { value: "payload" },
 				intent: "Custom simulate handler",
 				result: { simulated: true, input: { value: "payload" } },
+			}),
+		]);
+	});
+
+	it("records image_generate simulation once", async () => {
+		const def = makeAgent(tmpDir, "alpha", ["image_generate"]);
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			config: { simulate: true, skipHistory: true },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		const result = await ctx.tools.functionTools.image_generate?.execute({
+			prompt: "make it cinematic",
+			sourceMessageRef: "current",
+		});
+
+		expect(result).toEqual({ sent: true, fileId: null, simulated: true });
+		expect(getOverlay(turn as TurnContext).actions).toEqual([
+			expect.objectContaining({
+				tool: "image_generate",
+				sideEffect: "external",
+				args: {
+					prompt: "make it cinematic",
+					sourceMessageRef: "current",
+				},
+				result: { sent: true, fileId: null, simulated: true },
 			}),
 		]);
 	});

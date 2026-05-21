@@ -17,6 +17,7 @@ If `reports.vaultMarkdown: true`, Klaus also mirrors a readable Markdown report 
 ```
 
 Report behavior is configured in [settings.md](settings.md). Report emission can also be controlled per agent or per turn.
+The process log announces each emitted report by filename, plus whether a vault Markdown mirror was written.
 
 ## Contents
 

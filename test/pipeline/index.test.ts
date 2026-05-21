@@ -19,6 +19,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { settings } from "../../src/infra/config.ts";
+import { persistFileBlob } from "../../src/infra/store/files.ts";
 import { getConversation, getTraces } from "../../src/infra/store/history.ts";
 import { readReports } from "../../src/infra/store/report.ts";
 import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
@@ -255,6 +256,47 @@ describe("pipeline/index.handleTurn", () => {
 		);
 		expect(sendMock).not.toHaveBeenCalled();
 		// Commands are out-of-band: they don't pollute the chat history.
+		expect(await getConversation()).toEqual([]);
+	});
+
+	it("resolves quoted media before dispatching /commands", async () => {
+		const saved = await persistFileBlob({
+			bytes: Buffer.from("source image"),
+			mimeType: "image/png",
+			externalId: "quoted-external",
+		});
+		if (saved instanceof Error) throw saved;
+
+		const commandExecute = vi.fn(async () => {});
+		commandRegistry.register({
+			name: "quotecheck",
+			description: "test quoted media command",
+			execute: commandExecute,
+		});
+		const msg: InboundMessage = {
+			...makeMsg("chat1", "", "/quotecheck edit this"),
+			quotedMessage: {
+				externalId: "quoted-external",
+				text: "previous image",
+			},
+		};
+
+		await handleTurn(msg);
+
+		expect(commandExecute).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: msg.id,
+				quotedMessage: expect.objectContaining({
+					media: {
+						fileId: saved.id,
+						path: saved.path,
+						mimeType: "image/png",
+					},
+				}),
+			}),
+			["edit", "this"],
+		);
+		expect(sendMock).not.toHaveBeenCalled();
 		expect(await getConversation()).toEqual([]);
 	});
 

@@ -46,16 +46,14 @@ export async function emitReport(input: EmitReportInput): Promise<void> {
 	try {
 		const entry = buildReport(input);
 		const filename = reportFilename(entry);
-		const jsonPath = await writeReport(entry, filename);
+		await writeReport(entry, filename);
 		let vaultPath: string | undefined;
 		if (settings.reports.vaultMarkdown) {
 			vaultPath = await mirrorToVault(entry, filename);
 		}
 		log.info("[reports] emitted", {
-			runId: entry.runId,
-			agent: entry.agent,
-			jsonPath,
-			...(vaultPath ? { vaultPath } : {}),
+			name: filename,
+			...(vaultPath ? { vaultMirror: true } : {}),
 		});
 	} catch (err) {
 		log.warn("[reports] failed to emit", {

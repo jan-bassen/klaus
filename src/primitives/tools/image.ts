@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { log } from "../../infra/logger.ts";
 import { readArrayBuffer } from "../../infra/runtime.ts";
-import { getOverlay } from "../../infra/simulation.ts";
 import {
 	findFile,
 	findFileByExternalId,
@@ -144,23 +143,10 @@ export const imageGenerateTool: ToolDefinition<typeof imageGenerateSchema> = {
 
 		return { sent: true, fileId: saved.id };
 	},
-	simulate: async ({ prompt, sourceFileIds, sourceMessageRef }, context) => {
+	simulate: async ({ prompt }, context) => {
 		if (context._replyCollector) {
 			context._replyCollector.push(`[image: ${prompt}]`);
 		}
-		const sourceCount =
-			(sourceFileIds?.length ?? 0) + (sourceMessageRef ? 1 : 0);
-		const verb = sourceCount > 0 ? "edit" : "generate";
-		const overlay = getOverlay(context);
-		overlay.actions.push({
-			tool: "image_generate",
-			sideEffect: "external",
-			args: { prompt, sourceFileIds, sourceMessageRef },
-			intent: `Would ${verb} and send image: "${prompt.slice(0, 80)}${
-				prompt.length > 80 ? "…" : ""
-			}"${sourceCount ? ` (${sourceCount} source image${sourceCount > 1 ? "s" : ""})` : ""}`,
-			result: { sent: true, fileId: null },
-		});
 		return { sent: true, fileId: null, simulated: true };
 	},
 	sideEffect: "external",

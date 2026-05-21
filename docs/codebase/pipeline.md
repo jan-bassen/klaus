@@ -34,7 +34,7 @@ infra/whatsapp/receive.ts
   -> primitives/tools/* + pipeline/outbound.ts + pipeline/reports.ts
 ```
 
-`parseMessage` does the messy edge work before the model sees anything: transcribes voice, extracts documents, prepares images and stickers for vision, normalizes spoken routes, executes `/commands`, resolves `@agent`, and strips `!overrides`.
+`parseMessage` does the messy edge work before the model sees anything: transcribes voice, extracts documents, prepares images and stickers for vision, normalizes spoken routes, detects `/commands`, resolves `@agent`, and strips `!overrides`. `handleTurn` resolves quoted media before dispatching a command, so commands such as `/image` can use a quoted image as input.
 
 ## Config Resolution
 
@@ -77,4 +77,4 @@ Startup loads and syncs schedules/timers while their clocks are paused. `activat
 
 ## Reports
 
-Reports are emitted unless `turn.config.report === false`. They include the assembled variable names, explicit tools, toolsets, and skill names alongside prompts, history, steps, and tool calls. Toolset members stay grouped by set in the context summary; individual calls still appear in the step trace. The human-facing agent message is derived from nonblank `reply.content` tool calls only; malformed or empty reply calls remain visible in the step trace without becoming separator-only message fragments. Reply step args keep `voice` before long `content` values for readable truncation. Simulation turns always report and include simulated actions. The report path and vault Markdown mirror are configured in `settings.yml`; see [../vault/reports.md](../vault/reports.md).
+Reports are emitted unless `turn.config.report === false`. They include the assembled variable names, explicit tools, toolsets, and skill names alongside prompts, history, steps, and tool calls. Toolset members stay grouped by set in the context summary; individual calls still appear in the step trace. The human-facing agent message is derived from nonblank `reply.content` tool calls only; malformed or empty reply calls remain visible in the step trace without becoming separator-only message fragments. Reply step args keep `voice` before long `content` values for readable truncation. Simulation turns always report and include simulated actions. The report path and vault Markdown mirror are configured in `settings.yml`; the runtime log records the report filename and whether a vault mirror was written. See [../vault/reports.md](../vault/reports.md).

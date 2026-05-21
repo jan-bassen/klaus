@@ -4,7 +4,7 @@
  *   1. Auth (allowlist)
  *   2. Normalize + parse (STT, doc, links, commands, @agent, !overrides)
  *   3. Resolve agent + build effective config
- *   4. Persist message + resolve quoted media
+ *   4. Resolve quoted media + persist message
  *   5. Execute agent (assemble context, prompts, run loop)
  */
 
@@ -83,11 +83,12 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			settings.media.voice.stt.agentTriggers,
 		);
 		const processedMsg = parsed.msg;
+		const effectiveMsg = resolveQuotedMedia(processedMsg);
 
 		if (parsed.command) {
 			log.info(`[pipeline] dispatching /${parsed.command.name} command`);
 			const command = commandRegistry.get(parsed.command.name);
-			if (command) await command.execute(processedMsg, parsed.command.args);
+			if (command) await command.execute(effectiveMsg, parsed.command.args);
 			return;
 		}
 
@@ -95,8 +96,6 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		const def = await getOrLoadAgent(agentName);
 		log.info(`[pipeline] routing to @${agentName}`);
 		const config = buildTurnConfig(def, parsed.overrides);
-
-		const effectiveMsg = resolveQuotedMedia(processedMsg);
 
 		let messageId: string | undefined;
 		if (!config.ghost) {

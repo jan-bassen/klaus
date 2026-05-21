@@ -74,7 +74,7 @@ The overlay gives read-from-write coherence inside one simulated turn. A simulat
 
 ## Logging
 
-`src/infra/logger.ts` owns process logging. User-facing execution detail belongs in reports, not scattered logs. Logs should help diagnose startup and system-boundary failures.
+`src/infra/logger.ts` owns process logging. User-facing execution detail belongs in reports, not scattered logs. Logs should help diagnose startup and system-boundary failures. Template watcher logs use "refreshed" for normal cache invalidation so routine reloads do not read like errors.
 
 The Obsidian Sync supervisor forwards meaningful `ob` output, but suppresses the
 routine stdout `fully synced` status because continuous sync emits it after

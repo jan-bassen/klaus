@@ -258,7 +258,7 @@ export function startWatching(agentsDir: string, skillsDir: string): void {
 			debounce(`template:${filename}`, () => {
 				const name = filename.replace(/\.md$/, "");
 				invalidateTemplate(name);
-				log.info(`[watcher] template invalidated: ${name}`);
+				log.info(`[watcher] template refreshed: ${name}`);
 			});
 		});
 		watchers.push(templatesWatcher);

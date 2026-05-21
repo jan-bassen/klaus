@@ -74,6 +74,8 @@ Use commands for deterministic changes:
 /model large
 /provider openai
 /voice off
+/schedules
+/image make a small watercolor map
 /break
 /retry   # re-run the latest failed turn
 ```

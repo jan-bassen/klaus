@@ -29,7 +29,7 @@ If you understand those surfaces, the rest of Klaus is mostly file placement.
 Inbound WhatsApp messages enter through `src/infra/whatsapp/receive.ts` and are handled by the pipeline:
 
 1. Auth checks the allowed chat. Without an allowed chat, Klaus enters setup mode.
-2. `parseMessage` handles voice transcription, document parsing, image/sticker vision media, quoted media, `/commands`, `@agent` routing, and `!overrides`.
+2. `parseMessage` handles voice transcription, document parsing, image/sticker vision media, `/commands`, `@agent` routing, and `!overrides`; the pipeline resolves quoted media before command or agent execution.
 3. The agent and turn config are resolved from settings, agent frontmatter, and one-turn overrides.
 4. The user message is stored unless the turn is ghosted.
 5. Context variables, tools, history, and templates are assembled.
