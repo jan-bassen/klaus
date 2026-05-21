@@ -22,6 +22,10 @@
 ```
 {{#if llm.context.tools.length}}{{join llm.context.tools ", "}}{{else}}none{{/if}}
 ```
+**Toolsets**
+```
+{{#if llm.context.toolsets.length}}{{join llm.context.toolsets ", "}}{{else}}none{{/if}}
+```
 **Skills**
 ```
 {{#if llm.context.skills.length}}{{join llm.context.skills ", "}}{{else}}none{{/if}}

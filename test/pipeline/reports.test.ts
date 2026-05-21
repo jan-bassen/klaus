@@ -36,7 +36,8 @@ function makeResult(patch: Partial<AgentRunResult> = {}): AgentRunResult {
 		tier: "medium",
 		context: {
 			variables: ["time", "user"],
-			tools: ["reply", "vault_read"],
+			tools: ["reply", "openrouter:web_search"],
+			toolsets: ["vault"],
 			skills: ["obsidian-markdown"],
 		},
 		historyMessages: [{ role: "user", content: "earlier" }],
@@ -98,7 +99,8 @@ describe("pipeline/reports: emitReport", () => {
 		expect(entry?.message?.mediaType).toBe("image/png");
 		expect(entry?.llm?.context).toEqual({
 			variables: ["time", "user"],
-			tools: ["reply", "vault_read"],
+			tools: ["reply", "openrouter:web_search"],
+			toolsets: ["vault"],
 			skills: ["obsidian-markdown"],
 		});
 		expect(entry?.overrides).toEqual(["voice"]);

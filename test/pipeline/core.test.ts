@@ -13,6 +13,7 @@ import {
 import { executeAgent, LlmTimeoutError } from "../../src/pipeline/core.ts";
 import {
 	registerTool,
+	registerToolset,
 	type ToolDefinition,
 } from "../../src/primitives/tools/index.ts";
 import { initAllStores } from "../helpers/stores.ts";
@@ -22,6 +23,7 @@ import { makeTurn } from "../helpers/turn.ts";
 const sendMock = vi.hoisted(() => vi.fn());
 const replySchema = z.object({ content: z.string() });
 const probeSchema = z.object({ value: z.string().optional() });
+const hiddenSchema = z.object({});
 
 vi.mock("@openrouter/sdk", () => ({
 	OpenRouter: vi.fn(function OpenRouter() {
@@ -49,6 +51,16 @@ const probeTool: ToolDefinition<typeof probeSchema> = {
 	description: "Record a probe value",
 	inputSchema: probeSchema,
 	execute: async ({ value }) => ({ ok: true, value: value ?? "default" }),
+	sideEffect: "pure",
+	kind: "builtin",
+	capability: "tool",
+};
+
+const hiddenTool: ToolDefinition<typeof hiddenSchema> = {
+	name: "bundle_hidden",
+	description: "Hidden toolset member",
+	inputSchema: hiddenSchema,
+	execute: async () => ({ ok: true }),
 	sideEffect: "pure",
 	kind: "builtin",
 	capability: "tool",
@@ -103,6 +115,11 @@ describe("pipeline/core.executeAgent", () => {
 
 		registerTool(replyTool);
 		registerTool(probeTool);
+		registerToolset({
+			name: "bundle",
+			description: "Grouped test tools",
+			tools: [hiddenTool],
+		});
 	});
 
 	afterEach(() => {
@@ -229,6 +246,29 @@ describe("pipeline/core.executeAgent", () => {
 		const result = await executeAgent({ turn, def, variables: [] });
 
 		expect(result.replyContent).toBe("first\n---\nsecond");
+	});
+
+	it("reports explicit tools and toolsets without flattening hidden toolset members", async () => {
+		sendMock.mockResolvedValueOnce(chatResponse({ content: "done" }));
+
+		const def = makeAgent(tmpDir, {
+			tools: ["reply"],
+			toolsets: ["bundle"],
+		});
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 1, skipHistory: true },
+			dispatchContext: { prompt: "objective" },
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(result.context).toEqual({
+			variables: [],
+			tools: ["reply"],
+			toolsets: ["bundle"],
+			skills: [],
+		});
 	});
 
 	it("derives replyContent from accepted reply tool calls only", async () => {
@@ -690,6 +730,7 @@ function makeAgent(
 	dir: string,
 	patch: {
 		tools?: string[];
+		toolsets?: string[];
 		persistence?: AgentDefinition["persistence"];
 		prompt?: AgentDefinition["prompt"];
 	} = {},
@@ -699,6 +740,7 @@ function makeAgent(
 	const parsed = AgentSchema.parse({
 		name: "core-test",
 		tools: patch.tools ?? [],
+		toolsets: patch.toolsets ?? [],
 		report: false,
 		stepLimit: 2,
 		...(patch.persistence

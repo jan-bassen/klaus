@@ -51,6 +51,7 @@ const ReportLlmSchema = z.object({
 	context: z.object({
 		variables: z.array(z.string()),
 		tools: z.array(z.string()),
+		toolsets: z.array(z.string()),
 		skills: z.array(z.string()),
 	}),
 	durationMs: z.number(),

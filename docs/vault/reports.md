@@ -23,12 +23,14 @@ Report behavior is configured in [settings.md](settings.md). Report emission can
 Reports include:
 
 - Agent, trigger, model, provider, and overrides
-- Available variable, tool, and skill names for the run
+- Available variable names, explicit tools, toolsets, and skills for the run
 - Rendered system prompt, history transcript, current user message, and agent answer
 - LLM steps, rendered in Markdown as compact one-based tool blocks with token usage and optional reasoning
 - Tool calls and results
 - Simulated actions
 - Errors and trace output
+
+Toolset members stay grouped in the context summary, so a `vault` toolset appears as `vault` instead of every individual vault helper. Individual tool calls still appear in the step trace.
 
 They intentionally include rendered prompt and history text so prompt bugs, injection, missing variables, and wrong history scope are visible. Image data URLs are redacted from the text mirror; the surrounding message template still records the media as `[Image: filename]` when available.
 

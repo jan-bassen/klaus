@@ -272,7 +272,8 @@ _Reply as voice message_`);
 				tier: "medium",
 				context: {
 					variables: ["time", "user"],
-					tools: ["reply", "vault_read", "openrouter:web_search"],
+					tools: ["reply", "openrouter:web_search"],
+					toolsets: ["vault"],
 					skills: ["obsidian-markdown"],
 				},
 				durationMs: 99,
@@ -308,7 +309,10 @@ _Reply as voice message_`);
 		expect(rendered).toContain("### Context");
 		expect(rendered).toContain("**Variables**\n```\ntime, user\n```");
 		expect(rendered).toContain(
-			"**Tools**\n```\nreply, vault_read, openrouter:web_search\n```",
+			"**Tools**\n```\nreply, openrouter:web_search\n```",
+		);
+		expect(rendered).toContain(
+			"**Toolsets**\n```\nvault\n```",
 		);
 		expect(rendered).toContain("**Skills**\n```\nobsidian-markdown\n```");
 		expect(rendered).toContain(

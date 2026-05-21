@@ -131,6 +131,7 @@ export interface AgentRunResult {
 	context: {
 		variables: string[];
 		tools: string[];
+		toolsets: string[];
 		skills: string[];
 	};
 	historyMessages: ChatMessage[];
@@ -303,9 +304,14 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 		context: {
 			variables: sortedUnique(variables.map((v) => v.key)),
 			tools: sortedUnique([
-				...Object.keys(tools.functionTools),
+				...def.tools.filter((name) => tools.functionTools[name] !== undefined),
 				...tools.serverTools.map((t) => t.type),
 			]),
+			toolsets: sortedUnique(
+				(def.toolsets ?? []).filter((name) =>
+					tools.initialActive.includes(`load_${name}`),
+				),
+			),
 			skills: sortedUnique(def.skills ?? []),
 		},
 		historyMessages,
