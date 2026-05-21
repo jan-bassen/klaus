@@ -17,7 +17,6 @@ import { settings } from "../config.ts";
 import { log } from "../logger.ts";
 import { readText } from "../runtime.ts";
 import { TriggerSchema } from "./history.ts";
-import { localDateString, localTimeString } from "./index.ts";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -135,6 +134,27 @@ export function initReportStore(env: { dataDir: string }): void {
 function logsDir(): string {
 	if (!_logsDir) throw new Error("[report] store not initialized");
 	return _logsDir;
+}
+
+export function localDateString(timezone: string): string {
+	const fmt = new Intl.DateTimeFormat("en-CA", {
+		timeZone: timezone,
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	});
+	return fmt.format(new Date());
+}
+
+function localTimeString(timezone: string): string {
+	const fmt = new Intl.DateTimeFormat("en-GB", {
+		timeZone: timezone,
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+		hour12: false,
+	});
+	return fmt.format(new Date()).replaceAll(":", "-");
 }
 
 /** Sortable per-run filename: `<HH-MM-SS>--<runIdShort>`. */

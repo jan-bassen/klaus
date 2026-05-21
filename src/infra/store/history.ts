@@ -5,7 +5,6 @@ import type { Trigger } from "../../pipeline/core.ts";
 import { settings } from "../config.ts";
 import { log } from "../logger.ts";
 import { readText } from "../runtime.ts";
-import { localDateString } from "./index.ts";
 
 /** Mirrors the `Trigger` discriminated union in `src/types.ts`. */
 export const TriggerSchema = z.discriminatedUnion("kind", [
@@ -356,7 +355,12 @@ export function createConversationStore(
 		path.join(env.dataDir, "conversations");
 
 	function todayFilePath(): string {
-		const date = localDateString(settings.timezone);
+		const date = new Intl.DateTimeFormat("en-CA", {
+			timeZone: settings.timezone,
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+		}).format(new Date());
 		return path.join(conversationsDir(), `${date}.jsonl`);
 	}
 
