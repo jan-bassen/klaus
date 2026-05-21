@@ -34,7 +34,7 @@ infra/whatsapp/receive.ts
   -> primitives/tools/* + pipeline/outbound.ts + pipeline/reports.ts
 ```
 
-`parseMessage` does the messy edge work before the model sees anything: transcribes voice, extracts documents, prepares images, normalizes spoken routes, executes `/commands`, resolves `@agent`, and strips `!overrides`.
+`parseMessage` does the messy edge work before the model sees anything: transcribes voice, extracts documents, prepares images and stickers for vision, normalizes spoken routes, executes `/commands`, resolves `@agent`, and strips `!overrides`.
 
 ## Config Resolution
 

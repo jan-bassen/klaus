@@ -94,7 +94,7 @@ src/
 ## Message flow
 
 1. **Auth** — allowlist (fail-closed). Unset → setup mode; self-mode auto-resolves own JID.
-2. **Parse** — `parseMessage`: STT transcribe → doc extract → link fetch → voice transcript rewrite → `/command` → `@agent` → `!overrides`.
+2. **Parse** — `parseMessage`: STT transcribe → doc extract → image/sticker vision media → link fetch → voice transcript rewrite → `/command` → `@agent` → `!overrides`.
 3. **Resolve agent + build config** — `getOrLoadAgent` + `buildTurnConfig` (globalDefaults → frontmatter → `!overrides`).
 4. **Persist message** — append to day-partitioned JSONL, resolve quoted media.
 5. **Execute agent** — `executeAgent`: assemble context (vars + tools + history) → compile prompts → `runLoop` (multi-step `completeChat` calls until the model stops calling tools) → recover plain assistant content as a visible fallback `reply` when reply is active → report → reschedule if persistent.
