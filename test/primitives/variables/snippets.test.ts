@@ -2,8 +2,8 @@
  * `primitives/variables/snippets.ts` — file → namespace compilation.
  *
  * Covers frontmatter stripping, Handlebars interpolation against the partial
- * variable namespace, recursive `{{snippets.*}}` references with fixed-point
- * resolution, and graceful handling of cycles + bad templates.
+ * variable namespace, unsupported nested `{{snippets.*}}` references, and
+ * graceful handling of bad templates.
  */
 
 import { writeFileSync } from "node:fs";
@@ -80,24 +80,26 @@ describe("primitives/variables/snippets", () => {
 		expect(out.static).toBe("Just plain text.");
 	});
 
-	it("resolves snippet-to-snippet references via fixed-point iteration", async () => {
+	it("does not expand snippet-to-snippet references", async () => {
 		writeSnippet(tmp, "name", "Klaus");
 		writeSnippet(tmp, "greet", "Hello, {{snippets.name}}!");
 		writeSnippet(tmp, "outer", "[{{snippets.greet}}]");
 		const out = await runSnippets();
 		expect(out.name).toBe("Klaus");
-		expect(out.greet).toBe("Hello, Klaus!");
-		expect(out.outer).toBe("[Hello, Klaus!]");
+		expect(out.greet).toBe("Hello, !");
+		expect(out.outer).toBe("[]");
 	});
 
-	it("does not recursively expand a snippet's reference to itself", async () => {
+	it("allows escaped snippet references as literal documentation", async () => {
 		writeSnippet(
 			tmp,
 			"user",
-			"Describe yourself.\nThis content is available as {{snippets.user}}.",
+			"Describe yourself.\nThis content is available as \\{{snippets.user}}.",
 		);
 		const out = await runSnippets();
-		expect(out.user).toBe("Describe yourself.\nThis content is available as .");
+		expect(out.user).toBe(
+			"Describe yourself.\nThis content is available as {{snippets.user}}.",
+		);
 	});
 
 	it("falls back to raw content when Handlebars compilation throws", async () => {
@@ -105,16 +107,6 @@ describe("primitives/variables/snippets", () => {
 		writeSnippet(tmp, "broken", "Hello {{unclosed");
 		const out = await runSnippets();
 		expect(out.broken).toBe("Hello {{unclosed");
-	});
-
-	it("does not infinitely loop on a self-referential cycle", async () => {
-		writeSnippet(tmp, "a", "A:{{snippets.b}}");
-		writeSnippet(tmp, "b", "B:{{snippets.a}}");
-		const out = await runSnippets();
-		// Should return without hanging; the result is whatever the bounded
-		// iteration produced — we only assert it's a string for each key.
-		expect(typeof out.a).toBe("string");
-		expect(typeof out.b).toBe("string");
 	});
 
 	it("returns empty object when snippets directory is empty", async () => {

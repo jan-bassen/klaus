@@ -75,7 +75,7 @@ Use commands for deterministic changes:
 /provider openai
 /voice off
 /break
-/retry
+/retry   # re-run the latest failed turn
 ```
 
 Use `!overrides` anywhere after the route to tweak one turn:

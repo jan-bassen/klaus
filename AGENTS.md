@@ -80,8 +80,8 @@ src/
 │   └── reports.ts    # per-turn report emitter
 ├── primitives/       # pluggable extensions (auto-discovered via glob)
 │   ├── tools/        # reply, react, web, conversation, skill + sets/{vault,dispatch,files}
-│   ├── variables/    # time, media, links, tasks, dispatch, config, user, snippets, trigger
-│   └── commands/     # /status, /tasks, /voice, /model, /provider, /break, /retry, /reports, /help, /default
+│   ├── variables/    # time, media, tasks, dispatch, config, snippets, trigger
+│   └── commands/     # /break, /default, /help, /image, /model, /provider, /retry, /schedules, /voice
 └── infra/            # external systems + state
     ├── config.ts     # YAML settings + env paths + resolveModel/resolveImageModel (live mutable `settings`)
     ├── logger.ts
@@ -94,7 +94,7 @@ src/
 ## Message flow
 
 1. **Auth** — allowlist (fail-closed). Unset → setup mode; self-mode auto-resolves own JID.
-2. **Parse** — `parseMessage`: STT transcribe → doc extract → image/sticker vision media → link fetch → voice transcript rewrite → `/command` → `@agent` → `!overrides`.
+2. **Parse** — `parseMessage`: STT transcribe → doc extract → image/sticker vision media → voice transcript rewrite → `/command` → `@agent` → `!overrides`.
 3. **Resolve agent + build config** — `getOrLoadAgent` + `buildTurnConfig` (globalDefaults → frontmatter → `!overrides`).
 4. **Persist message** — append to day-partitioned JSONL, resolve quoted media.
 5. **Execute agent** — `executeAgent`: assemble context (vars + tools + history) → compile prompts → `runLoop` (multi-step `completeChat` calls until the model stops calling tools) → recover plain assistant content as a visible fallback `reply` when reply is active → report → reschedule if persistent.
@@ -163,6 +163,8 @@ Persistence:
 **Toolsets** are lazy-loaded via `load_<name>` meta-tools so the initial context stays lean.
 
 **Skills** are `.md` docs in `{vault}/Klaus/skills/`, loaded via a per-agent `skill_get` tool scoped to the agent's declared list.
+
+**Snippets** are `.md` fragments in `{vault}/Klaus/snippets/`, compiled once against the normal variable namespace. Use `{{snippets.name}}` in agent prompts; snippets do not expand other snippets.
 
 **Variables** produce the unified `{{namespace}}` for templates. One file per top-level key in `src/primitives/variables/`. User messages also support `$var.sub.path` shortcut syntax.
 

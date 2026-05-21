@@ -18,7 +18,7 @@ Use snippets inside an agent prompt:
 {{snippets.vault}}
 ```
 
-Snippets are compiled as Handlebars templates after the other variables are assembled. They can reference other snippets:
+Snippets are compiled as Handlebars templates after the other variables are assembled. They can use normal variables such as `{{config.*}}`, `{{media.*}}`, and `{{time.*}}`, but they do not expand other snippets. Compose multiple snippets in the agent prompt instead:
 
 ```handlebars
 User context:
@@ -28,13 +28,11 @@ Vault context:
 {{snippets.vault}}
 ```
 
-If a snippet needs to mention its own variable name as documentation, escape it with a Handlebars raw block:
+If a snippet needs to mention its own variable name as documentation, escape the opening mustache:
 
 ```handlebars
-This content is available as {{{{raw}}}}{{snippets.user}}{{{{/raw}}}}.
+This content is available as \{{snippets.user}}.
 ```
-
-Direct self-references such as `{{snippets.user}}` inside `user.md` render as empty to prevent recursive self-expansion.
 
 Example snippet:
 

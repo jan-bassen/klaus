@@ -30,24 +30,12 @@ function compile(content: string, vars: Record<string, unknown>): string {
 	}
 }
 
-function withoutSelfReference(
-	snippets: Record<string, string>,
-	key: string,
-): Record<string, string> {
-	const scoped = { ...snippets };
-	scoped[key] = "";
-	return scoped;
-}
-
 /**
  * Loads snippets from `{vault}/Klaus/snippets/*.md`.
  * Each snippet is compiled against the full assembled namespace, making it a
- * true reusable template. Snippets may reference other snippets via
- * `{{snippets.<name>}}` — resolved by fixed-point iteration up to
- * `MAX_RECURSION_PASSES`.
+ * reusable template. Snippets do not expand other snippets; compose snippets
+ * in agent prompts instead.
  */
-const MAX_RECURSION_PASSES = 5;
-
 export const snippetsVariable: Variable = {
 	key: "snippets",
 	description: "Named reusable prompt fragments",
@@ -62,31 +50,11 @@ export const snippetsVariable: Variable = {
 			raw[stem] = await readSnippet(path.join(snippetsDir, file));
 		}
 
-		let prev: Record<string, string> = {};
-		for (const [k, content] of Object.entries(raw)) {
-			prev[k] = compile(content, vars);
+		const snippets: Record<string, string> = {};
+		const scopedVars = { ...vars, snippets: {} };
+		for (const [key, content] of Object.entries(raw)) {
+			snippets[key] = compile(content, scopedVars);
 		}
-		for (let pass = 0; pass < MAX_RECURSION_PASSES; pass++) {
-			const next: Record<string, string> = {};
-			for (const [k, content] of Object.entries(raw)) {
-				next[k] = compile(content, {
-					...vars,
-					snippets: withoutSelfReference(prev, k),
-				});
-			}
-			let stable = true;
-			for (const k of Object.keys(raw)) {
-				if (next[k] !== prev[k]) {
-					stable = false;
-					break;
-				}
-			}
-			prev = next;
-			if (stable) return prev;
-		}
-		log.warn(
-			`[snippets] did not stabilise after ${MAX_RECURSION_PASSES} passes — possible cycle`,
-		);
-		return prev;
+		return snippets;
 	},
 };
