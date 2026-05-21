@@ -83,9 +83,6 @@ function buildReport(input: EmitReportInput): ReportEntry {
 
 	if (result) entry.llm = buildLlmSection(result);
 	if (turn.message) entry.message = buildMessageSection(turn.message);
-	if (turn.vars && Object.keys(turn.vars).length > 0) {
-		entry.variablesSummary = summarizeVars(turn.vars);
-	}
 
 	if (turn.config?.simulate) {
 		entry.simulation = true;
@@ -120,6 +117,7 @@ function buildLlmSection(result: AgentRunResult): ReportLlm {
 	return {
 		model: result.model,
 		tier: result.tier,
+		context: result.context,
 		durationMs: result.durationMs,
 		usage: {
 			promptTokens: result.usage.promptTokens,
@@ -189,18 +187,6 @@ function buildMessageSection(msg: InboundMessage): ReportEntry["message"] {
 	if (msg.media) {
 		out.hasMedia = true;
 		out.mediaType = msg.media.mimeType;
-	}
-	return out;
-}
-
-function summarizeVars(vars: Record<string, unknown>): Record<string, number> {
-	const out: Record<string, number> = {};
-	for (const [k, v] of Object.entries(vars)) {
-		try {
-			out[k] = JSON.stringify(v ?? null).length;
-		} catch {
-			out[k] = 0;
-		}
 	}
 	return out;
 }

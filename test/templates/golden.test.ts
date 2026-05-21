@@ -255,6 +255,11 @@ _Reply as voice message_`);
 				provider: "openrouter",
 				model: "model-a",
 				tier: "medium",
+				context: {
+					variables: ["time", "user"],
+					tools: ["reply", "vault_read", "openrouter:web_search"],
+					skills: ["obsidian-markdown"],
+				},
 				durationMs: 99,
 				usage: { promptTokens: 10, completionTokens: 20 },
 				systemPromptChars: 13,
@@ -274,7 +279,6 @@ _Reply as voice message_`);
 				assistantMessage: "agent msg",
 				historyTranscript: [{ role: "user", content: "past msg" }],
 			},
-			variablesSummary: { time: 20 },
 			simulatedActions: [
 				{
 					tool: "reply",
@@ -284,19 +288,25 @@ _Reply as voice message_`);
 			],
 		});
 
-		expect(rendered).toContain("- **Outcome**: error — `Error: boom`");
-		expect(rendered).toContain("- ⚠ **SIMULATION** — no real side effects");
-		expect(rendered).toContain("## Message");
-		expect(rendered).toContain("## LLM");
+		expect(rendered).toContain("**Outcome**: error — `Error: boom`");
+		expect(rendered).toContain("⚠ **SIMULATION** — no real side effects");
+		expect(rendered).toContain("### Context");
+		expect(rendered).toContain("**Variables**\n```\ntime, user\n```");
 		expect(rendered).toContain(
-			"### System prompt\n````\nsystem\n```text\nprompt\n```\n````",
+			"**Tools**\n```\nreply, vault_read, openrouter:web_search\n```",
 		);
-		expect(rendered).toContain("### History transcript");
-		expect(rendered).toContain("### User message\n```\nuser msg\n```");
-		expect(rendered).toContain("### Agent answer\n```\nagent msg\n```");
-		expect(rendered).toContain("## Variables\n- time: 20 chars");
+		expect(rendered).toContain("**Skills**\n```\nobsidian-markdown\n```");
 		expect(rendered).toContain(
-			"## Simulated actions\n- **reply** (external) — Would reply",
+			"### System\n````\nsystem\n```text\nprompt\n```\n````",
+		);
+		expect(rendered).toContain("### History");
+		expect(rendered).toContain("### User message\n```\nuser msg\n```");
+		expect(rendered).toContain("### Agent messages\n```\nagent msg\n```");
+		expect(rendered).toContain(
+			'### Steps\n**1) vault_read** (10↑/20↓)\n> thinking\n`{"path":"A.md"}`',
+		);
+		expect(rendered).toContain(
+			"### Simulated actions\n- **reply** (external) — Would reply",
 		);
 	});
 });

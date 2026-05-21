@@ -34,6 +34,11 @@ function makeResult(patch: Partial<AgentRunResult> = {}): AgentRunResult {
 		],
 		model: "openrouter/auto",
 		tier: "medium",
+		context: {
+			variables: ["time", "user"],
+			tools: ["reply", "vault_read"],
+			skills: ["obsidian-markdown"],
+		},
 		historyMessages: [{ role: "user", content: "earlier" }],
 		systemPrompt: "you are a helpful agent",
 		userMessage: "hello",
@@ -58,7 +63,7 @@ describe("pipeline/reports: emitReport", () => {
 		rmTmpDir(tmp);
 	});
 
-	it("writes a full report with verbatim prompts, message metadata, and variables summary", async () => {
+	it("writes a full report with verbatim prompts, message metadata, and available context", async () => {
 		const message: InboundMessage = {
 			kind: "whatsapp",
 			id: "m-42",
@@ -91,8 +96,11 @@ describe("pipeline/reports: emitReport", () => {
 		expect(entry?.message?.text).toBe("hello");
 		expect(entry?.message?.hasMedia).toBe(true);
 		expect(entry?.message?.mediaType).toBe("image/png");
-		expect(entry?.variablesSummary).toBeDefined();
-		expect(entry?.variablesSummary?.user).toBeGreaterThan(0);
+		expect(entry?.llm?.context).toEqual({
+			variables: ["time", "user"],
+			tools: ["reply", "vault_read"],
+			skills: ["obsidian-markdown"],
+		});
 		expect(entry?.overrides).toEqual(["voice"]);
 	});
 

@@ -110,6 +110,7 @@ describe("infra/store/report", () => {
 			llm: {
 				model: "gpt",
 				tier: "medium",
+				context: { variables: ["time"], tools: ["reply"], skills: [] },
 				durationMs: 10,
 				usage: { promptTokens: 1, completionTokens: 2 },
 				systemPromptChars: 5,

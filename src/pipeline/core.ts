@@ -137,6 +137,11 @@ export interface AgentRunResult {
 	steps: ModelCallStep[];
 	model: string;
 	tier: string;
+	context: {
+		variables: string[];
+		tools: string[];
+		skills: string[];
+	};
 	historyMessages: ChatMessage[];
 	systemPrompt: string;
 	userMessage: string;
@@ -148,6 +153,7 @@ interface RunAgentInput {
 	def: AgentDefinition;
 	system: string;
 	userContent: UserContent;
+	variables: Variable[];
 	tools: AssembledTools;
 	historyMessages: ChatMessage[];
 	signal?: AbortSignal;
@@ -197,6 +203,7 @@ export async function executeAgent(
 			def: input.def,
 			system,
 			userContent,
+			variables: input.variables,
 			tools: ctx.tools,
 			historyMessages: ctx.history.messages,
 			...(input.signal ? { signal: input.signal } : {}),
@@ -270,7 +277,8 @@ function flushPendingSubReplies(turn: TurnContext): void {
  * Most callers want `executeAgent` instead.
  */
 async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
-	const { turn, def, system, userContent, tools, historyMessages } = input;
+	const { turn, def, system, userContent, variables, tools, historyMessages } =
+		input;
 
 	const provider = turn.config?.provider ?? settings.defaultProvider;
 	const tier: ModelTier =
@@ -341,11 +349,23 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 		steps: result.steps,
 		model: modelId,
 		tier,
+		context: {
+			variables: sortedUnique(variables.map((v) => v.key)),
+			tools: sortedUnique([
+				...Object.keys(tools.functionTools),
+				...tools.serverTools.map((t) => t.type),
+			]),
+			skills: sortedUnique(def.skills ?? []),
+		},
 		historyMessages,
 		systemPrompt: system,
 		userMessage: userMessageStr,
 		replyContent,
 	};
+}
+
+function sortedUnique(values: string[]): string[] {
+	return [...new Set(values)].sort((a, b) => a.localeCompare(b));
 }
 
 // ── Loop core (private) ────────────────────────────────────────────────────

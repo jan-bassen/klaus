@@ -23,9 +23,9 @@ Report behavior is configured in [settings.md](settings.md). Report emission can
 Reports include:
 
 - Agent, trigger, model, provider, and overrides
-- Variable summaries
+- Available variable, tool, and skill names for the run
 - Rendered system prompt, history transcript, current user message, and agent answer
-- LLM steps
+- LLM steps, rendered in Markdown as compact one-based tool blocks with token usage and optional reasoning
 - Tool calls and results
 - Simulated actions
 - Errors and trace output

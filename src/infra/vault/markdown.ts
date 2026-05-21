@@ -28,6 +28,10 @@ hbs.registerHelper(
 hbs.registerHelper("join", (arr: unknown, sep: unknown) =>
 	Array.isArray(arr) ? arr.join(String(sep)) : arr,
 );
+hbs.registerHelper("inc", (value: unknown) => {
+	const n = Number(value);
+	return Number.isFinite(n) ? n + 1 : 1;
+});
 
 /** Hard char cap. `{{trunc text 5000}}` — returns up to `max` chars, appending `…` when truncated. */
 hbs.registerHelper(
