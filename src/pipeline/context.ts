@@ -510,6 +510,7 @@ function renderHistoryAssistantMessage(
 			label,
 			message: row.content ?? "",
 			agentLabel: row.agent ?? "",
+			isVoice: row.voice === true,
 			isNotDefaultAgent: row.agent ? row.agent !== defaultAgent : false,
 			...(reactions ? { reactions, reactionEmojis: reactions } : {}),
 		}),

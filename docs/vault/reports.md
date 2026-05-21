@@ -30,7 +30,9 @@ Reports include:
 - Simulated actions
 - Errors and trace output
 
-They intentionally include rendered prompt and history text so prompt bugs, injection, missing variables, and wrong history scope are visible. Image data URLs are redacted from the text mirror; the surrounding message template still records the media as `Image` with a stored filename when available.
+They intentionally include rendered prompt and history text so prompt bugs, injection, missing variables, and wrong history scope are visible. Image data URLs are redacted from the text mirror; the surrounding message template still records the media as `[Image: filename]` when available.
+
+Step arguments keep short metadata before long content where that improves scanability. For example, `reply` calls with `voice: true` render the voice flag before the message text so it remains visible even when the content is truncated.
 
 Markdown report prompt blocks use fences long enough to contain nested code blocks from snippets, skills, or user messages without breaking the rendered report.
 

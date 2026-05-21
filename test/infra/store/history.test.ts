@@ -53,6 +53,18 @@ describe("infra/store/history: round-trip", () => {
 		expect(assistant?.runId).toBe("r-1");
 	});
 
+	it("assistant row round-trips voice marker", async () => {
+		await appendMessage({
+			role: "assistant",
+			content: "spoken",
+			agent: "fitness",
+			runId: "r-voice",
+			voice: true,
+		});
+		const conv = await getConversation();
+		expect(conv[0]?.voice).toBe(true);
+	});
+
 	it("findByExternalId resolves to the messageId", async () => {
 		const id = await appendMessage({
 			role: "user",

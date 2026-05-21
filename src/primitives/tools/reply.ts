@@ -49,16 +49,6 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 
 		log.info("[reply] enqueuing message");
 
-		const outbound = await prepareAssistantOutbound({
-			context,
-			content,
-			kind: "reply",
-			logPrefix: "[reply]",
-			...(messageRef ? { messageRef } : {}),
-		});
-		if ("error" in outbound) return outbound;
-
-		const quotedPart = outbound.quoted ? { quoted: outbound.quoted } : {};
 		const userFacingContent = formatUserFacingAgentMessage(content, context);
 		const useVoice =
 			!context.config?.suppressVoice && (voice || context.config?.forceVoice);
@@ -66,6 +56,15 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			setPresenceKind(context.chatId, "recording");
 			const audio = await textToSpeech(content, context.config?.voiceId);
 			if (audio instanceof Error) {
+				const outbound = await prepareAssistantOutbound({
+					context,
+					content,
+					kind: "reply",
+					logPrefix: "[reply]",
+					...(messageRef ? { messageRef } : {}),
+				});
+				if ("error" in outbound) return outbound;
+				const quotedPart = outbound.quoted ? { quoted: outbound.quoted } : {};
 				log.warn("[reply] TTS failed, falling back to text", {
 					error: audio.message,
 				});
@@ -80,6 +79,18 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 					outbound.onSent,
 				);
 			} else {
+				const voiceOutbound = await prepareAssistantOutbound({
+					context,
+					content,
+					kind: "reply",
+					logPrefix: "[reply]",
+					voice: true,
+					...(messageRef ? { messageRef } : {}),
+				});
+				if ("error" in voiceOutbound) return voiceOutbound;
+				const voiceQuotedPart = voiceOutbound.quoted
+					? { quoted: voiceOutbound.quoted }
+					: {};
 				enqueueMessage(
 					{
 						chatId: context.chatId,
@@ -87,12 +98,21 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 						mimeType: "audio/mpeg",
 						dedupKey: makeDedupKey(context, "reply-voice"),
 						label: context.agent.name,
-						...quotedPart,
+						...voiceQuotedPart,
 					},
-					outbound.onSent,
+					voiceOutbound.onSent,
 				);
 			}
 		} else {
+			const outbound = await prepareAssistantOutbound({
+				context,
+				content,
+				kind: "reply",
+				logPrefix: "[reply]",
+				...(messageRef ? { messageRef } : {}),
+			});
+			if ("error" in outbound) return outbound;
+			const quotedPart = outbound.quoted ? { quoted: outbound.quoted } : {};
 			enqueueMessage(
 				{
 					chatId: context.chatId,

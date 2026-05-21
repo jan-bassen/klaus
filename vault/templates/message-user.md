@@ -5,7 +5,7 @@
 {{/each}}
 
 {{/if}}
-{{#if isVoice}}Transcript of voice note.{{#if voiceCaption}} Caption: "{{voiceCaption}}"{{/if}}{{/if}}{{#if isImage}}Image{{#if fileName}} ({{fileName}}){{/if}}{{/if}}{{#if isDocument}}Attached: {{fileName}} ({{mimeType}}){{#if extractedText}}
+{{#if isVoice}}[Transcript of voice note{{#if voiceCaption}}; caption: "{{voiceCaption}}"{{/if}}]{{/if}}{{#if isImage}}[Image{{#if fileName}}: {{fileName}}{{/if}}]{{/if}}{{#if isDocument}}[Attached: {{fileName}} ({{mimeType}})]{{#if extractedText}}
 
 {{extractedText}}{{/if}}{{/if}}
 {{#if quotedText}}> Quoted{{#if quotedRole}} ({{quotedRole}}){{/if}}: {{quotedText}}{{/if}}

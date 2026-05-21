@@ -18,6 +18,7 @@ export async function prepareAssistantOutbound(input: {
 	content: string;
 	kind: string;
 	logPrefix: string;
+	voice?: boolean | undefined;
 	messageRef?: string | undefined;
 }): Promise<PreparedOutbound | { error: string }> {
 	const quoted = resolveMessageRef(input.context, input.messageRef);
@@ -27,6 +28,7 @@ export async function prepareAssistantOutbound(input: {
 		input.context,
 		input.content,
 		input.logPrefix,
+		input.voice ?? false,
 	);
 
 	const onSent = rowId
@@ -78,6 +80,7 @@ async function persistAssistantMessage(
 	context: TurnContext,
 	content: string,
 	logPrefix: string,
+	voice: boolean,
 ): Promise<string | undefined> {
 	if (context.config?.ghost) return undefined;
 	if (!content.trim()) return undefined;
@@ -88,6 +91,7 @@ async function persistAssistantMessage(
 			content,
 			agent: context.agent.name,
 			runId: context.runId,
+			...(voice ? { voice: true } : {}),
 		});
 	} catch (err) {
 		log.warn(`${logPrefix} failed to persist assistant message`, {

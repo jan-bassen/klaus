@@ -33,6 +33,7 @@ type AppendMessageInput =
 			role: "assistant";
 			agent: string;
 			runId: string;
+			voice?: boolean;
 			failed?: boolean;
 	  });
 
@@ -100,6 +101,8 @@ const ConversationMessageEventSchema = z.object({
 	agent: z.string().optional(),
 	/** Assistant rows: the run that produced the reply (links to the trace). */
 	runId: z.string().optional(),
+	/** Assistant rows: reply was sent as a voice note. */
+	voice: z.boolean().optional(),
 	/** Assistant rows: the turn ended in an error (used by /retry). */
 	failed: z.boolean().optional(),
 });
@@ -191,6 +194,8 @@ interface ConversationMessage {
 	agent?: string;
 	/** Assistant rows: the run id (links to the trace). Required for new rows. */
 	runId?: string;
+	/** Assistant rows: reply was sent as a voice note. */
+	voice?: boolean;
 	/** Assistant rows: turn ended in an error. */
 	failed?: boolean;
 	reactions: Array<{
@@ -235,6 +240,7 @@ function conversationMessageFromEvent(
 		...(event.command != null ? { command: event.command } : {}),
 		...(event.agent ? { agent: event.agent } : {}),
 		...(event.runId ? { runId: event.runId } : {}),
+		...(event.voice ? { voice: true } : {}),
 		...(event.failed ? { failed: true } : {}),
 		reactions: [],
 	};
@@ -402,6 +408,7 @@ export function createConversationStore(
 				? {
 						agent: msg.agent,
 						runId: msg.runId,
+						...(msg.voice ? { voice: true } : {}),
 						...(msg.failed ? { failed: true } : {}),
 					}
 				: {}),

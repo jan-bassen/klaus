@@ -104,6 +104,37 @@ describe("pipeline/reports: emitReport", () => {
 		expect(entry?.overrides).toEqual(["voice"]);
 	});
 
+	it("keeps reply voice metadata before long content in report step args", async () => {
+		const turn: TurnContext = makeTurn();
+
+		await emitReport({
+			turn,
+			startedAt: Date.now() - 10,
+			result: makeResult({
+				steps: [
+					{
+						reasoning: "",
+						toolCalls: [
+							{
+								toolCallId: "t1",
+								toolName: "reply",
+								args: { content: "long spoken answer", voice: true },
+							},
+						],
+						toolResults: [
+							{ toolCallId: "t1", toolName: "reply", result: "sent" },
+						],
+					},
+				],
+			}),
+		});
+
+		const [entry] = await readReports({ days: 1 });
+		expect(JSON.stringify(entry?.llm?.steps[0]?.toolCalls[0]?.args)).toBe(
+			'{"voice":true,"content":"long spoken answer"}',
+		);
+	});
+
 	it("redacts base64 data URLs from report prompts and history", async () => {
 		const historyMessages: AgentRunResult["historyMessages"] = [
 			{

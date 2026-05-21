@@ -52,6 +52,8 @@ Overrides are config only. They should not carry prompt content. Agent prompts a
 
 Agents should send user-visible text through the `reply` tool. If a reply-capable turn ends with plain assistant content instead of tool calls, `core.ts` treats that text as a fallback `reply` call, logs a warning, and marks the report step with `fallback: "assistant_content_reply"`. Empty assistant content still means no reply, and `toolChoice: "none"` keeps tools disabled.
 
+Successful TTS replies persist the original text with `voice: true` on the assistant history row. Text fallbacks after TTS failure remain normal text rows.
+
 Reactions are replayed as metadata on real history messages, not as separate history slots. `historyLimit` still counts message rows; selected rows can include `{{reactions}}` such as `alpha ✅` or `user ❤️`, so a reaction-only agent turn is visible without shrinking the transcript window.
 
 Tools return values for the model to act on. User-correctable failures should be returned as values, not thrown. Throw only at system boundaries where continuing would hide a runtime problem.
@@ -73,4 +75,4 @@ Startup loads and syncs schedules/timers while their clocks are paused. `activat
 
 ## Reports
 
-Reports are emitted unless `turn.config.report === false`. They include the assembled variable, tool, and skill names alongside prompts, history, steps, and tool calls. The human-facing agent message is derived from nonblank `reply.content` tool calls only; malformed or empty reply calls remain visible in the step trace without becoming separator-only message fragments. Simulation turns always report and include simulated actions. The report path and vault Markdown mirror are configured in `settings.yml`; see [../vault/reports.md](../vault/reports.md).
+Reports are emitted unless `turn.config.report === false`. They include the assembled variable, tool, and skill names alongside prompts, history, steps, and tool calls. The human-facing agent message is derived from nonblank `reply.content` tool calls only; malformed or empty reply calls remain visible in the step trace without becoming separator-only message fragments. Reply step args keep `voice` before long `content` values for readable truncation. Simulation turns always report and include simulated actions. The report path and vault Markdown mirror are configured in `settings.yml`; see [../vault/reports.md](../vault/reports.md).

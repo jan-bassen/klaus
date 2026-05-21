@@ -23,6 +23,7 @@ import {
 	writeReport,
 } from "../infra/store/report.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
+import { REPLY_TOOL_NAME } from "../primitives/tools/reply.ts";
 import type { AgentRunResult, TurnContext } from "./core.ts";
 import type { TurnConfig } from "./overrides.ts";
 import { renderTemplate } from "./prompts.ts";
@@ -139,7 +140,7 @@ function toReportStep(s: AgentRunResult["steps"][number]): ReportStep {
 	const step: ReportStep = {
 		toolCalls: s.toolCalls.map((tc) => ({
 			tool: tc.toolName,
-			args: sanitizeReportValue(tc.args),
+			args: sanitizeReportValue(reorderReportArgs(tc.toolName, tc.args)),
 		})),
 		toolResults: s.toolResults.map((tr) => ({
 			tool: tr.toolName,
@@ -151,6 +152,22 @@ function toReportStep(s: AgentRunResult["steps"][number]): ReportStep {
 	if (s.finishReason) step.finishReason = s.finishReason;
 	if (s.usage) step.usage = s.usage;
 	return step;
+}
+
+function reorderReportArgs(toolName: string, args: unknown): unknown {
+	if (toolName !== REPLY_TOOL_NAME || !isRecord(args) || !("voice" in args)) {
+		return args;
+	}
+
+	const out: Record<string, unknown> = { voice: args.voice };
+	for (const [key, value] of Object.entries(args)) {
+		if (key !== "voice") out[key] = value;
+	}
+	return out;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function sanitizeHistoryTranscript(

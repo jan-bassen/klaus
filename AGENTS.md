@@ -173,7 +173,7 @@ Persistence:
 
 ## Reports
 
-One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, LLM steps, tool calls, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Image data URLs are redacted from text mirrors; the message wrapper records the media as `Image` with the stored filename when available.
+One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, LLM steps, tool calls, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Image data URLs are redacted from text mirrors; the message wrapper records the media as `[Image: filename]` when available. Reply step args keep short metadata such as `voice` before long `content` so truncation stays readable.
 
 Sim runs always set `simulation: true` and carry the `simulatedActions` list from the overlay.
 
@@ -191,7 +191,7 @@ Overlay gives read-from-write coherence: a `vault_write` followed by `vault_read
 
 | Store | Format | Purpose |
 |---|---|---|
-| `history` | JSONL, day-partitioned | Conversation events (msg, ack, reaction, trace, break) |
+| `history` | JSONL, day-partitioned | Conversation events (msg, ack, reaction, trace, break); assistant voice rows carry `voice: true` |
 | `report` | JSONL, day-partitioned | Per-turn execution record |
 | `files` | JSONL index + blobs | File metadata + content on disk |
 | `schedules` | JSON + croner | Recurring cron jobs |

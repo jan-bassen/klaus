@@ -29,7 +29,7 @@ describe("template goldens", () => {
 				label: 7,
 			}),
 		).toBe(
-			'Transcript of voice note. Caption: "walking home"\n\n[#7] turn left',
+			'[Transcript of voice note; caption: "walking home"]\n\n[#7] turn left',
 		);
 
 		expect(
@@ -40,7 +40,7 @@ describe("template goldens", () => {
 				quotedRole: "user",
 				messageText: "what is this?",
 			}),
-		).toBe("Image\n> Quoted (user): previous note\n\nwhat is this?");
+		).toBe("[Image]\n> Quoted (user): previous note\n\nwhat is this?");
 
 		expect(
 			renderTemplate("message-user", {
@@ -50,7 +50,7 @@ describe("template goldens", () => {
 				mimeType: "application/pdf",
 				messageText: "summarise",
 			}),
-		).toBe("Attached: plan.pdf (application/pdf)\n\nsummarise");
+		).toBe("[Attached: plan.pdf (application/pdf)]\n\nsummarise");
 
 		expect(
 			renderTemplate("message-user", {
@@ -93,6 +93,14 @@ describe("template goldens", () => {
 				reactionEmojis: "👍 ❤️",
 			}),
 		).toBe("[#7] with reactions\n👍 ❤️");
+
+		expect(
+			renderTemplate("history-agent", {
+				label: 8,
+				isVoice: true,
+				message: "spoken reply",
+			}),
+		).toBe("[Voice] [#8] spoken reply");
 	});
 
 	it("renders message-agent with optional non-default-agent prefix, history label, and reactions", () => {
@@ -126,6 +134,13 @@ describe("template goldens", () => {
 				reactionEmojis: "👍 ❤️",
 			}),
 		).toBe("[#7] with reactions\n👍 ❤️");
+
+		expect(
+			renderTemplate("message-agent", {
+				isVoice: true,
+				message: "spoken reply",
+			}),
+		).toBe("[Voice] spoken reply");
 	});
 
 	it("renders user-facing error messages by kind", () => {
