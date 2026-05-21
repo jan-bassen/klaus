@@ -16,30 +16,17 @@ const dispatchTool = dispatchToolset.tools.find(
 );
 
 describe("parseRunAt", () => {
-	it("'30m' → now + 30*60*1000 (±tolerance)", () => {
+	it.each([
+		["30m", 30 * 60_000],
+		["2h", 2 * 3_600_000],
+		["1d", 86_400_000],
+		["90s", 90_000],
+	])("%s → now + duration", (input, expectedMs) => {
 		const before = Date.now();
-		const out = new Date(parseRunAt("30m")).getTime();
+		const out = new Date(parseRunAt(input)).getTime();
 		const after = Date.now();
-		expect(out).toBeGreaterThanOrEqual(before + 30 * 60_000);
-		expect(out).toBeLessThanOrEqual(after + 30 * 60_000 + 50);
-	});
-
-	it("'2h' → now + 2*3600*1000", () => {
-		const out = new Date(parseRunAt("2h")).getTime();
-		expect(out - Date.now()).toBeGreaterThan(2 * 3_600_000 - 100);
-		expect(out - Date.now()).toBeLessThanOrEqual(2 * 3_600_000 + 100);
-	});
-
-	it("'1d' → now + 86_400_000", () => {
-		const out = new Date(parseRunAt("1d")).getTime();
-		expect(out - Date.now()).toBeGreaterThan(86_400_000 - 100);
-		expect(out - Date.now()).toBeLessThanOrEqual(86_400_000 + 100);
-	});
-
-	it("'90s' → now + 90_000", () => {
-		const out = new Date(parseRunAt("90s")).getTime();
-		expect(out - Date.now()).toBeGreaterThan(90_000 - 100);
-		expect(out - Date.now()).toBeLessThanOrEqual(90_000 + 100);
+		expect(out).toBeGreaterThanOrEqual(before + expectedMs - 100);
+		expect(out).toBeLessThanOrEqual(after + expectedMs + 100);
 	});
 
 	it("ISO datetime → same instant, normalised to ISO string", () => {

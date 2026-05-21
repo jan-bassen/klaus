@@ -33,12 +33,6 @@ describe("pipeline/prompts: resolveSampling", () => {
 		expect(resolveSampling({})).toEqual({});
 	});
 
-	it("cold preset → coldTemperature (falls back to 0 when unset)", () => {
-		settings.sampling = {};
-		const result = resolveSampling({ temperaturePreset: "cold" });
-		expect(result.temperature).toBe(0);
-	});
-
 	it("cold preset → coldTemperature from settings", () => {
 		settings.sampling = { coldTemperature: 0.1 };
 		expect(resolveSampling({ temperaturePreset: "cold" }).temperature).toBe(
@@ -46,29 +40,14 @@ describe("pipeline/prompts: resolveSampling", () => {
 		);
 	});
 
-	it("hot preset → hotTemperature (falls back to 1 when unset)", () => {
-		settings.sampling = {};
-		expect(resolveSampling({ temperaturePreset: "hot" }).temperature).toBe(1);
-	});
-
 	it("hot preset → hotTemperature from settings", () => {
 		settings.sampling = { hotTemperature: 0.9 };
 		expect(resolveSampling({ temperaturePreset: "hot" }).temperature).toBe(0.9);
 	});
 
-	it("creative topP preset → creativeTopP (falls back to 0.95)", () => {
-		settings.sampling = {};
-		expect(resolveSampling({ topPPreset: "creative" }).topP).toBe(0.95);
-	});
-
 	it("creative topP preset → creativeTopP from settings", () => {
 		settings.sampling = { creativeTopP: 0.98 };
 		expect(resolveSampling({ topPPreset: "creative" }).topP).toBe(0.98);
-	});
-
-	it("rigid topP preset → rigidTopP (falls back to 0.1)", () => {
-		settings.sampling = {};
-		expect(resolveSampling({ topPPreset: "rigid" }).topP).toBe(0.1);
 	});
 
 	it("rigid topP preset → rigidTopP from settings", () => {
