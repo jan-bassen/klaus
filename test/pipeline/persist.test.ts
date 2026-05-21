@@ -138,7 +138,7 @@ describe("pipeline/persistence.persistDynamic", () => {
 
 		expect(firstChatRequest().messages).toContainEqual({
 			role: "user",
-			content: "[image omitted from text-only follow-up/report]\ncaption",
+			content: "caption",
 		});
 		expect(JSON.stringify(firstChatRequest())).not.toContain("AAAABBBB");
 	});

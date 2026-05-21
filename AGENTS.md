@@ -173,7 +173,7 @@ Persistence:
 
 ## Reports
 
-One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, LLM steps, tool calls, and **verbatim** system prompt + user message + history transcript for spotting injection or format bugs.
+One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, LLM steps, tool calls, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Image data URLs are redacted from text mirrors; the message wrapper records the media as `Image` with the stored filename when available.
 
 Sim runs always set `simulation: true` and carry the `simulatedActions` list from the overlay.
 

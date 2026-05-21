@@ -209,7 +209,7 @@ describe("pipeline/prompts: buildAgentMessage", () => {
 });
 
 describe("pipeline/prompts: textOnlyUserContent", () => {
-	it("keeps text parts and replaces image data URLs with a marker", () => {
+	it("keeps text parts and drops image data URLs", () => {
 		const content: UserContent = [
 			{
 				type: "image_url",
@@ -218,8 +218,17 @@ describe("pipeline/prompts: textOnlyUserContent", () => {
 			{ type: "text", text: "what is this?" },
 		];
 
-		expect(textOnlyUserContent(content)).toBe(
-			"[image omitted from text-only follow-up/report]\nwhat is this?",
-		);
+		expect(textOnlyUserContent(content)).toBe("what is this?");
+	});
+
+	it("uses a compact image marker when there is no text part", () => {
+		const content: UserContent = [
+			{
+				type: "image_url",
+				imageUrl: { url: "data:image/png;base64,AAAABBBB" },
+			},
+		];
+
+		expect(textOnlyUserContent(content)).toBe("Image");
 	});
 });

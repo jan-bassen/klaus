@@ -30,7 +30,7 @@ Reports include:
 - Simulated actions
 - Errors and trace output
 
-They intentionally include verbatim prompt and history text so prompt bugs, injection, missing variables, and wrong history scope are visible.
+They intentionally include rendered prompt and history text so prompt bugs, injection, missing variables, and wrong history scope are visible. Image data URLs are redacted from the text mirror; the surrounding message template still records the media as `Image` with a stored filename when available.
 
 Markdown report prompt blocks use fences long enough to contain nested code blocks from snippets, skills, or user messages without breaking the rendered report.
 

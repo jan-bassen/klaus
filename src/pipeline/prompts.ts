@@ -29,7 +29,7 @@ import type { TurnConfig } from "./overrides.ts";
 
 /** User-message content as accepted by the chat completions API. */
 export type UserContent = ChatUserMessage["content"];
-const OMITTED_IMAGE_TEXT = "[image omitted from text-only follow-up/report]";
+const IMAGE_TEXT = "Image";
 
 // ── Template loader ────────────────────────────────────────────────────────
 
@@ -175,7 +175,7 @@ function renderUserText(turn: TurnContext): string {
 		isVoice,
 		isImage,
 		isDocument,
-		...(media?.fileName ? { fileName: media.fileName } : {}),
+		...(media ? { fileName: media.fileName ?? path.basename(media.path) } : {}),
 		...(media?.mimeType ? { mimeType: media.mimeType } : {}),
 		...(isDocument && media?.extractedText
 			? { extractedText: media.extractedText }
@@ -244,12 +244,20 @@ export async function buildUserMessage(
 export function textOnlyUserContent(content: UserContent): string {
 	if (typeof content === "string") return content;
 
-	return content
+	const text = content
 		.map((part) => {
 			if (part.type === "text") return part.text;
-			if (part.type === "image_url") return OMITTED_IMAGE_TEXT;
-			return `[${part.type} omitted from text-only follow-up/report]`;
+			return "";
 		})
+		.join("\n")
+		.trim();
+	if (text) return text;
+
+	const hasImage = content.some((part) => part.type === "image_url");
+	if (hasImage) return IMAGE_TEXT;
+
+	return content
+		.map((part) => `[${part.type} omitted from text-only follow-up/report]`)
 		.join("\n")
 		.trim();
 }
