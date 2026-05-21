@@ -165,7 +165,6 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			config,
 			message: effectiveMsg,
 			messageRefs: {},
-			pendingSubReplies: [],
 		};
 
 		try {

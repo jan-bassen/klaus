@@ -101,6 +101,7 @@ src/
 
 Dispatched runs (cron, timer, `dispatch` tool) start at step 5 with a synthesised `Trigger`.
 Frontmatter schedules render `# Message` with `{{schedule.*}}`; timer and dispatch-tool runs prefer `# Message` with `{{dispatch.prompt}}`, falling back to the raw objective when no `# Message` exists.
+Inline `dispatch` tool replies return to the caller as the tool result; only schedule/timer dispatches send directly to WhatsApp.
 
 ## Agents
 

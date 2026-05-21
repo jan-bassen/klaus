@@ -84,7 +84,6 @@ describe("pipeline/dispatch.dispatch", () => {
 			trigger,
 			dispatchContext: { prompt: "run the check" },
 			messageRefs: {},
-			pendingSubReplies: [],
 		});
 		expect(call?.turn.runId).toEqual(expect.any(String));
 	});

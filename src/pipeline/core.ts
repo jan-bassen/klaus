@@ -22,7 +22,6 @@ import { type ModelTier, resolveModel, settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
 import { appendTrace, type TraceStep } from "../infra/store/history.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
-import { enqueueMessage } from "../infra/whatsapp/send.ts";
 import { REPLY_TOOL_NAME } from "../primitives/tools/reply.ts";
 import type { Variable } from "../primitives/variables/index.ts";
 import type { AgentDefinition } from "./agents.ts";
@@ -91,14 +90,6 @@ export interface TurnContext {
 	dispatchContext?: { prompt: string };
 	/** Present for generated frontmatter schedules while rendering # Message. */
 	schedule?: ScheduleContext;
-	/**
-	 * Ordered slots for inline-dispatched sub-agent replies. Each slot is an
-	 * array of reply strings filled by a sub-agent while its turn runs. At end
-	 * of this turn, slots flush in index order — either into `_replyCollector`
-	 * (if this turn is itself a sub) or to WhatsApp (if top-level). Preserves
-	 * dispatch-call order even when sub-agents run in parallel.
-	 */
-	pendingSubReplies: string[][];
 	/** @internal — collects reply content for inline-dispatched agents instead of sending to WhatsApp */
 	_replyCollector?: string[];
 }
@@ -223,8 +214,6 @@ export async function executeAgent(
 			});
 		}
 
-		flushPendingSubReplies(fullTurn);
-
 		if (reportEnabled) {
 			await emitReport({ turn: fullTurn, startedAt, result });
 		}
@@ -236,39 +225,6 @@ export async function executeAgent(
 		}
 		throw err;
 	}
-}
-
-/**
- * After the agent's loop completes, drain the indexed sub-reply slots in
- * dispatch-call order. When this turn is itself a sub (has its own
- * `_replyCollector`), bubble the slots up to the parent. Otherwise this is a
- * top-level run — enqueue each slot entry as its own WhatsApp message.
- *
- * Under `!simulate` at the top level, the sim report already captured the
- * reply intents (via each reply tool's simulate handler logged on the
- * overlay), so we drop the slots without enqueuing.
- */
-function flushPendingSubReplies(turn: TurnContext): void {
-	if (turn.pendingSubReplies.length === 0) return;
-
-	if (turn._replyCollector) {
-		for (const slot of turn.pendingSubReplies) {
-			for (const content of slot) turn._replyCollector.push(content);
-		}
-	} else if (!turn.config?.simulate) {
-		for (const slot of turn.pendingSubReplies) {
-			for (const content of slot) {
-				enqueueMessage({
-					chatId: turn.chatId,
-					content,
-					dedupKey: `${turn.runId}:sub:${crypto.randomUUID()}`,
-					label: turn.agent.name,
-				});
-			}
-		}
-	}
-
-	turn.pendingSubReplies.length = 0;
 }
 
 /**

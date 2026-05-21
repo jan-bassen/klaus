@@ -1,15 +1,19 @@
-/**
- * `primitives/tools/sets/dispatch.ts` — `parseRunAt` (the only piece worth
- * unit-testing without dragging in the dispatch + executeAgent stack).
- *
- * The dispatch tool execute paths involve mocks of `src/pipeline/dispatch.ts` +
- * `src/infra/store/timers.ts` + `src/infra/store/schedules.ts` and don't pay for
- * themselves as sanity checks for tinkering — the tool's logic is mostly
- * forwarding. We cover end-to-end behaviour separately via the store tests.
- */
+import { describe, expect, it, vi } from "vitest";
+import {
+	dispatchToolset,
+	parseRunAt,
+} from "../../../../src/primitives/tools/sets/dispatch.ts";
+import { makeTurn } from "../../../helpers/turn.ts";
 
-import { describe, expect, it } from "vitest";
-import { parseRunAt } from "../../../../src/primitives/tools/sets/dispatch.ts";
+const dispatchMock = vi.hoisted(() => vi.fn());
+
+vi.mock("../../../../src/pipeline/dispatch.ts", () => ({
+	dispatch: dispatchMock,
+}));
+
+const dispatchTool = dispatchToolset.tools.find(
+	(tool) => tool.name === "dispatch",
+);
 
 describe("parseRunAt", () => {
 	it("'30m' → now + 30*60*1000 (±tolerance)", () => {
@@ -45,5 +49,28 @@ describe("parseRunAt", () => {
 
 	it("garbage input throws with helpful message", () => {
 		expect(() => parseRunAt("not a date")).toThrow(/Invalid when value/);
+	});
+});
+
+describe("dispatch tool", () => {
+	it("returns inline child replies to the caller without queueing them for user send", async () => {
+		dispatchMock.mockImplementationOnce(async ({ replyCollector }) => {
+			replyCollector.push("child result");
+			return "child result";
+		});
+
+		const turn = makeTurn();
+		const result = await dispatchTool?.execute({ prompt: "check this" }, turn);
+
+		expect(result).toBe("child result");
+		expect(dispatchMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				agent: "dispatch",
+				prompt: "check this",
+				chatId: "c1",
+				trigger: { kind: "dispatch", parentRunId: "r-test" },
+				replyCollector: expect.any(Array),
+			}),
+		);
 	});
 });

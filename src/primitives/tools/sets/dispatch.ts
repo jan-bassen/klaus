@@ -61,7 +61,7 @@ const dispatchSchema = z.object({
 		.string()
 		.optional()
 		.describe(
-			"Omit to run inline now and auto-forward the reply. Set to a duration (e.g. '2h', '30m') or ISO datetime to schedule a one-shot timer.",
+			"Omit to run inline now and return the reply to the caller. Set to a duration (e.g. '2h', '30m') or ISO datetime to schedule a one-shot timer.",
 		),
 });
 
@@ -71,7 +71,7 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 		const names = [...agentRegistry.keys()];
 		const list =
 			names.length > 0 ? ` Available agents: ${names.join(", ")}.` : "";
-		return `Invoke another agent. Omit \`when\` to run inline (reply auto-forwarded to the user); set \`when\` to schedule a one-shot timer.${list}`;
+		return `Invoke another agent. Omit \`when\` to run inline and return its reply to you; set \`when\` to schedule a one-shot timer.${list}`;
 	},
 	inputSchema: dispatchSchema,
 	execute: async (input, context) => {
@@ -93,7 +93,6 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 		}
 
 		const slot: string[] = [];
-		context.pendingSubReplies.push(slot);
 		const result = await dispatchFn({
 			agent,
 			prompt: input.prompt,
@@ -112,7 +111,6 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 		}
 
 		const slot: string[] = [];
-		context.pendingSubReplies.push(slot);
 		const result = await dispatchFn({
 			agent,
 			prompt: input.prompt,

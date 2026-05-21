@@ -39,7 +39,6 @@ export function makeTurn(patch: Partial<TurnContext> = {}): TurnContext {
 		config,
 		vars: {},
 		messageRefs: {},
-		pendingSubReplies: [],
 		agent,
 		...patch,
 	};

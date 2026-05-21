@@ -8,8 +8,7 @@
  *
  * Async mode is gone — future work is always expressed as a timer now. Inline
  * sub-agent replies are collected through a caller-provided `replyCollector`
- * slot so the parent can preserve dispatch-call order when flushing (see
- * `TurnContext.pendingSubReplies`). Top-level runs (schedule/timer/message)
+ * and returned as the dispatch tool result. Top-level runs (schedule/timer)
  * pass no collector, so their reply tools fall through to WhatsApp directly.
  */
 
@@ -77,7 +76,6 @@ export async function dispatch(
 		overrides: {},
 		config,
 		messageRefs: {},
-		pendingSubReplies: [],
 		...(opts.prompt !== undefined
 			? { dispatchContext: { prompt: opts.prompt } }
 			: {}),

@@ -69,6 +69,8 @@ Dispatch runs do not start from an inbound WhatsApp message. They synthesize a `
 
 Frontmatter schedules render the agent's `# Message` section with `{{schedule.*}}`. Timer and dispatch-tool runs prefer the agent's `# Message` section with `{{dispatch.prompt}}`, falling back to the raw objective for agents without that section. Dynamic persistence forces a final `persist` tool call after the main turn; if that call fails, the chain breaks visibly.
 
+Inline dispatch replies return to the caller as the `dispatch` tool result. They are not auto-sent to WhatsApp; the caller decides what, if anything, to tell the user. Timer and schedule dispatches have no caller, so their `reply` calls send directly to WhatsApp.
+
 Schedules and timers do not store a chat target. Klaus is a single-chat runtime: when future work fires, it resolves the current `settings.allowedChat`.
 
 Startup loads and syncs schedules/timers while their clocks are paused. `activateFutureWorkIfReady()` starts them only after `settings.allowedChat` exists and WhatsApp is connected. If WhatsApp disconnects, clocks pause again and resume on reconnect. Cron schedules do not backfill missed ticks; timers whose `runAt` is already past fire as soon as activation starts them.

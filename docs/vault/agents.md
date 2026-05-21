@@ -103,6 +103,7 @@ With sections:
 
 Frontmatter schedules expose `{{schedule.id}}`, `{{schedule.pattern}}`, and optional `{{schedule.label}}` while rendering `# Message`.
 Timer and dispatch runs expose the requested objective as `{{dispatch.prompt}}`; if an agent has no `# Message` section, Klaus falls back to using that objective directly as the user message.
+Inline `dispatch` tool runs return their `reply` content to the caller as the tool result. Schedule and timer dispatches have no caller, so their `reply` calls send directly to WhatsApp.
 
 ## Tools
 

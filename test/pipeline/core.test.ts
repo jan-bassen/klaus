@@ -6,7 +6,6 @@ import { settings } from "../../src/infra/config.ts";
 import { getTraces } from "../../src/infra/store/history.ts";
 import { readReports } from "../../src/infra/store/report.ts";
 import { listTimers, stopAllTimers } from "../../src/infra/store/timers.ts";
-import { enqueueMessage } from "../../src/infra/whatsapp/send.ts";
 import {
 	type AgentDefinition,
 	AgentSchema,
@@ -32,10 +31,6 @@ vi.mock("@openrouter/sdk", () => ({
 			},
 		};
 	}),
-}));
-
-vi.mock("../../src/infra/whatsapp/send.ts", () => ({
-	enqueueMessage: vi.fn(),
 }));
 
 const replyTool: ToolDefinition<typeof replySchema> = {
@@ -121,7 +116,6 @@ describe("pipeline/core.executeAgent", () => {
 			process.env.OPENROUTER_API_KEY = originalApiKey;
 		}
 		sendMock.mockReset();
-		vi.mocked(enqueueMessage).mockReset();
 		rmTmpDir(tmpDir);
 	});
 
@@ -617,81 +611,6 @@ describe("pipeline/core.executeAgent", () => {
 		await pause();
 
 		expect((await getTraces()).has("run-ghost")).toBe(false);
-	});
-
-	it("flushes pending sub-replies to WhatsApp in slot order and clears them", async () => {
-		sendMock.mockResolvedValueOnce(chatResponse());
-		const def = makeAgent(tmpDir);
-		const turn = makeTurn({
-			agent: def,
-			runId: "run-sub",
-			config: { report: false, stepLimit: 1, skipHistory: true },
-			dispatchContext: { prompt: "objective" },
-			pendingSubReplies: [["first"], ["second", "third"]],
-		});
-
-		await executeAgent({ turn, def, variables: [] });
-
-		expect(vi.mocked(enqueueMessage).mock.calls.map((call) => call[0])).toEqual(
-			[
-				expect.objectContaining({
-					chatId: "c1",
-					content: "first",
-					label: "core-test",
-				}),
-				expect.objectContaining({
-					chatId: "c1",
-					content: "second",
-					label: "core-test",
-				}),
-				expect.objectContaining({
-					chatId: "c1",
-					content: "third",
-					label: "core-test",
-				}),
-			],
-		);
-		expect(turn.pendingSubReplies).toEqual([]);
-	});
-
-	it("bubbles pending sub-replies into a parent collector instead of WhatsApp", async () => {
-		sendMock.mockResolvedValueOnce(chatResponse());
-		const collector: string[] = [];
-		const def = makeAgent(tmpDir);
-		const turn = makeTurn({
-			agent: def,
-			config: { report: false, stepLimit: 1, skipHistory: true },
-			dispatchContext: { prompt: "objective" },
-			pendingSubReplies: [["alpha"], ["beta"]],
-			_replyCollector: collector,
-		});
-
-		await executeAgent({ turn, def, variables: [] });
-
-		expect(collector).toEqual(["alpha", "beta"]);
-		expect(enqueueMessage).not.toHaveBeenCalled();
-		expect(turn.pendingSubReplies).toEqual([]);
-	});
-
-	it("drops top-level pending sub-replies during simulation", async () => {
-		sendMock.mockResolvedValueOnce(chatResponse());
-		const def = makeAgent(tmpDir);
-		const turn = makeTurn({
-			agent: def,
-			config: {
-				simulate: true,
-				report: false,
-				stepLimit: 1,
-				skipHistory: true,
-			},
-			dispatchContext: { prompt: "objective" },
-			pendingSubReplies: [["dry run"]],
-		});
-
-		await executeAgent({ turn, def, variables: [] });
-
-		expect(enqueueMessage).not.toHaveBeenCalled();
-		expect(turn.pendingSubReplies).toEqual([]);
 	});
 
 	it("forces a dynamic-persistence tool call and schedules the returned timer", async () => {
