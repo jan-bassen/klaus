@@ -16,7 +16,11 @@ import type { ToolDefinition } from "./index.ts";
 export const REPLY_TOOL_NAME = "reply";
 
 const replySchema = z.object({
-	content: z.string().describe("The message content to send"),
+	content: z
+		.string()
+		.min(1)
+		.refine((value) => value.trim().length > 0, "Message content is required")
+		.describe("The non-empty message content to send"),
 	voice: z
 		.boolean()
 		.optional()

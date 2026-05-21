@@ -416,6 +416,24 @@ describe("pipeline/context.invokeTool simulation wrapper", () => {
 		expect(externalExecute).toHaveBeenCalledOnce();
 	});
 
+	it("returns a tool error instead of executing invalid tool input", async () => {
+		const def = makeAgent(tmpDir, "alpha", ["pure_echo"]);
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			config: { skipHistory: true },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		const result = await ctx.tools.functionTools.pure_echo?.execute({
+			value: 42,
+		});
+
+		expect(result).toEqual({
+			error: expect.stringContaining("Invalid pure_echo input"),
+		});
+		expect(pureExecute).not.toHaveBeenCalled();
+	});
+
 	it("passes pure tools through during simulation", async () => {
 		const def = makeAgent(tmpDir, "alpha", ["pure_echo"]);
 		const turn = baseTurn(tmpDir, {

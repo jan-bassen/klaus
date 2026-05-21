@@ -130,8 +130,15 @@ async function invokeTool(
 	input: unknown,
 	turn: TurnContext,
 ): Promise<unknown> {
+	const parsed = t.inputSchema.safeParse(input);
+	if (!parsed.success) {
+		return {
+			error: `Invalid ${t.name} input: ${formatToolInputError(parsed.error)}`,
+		};
+	}
+
 	if (!turn.config?.simulate) {
-		return t.execute(input, turn);
+		return t.execute(parsed.data, turn);
 	}
 
 	const overlay = getOverlay(turn);
@@ -140,11 +147,11 @@ async function invokeTool(
 	// pure read tools (e.g. vault_read) consult the overlay so they see
 	// writes made earlier in the same turn.
 	if (t.simulate) {
-		const result = await t.simulate(input, turn);
+		const result = await t.simulate(parsed.data, turn);
 		overlay.actions.push({
 			tool: t.name,
 			sideEffect: t.sideEffect,
-			args: input,
+			args: parsed.data,
 			intent: `Custom simulate handler`,
 			result,
 		});
@@ -153,22 +160,31 @@ async function invokeTool(
 
 	// No handler: pure passes through; external/stateful get generic fakes.
 	if (t.sideEffect === "pure") {
-		return t.execute(input, turn);
+		return t.execute(parsed.data, turn);
 	}
 
 	const { result, intent } =
 		t.sideEffect === "external"
-			? fakeExternal(t.name, input)
-			: fakeStateful(t.name, input);
+			? fakeExternal(t.name, parsed.data)
+			: fakeStateful(t.name, parsed.data);
 	overlay.actions.push({
 		tool: t.name,
 		sideEffect: t.sideEffect,
-		args: input,
+		args: parsed.data,
 		intent,
 		result,
 	});
 	log.info(`[sim] ${t.name} (${t.sideEffect}) — ${intent}`);
 	return result;
+}
+
+function formatToolInputError(error: z.ZodError): string {
+	return error.issues
+		.map((issue) => {
+			const path = issue.path.map((segment) => String(segment)).join(".");
+			return path ? `${path}: ${issue.message}` : issue.message;
+		})
+		.join("; ");
 }
 
 function createToolAssembly(turn: TurnContext): ToolAssembly {

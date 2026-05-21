@@ -333,12 +333,7 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 	}
 
 	const replyContent = result.steps
-		.flatMap((s) => s.toolCalls)
-		.filter((tc) => tc.toolName === REPLY_TOOL_NAME)
-		.map((tc) => {
-			const content = tc.args?.content;
-			return typeof content === "string" ? content : "";
-		})
+		.flatMap((step) => acceptedReplyContents(step))
 		.join("\n---\n");
 
 	const userMessageStr = textOnlyUserContent(userContent);
@@ -366,6 +361,29 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 
 function sortedUnique(values: string[]): string[] {
 	return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+}
+
+function acceptedReplyContents(step: ModelCallStep): string[] {
+	return step.toolCalls.flatMap((call) => {
+		if (call.toolName !== REPLY_TOOL_NAME) return [];
+
+		const result = step.toolResults.find(
+			(toolResult) => toolResult.toolCallId === call.toolCallId,
+		);
+		if (isToolError(result?.result)) return [];
+
+		const content = call.args.content;
+		return typeof content === "string" && content.trim() ? [content] : [];
+	});
+}
+
+function isToolError(result: unknown): boolean {
+	return (
+		typeof result === "object" &&
+		result !== null &&
+		"error" in result &&
+		typeof result.error === "string"
+	);
 }
 
 // ── Loop core (private) ────────────────────────────────────────────────────

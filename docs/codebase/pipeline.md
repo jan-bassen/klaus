@@ -73,4 +73,4 @@ Startup loads and syncs schedules/timers while their clocks are paused. `activat
 
 ## Reports
 
-Reports are emitted unless `turn.config.report === false`. They include the assembled variable, tool, and skill names alongside prompts, history, steps, and tool calls. Simulation turns always report and include simulated actions. The report path and vault Markdown mirror are configured in `settings.yml`; see [../vault/reports.md](../vault/reports.md).
+Reports are emitted unless `turn.config.report === false`. They include the assembled variable, tool, and skill names alongside prompts, history, steps, and tool calls. The human-facing agent message is derived from nonblank `reply.content` tool calls only; malformed or empty reply calls remain visible in the step trace without becoming separator-only message fragments. Simulation turns always report and include simulated actions. The report path and vault Markdown mirror are configured in `settings.yml`; see [../vault/reports.md](../vault/reports.md).

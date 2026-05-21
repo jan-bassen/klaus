@@ -42,7 +42,8 @@ const replyTool: ToolDefinition<typeof replySchema> = {
 	name: "reply",
 	description: "Reply with text",
 	inputSchema: replySchema,
-	execute: async () => "sent",
+	execute: async ({ content }) =>
+		content === "not actually sent" ? { error: "not sent" } : "sent",
 	sideEffect: "pure",
 	kind: "builtin",
 	capability: "tool",
@@ -234,6 +235,36 @@ describe("pipeline/core.executeAgent", () => {
 		const result = await executeAgent({ turn, def, variables: [] });
 
 		expect(result.replyContent).toBe("first\n---\nsecond");
+	});
+
+	it("derives replyContent from accepted reply tool calls only", async () => {
+		sendMock
+			.mockResolvedValueOnce(
+				chatResponse({
+					toolCalls: [
+						toolCall("reply", {}, "reply-empty-args"),
+						toolCall("reply", { content: "   " }, "reply-blank"),
+						toolCall(
+							"reply",
+							{ content: "not actually sent", messageRef: "missing" },
+							"reply-bad-ref",
+						),
+						toolCall("reply", { content: "actual reply" }, "reply-ok"),
+					],
+				}),
+			)
+			.mockResolvedValueOnce(chatResponse());
+
+		const def = makeAgent(tmpDir, { tools: ["reply"] });
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 2, skipHistory: true },
+			dispatchContext: { prompt: "objective" },
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(result.replyContent).toBe("actual reply");
 	});
 
 	it("recovers direct assistant content as a visible fallback reply", async () => {
