@@ -28,6 +28,7 @@ async function setDefault(
 
 export const defaultCommand: Command = {
 	name: "default",
+	aliases: ["d"],
 	params: [{ name: "agent" }],
 	description: "Change the default agent",
 	async execute(msg: InboundMessage, args: string[]): Promise<void> {
