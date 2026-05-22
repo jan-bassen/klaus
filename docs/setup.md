@@ -10,6 +10,7 @@ This guide is the practical path from clone to a running Klaus container. The sh
 - `OPENROUTER_API_KEY`, unless you reconfigure the default provider to use another endpoint
 
 Klaus runs as one Docker container. Inside it, the app supervises `obsidian-headless`, which keeps `/app/vault` synced with your remote Obsidian vault.
+The image also includes `opus-tools` so Gemini PCM TTS can be encoded to WhatsApp-compatible Ogg Opus voice notes.
 
 ## Environment
 

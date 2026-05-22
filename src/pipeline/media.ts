@@ -6,6 +6,7 @@
  * in `infra/whatsapp`. This module is the single surface the pipeline talks to.
  */
 
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { LiteParse } from "@llamaindex/liteparse";
 import { OpenRouter } from "@openrouter/sdk";
@@ -34,7 +35,9 @@ export async function transcribe(
 				sttRequest: {
 					model: settings.media.voice.stt.model,
 					inputAudio: {
-						data: Buffer.from(await readArrayBuffer(filePath)).toString("base64"),
+						data: Buffer.from(await readArrayBuffer(filePath)).toString(
+							"base64",
+						),
 						format: audioFormat(mimeType),
 					},
 				},
@@ -75,12 +78,8 @@ export async function textToSpeech(text: string): Promise<SpeechAudio | Error> {
 			{ timeoutMs: settings.media.voice.tts.timeout },
 		);
 		const audio = await streamToBuffer(stream);
-		if (settings.media.voice.tts.responseFormat === "pcm") {
-			return {
-				bytes: wrapPcmAsWav(audio),
-				mimeType: "audio/wav",
-			};
-		}
+		if (settings.media.voice.tts.responseFormat === "pcm")
+			return await encodePcmToOggOpus(audio);
 		return {
 			bytes: audio,
 			mimeType: "audio/mpeg",
@@ -284,7 +283,9 @@ function mediaClient(endpoint: ResolvedMediaEndpoint): OpenRouter {
 	});
 }
 
-async function streamToBuffer(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
+async function streamToBuffer(
+	stream: ReadableStream<Uint8Array>,
+): Promise<Buffer> {
 	const reader = stream.getReader();
 	const chunks: Uint8Array[] = [];
 	let byteLength = 0;
@@ -305,29 +306,49 @@ async function streamToBuffer(stream: ReadableStream<Uint8Array>): Promise<Buffe
 	return Buffer.from(out);
 }
 
-function wrapPcmAsWav(pcm: Buffer): Buffer {
-	const sampleRate = 24000;
-	const channels = 1;
-	const bitsPerSample = 16;
-	const header = Buffer.alloc(44);
-	const byteRate = (sampleRate * channels * bitsPerSample) / 8;
-	const blockAlign = (channels * bitsPerSample) / 8;
+async function encodePcmToOggOpus(pcm: Buffer): Promise<SpeechAudio | Error> {
+	return await new Promise((resolve) => {
+		const child = spawn("opusenc", [
+			"--quiet",
+			"--raw",
+			"--raw-bits",
+			"16",
+			"--raw-rate",
+			"24000",
+			"--raw-chan",
+			"1",
+			"--bitrate",
+			"32k",
+			"-",
+			"-",
+		]);
+		const out: Buffer[] = [];
+		const errors: Buffer[] = [];
 
-	header.write("RIFF", 0);
-	header.writeUInt32LE(36 + pcm.length, 4);
-	header.write("WAVE", 8);
-	header.write("fmt ", 12);
-	header.writeUInt32LE(16, 16);
-	header.writeUInt16LE(1, 20);
-	header.writeUInt16LE(channels, 22);
-	header.writeUInt32LE(sampleRate, 24);
-	header.writeUInt32LE(byteRate, 28);
-	header.writeUInt16LE(blockAlign, 32);
-	header.writeUInt16LE(bitsPerSample, 34);
-	header.write("data", 36);
-	header.writeUInt32LE(pcm.length, 40);
-
-	return Buffer.concat([header, pcm]);
+		child.stdout.on("data", (chunk: Buffer) => out.push(chunk));
+		child.stderr.on("data", (chunk: Buffer) => errors.push(chunk));
+		child.on("error", (err) => {
+			resolve(new Error(`opusenc audio conversion failed: ${err.message}`));
+		});
+		child.on("close", (code) => {
+			if (code === 0) {
+				resolve({
+					bytes: Buffer.concat(out),
+					mimeType: "audio/ogg; codecs=opus",
+				});
+				return;
+			}
+			const detail = Buffer.concat(errors).toString("utf8").trim();
+			resolve(
+				new Error(
+					`opusenc audio conversion failed with exit code ${code}${
+						detail ? `: ${detail}` : ""
+					}`,
+				),
+			);
+		});
+		child.stdin.end(pcm);
+	});
 }
 
 function audioFormat(mimeType: string): string {

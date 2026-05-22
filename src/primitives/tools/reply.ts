@@ -96,6 +96,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 						chatId: context.chatId,
 						content: audio.bytes,
 						mimeType: audio.mimeType,
+						...(audio.mimeType.includes("opus") ? { voiceNote: true } : {}),
 						dedupKey: makeDedupKey(context, "reply-voice"),
 						label: context.agent.name,
 						...voiceQuotedPart,

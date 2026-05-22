@@ -100,7 +100,7 @@ src/
 
 Dispatched runs (cron, timer, `dispatch` tool) start at step 5 with a synthesised `Trigger`.
 Frontmatter schedules render `# Message` with `{{schedule.*}}`; timer and dispatch-tool runs prefer `# Message` with `{{dispatch.prompt}}`, falling back to the raw objective when no `# Message` exists.
-Inline `dispatch` tool replies return to the caller as the tool result; only schedule/timer dispatches send directly to WhatsApp. TTS output format is set by `media.voice.tts.responseFormat`; PCM responses are wrapped as 24 kHz, 16-bit mono WAV audio before WhatsApp send.
+Inline `dispatch` tool replies return to the caller as the tool result; only schedule/timer dispatches send directly to WhatsApp. TTS output format is set by `media.voice.tts.responseFormat`; PCM responses are converted from 24 kHz, 16-bit mono PCM to Ogg Opus before WhatsApp voice-note send.
 
 ## Agents
 

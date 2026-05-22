@@ -9,6 +9,7 @@
  * mocked `fetch`/SDK in a separate suite if needed.
  */
 
+import { EventEmitter } from "node:events";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
@@ -21,6 +22,12 @@ import {
 	textToSpeech,
 } from "../../src/pipeline/media.ts";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
+
+const spawnMock = vi.hoisted(() => vi.fn());
+
+vi.mock("node:child_process", () => ({
+	spawn: spawnMock,
+}));
 
 describe("pipeline/media: isParseableDocument", () => {
 	it("accepts the allowlisted office formats", () => {
@@ -155,10 +162,11 @@ describe("pipeline/media: textToSpeech", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("calls OpenRouter speech with the configured voice and wraps PCM as WAV", async () => {
+	it("calls OpenRouter speech with the configured voice and encodes PCM as Ogg Opus", async () => {
 		process.env.OPENROUTER_API_KEY = "test-key";
 		settings.media.voice.tts.voice = "Kore";
 		settings.media.voice.tts.responseFormat = "pcm";
+		spawnMock.mockReturnValueOnce(fakeFfmpeg(Buffer.from("opus")));
 		const fetchMock = vi.fn(
 			async (_input: string | URL | Request, _init?: RequestInit) =>
 				new Response(new Uint8Array([1, 2, 3]), {
@@ -171,10 +179,22 @@ describe("pipeline/media: textToSpeech", () => {
 
 		if (result instanceof Error) throw result;
 		expect(Buffer.isBuffer(result.bytes)).toBe(true);
-		expect(result.mimeType).toBe("audio/wav");
-		expect(result.bytes.subarray(0, 4).toString("ascii")).toBe("RIFF");
-		expect(result.bytes.subarray(8, 12).toString("ascii")).toBe("WAVE");
-		expect(result.bytes.subarray(44)).toEqual(Buffer.from([1, 2, 3]));
+		expect(result.mimeType).toBe("audio/ogg; codecs=opus");
+		expect(result.bytes).toEqual(Buffer.from("opus"));
+		expect(spawnMock).toHaveBeenCalledWith("opusenc", [
+			"--quiet",
+			"--raw",
+			"--raw-bits",
+			"16",
+			"--raw-rate",
+			"24000",
+			"--raw-chan",
+			"1",
+			"--bitrate",
+			"32k",
+			"-",
+			"-",
+		]);
 		const request = fetchMock.mock.calls[0]?.[0];
 		expect(request).toBeInstanceOf(Request);
 		if (!(request instanceof Request)) throw new Error("expected Request");
@@ -188,3 +208,29 @@ describe("pipeline/media: textToSpeech", () => {
 		});
 	});
 });
+
+function fakeFfmpeg(stdout: Buffer): {
+	stdout: EventEmitter;
+	stderr: EventEmitter;
+	stdin: { end: (input: Buffer) => void };
+	on: (event: "error" | "close", cb: (value: Error | number) => void) => void;
+} {
+	const out = new EventEmitter();
+	const err = new EventEmitter();
+	const child = new EventEmitter();
+	return {
+		stdout: out,
+		stderr: err,
+		stdin: {
+			end: (_input: Buffer) => {
+				queueMicrotask(() => {
+					out.emit("data", stdout);
+					child.emit("close", 0);
+				});
+			},
+		},
+		on: (event, cb) => {
+			child.on(event, cb);
+		},
+	};
+}

@@ -12,6 +12,10 @@ LABEL org.opencontainers.image.version="${VERSION}"
 ENV VERSION=${VERSION}
 WORKDIR /app
 
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends opus-tools \
+	&& rm -rf /var/lib/apt/lists/*
+
 # obsidian-headless: bundles vault sync into the Klaus container so a single
 # `docker run` covers WhatsApp + Obsidian Sync. Klaus supervises `ob` as a
 # child process from src/infra/vault/sync.ts.

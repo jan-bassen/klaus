@@ -174,6 +174,26 @@ describe("infra/whatsapp/send", () => {
 		expect(types).toEqual(["image", "audio", "document"]);
 	});
 
+	it("sends voice-note audio with the WhatsApp ptt flag", async () => {
+		const sock = makeSocket();
+		const mod = attach(sock);
+
+		mod.enqueueMessage({
+			chatId: "c1",
+			content: Buffer.from("opus"),
+			mimeType: "audio/ogg; codecs=opus",
+			voiceNote: true,
+			dedupKey: "k-voice-note",
+		});
+		await mod.drainQueue();
+
+		expect(sock.sendMessage.mock.calls[0]?.[1]).toEqual({
+			audio: Buffer.from("opus"),
+			mimetype: "audio/ogg; codecs=opus",
+			ptt: true,
+		});
+	});
+
 	it("retries on failure up to settings.whatsapp.retries.max", async () => {
 		const sock = makeSocket();
 		settings.whatsapp.retries = { max: 3, backoffMs: 0 };

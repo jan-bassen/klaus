@@ -33,8 +33,9 @@ If code adds a tunable setting, add it to both `vault/settings.yml` and `src/inf
 `media.voice.tts` and `media.voice.stt` use the same named endpoints as the
 model providers. The bundled template routes both through OpenRouter: Gemini
 Flash TTS for speech output and Voxtral Mini Transcribe for voice-note input.
-`media.voice.tts.responseFormat` is `pcm` or `mp3`; PCM output is wrapped as a
-24 kHz, 16-bit mono WAV before sending so Gemini TTS can be used directly.
+`media.voice.tts.responseFormat` is `pcm` or `mp3`; PCM output is converted from
+24 kHz, 16-bit mono PCM to Ogg Opus before sending so Gemini TTS can be used
+directly as a WhatsApp voice note.
 
 `whatsapp.presenceRefreshMs` is the interval for re-sending WhatsApp
 `composing`/`recording` updates while Klaus is working on an inbound message.

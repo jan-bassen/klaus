@@ -12,6 +12,8 @@ interface OutboundMessage {
 	chatId: string;
 	content: string | Buffer;
 	mimeType?: string;
+	/** Send audio buffers as WhatsApp push-to-talk voice notes. */
+	voiceNote?: boolean;
 	/** Dedup key: (message_id, ordinal) for deduplicating outbound messages */
 	dedupKey: string;
 	/** When set, the message is sent as a WhatsApp quote-reply to this message. */
@@ -105,10 +107,19 @@ export function enqueueMessage(
 		});
 }
 
-function mediaContent(content: Buffer, mimeType?: string): AnyMessageContent {
+function mediaContent(
+	content: Buffer,
+	mimeType?: string,
+	voiceNote?: boolean,
+): AnyMessageContent {
 	const mime = mimeType ?? "application/octet-stream";
 	if (mime.startsWith("image/")) return { image: content, mimetype: mime };
-	if (mime.startsWith("audio/")) return { audio: content, mimetype: mime };
+	if (mime.startsWith("audio/"))
+		return {
+			audio: content,
+			mimetype: mime,
+			...(voiceNote ? { ptt: true } : {}),
+		};
 	if (mime.startsWith("video/")) return { video: content, mimetype: mime };
 	return { document: content, mimetype: mime };
 }
@@ -129,7 +140,7 @@ async function sendWithRetry(
 	const waContent =
 		typeof effectiveContent === "string"
 			? { text: effectiveContent }
-			: mediaContent(effectiveContent, msg.mimeType);
+			: mediaContent(effectiveContent, msg.mimeType, msg.voiceNote);
 
 	try {
 		if (attempt > 1) {
