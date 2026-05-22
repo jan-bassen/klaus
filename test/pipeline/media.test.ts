@@ -142,6 +142,7 @@ describe("pipeline/media: prepareImage", () => {
 describe("pipeline/media: textToSpeech", () => {
 	const originalApiKey = process.env.OPENROUTER_API_KEY;
 	const originalVoice = settings.media.voice.tts.voice;
+	const originalResponseFormat = settings.media.voice.tts.responseFormat;
 
 	afterEach(() => {
 		if (originalApiKey === undefined) {
@@ -150,23 +151,30 @@ describe("pipeline/media: textToSpeech", () => {
 			process.env.OPENROUTER_API_KEY = originalApiKey;
 		}
 		settings.media.voice.tts.voice = originalVoice;
+		settings.media.voice.tts.responseFormat = originalResponseFormat;
 		vi.unstubAllGlobals();
 	});
 
-	it("calls OpenRouter speech with the configured voice", async () => {
+	it("calls OpenRouter speech with the configured voice and wraps PCM as WAV", async () => {
 		process.env.OPENROUTER_API_KEY = "test-key";
 		settings.media.voice.tts.voice = "Kore";
+		settings.media.voice.tts.responseFormat = "pcm";
 		const fetchMock = vi.fn(
 			async (_input: string | URL | Request, _init?: RequestInit) =>
 				new Response(new Uint8Array([1, 2, 3]), {
-					headers: { "Content-Type": "audio/mpeg" },
+					headers: { "Content-Type": "audio/L16;codec=pcm;rate=24000" },
 				}),
 		);
 		vi.stubGlobal("fetch", fetchMock);
 
 		const result = await textToSpeech("hello");
 
-		expect(Buffer.isBuffer(result)).toBe(true);
+		if (result instanceof Error) throw result;
+		expect(Buffer.isBuffer(result.bytes)).toBe(true);
+		expect(result.mimeType).toBe("audio/wav");
+		expect(result.bytes.subarray(0, 4).toString("ascii")).toBe("RIFF");
+		expect(result.bytes.subarray(8, 12).toString("ascii")).toBe("WAVE");
+		expect(result.bytes.subarray(44)).toEqual(Buffer.from([1, 2, 3]));
 		const request = fetchMock.mock.calls[0]?.[0];
 		expect(request).toBeInstanceOf(Request);
 		if (!(request instanceof Request)) throw new Error("expected Request");
@@ -176,7 +184,7 @@ describe("pipeline/media: textToSpeech", () => {
 			model: "google/gemini-3.1-flash-tts-preview",
 			input: "hello",
 			voice: "Kore",
-			response_format: "mp3",
+			response_format: "pcm",
 		});
 	});
 });

@@ -183,6 +183,7 @@ const MediaSchema = z
 						endpoint: z.string(),
 						model: z.string(),
 						voice: z.string(),
+						responseFormat: z.enum(["mp3", "pcm"]),
 						timeout: z.number(),
 					})
 					.strict(),

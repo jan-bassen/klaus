@@ -94,8 +94,8 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 				enqueueMessage(
 					{
 						chatId: context.chatId,
-						content: audio,
-						mimeType: "audio/mpeg",
+						content: audio.bytes,
+						mimeType: audio.mimeType,
 						dedupKey: makeDedupKey(context, "reply-voice"),
 						label: context.agent.name,
 						...voiceQuotedPart,

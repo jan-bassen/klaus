@@ -52,7 +52,7 @@ Overrides are config only. They should not carry prompt content. Agent prompts a
 
 Agents should send user-visible text through the `reply` tool. If a reply-capable turn ends with plain assistant content instead of tool calls, `core.ts` treats that text as a fallback `reply` call, logs a warning, and marks the report step with `fallback: "assistant_content_reply"`. Empty assistant content still means no reply, and `toolChoice: "none"` keeps tools disabled.
 
-Successful TTS replies persist the original text with `voice: true` on the assistant history row. Text fallbacks after TTS failure remain normal text rows.
+Successful TTS replies persist the original text with `voice: true` on the assistant history row. OpenRouter TTS requests use `media.voice.tts.responseFormat`; PCM responses are wrapped as WAV audio for WhatsApp delivery. Text fallbacks after TTS failure remain normal text rows.
 
 Reactions are replayed as metadata on real history messages, not as separate history slots. `historyLimit` still counts message rows; selected rows can include `{{reactions}}` such as `alpha ✅` or `user ❤️`, so a reaction-only agent turn is visible without shrinking the transcript window.
 

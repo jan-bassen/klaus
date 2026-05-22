@@ -49,8 +49,13 @@ export async function transcribe(
 
 // ── Text-to-Speech ─────────────────────────────────────────────────────────
 
-/** Synthesise speech via OpenRouter TTS. Returns an MP3 buffer or an Error value. */
-export async function textToSpeech(text: string): Promise<Buffer | Error> {
+interface SpeechAudio {
+	bytes: Buffer;
+	mimeType: string;
+}
+
+/** Synthesise speech via OpenRouter TTS. Returns playable audio or an Error value. */
+export async function textToSpeech(text: string): Promise<SpeechAudio | Error> {
 	const endpoint = resolveMediaEndpoint(
 		settings.media.voice.tts.endpoint,
 		"media.voice.tts",
@@ -64,12 +69,22 @@ export async function textToSpeech(text: string): Promise<Buffer | Error> {
 					model: settings.media.voice.tts.model,
 					input: text,
 					voice: settings.media.voice.tts.voice,
-					responseFormat: "mp3",
+					responseFormat: settings.media.voice.tts.responseFormat,
 				},
 			},
 			{ timeoutMs: settings.media.voice.tts.timeout },
 		);
-		return await streamToBuffer(stream);
+		const audio = await streamToBuffer(stream);
+		if (settings.media.voice.tts.responseFormat === "pcm") {
+			return {
+				bytes: wrapPcmAsWav(audio),
+				mimeType: "audio/wav",
+			};
+		}
+		return {
+			bytes: audio,
+			mimeType: "audio/mpeg",
+		};
 	} catch (err) {
 		return err instanceof Error ? err : new Error(String(err));
 	}
@@ -288,6 +303,31 @@ async function streamToBuffer(stream: ReadableStream<Uint8Array>): Promise<Buffe
 		offset += chunk.length;
 	}
 	return Buffer.from(out);
+}
+
+function wrapPcmAsWav(pcm: Buffer): Buffer {
+	const sampleRate = 24000;
+	const channels = 1;
+	const bitsPerSample = 16;
+	const header = Buffer.alloc(44);
+	const byteRate = (sampleRate * channels * bitsPerSample) / 8;
+	const blockAlign = (channels * bitsPerSample) / 8;
+
+	header.write("RIFF", 0);
+	header.writeUInt32LE(36 + pcm.length, 4);
+	header.write("WAVE", 8);
+	header.write("fmt ", 12);
+	header.writeUInt32LE(16, 16);
+	header.writeUInt16LE(1, 20);
+	header.writeUInt16LE(channels, 22);
+	header.writeUInt32LE(sampleRate, 24);
+	header.writeUInt32LE(byteRate, 28);
+	header.writeUInt16LE(blockAlign, 32);
+	header.writeUInt16LE(bitsPerSample, 34);
+	header.write("data", 36);
+	header.writeUInt32LE(pcm.length, 40);
+
+	return Buffer.concat([header, pcm]);
 }
 
 function audioFormat(mimeType: string): string {
