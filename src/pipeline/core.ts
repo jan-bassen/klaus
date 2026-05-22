@@ -33,6 +33,7 @@ import {
 } from "./context.ts";
 import type { TurnConfig } from "./overrides.ts";
 import { persistDynamic } from "./persistence.ts";
+import { emitReport } from "./reports.ts";
 import {
 	buildSystemPrompt,
 	buildUserMessage,
@@ -40,7 +41,6 @@ import {
 	textOnlyUserContent,
 	type UserContent,
 } from "./templates.ts";
-import { emitReport } from "./reports.ts";
 
 // ── Public types ───────────────────────────────────────────────────────────
 
@@ -451,9 +451,7 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 				msg.content,
 				active,
 				opts.toolChoice,
-				steps.some((step) =>
-					step.toolCalls.some((call) => call.toolName === REPLY_TOOL_NAME),
-				),
+				steps.some((step) => acceptedReplyContents(step).length > 0),
 			);
 			if (fallbackReply) {
 				log.warn(

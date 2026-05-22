@@ -292,6 +292,41 @@ describe("pipeline/core.executeAgent", () => {
 		expect(result.replyContent).toBe("actual reply");
 	});
 
+	it("can recover direct assistant content after an invalid reply call", async () => {
+		sendMock
+			.mockResolvedValueOnce(
+				chatResponse({
+					toolCalls: [toolCall("reply", {}, "reply-empty-args")],
+				}),
+			)
+			.mockResolvedValueOnce(
+				chatResponse({ content: "Recovered final answer." }),
+			);
+
+		const def = makeAgent(tmpDir, { tools: ["reply"] });
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 2, skipHistory: true },
+			dispatchContext: { prompt: "objective" },
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(result.replyContent).toBe("Recovered final answer.");
+		expect(result.steps[0]?.toolResults[0]?.result).toMatchObject({
+			error: expect.stringContaining("Invalid reply input"),
+		});
+		expect(result.steps[1]).toMatchObject({
+			fallback: "assistant_content_reply",
+			toolCalls: [
+				{
+					toolName: "reply",
+					args: { content: "Recovered final answer." },
+				},
+			],
+		});
+	});
+
 	it("recovers direct assistant content as a visible fallback reply", async () => {
 		sendMock.mockResolvedValueOnce(
 			chatResponse({ content: "  I should have used reply.  " }),

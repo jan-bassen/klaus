@@ -80,6 +80,10 @@ export const shoutTool: ToolDefinition<typeof schema> = {
 
 Use Zod schemas for inputs. Klaus validates every model-supplied tool call against the schema before `execute` runs; invalid calls return an error result to the model and do not perform side effects. Avoid `any` and type assertions. Return clear values the model can act on, including error objects or strings when runtime conditions are wrong.
 
+`reply` is the terminal user-visible output tool. It requires complete nonblank
+message content; `voice` is a delivery flag for that same content, not a
+separate action.
+
 ## Toolsets
 
 Toolsets are lazy groups. The agent first sees a `load_<name>` meta-tool; after it calls the loader, the actual tools are injected on the next model step.

@@ -20,12 +20,14 @@ const replySchema = z.object({
 		.string()
 		.min(1)
 		.refine((value) => value.trim().length > 0, "Message content is required")
-		.describe("The non-empty message content to send"),
+		.describe(
+			"The complete final message to send. Required; never use a placeholder like 'voice'.",
+		),
 	voice: z
 		.boolean()
 		.optional()
 		.describe(
-			"Send as a voice message using text-to-speech. Use when the user requested audio output (e.g. !voice).",
+			"Delivery choice for this completed message. Set true only when the content should be spoken as a voice note.",
 		),
 	messageRef: z
 		.string()
@@ -38,7 +40,7 @@ const replySchema = z.object({
 export const replyTool: ToolDefinition<typeof replySchema> = {
 	name: REPLY_TOOL_NAME,
 	description:
-		"Send a WhatsApp message — works both as a reply to an inbound message and as a proactive/scheduled send.",
+		"Send one user-visible WhatsApp message only when the final content is ready; use voice as the delivery flag for that same content.",
 	inputSchema: replySchema,
 	execute: async ({ content, voice, messageRef }, context) => {
 		// Inline dispatch: capture reply for caller instead of sending to WhatsApp
@@ -50,8 +52,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 		log.info("[reply] enqueuing message");
 
 		const userFacingContent = formatUserFacingAgentMessage(content, context);
-		const useVoice =
-			!context.config?.suppressVoice && (voice || context.config?.forceVoice);
+		const useVoice = shouldSendVoice(voice, context);
 		if (useVoice) {
 			setPresenceKind(context.chatId, "recording");
 			const audio = await textToSpeech(content);
@@ -129,6 +130,15 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 		return "sent";
 	},
 };
+
+function shouldSendVoice(
+	voice: boolean | undefined,
+	context: TurnContext,
+): boolean {
+	if (context.config?.suppressVoice) return false;
+	if (context.config?.forceVoice) return true;
+	return voice === true;
+}
 
 function formatUserFacingAgentMessage(
 	content: string,

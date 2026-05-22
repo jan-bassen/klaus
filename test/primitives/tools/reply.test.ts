@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import { toJSONSchema } from "zod/v4";
 import { replyTool } from "../../../src/primitives/tools/reply.ts";
 import { makeTurn } from "../../helpers/turn.ts";
 
@@ -16,6 +17,21 @@ vi.mock("../../../src/infra/whatsapp/send.ts", () => ({
 }));
 
 describe("primitives/tools/reply: collector branch", () => {
+	it("requires content and exposes voice as a delivery choice", () => {
+		const schema = toJSONSchema(replyTool.inputSchema);
+		expect(schema).toMatchObject({
+			properties: {
+				content: expect.any(Object),
+				voice: expect.any(Object),
+				messageRef: expect.any(Object),
+			},
+			required: ["content"],
+		});
+		expect(replyTool.inputSchema.safeParse({ voice: true }).success).toBe(
+			false,
+		);
+	});
+
 	it("pushes content into the parent's _replyCollector and short-circuits", async () => {
 		const collector: string[] = [];
 		const turn = makeTurn({ _replyCollector: collector });
