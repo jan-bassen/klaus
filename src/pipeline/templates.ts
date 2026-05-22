@@ -1,5 +1,5 @@
 /**
- * Per-turn prompt compilation.
+ * Per-turn template compilation.
  *
  * Single home for all template rendering: the agent's `.md` body, the
  * `Klaus/templates/` files (`message-user`, `error`, `report`), and
@@ -83,7 +83,7 @@ function registerTemplate(name: string): HandlebarsTemplateDelegate | null {
 export function loadTemplates(): void {
 	const dir = settings.vault.templatesDir;
 	if (!existsSync(dir)) {
-		log.warn(`[prompts] templates dir missing: ${dir}`);
+		log.warn(`[templates] templates dir missing: ${dir}`);
 		return;
 	}
 	let count = 0;
@@ -92,7 +92,7 @@ export function loadTemplates(): void {
 		const name = file.replace(/\.md$/, "");
 		if (registerTemplate(name)) count++;
 	}
-	log.info(`[prompts] loaded ${count} templates`);
+	log.info(`[templates] loaded ${count} templates`);
 }
 
 /**

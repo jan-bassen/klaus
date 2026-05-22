@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { watch as fsWatch, mkdir, readFile, rm } from "node:fs/promises";
 import QRCode from "qrcode";
-import { renderTemplate } from "../../pipeline/prompts.ts";
+import { renderTemplate } from "../../pipeline/templates.ts";
 import { settings, updateAllowedChat, updateSelfMode } from "../config.ts";
 import { activateFutureWorkIfReady } from "../future.ts";
 import { log } from "../logger.ts";

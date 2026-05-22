@@ -7,7 +7,7 @@ import {
 	getDefaultAgent,
 } from "../../pipeline/agents.ts";
 import { overrideRegistry } from "../../pipeline/overrides.ts";
-import { renderTemplate } from "../../pipeline/prompts.ts";
+import { renderTemplate } from "../../pipeline/templates.ts";
 import type { Command } from "./index.ts";
 import { formatParams, registry } from "./index.ts";
 

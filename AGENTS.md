@@ -73,7 +73,7 @@ src/
 │   ├── overrides.ts  # TurnConfig + !preset registry + merge
 │   ├── agents.ts     # Agent schema + registry + default-agent
 │   ├── context.ts    # variables + tools + history assembly
-│   ├── prompts.ts    # system/user message rendering
+│   ├── templates.ts  # system/user message rendering
 │   ├── core.ts       # core model loop (runAgent, executeAgent, persist) + TurnContext + Trigger
 │   ├── dispatch.ts   # dispatch() primitive
 │   ├── media.ts      # STT, doc parsing, image prep

@@ -39,7 +39,7 @@ import {
 	resolveSampling,
 	textOnlyUserContent,
 	type UserContent,
-} from "./prompts.ts";
+} from "./templates.ts";
 import { emitReport } from "./reports.ts";
 
 // ── Public types ───────────────────────────────────────────────────────────

@@ -68,7 +68,7 @@ import {
 import type { Trigger } from "./pipeline/core.ts";
 import { dispatch } from "./pipeline/dispatch.ts";
 import { loadOverrides } from "./pipeline/overrides.ts";
-import { loadTemplates } from "./pipeline/prompts.ts";
+import { loadTemplates } from "./pipeline/templates.ts";
 import { loadAllTools } from "./primitives/tools/index.ts";
 import { loadSkills, skillRegistry } from "./primitives/tools/skill.ts";
 import { loadVariables, setVariables } from "./primitives/variables/index.ts";

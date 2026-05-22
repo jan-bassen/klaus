@@ -6,7 +6,7 @@ import {
 	loadAgentDefinition,
 } from "../../pipeline/agents.ts";
 import { loadOverrides } from "../../pipeline/overrides.ts";
-import { invalidateTemplate } from "../../pipeline/prompts.ts";
+import { invalidateTemplate } from "../../pipeline/templates.ts";
 import { parseSkillMeta, skillRegistry } from "../../primitives/tools/skill.ts";
 import { loadSettingsFromDisk, settings } from "../config.ts";
 import { log } from "../logger.ts";

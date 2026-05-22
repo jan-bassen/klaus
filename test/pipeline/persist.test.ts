@@ -10,7 +10,7 @@ import { persistDynamic } from "../../src/pipeline/persistence.ts";
 import {
 	invalidateTemplate,
 	type UserContent,
-} from "../../src/pipeline/prompts.ts";
+} from "../../src/pipeline/templates.ts";
 import { initAllStores } from "../helpers/stores.ts";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 import { makeTurn } from "../helpers/turn.ts";

@@ -38,7 +38,7 @@ import type { Trigger, TurnContext } from "./core.ts";
 import { executeAgent, isAbortError } from "./core.ts";
 import { parseMessage } from "./message.ts";
 import { buildTurnConfig } from "./overrides.ts";
-import { renderTemplate } from "./prompts.ts";
+import { renderTemplate } from "./templates.ts";
 
 interface AuthResult {
 	allowed: boolean;

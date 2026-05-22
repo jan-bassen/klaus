@@ -12,7 +12,7 @@ The pipeline owns one turn from inbound message to model execution. It is intent
 | `agents.ts` | Agent schema, prompt sections, aliases, registry, default agent. |
 | `overrides.ts` | `TurnConfig`, override registry, config merge. |
 | `context.ts` | Variables, tools, toolsets, provider tools, history, message references. |
-| `prompts.ts` | Template loading, Handlebars helpers, system/user rendering. |
+| `templates.ts` | Template loading, Handlebars helpers, system/user rendering. |
 | `core.ts` | Model loop, tool calls, traces, dynamic persistence, reports. |
 | `outbound.ts` | Reply/react preparation, quotes, dedup keys, trace persistence. |
 | `dispatch.ts` | Run agents from schedules, timers, persistence, or another agent. |
@@ -29,7 +29,7 @@ infra/whatsapp/receive.ts
   -> pipeline/message.ts
   -> pipeline/agents.ts + pipeline/overrides.ts
   -> infra/store/history.ts
-  -> pipeline/context.ts + pipeline/prompts.ts
+  -> pipeline/context.ts + pipeline/templates.ts
   -> pipeline/core.ts
   -> primitives/tools/* + pipeline/outbound.ts + pipeline/reports.ts
 ```
@@ -48,7 +48,7 @@ Overrides are config only. They should not carry prompt content. Agent prompts a
 
 ## Execution
 
-`executeAgent` gathers variables, tool definitions, provider tools, and history. `prompts.ts` renders the templates, then `core.ts` runs the chat-completions loop until the model stops calling tools or the turn reaches its step limit.
+`executeAgent` gathers variables, tool definitions, provider tools, and history. `templates.ts` renders the templates, then `core.ts` runs the chat-completions loop until the model stops calling tools or the turn reaches its step limit.
 
 Agents should send user-visible text through the `reply` tool. If a reply-capable turn ends with plain assistant content instead of tool calls, `core.ts` treats that text as a fallback `reply` call, logs a warning, and marks the report step with `fallback: "assistant_content_reply"`. Empty assistant content still means no reply, and `toolChoice: "none"` keeps tools disabled.
 

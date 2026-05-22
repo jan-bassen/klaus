@@ -9,7 +9,7 @@ import {
 	makeDedupKey,
 	prepareAssistantOutbound,
 } from "../../pipeline/outbound.ts";
-import { renderTemplate } from "../../pipeline/prompts.ts";
+import { renderTemplate } from "../../pipeline/templates.ts";
 import type { ToolDefinition } from "./index.ts";
 
 /** The canonical name of the output tool. Referenced by runner/messages to filter reply calls from traces. */

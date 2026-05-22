@@ -15,7 +15,7 @@ import {
 	renderTemplate,
 	textOnlyUserContent,
 	type UserContent,
-} from "./prompts.ts";
+} from "./templates.ts";
 
 const PERSIST_TOOL_NAME = "persist";
 

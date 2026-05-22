@@ -34,7 +34,7 @@ import type { Variable } from "../primitives/variables/index.ts";
 import type { AgentDefinition } from "./agents.ts";
 import { getDefaultAgent } from "./agents.ts";
 import type { ModelCallStep, TurnContext } from "./core.ts";
-import { renderTemplate } from "./prompts.ts";
+import { renderTemplate } from "./templates.ts";
 
 // ── Variables ──────────────────────────────────────────────────────────────
 

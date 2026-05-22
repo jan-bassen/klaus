@@ -25,7 +25,7 @@ import type { InboundMessage } from "../infra/whatsapp/receive.ts";
 import { REPLY_TOOL_NAME } from "../primitives/tools/reply.ts";
 import type { AgentRunResult, TurnContext } from "./core.ts";
 import type { TurnConfig } from "./overrides.ts";
-import { renderTemplate } from "./prompts.ts";
+import { renderTemplate } from "./templates.ts";
 
 // ── Public API ─────────────────────────────────────────────────────────────
 

@@ -11,14 +11,14 @@ import {
 	resolveSampling,
 	textOnlyUserContent,
 	type UserContent,
-} from "../../src/pipeline/prompts.ts";
+} from "../../src/pipeline/templates.ts";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 
 function writeTemplate(dir: string, name: string, content: string): void {
 	writeFileSync(path.join(dir, `${name}.md`), content);
 }
 
-describe("pipeline/prompts: resolveSampling", () => {
+describe("pipeline/templates: resolveSampling", () => {
 	afterEach(() => {
 		// Reset sampling to a clean state
 		settings.sampling = {};
@@ -85,7 +85,7 @@ const ALL_TEMPLATE_NAMES = [
 	"persistence",
 ] as const;
 
-describe("pipeline/prompts: renderTemplate", () => {
+describe("pipeline/templates: renderTemplate", () => {
 	let tmpDir: string;
 	let originalTemplatesDir: string;
 
@@ -152,7 +152,7 @@ describe("pipeline/prompts: renderTemplate", () => {
 	});
 });
 
-describe("pipeline/prompts: buildSystemPrompt", () => {
+describe("pipeline/templates: buildSystemPrompt", () => {
 	it("interpolates variables and trims leading/trailing whitespace", () => {
 		const out = buildSystemPrompt("  Agent: {{agent}}\n  ", { agent: "coach" });
 		expect(out).toBe("Agent: coach");
@@ -173,7 +173,7 @@ describe("pipeline/prompts: buildSystemPrompt", () => {
 	});
 });
 
-describe("pipeline/prompts: buildAgentMessage", () => {
+describe("pipeline/templates: buildAgentMessage", () => {
 	it("interpolates variables and supports user-var shortcuts", () => {
 		const out = buildAgentMessage(
 			'{{#if (eq schedule.label "morning")}}Hello $user.name{{/if}}',
@@ -183,7 +183,7 @@ describe("pipeline/prompts: buildAgentMessage", () => {
 	});
 });
 
-describe("pipeline/prompts: textOnlyUserContent", () => {
+describe("pipeline/templates: textOnlyUserContent", () => {
 	it("keeps text parts and drops image data URLs", () => {
 		const content: UserContent = [
 			{
