@@ -7,7 +7,6 @@
  */
 
 import { existsSync } from "node:fs";
-import path from "node:path";
 import { LiteParse } from "@llamaindex/liteparse";
 import { OpenRouter } from "@openrouter/sdk";
 import sharp from "sharp";
@@ -18,41 +17,31 @@ import { readArrayBuffer, readText, writeData } from "../infra/runtime.ts";
 
 // ── Speech-to-Text ─────────────────────────────────────────────────────────
 
-const SCRIBE_URL = "https://api.elevenlabs.io/v1/speech-to-text";
-
-/** Transcribe an audio file via ElevenLabs Scribe. Returns the transcript or an Error value. */
+/** Transcribe an audio file via OpenRouter STT. Returns the transcript or an Error value. */
 export async function transcribe(
 	filePath: string,
 	mimeType: string,
 ): Promise<string | Error> {
-	const apiKey = process.env.ELEVENLABS_API_KEY;
-	if (!apiKey) return new Error("transcribe: ELEVENLABS_API_KEY not set");
-
-	const fileName = path.basename(filePath);
-	const form = new FormData();
-	form.append("model_id", settings.media.voice.stt.model);
-	form.append(
-		"file",
-		new Blob([await readArrayBuffer(filePath)], { type: mimeType }),
-		fileName,
+	const endpoint = resolveMediaEndpoint(
+		settings.media.voice.stt.endpoint,
+		"media.voice.stt",
 	);
+	if (endpoint instanceof Error) return endpoint;
 
 	try {
-		const res = await fetch(SCRIBE_URL, {
-			method: "POST",
-			headers: { "xi-api-key": apiKey },
-			body: form,
-			signal: AbortSignal.timeout(settings.media.voice.stt.timeout),
-		});
-
-		if (!res.ok) {
-			const body = await res.text();
-			log.warn(`[media] STT API error (${res.status})`, { body });
-			return new Error(`STT error ${res.status}: ${body}`);
-		}
-
-		const json = (await res.json()) as { text?: string };
-		return json.text ?? "";
+		const response = await mediaClient(endpoint).stt.createTranscription(
+			{
+				sttRequest: {
+					model: settings.media.voice.stt.model,
+					inputAudio: {
+						data: Buffer.from(await readArrayBuffer(filePath)).toString("base64"),
+						format: audioFormat(mimeType),
+					},
+				},
+			},
+			{ timeoutMs: settings.media.voice.stt.timeout },
+		);
+		return response.text ?? "";
 	} catch (err) {
 		return err instanceof Error ? err : new Error(String(err));
 	}
@@ -60,37 +49,27 @@ export async function transcribe(
 
 // ── Text-to-Speech ─────────────────────────────────────────────────────────
 
-const TTS_BASE = "https://api.elevenlabs.io/v1/text-to-speech";
-
-/** Synthesise speech via ElevenLabs. Returns an MP3 buffer or an Error value. */
-export async function textToSpeech(
-	text: string,
-	voiceIdOverride?: string,
-): Promise<Buffer | Error> {
-	const apiKey = process.env.ELEVENLABS_API_KEY;
-	if (!apiKey) return new Error("textToSpeech: ELEVENLABS_API_KEY not set");
-
-	const voiceId = voiceIdOverride ?? settings.media.voice.tts.voiceId;
-	if (!voiceId) return new Error("textToSpeech: tts.voiceId is not set");
+/** Synthesise speech via OpenRouter TTS. Returns an MP3 buffer or an Error value. */
+export async function textToSpeech(text: string): Promise<Buffer | Error> {
+	const endpoint = resolveMediaEndpoint(
+		settings.media.voice.tts.endpoint,
+		"media.voice.tts",
+	);
+	if (endpoint instanceof Error) return endpoint;
 
 	try {
-		const res = await fetch(`${TTS_BASE}/${voiceId}`, {
-			method: "POST",
-			headers: {
-				"xi-api-key": apiKey,
-				"Content-Type": "application/json",
-				Accept: "audio/mpeg",
+		const stream = await mediaClient(endpoint).tts.createSpeech(
+			{
+				speechRequest: {
+					model: settings.media.voice.tts.model,
+					input: text,
+					voice: settings.media.voice.tts.voice,
+					responseFormat: "mp3",
+				},
 			},
-			body: JSON.stringify({ text, model_id: settings.media.voice.tts.model }),
-		});
-
-		if (!res.ok) {
-			const body = await res.text();
-			log.warn(`[media] TTS API error (${res.status})`, { body });
-			return new Error(`TTS error ${res.status}: ${body}`);
-		}
-
-		return Buffer.from(await res.arrayBuffer());
+			{ timeoutMs: settings.media.voice.tts.timeout },
+		);
+		return await streamToBuffer(stream);
 	} catch (err) {
 		return err instanceof Error ? err : new Error(String(err));
 	}
@@ -256,6 +235,77 @@ export async function generateImage(
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+interface ResolvedMediaEndpoint {
+	baseURL: string;
+	apiKey: string;
+}
+
+function resolveMediaEndpoint(
+	endpointName: string,
+	field: string,
+): ResolvedMediaEndpoint | Error {
+	const endpoint = settings.endpoints[endpointName];
+	if (!endpoint) {
+		return new Error(`${field} references unknown endpoint "${endpointName}"`);
+	}
+	const apiKey = process.env[endpoint.apiKeyEnv];
+	if (!apiKey) {
+		return new Error(
+			`API key missing: env var ${endpoint.apiKeyEnv} is unset (endpoint "${endpointName}")`,
+		);
+	}
+	return {
+		baseURL: endpoint.baseURL.replace(/\/+$/, ""),
+		apiKey,
+	};
+}
+
+function mediaClient(endpoint: ResolvedMediaEndpoint): OpenRouter {
+	return new OpenRouter({
+		apiKey: endpoint.apiKey,
+		serverURL: endpoint.baseURL,
+		retryConfig: { strategy: "none" },
+	});
+}
+
+async function streamToBuffer(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
+	const reader = stream.getReader();
+	const chunks: Uint8Array[] = [];
+	let byteLength = 0;
+
+	while (true) {
+		const { value, done } = await reader.read();
+		if (done) break;
+		chunks.push(value);
+		byteLength += value.length;
+	}
+
+	const out = new Uint8Array(byteLength);
+	let offset = 0;
+	for (const chunk of chunks) {
+		out.set(chunk, offset);
+		offset += chunk.length;
+	}
+	return Buffer.from(out);
+}
+
+function audioFormat(mimeType: string): string {
+	const clean = mimeType.split(";")[0]?.trim().toLowerCase() ?? "";
+	const mapped = AUDIO_FORMATS[clean];
+	if (mapped) return mapped;
+	return clean.startsWith("audio/") ? clean.slice("audio/".length) : "ogg";
+}
+
+const AUDIO_FORMATS: Record<string, string> = {
+	"audio/aac": "aac",
+	"audio/flac": "flac",
+	"audio/mp4": "m4a",
+	"audio/mpeg": "mp3",
+	"audio/ogg": "ogg",
+	"audio/wav": "wav",
+	"audio/webm": "webm",
+};
 
 function decodeDataUrl(dataUrl: string): GeneratedImage | Error {
 	const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);

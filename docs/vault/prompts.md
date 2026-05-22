@@ -83,4 +83,8 @@ The model can now call the automatically generated `skill_get` tool when the ski
 
 Keep snippets short and frequently useful. Use skills when the content is too long or too situational to include in every turn.
 
+The bundled `communication` snippet teaches voice-capable agents that the
+OpenRouter TTS model supports short audio tags such as `[warmly]` when they add
+delivery nuance.
+
 For prompt caching, prefer static agent prompts and snippets. Avoid putting changing values like `{{time.*}}`, `{{tasks.*}}`, or current-message media directly into an agent `# System`; those belong in the user-message template or the current turn context.

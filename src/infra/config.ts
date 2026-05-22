@@ -180,12 +180,15 @@ const MediaSchema = z
 			.object({
 				tts: z
 					.object({
+						endpoint: z.string(),
 						model: z.string(),
-						voiceId: z.string(),
+						voice: z.string(),
+						timeout: z.number(),
 					})
 					.strict(),
 				stt: z
 					.object({
+						endpoint: z.string(),
 						model: z.string(),
 						timeout: z.number(),
 						agentTriggers: z.array(z.string()),

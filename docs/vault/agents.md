@@ -75,7 +75,6 @@ Unprefixed messages go to the current default agent. Change it with:
 | `provider` | string | Provider key from `settings.yml`. |
 | `modelTier` | `small`, `medium`, `large` | Model tier for this agent. |
 | `voice` | `on`, `auto`, `off` | Voice reply behavior. |
-| `voiceId` | string | Optional ElevenLabs voice ID for this agent's TTS replies. Falls back to `media.voice.tts.voiceId`. |
 | `temp` | `cold`, `default`, `hot` | Temperature preset. |
 | `topP` | `creative`, `default`, `rigid` | Top-p preset. |
 | `reasoningEffort` | `low`, `default`, `high` | Reasoning effort preset. |

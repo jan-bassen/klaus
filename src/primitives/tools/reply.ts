@@ -54,7 +54,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			!context.config?.suppressVoice && (voice || context.config?.forceVoice);
 		if (useVoice) {
 			setPresenceKind(context.chatId, "recording");
-			const audio = await textToSpeech(content, context.config?.voiceId);
+			const audio = await textToSpeech(content);
 			if (audio instanceof Error) {
 				const outbound = await prepareAssistantOutbound({
 					context,

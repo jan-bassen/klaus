@@ -126,11 +126,6 @@ describe("pipeline/overrides.buildTurnConfig", () => {
 		expect(cfg.forceVoice).toBe(true);
 	});
 
-	it("carries the agent voiceId into turn config", () => {
-		const cfg = buildTurnConfig(makeAgent({ voiceId: "agent-voice" }), {});
-		expect(cfg.voiceId).toBe("agent-voice");
-	});
-
 	it("unknown override names are silently ignored", () => {
 		const cfg = buildTurnConfig(makeAgent(), { nonsense: true });
 		// Should still build cleanly and have global modelTier.

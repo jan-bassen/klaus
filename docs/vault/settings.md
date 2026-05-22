@@ -30,8 +30,9 @@ last valid config and send a warning.
 
 If code adds a tunable setting, add it to both `vault/settings.yml` and `src/infra/config.ts`. Do not use Zod `.default()` fallbacks for runtime settings.
 
-`media.voice.tts.voiceId` is the global ElevenLabs TTS voice. Individual
-agents can set `voiceId` in frontmatter to override it for that agent.
+`media.voice.tts` and `media.voice.stt` use the same named endpoints as the
+model providers. The bundled template routes both through OpenRouter: Gemini
+Flash TTS for speech output and Voxtral Mini Transcribe for voice-note input.
 
 `whatsapp.presenceRefreshMs` is the interval for re-sending WhatsApp
 `composing`/`recording` updates while Klaus is working on an inbound message.

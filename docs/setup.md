@@ -8,7 +8,6 @@ This guide is the practical path from clone to a running Klaus container. The sh
 - An Obsidian Sync account
 - A WhatsApp account to link as a device
 - `OPENROUTER_API_KEY`, unless you reconfigure the default provider to use another endpoint
-- Optional `ELEVENLABS_API_KEY` for speech-to-text and text-to-speech
 
 Klaus runs as one Docker container. Inside it, the app supervises `obsidian-headless`, which keeps `/app/vault` synced with your remote Obsidian vault.
 
@@ -34,7 +33,6 @@ OBSIDIAN_VAULT_NAME=
 Optional:
 
 ```dotenv
-ELEVENLABS_API_KEY=
 OBSIDIAN_MFA=
 OBSIDIAN_E2EE_PASSWORD=
 LOG_FORMAT=text

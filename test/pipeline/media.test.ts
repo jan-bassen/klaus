@@ -140,33 +140,43 @@ describe("pipeline/media: prepareImage", () => {
 });
 
 describe("pipeline/media: textToSpeech", () => {
-	const originalApiKey = process.env.ELEVENLABS_API_KEY;
-	const originalVoiceId = settings.media.voice.tts.voiceId;
+	const originalApiKey = process.env.OPENROUTER_API_KEY;
+	const originalVoice = settings.media.voice.tts.voice;
 
 	afterEach(() => {
 		if (originalApiKey === undefined) {
-			delete process.env.ELEVENLABS_API_KEY;
+			delete process.env.OPENROUTER_API_KEY;
 		} else {
-			process.env.ELEVENLABS_API_KEY = originalApiKey;
+			process.env.OPENROUTER_API_KEY = originalApiKey;
 		}
-		settings.media.voice.tts.voiceId = originalVoiceId;
+		settings.media.voice.tts.voice = originalVoice;
 		vi.unstubAllGlobals();
 	});
 
-	it("uses the per-call voiceId when provided", async () => {
-		process.env.ELEVENLABS_API_KEY = "test-key";
-		settings.media.voice.tts.voiceId = "global-voice";
+	it("calls OpenRouter speech with the configured voice", async () => {
+		process.env.OPENROUTER_API_KEY = "test-key";
+		settings.media.voice.tts.voice = "Kore";
 		const fetchMock = vi.fn(
-			async () => new Response(new Uint8Array([1, 2, 3])),
+			async (_input: string | URL | Request, _init?: RequestInit) =>
+				new Response(new Uint8Array([1, 2, 3]), {
+					headers: { "Content-Type": "audio/mpeg" },
+				}),
 		);
 		vi.stubGlobal("fetch", fetchMock);
 
-		const result = await textToSpeech("hello", "agent-voice");
+		const result = await textToSpeech("hello");
 
 		expect(Buffer.isBuffer(result)).toBe(true);
-		expect(fetchMock).toHaveBeenCalledWith(
-			"https://api.elevenlabs.io/v1/text-to-speech/agent-voice",
-			expect.objectContaining({ method: "POST" }),
-		);
+		const request = fetchMock.mock.calls[0]?.[0];
+		expect(request).toBeInstanceOf(Request);
+		if (!(request instanceof Request)) throw new Error("expected Request");
+		expect(request.url).toBe("https://openrouter.ai/api/v1/audio/speech");
+		expect(request.method).toBe("POST");
+		expect(await request.json()).toEqual({
+			model: "google/gemini-3.1-flash-tts-preview",
+			input: "hello",
+			voice: "Kore",
+			response_format: "mp3",
+		});
 	});
 });

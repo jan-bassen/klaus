@@ -86,11 +86,13 @@ sampling:
 media:
   voice:
     tts:
-      model: eleven_v3
-      # ElevenLabs voice ID — pick one at https://elevenlabs.io/app/voice-library
-      voiceId: ""
+      endpoint: openrouter
+      model: google/gemini-3.1-flash-tts-preview
+      voice: Algenib
+      timeout: 30000
     stt:
-      model: scribe_v2
+      endpoint: openrouter
+      model: mistralai/voxtral-mini-transcribe
       timeout: 30000
       agentTriggers:
         - hey
