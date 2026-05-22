@@ -1,7 +1,3 @@
-/**
- * `infra/store/report.ts` — writeReport/readReports round-trip.
- */
-
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	initReportStore,

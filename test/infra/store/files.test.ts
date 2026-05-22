@@ -1,7 +1,3 @@
-/**
- * `infra/store/files.ts` — file metadata + blob persistence round-trip.
- */
-
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	deleteFile,

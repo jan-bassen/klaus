@@ -1,6 +1,4 @@
 /**
- * `infra/store/schedules.ts` — cron persistence + firing.
- *
  * Real fs I/O into `makeTmpDir`. Cron firings are exercised by mocking
  * `croner` so we can synchronously invoke the registered callback.
  */

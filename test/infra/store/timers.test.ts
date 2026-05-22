@@ -1,6 +1,4 @@
 /**
- * `infra/store/timers.ts` — one-shot persistence + firing.
- *
  * Real fs I/O into `makeTmpDir`. Real `setTimeout` with short delays so we
  * don't fight runtime timer semantics under `vi.useFakeTimers()`.
  */

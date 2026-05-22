@@ -1,6 +1,4 @@
 /**
- * Override resolution in `pipeline/overrides.ts`.
- *
  * Pure in-process tests — no stores needed. Populate `overrideRegistry`
  * directly and pass mock `AgentDefinition`s to `buildTurnConfig`.
  */

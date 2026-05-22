@@ -6,7 +6,7 @@
  *   2. The cron handler (`src/index.ts`, `trigger.kind === "schedule"`)
  *   3. The timer handler (`src/index.ts`, `trigger.kind === "timer"`)
  *
- * Async mode is gone — future work is always expressed as a timer now. Inline
+ * Future work is always expressed as a timer. Inline
  * sub-agent replies are collected through a caller-provided `replyCollector`
  * and returned as the dispatch tool result. Top-level runs (schedule/timer)
  * pass no collector, so their reply tools fall through to WhatsApp directly.

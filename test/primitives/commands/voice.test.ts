@@ -1,11 +1,3 @@
-/**
- * `primitives/commands/voice.ts` — show + set the default agent's voice mode.
- *
- * The command writes back to the agent's .md frontmatter and updates the
- * registry in place. We mock `enqueueMessage` to capture user-facing output
- * without booting the WhatsApp socket.
- */
-
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

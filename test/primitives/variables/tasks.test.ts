@@ -1,7 +1,3 @@
-/**
- * `primitives/variables/tasks.ts` — pending timers surfaced to templates.
- */
-
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	initSchedulesStore,

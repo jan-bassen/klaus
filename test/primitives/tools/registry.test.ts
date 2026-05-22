@@ -1,9 +1,3 @@
-/**
- * `primitives/tools/index.ts` — registration validation + meta-tool generation.
- *
- * Pure TS tests. Registries are cleared in test/setup.ts afterEach.
- */
-
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {

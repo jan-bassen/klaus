@@ -1,6 +1,4 @@
 /**
- * `infra/vault/index.ts` — `resolveVaultPath` + `getReadableFolders`.
- *
  * Covers the security-critical path-traversal guard, the longest-prefix
  * folder match, the internal-folder shortcut, and how agent maps prune the
  * readable folder list.

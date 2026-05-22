@@ -1,7 +1,3 @@
-/**
- * `primitives/commands/retry.ts` — retry the latest failed turn only.
- */
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { appendMessage } from "../../../src/infra/store/history.ts";
 import type { InboundMessage } from "../../../src/infra/whatsapp/receive.ts";

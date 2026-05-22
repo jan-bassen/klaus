@@ -9,7 +9,7 @@ import { readText, writeData } from "../runtime.ts";
 import { getSocket, normalizeJid } from "./connection.ts";
 import { enqueueMessage } from "./send.ts";
 
-const FALLBACK_INSTRUCTIONS = `# Klaus Login
+const LOGIN_INSTRUCTIONS = `# Klaus Login
 
 1. Open WhatsApp on your phone → Settings → Linked Devices → Link a device
 2. Choose how Klaus should listen:
@@ -48,7 +48,7 @@ async function ensureLoginFolder(): Promise<void> {
 		content = content.replace(/`\d{6}`/g, `\`${_setupCode}\``);
 		content = content.replace(/\{\{code\}\}/g, _setupCode);
 	} else {
-		content = FALLBACK_INSTRUCTIONS.replace(/\{\{code\}\}/g, _setupCode);
+		content = LOGIN_INSTRUCTIONS.replace(/\{\{code\}\}/g, _setupCode);
 	}
 
 	// If selfMode is preset in settings.yml, ship the box pre-ticked so the

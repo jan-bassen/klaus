@@ -1,7 +1,3 @@
-/**
- * `infra/store/history.ts` — conversation JSONL round-trip + indexing.
- */
-
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	appendBreak,

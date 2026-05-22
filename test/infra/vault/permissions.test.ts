@@ -1,7 +1,3 @@
-/**
- * `infra/vault/index.ts` — `checkPermission` allow/deny behaviour.
- */
-
 import { describe, expect, it } from "vitest";
 import type { VaultFolder } from "../../../src/infra/config.ts";
 import { checkPermission } from "../../../src/infra/vault/index.ts";

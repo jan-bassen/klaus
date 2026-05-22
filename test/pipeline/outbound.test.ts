@@ -1,7 +1,3 @@
-/**
- * `pipeline/outbound.ts` — makeDedupKey shape, prepareAssistantOutbound persistence.
- */
-
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getConversation } from "../../src/infra/store/history.ts";
 import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";

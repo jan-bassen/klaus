@@ -1,7 +1,3 @@
-/**
- * `pipeline/prompts.ts` — template rendering, system prompt compilation, sampling resolution.
- */
-
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

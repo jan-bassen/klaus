@@ -1,8 +1,3 @@
-/**
- * `primitives/commands/default.ts` — set per-chat default agent, lazy-loading
- * from disk on registry miss.
- */
-
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

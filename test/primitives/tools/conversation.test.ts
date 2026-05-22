@@ -1,7 +1,3 @@
-/**
- * `primitives/tools/conversation.ts` — conversationTool.execute with a real history store.
- */
-
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { appendMessage } from "../../../src/infra/store/history.ts";
 import { conversationTool } from "../../../src/primitives/tools/conversation.ts";

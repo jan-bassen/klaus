@@ -1,10 +1,3 @@
-/**
- * `primitives/commands/index.ts` — `parseCommand` + `CommandRegistry`.
- *
- * The dispatcher is the only piece every command shares; per-command
- * behaviour lives in their own files.
- */
-
 import { afterEach, describe, expect, it } from "vitest";
 import type { InboundMessage } from "../../../src/infra/whatsapp/receive.ts";
 import {

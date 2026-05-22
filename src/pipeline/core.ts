@@ -41,6 +41,7 @@ import {
 	type UserContent,
 } from "./prompts.ts";
 import { emitReport } from "./reports.ts";
+
 // ── Public types ───────────────────────────────────────────────────────────
 
 /**

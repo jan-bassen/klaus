@@ -1,8 +1,3 @@
-/**
- * `primitives/commands/model.ts` — `/model` and `/provider` show + switch the
- * default agent's model tier / provider, persisting to YAML frontmatter.
- */
-
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
