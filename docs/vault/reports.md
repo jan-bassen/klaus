@@ -26,7 +26,7 @@ Reports include:
 - Agent, trigger, model, provider, and overrides
 - Available variable names, explicit tools, toolsets, and skills for the run
 - Rendered system prompt, history transcript, current user message, and agent answer
-- LLM steps, rendered in Markdown as compact one-based tool blocks with token usage and optional reasoning
+- LLM steps, rendered in Markdown as `Step N` / `Finish` sections with token usage, fenced reasoning, and tool calls
 - Tool calls and results
 - Simulated actions
 - Errors and trace output

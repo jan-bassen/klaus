@@ -45,30 +45,38 @@
 ### User message
 {{codeFence llm.userMessage}}
 {{/if}}
-{{#if llm.assistantMessage}}
-
-### Agent messages
-{{codeFence llm.assistantMessage}}
-{{/if}}
-
 ### Steps
 {{#each llm.steps}}
 {{#if toolCalls.length}}
-{{#each toolCalls}}
-{{#if @first}}**{{inc @../index}}) {{tool}}**{{#if ../usage}} ({{../usage.inputTokens}}↑/{{../usage.outputTokens}}↓){{/if}}
-{{#if ../reasoning}}
-> {{trunc ../reasoning 800}}
+### Step {{inc @index}}
+{{#if usage}}({{usage.inputTokens}}↑/{{usage.outputTokens}}↓)
+
+{{/if}}{{#if reasoning}}
+**Reasoning**
+{{codeFence (trunc reasoning 800)}}
 
 {{/if}}
-{{/if}}`{{trunc (json args) 240}}`
+{{#each toolCalls}}
+**Tool call: {{tool}}**
+`{{trunc (json args) 240}}`
 
 {{/each}}
 {{else}}
-**{{inc @index}}) assistant**{{#if usage}} ({{usage.inputTokens}}↑/{{usage.outputTokens}}↓){{/if}}{{#if finishReason}} `{{finishReason}}`{{/if}}
+### Finish{{#if finishReason}} ({{finishReason}}){{/if}}
+{{#if usage}}({{usage.inputTokens}}↑/{{usage.outputTokens}}↓)
+
+{{/if}}
 {{#if reasoning}}
-> {{trunc reasoning 800}}
+**Reasoning**
+{{codeFence (trunc reasoning 800)}}
+
 {{/if}}
 {{#if fallback}}`{{fallback}}`{{/if}}
 {{/if}}
 {{/each}}
+{{#if llm.assistantMessage}}
+
+### Output
+{{codeFence llm.assistantMessage}}
+{{/if}}
 {{/if}}
