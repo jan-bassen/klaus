@@ -59,6 +59,4 @@ export const reactTool: ToolDefinition<typeof reactSchema> = {
 		});
 		return "reacted";
 	},
-	kind: "builtin",
-	capability: "tool",
 };

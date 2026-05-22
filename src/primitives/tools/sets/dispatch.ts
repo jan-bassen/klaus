@@ -102,8 +102,6 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 		});
 		return result ?? "done";
 	},
-	kind: "builtin",
-	capability: "tool",
 };
 
 // ── dispatch_schedule ──────────────────────────────────────────────────────
@@ -129,8 +127,6 @@ const dispatchScheduleTool: ToolDefinition<typeof dispatchScheduleSchema> = {
 		await addSchedule(scheduleEntry(input, context, id));
 		return `Scheduled @${input.agent} with pattern "${input.pattern}" (${input.label}) [${id}]`;
 	},
-	kind: "builtin",
-	capability: "tool",
 };
 
 // ── dispatch_list ──────────────────────────────────────────────────────────
@@ -142,8 +138,6 @@ const dispatchListTool: ToolDefinition<typeof dispatchListSchema> = {
 	description: "List all active schedules and pending timers.",
 	inputSchema: dispatchListSchema,
 	execute: async () => renderList(getSchedules(), listTimers()),
-	kind: "builtin",
-	capability: "resource",
 };
 
 function renderList(
@@ -191,8 +185,6 @@ const dispatchCancelTool: ToolDefinition<typeof dispatchCancelSchema> = {
 		if (removedSchedule) return `Cancelled schedule ${input.id}`;
 		return `No schedule or timer found with ID ${input.id}`;
 	},
-	kind: "builtin",
-	capability: "tool",
 };
 
 // ── helpers ────────────────────────────────────────────────────────────────

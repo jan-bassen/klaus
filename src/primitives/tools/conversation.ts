@@ -91,6 +91,4 @@ export const conversationTool: ToolDefinition<typeof schema> = {
 			messages: formatted.join("\n\n"),
 		};
 	},
-	kind: "builtin",
-	capability: "tool",
 };

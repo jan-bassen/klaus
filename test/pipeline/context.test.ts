@@ -520,8 +520,6 @@ function makeTool(
 		description: name,
 		inputSchema: valueSchema,
 		execute,
-		kind: "builtin",
-		capability: "tool",
 	};
 }
 

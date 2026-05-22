@@ -46,8 +46,6 @@ export const filesUploadTool: ToolDefinition<typeof filesUploadSchema> = {
 		if (!saved.metadataSaved) return `Upload metadata failed for ${name}`;
 		return `Uploaded ${name} — fileId: ${saved.id}`;
 	},
-	kind: "builtin",
-	capability: "tool",
 };
 
 // ─── download ─────────────────────────────────────────────────────────────────
@@ -78,8 +76,6 @@ export const filesDownloadTool: ToolDefinition<typeof filesDownloadSchema> = {
 			return `Failed to read file: ${err instanceof Error ? err.message : String(err)}`;
 		}
 	},
-	kind: "builtin",
-	capability: "resource",
 };
 
 // ─── read ─────────────────────────────────────────────────────────────────────
@@ -118,8 +114,6 @@ export const filesReadTool: ToolDefinition<typeof filesReadSchema> = {
 
 		return `Cannot read ${path.basename(meta.path)} — unsupported mime type ${meta.mimeType}. Use files_download for binary content.`;
 	},
-	kind: "builtin",
-	capability: "resource",
 };
 
 // ─── list ─────────────────────────────────────────────────────────────────────
@@ -146,8 +140,6 @@ export const filesListTool: ToolDefinition<typeof filesListSchema> = {
 			)
 			.join("\n");
 	},
-	kind: "builtin",
-	capability: "resource",
 };
 
 // ─── delete ───────────────────────────────────────────────────────────────────
@@ -176,8 +168,6 @@ export const filesDeleteTool: ToolDefinition<typeof filesDeleteSchema> = {
 		deleteFile(meta.id);
 		return `Deleted ${path.basename(meta.path)} (${meta.id})`;
 	},
-	kind: "builtin",
-	capability: "tool",
 };
 
 export const filesToolset: ToolsetDefinition = {

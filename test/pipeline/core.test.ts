@@ -41,8 +41,6 @@ const replyTool: ToolDefinition<typeof replySchema> = {
 	inputSchema: replySchema,
 	execute: async ({ content }) =>
 		content === "not actually sent" ? { error: "not sent" } : "sent",
-	kind: "builtin",
-	capability: "tool",
 };
 
 const probeTool: ToolDefinition<typeof probeSchema> = {
@@ -50,8 +48,6 @@ const probeTool: ToolDefinition<typeof probeSchema> = {
 	description: "Record a probe value",
 	inputSchema: probeSchema,
 	execute: async ({ value }) => ({ ok: true, value: value ?? "default" }),
-	kind: "builtin",
-	capability: "tool",
 };
 
 const hiddenTool: ToolDefinition<typeof hiddenSchema> = {
@@ -59,8 +55,6 @@ const hiddenTool: ToolDefinition<typeof hiddenSchema> = {
 	description: "Hidden toolset member",
 	inputSchema: hiddenSchema,
 	execute: async () => ({ ok: true }),
-	kind: "builtin",
-	capability: "tool",
 };
 
 describe("pipeline/core.executeAgent", () => {

@@ -9,8 +9,6 @@ export interface ToolDefinition<TInput extends z.ZodTypeAny = z.ZodTypeAny> {
 	description: string;
 	inputSchema: TInput;
 	execute(input: z.infer<TInput>, context: TurnContext): Promise<unknown>;
-	kind: "builtin" | "integration";
-	capability: "tool" | "resource";
 	/** Override for trace-replay truncation of this tool's stringified result. */
 	maxResultChars?: number;
 	/** Override for the first-arg snippet shown in the `[Used X(...)]` line. */
@@ -57,8 +55,6 @@ export function generateMetaTool(
 		inputSchema: emptySchema,
 		execute: async (_input, _context) =>
 			`Loaded. The ${ts.name} tools are now in your toolset for the next step — call one of them to act on the user's request:\n${toolList}`,
-		kind: "builtin",
-		capability: "tool",
 	};
 }
 

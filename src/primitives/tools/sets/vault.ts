@@ -115,8 +115,6 @@ export const vaultReadTool: ToolDefinition<typeof vaultReadSchema> = {
 			return `Note not found: ${rel}`;
 		}
 	},
-	kind: "builtin",
-	capability: "resource",
 };
 
 // ─── search ──────────────────────────────────────────────────────────────────
@@ -175,8 +173,6 @@ export const vaultSearchTool: ToolDefinition<typeof vaultSearchSchema> = {
 			? results.join("\n")
 			: `No notes matching "${query}".`;
 	},
-	kind: "builtin",
-	capability: "resource",
 };
 
 // ─── list ────────────────────────────────────────────────────────────────────
@@ -237,8 +233,6 @@ export const vaultListTool: ToolDefinition<typeof vaultListSchema> = {
 		await walkVaultDir(result, depth, MAX_ENTRIES, lines, 0);
 		return lines.length > 0 ? lines.join("\n") : "Empty directory.";
 	},
-	kind: "builtin",
-	capability: "resource",
 };
 
 // ─── write ───────────────────────────────────────────────────────────────────
@@ -269,8 +263,6 @@ export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
 		await writeData(result, content);
 		return `Written: ${rel}`;
 	},
-	kind: "builtin",
-	capability: "tool",
 };
 
 // ─── append ──────────────────────────────────────────────────────────────────
@@ -307,8 +299,6 @@ export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
 		await writeData(result, updated.content);
 		return updated.message;
 	},
-	kind: "builtin",
-	capability: "tool",
 };
 
 // ─── backlinks ───────────────────────────────────────────────────────────────
@@ -352,8 +342,6 @@ export const vaultBacklinksTool: ToolDefinition<typeof vaultBacklinksSchema> = {
 			? results.join("\n")
 			: `No backlinks found for "${noteName}".`;
 	},
-	kind: "builtin",
-	capability: "resource",
 };
 
 // ─── move ────────────────────────────────────────────────────────────────────
@@ -434,8 +422,6 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 		}
 		return msg;
 	},
-	kind: "builtin",
-	capability: "tool",
 };
 
 // ─── delete ──────────────────────────────────────────────────────────────────
@@ -460,8 +446,6 @@ export const vaultDeleteTool: ToolDefinition<typeof vaultDeleteSchema> = {
 			return `Note not found or could not be deleted: ${rel}`;
 		}
 	},
-	kind: "builtin",
-	capability: "tool",
 };
 
 // ─── patch ───────────────────────────────────────────────────────────────────
@@ -499,8 +483,6 @@ export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
 		await writeData(note.absolutePath, updated);
 		return `Patched section "${heading}" in ${rel}.`;
 	},
-	kind: "builtin",
-	capability: "tool",
 };
 
 // ─── tags ────────────────────────────────────────────────────────────────────
@@ -571,8 +553,6 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 			? results.join("\n")
 			: `No notes tagged with: ${tags.join(", ")}.`;
 	},
-	kind: "builtin",
-	capability: "resource",
 };
 
 // ─── links ───────────────────────────────────────────────────────────────────
@@ -596,8 +576,6 @@ export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
 			? targets.join("\n")
 			: `No outgoing links in "${rel}".`;
 	},
-	kind: "builtin",
-	capability: "resource",
 };
 
 // ─── outline ─────────────────────────────────────────────────────────────────
@@ -655,8 +633,6 @@ export const vaultOutlineTool: ToolDefinition<typeof vaultOutlineSchema> = {
 
 		return outlineResult.join("\n");
 	},
-	kind: "builtin",
-	capability: "resource",
 };
 
 // ─── toolset export ──────────────────────────────────────────────────────────

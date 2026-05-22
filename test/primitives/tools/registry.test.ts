@@ -15,8 +15,6 @@ function pureTool(name: string): ToolDefinition<z.ZodTypeAny> {
 		description: "x",
 		inputSchema: z.object({}),
 		execute: async () => "ok",
-		kind: "builtin",
-		capability: "tool",
 	};
 }
 
@@ -29,8 +27,7 @@ describe("primitives/tools: meta-tools", () => {
 		};
 		const meta = generateMetaTool(ts);
 		expect(meta.name).toBe("load_files");
-		expect(meta.kind).toBe("builtin");
-		expect(meta.capability).toBe("tool");
+		expect(meta.description).toContain("files toolset");
 	});
 });
 

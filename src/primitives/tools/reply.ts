@@ -127,8 +127,6 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 
 		return "sent";
 	},
-	kind: "builtin",
-	capability: "tool",
 };
 
 function formatUserFacingAgentMessage(

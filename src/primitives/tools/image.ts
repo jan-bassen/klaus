@@ -143,6 +143,4 @@ export const imageGenerateTool: ToolDefinition<typeof imageGenerateSchema> = {
 
 		return { sent: true, fileId: saved.id };
 	},
-	kind: "builtin",
-	capability: "tool",
 };

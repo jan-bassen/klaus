@@ -29,8 +29,6 @@ function dummyTool(name: string): ToolDefinition {
 		description: name,
 		inputSchema: undefined as unknown as ToolDefinition["inputSchema"],
 		execute: async () => "ok",
-		kind: "builtin",
-		capability: "tool",
 	};
 }
 

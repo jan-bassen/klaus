@@ -75,8 +75,6 @@ export const shoutTool: ToolDefinition<typeof schema> = {
 	async execute({ text }) {
 		return text.toUpperCase();
 	},
-	kind: "builtin",
-	capability: "tool",
 };
 ```
 
