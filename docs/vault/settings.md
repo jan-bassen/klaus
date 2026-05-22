@@ -55,7 +55,7 @@ Use an override anywhere after the optional route:
 
 ```text
 @assistant !deep compare these two ideas
-@assistant !simulate organize the Inbox note
+@assistant !ghost inspect this without saving it to history
 ```
 
 Overrides are for behavior, not prompt content. Use [prompts.md](prompts.md) for reusable prompt material.
@@ -80,7 +80,6 @@ Overrides are for behavior, not prompt content. Use [prompts.md](prompts.md) for
 | `skipHistory` | boolean |
 | `ghost` | boolean |
 | `fast` | boolean |
-| `simulate` | boolean |
 | `toolChoice` | `none`, `required` |
 
 ## Bundled Overrides
@@ -91,7 +90,6 @@ Overrides are for behavior, not prompt content. Use [prompts.md](prompts.md) for
 | `text` | `txt` | Suppress voice. |
 | `clean` | `cl` | Skip history. |
 | `ghost` | `g` | Ghost turn and skip history. |
-| `simulate` | `sim` | Dry-run side effects. |
 | `report` | `rp` | Enable report. |
 | `no-report` | `nr` | Disable report. |
 | `small` | `s` | Small model tier. |
@@ -110,5 +108,3 @@ Overrides are for behavior, not prompt content. Use [prompts.md](prompts.md) for
 | `low` | `lo` | Low reasoning effort. |
 | `high` | `hi` | High reasoning effort. |
 | `fast` | `f` | Fast inference flag. |
-
-`!simulate` implies `ghost` and `skipHistory`. It writes reports but does not send real WhatsApp replies or persist real state changes.

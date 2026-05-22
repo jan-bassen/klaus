@@ -59,7 +59,6 @@ export const reactTool: ToolDefinition<typeof reactSchema> = {
 		});
 		return "reacted";
 	},
-	sideEffect: "external",
 	kind: "builtin",
 	capability: "tool",
 };

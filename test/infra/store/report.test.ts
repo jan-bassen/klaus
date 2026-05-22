@@ -82,25 +82,6 @@ describe("infra/store/report", () => {
 		});
 	});
 
-	it("simulatedActions round-trips with arbitrary args + results", async () => {
-		const e = makeEntry({
-			simulation: true,
-			simulatedActions: [
-				{
-					tool: "vault.write",
-					sideEffect: "stateful",
-					args: { path: "Notes/x.md", content: "hi" },
-					intent: "Would write Notes/x.md",
-					result: "(sim) ok",
-				},
-			],
-		});
-		await persist(e);
-		const out = await readReports({ runId: e.runId });
-		expect(out[0]?.simulation).toBe(true);
-		expect(out[0]?.simulatedActions).toEqual(e.simulatedActions);
-	});
-
 	it("verbatim systemPrompt / userMessage / historyTranscript round-trip", async () => {
 		const e = makeEntry({
 			llm: {

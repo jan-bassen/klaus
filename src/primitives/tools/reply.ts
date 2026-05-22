@@ -127,20 +127,6 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 
 		return "sent";
 	},
-	/**
-	 * Under sim, never enqueue a real WhatsApp send. But if this is an
-	 * inline-dispatched child whose reply is being collected by the parent,
-	 * still push into the collector so the parent agent sees the simulated
-	 * reply text in its dispatch result.
-	 */
-	simulate: async ({ content }, context) => {
-		if (context._replyCollector) {
-			context._replyCollector.push(content);
-			return "sent";
-		}
-		return "(sim) reply not sent";
-	},
-	sideEffect: "external",
 	kind: "builtin",
 	capability: "tool",
 };

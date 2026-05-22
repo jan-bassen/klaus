@@ -5,8 +5,7 @@
 **Trigger**: {{trigger.kind}}{{#if trigger.messageId}} `{{trigger.messageId}}`{{/if}}{{#if trigger.scheduleId}} `{{trigger.scheduleId}}`{{/if}}{{#if trigger.timerId}} `{{trigger.timerId}}`{{/if}}{{#if trigger.parentRunId}} parent `{{trigger.parentRunId}}`{{/if}}
 **Duration**: {{durationMs}}ms
 **Outcome**: {{outcome.kind}}{{#if outcome.error}} — `{{outcome.error.name}}: {{outcome.error.message}}`{{/if}}
-{{#if simulation}}⚠ **SIMULATION** — no real side effects
-{{/if}}{{#if overrides.length}}**Overrides**: {{join overrides ", "}}
+{{#if overrides.length}}**Overrides**: {{join overrides ", "}}
 {{/if}}**Config**: {{config.provider}}/{{config.modelTier}}{{#if config.historyLimit}}, history {{config.historyScope}}/{{config.historyLimit}}{{/if}}
 {{#if llm}}
 **Tokens**: {{llm.usage.promptTokens}} in / {{llm.usage.completionTokens}} out
@@ -72,11 +71,4 @@
 {{#if fallback}}`{{fallback}}`{{/if}}
 {{/if}}
 {{/each}}
-{{#if simulatedActions.length}}
-
-### Simulated actions
-{{#each simulatedActions}}
-- **{{tool}}** ({{sideEffect}}) — {{intent}}
-{{/each}}
-{{/if}}
 {{/if}}

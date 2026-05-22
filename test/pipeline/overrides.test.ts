@@ -63,11 +63,6 @@ describe("pipeline/overrides.buildTurnConfig", () => {
 			description: "",
 			overrides: { modelTier: "small" },
 		});
-		register({
-			name: "simulate",
-			description: "",
-			overrides: { simulate: true },
-		});
 	});
 
 	it("global default modelTier fills when frontmatter doesn't set it", () => {
@@ -134,13 +129,6 @@ describe("pipeline/overrides.buildTurnConfig", () => {
 	it("carries the agent voiceId into turn config", () => {
 		const cfg = buildTurnConfig(makeAgent({ voiceId: "agent-voice" }), {});
 		expect(cfg.voiceId).toBe("agent-voice");
-	});
-
-	it("simulate force-elevates ghost + skipHistory", () => {
-		const cfg = buildTurnConfig(makeAgent(), { simulate: true });
-		expect(cfg.simulate).toBe(true);
-		expect(cfg.ghost).toBe(true);
-		expect(cfg.skipHistory).toBe(true);
 	});
 
 	it("unknown override names are silently ignored", () => {

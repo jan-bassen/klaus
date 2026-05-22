@@ -51,10 +51,4 @@ For the TypeScript side of variables, see [../codebase/primitives.md](../codebas
 
 Templates hot-reload. Edit the file in Obsidian, let sync carry it into the container, then send one narrow test message.
 
-For risky tool turns, use:
-
-```text
-@assistant !simulate test this template path
-```
-
 Then inspect the report to verify the rendered system prompt, history, current user message, agent answer, and template output.

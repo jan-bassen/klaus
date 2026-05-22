@@ -4,12 +4,11 @@
  * Distinct from `test/infra/store/report.test.ts`, which tests the per-file
  * round-trip primitive. Here we test the report *builder*: how a full
  * `TurnContext` + `AgentRunResult` collapse into the report entry, including
- * simulation tagging and the never-throws contract on the error path.
+ * the never-throws contract on the error path.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { settings } from "../../src/infra/config.ts";
-import { getOverlay } from "../../src/infra/simulation.ts";
 import { initReportStore, readReports } from "../../src/infra/store/report.ts";
 import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
 import type { AgentRunResult, TurnContext } from "../../src/pipeline/core.ts";
@@ -187,31 +186,6 @@ describe("pipeline/reports: emitReport", () => {
 		expect(entry?.llm).toBeUndefined();
 	});
 
-	it("simulate: tags entry and includes overlay actions", async () => {
-		const turn: TurnContext = makeTurn({
-			config: { simulate: true },
-		});
-		const overlay = getOverlay(turn);
-		overlay.actions.push({
-			tool: "reply",
-			sideEffect: "external",
-			args: { content: "hi" },
-			intent: 'Would reply: "hi"',
-			result: "sent",
-		});
-
-		await emitReport({
-			turn,
-			startedAt: Date.now(),
-			result: makeResult(),
-		});
-
-		const [entry] = await readReports({ days: 1 });
-		expect(entry?.simulation).toBe(true);
-		expect(entry?.simulatedActions).toHaveLength(1);
-		expect(entry?.simulatedActions?.[0]?.tool).toBe("reply");
-	});
-
 	it("never throws — corrupt overlay / missing fields are swallowed", async () => {
 		const turn: TurnContext = makeTurn({
 			vars: (() => {
@@ -239,7 +213,6 @@ describe("pipeline/reports: emitReport", () => {
 				historyScope: "agent",
 				showTrace: true,
 				report: true,
-				simulate: false,
 			},
 		});
 

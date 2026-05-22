@@ -1,10 +1,8 @@
 import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { settings } from "../../../infra/config.ts";
 import { log } from "../../../infra/logger.ts";
 import { readArrayBuffer, readText } from "../../../infra/runtime.ts";
-import { getOverlay } from "../../../infra/simulation.ts";
 import {
 	deleteFile,
 	type FileMeta,
@@ -12,7 +10,6 @@ import {
 	listFiles,
 	persistFileBlob,
 } from "../../../infra/store/files.ts";
-import type { TurnContext } from "../../../pipeline/core.ts";
 import { isParseableDocument, parseDocument } from "../../../pipeline/media.ts";
 import type { ToolDefinition, ToolsetDefinition } from "../index.ts";
 
@@ -22,38 +19,6 @@ function findRequestedFile(name: string): FileMeta | null {
 	return fileIdPattern.test(name)
 		? findFile(name)
 		: (listFiles(name)[0] ?? null);
-}
-
-function matchesFileRequest(file: FileMeta, name: string): boolean {
-	return fileIdPattern.test(name)
-		? file.id === name
-		: path.basename(file.path).includes(name);
-}
-
-function findUploadedFile(
-	files: FileMeta[],
-	name: string,
-): FileMeta | undefined {
-	return files.find((f) => matchesFileRequest(f, name));
-}
-
-function simulatedReadBlocker(
-	name: string,
-	context: TurnContext,
-): string | null {
-	const overlay = getOverlay(context);
-	const simHit = findUploadedFile(overlay.uploadedFiles, name);
-	if (simHit) {
-		return `(sim) File was sim-uploaded this turn — content not materialized to disk.`;
-	}
-
-	const realHit = findRequestedFile(name);
-	if (!realHit) return `No file found for: ${name}`;
-	if (overlay.deletedFileIds.has(realHit.id)) {
-		return `(sim) File ${name} was sim-deleted earlier this turn.`;
-	}
-
-	return null;
 }
 
 // ─── upload ───────────────────────────────────────────────────────────────────
@@ -81,28 +46,6 @@ export const filesUploadTool: ToolDefinition<typeof filesUploadSchema> = {
 		if (!saved.metadataSaved) return `Upload metadata failed for ${name}`;
 		return `Uploaded ${name} — fileId: ${saved.id}`;
 	},
-	simulate: async ({ name, content, mimeType }, context) => {
-		const id = crypto.randomUUID();
-		const bytes = Buffer.from(content, "base64");
-		const date = new Date().toISOString().slice(0, 10);
-		const ext = name.includes(".") ? (name.split(".").pop() ?? "bin") : "bin";
-		const virtualPath = path.join(
-			settings.dataDir,
-			"files",
-			date,
-			`${id}.${ext}`,
-		);
-		const meta: FileMeta = {
-			id,
-			path: virtualPath,
-			mimeType,
-			sizeBytes: bytes.byteLength,
-			createdAt: new Date().toISOString(),
-		};
-		getOverlay(context).uploadedFiles.push(meta);
-		return `(sim) Uploaded ${name} — fileId: ${id}`;
-	},
-	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
 };
@@ -135,12 +78,6 @@ export const filesDownloadTool: ToolDefinition<typeof filesDownloadSchema> = {
 			return `Failed to read file: ${err instanceof Error ? err.message : String(err)}`;
 		}
 	},
-	simulate: async ({ name }, context) => {
-		const blocker = simulatedReadBlocker(name, context);
-		if (blocker) return blocker;
-		return filesDownloadTool.execute({ name }, context);
-	},
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "resource",
 };
@@ -181,12 +118,6 @@ export const filesReadTool: ToolDefinition<typeof filesReadSchema> = {
 
 		return `Cannot read ${path.basename(meta.path)} — unsupported mime type ${meta.mimeType}. Use files_download for binary content.`;
 	},
-	simulate: async ({ name }, context) => {
-		const blocker = simulatedReadBlocker(name, context);
-		if (blocker) return blocker;
-		return filesReadTool.execute({ name }, context);
-	},
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "resource",
 };
@@ -215,31 +146,6 @@ export const filesListTool: ToolDefinition<typeof filesListSchema> = {
 			)
 			.join("\n");
 	},
-	simulate: async ({ prefix }, context) => {
-		const overlay = getOverlay(context);
-		const realRows = listFiles(prefix).filter(
-			(r) => !overlay.deletedFileIds.has(r.id),
-		);
-		const simRows = overlay.uploadedFiles.filter((f) => {
-			if (!prefix) return true;
-			return (
-				f.path.includes(prefix) ||
-				f.id.includes(prefix) ||
-				path.basename(f.path).includes(prefix)
-			);
-		});
-		const rows = [...realRows, ...simRows];
-		if (rows.length === 0) return "No files found.";
-		return rows
-			.map(
-				(r) =>
-					`${r.id}${overlay.uploadedFiles.includes(r) ? " (sim)" : ""} | ${path.basename(
-						r.path,
-					)} | ${r.mimeType} | ${r.sizeBytes}B | ${r.createdAt}`,
-			)
-			.join("\n");
-	},
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "resource",
 };
@@ -270,23 +176,6 @@ export const filesDeleteTool: ToolDefinition<typeof filesDeleteSchema> = {
 		deleteFile(meta.id);
 		return `Deleted ${path.basename(meta.path)} (${meta.id})`;
 	},
-	simulate: async ({ name }, context) => {
-		const overlay = getOverlay(context);
-		const simIdx = overlay.uploadedFiles.findIndex((f) =>
-			matchesFileRequest(f, name),
-		);
-		if (simIdx >= 0) {
-			const removed = overlay.uploadedFiles.splice(simIdx, 1)[0];
-			if (removed) {
-				return `(sim) Deleted sim-uploaded file ${path.basename(removed.path)} (${removed.id})`;
-			}
-		}
-		const real = findRequestedFile(name);
-		if (!real) return `No file found for: ${name}`;
-		overlay.deletedFileIds.add(real.id);
-		return `(sim) Would delete ${path.basename(real.path)} (${real.id})`;
-	},
-	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
 };

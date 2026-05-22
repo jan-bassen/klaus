@@ -3,8 +3,6 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import type { TurnContext } from "../../pipeline/core.ts";
 import { settings } from "../config.ts";
-import { readText } from "../runtime.ts";
-import type { SimulationOverlay } from "../simulation.ts";
 import {
 	type AgentVaultMap,
 	accessError,
@@ -32,20 +30,6 @@ export async function gateVaultTool(
 	}
 
 	return resolved.absolute;
-}
-
-export async function readSimulatedVaultContent(
-	absPath: string,
-	overlay: SimulationOverlay,
-): Promise<string | null> {
-	if (overlay.vaultDeletes.has(absPath)) return null;
-	const pending = overlay.vaultWrites.get(absPath);
-	if (pending !== undefined) return pending;
-	try {
-		return await readText(absPath);
-	} catch {
-		return null;
-	}
 }
 
 export async function walkVaultDir(

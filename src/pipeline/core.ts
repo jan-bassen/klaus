@@ -277,8 +277,7 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 	});
 
 	// Fire-and-forget — trace persistence is best-effort, never blocks reply.
-	// Skipped under ghost (and therefore under !simulate) so ephemeral runs
-	// don't pollute the conversation log.
+	// Skipped under ghost so ephemeral runs don't pollute the conversation log.
 	if (!turn.config?.ghost && result.steps.length > 0) {
 		const traceSteps = toTraceSteps(result.steps);
 		if (traceSteps.length > 0) {

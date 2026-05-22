@@ -48,7 +48,6 @@ const probeTool: ToolDefinition<typeof probeSchema> = {
 	description: "Probe tool for index tests",
 	inputSchema: probeSchema,
 	execute: async ({ value }) => ({ value }),
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "tool",
 };

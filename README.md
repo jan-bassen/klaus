@@ -4,7 +4,7 @@
 
 It is built for people who want their assistant minimal, easily configurable and self-hosted. The name is a nod to the infamous [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), who allegedly walked past his crew after being beheaded — because this stack is headless. 
 
-The core pieces are already wired up: WhatsApp intake, agent routing, prompts, tools, variables, commands, schedules, timers, vault reads and writes, reports, simulation, and flat-file storage. Anything beyond that is up to you — drop your own ideas straight into those primitives. Just copy the repo and start tinkering.
+The core pieces are already wired up: WhatsApp intake, agent routing, prompts, tools, variables, commands, schedules, timers, vault reads and writes, reports, and flat-file storage. Anything beyond that is up to you — drop your own ideas straight into those primitives. Just copy the repo and start tinkering.
 
 If you're looking for a simpler and more complete setup, projects like [Hermes Agent](https://github.com/NousResearch/hermes-agent) or [OpenClaw](https://github.com/openclaw/openclaw) may be a calmer harbor. Klaus is for when you would rather sail with your strange little ship.
 
@@ -84,7 +84,7 @@ Use `!overrides` anywhere after the route to tweak one turn:
 
 ```text
 !large !voice think through this plan with me
-@meta !simulate remove the test agent 
+@meta !ghost inspect this without saving it to history
 ```
 
 Voice notes are transcribed, images and stickers become vision input, common documents are parsed to text, and quoted messages can carry their original media through the turn. Reports keep the readable media marker and stored filename, while redacting image data URLs.
@@ -112,12 +112,12 @@ Start with [docs/architecture.md](docs/architecture.md) for the product model, t
 - [Architecture](docs/architecture.md): the main map from WhatsApp to pipeline, tools, vault, stores, and reports.
 - [Codebase Pipeline](docs/codebase/pipeline.md): parse, config, context, model loop, dispatch, persistence, reports.
 - [Codebase Primitives](docs/codebase/primitives.md): adding TypeScript commands, variables, tools, toolsets, and provider tools.
-- [Codebase Infra](docs/codebase/infra.md): config, vault/sync, WhatsApp, stores, simulation, logging.
+- [Codebase Infra](docs/codebase/infra.md): config, vault/sync, WhatsApp, stores, logging.
 - [Vault Agents](docs/vault/agents.md): agent files, frontmatter, routing, tools, schedules, persistence, permissions.
 - [Vault Prompts](docs/vault/prompts.md): snippets and skills as reusable prompt context.
 - [Vault Templates](docs/vault/templates.md): message, history, persistence, help, error, welcome, and report render wrappers.
 - [Vault Settings](docs/vault/settings.md): `settings.yml` and `overrides.yml`.
-- [Vault Reports](docs/vault/reports.md): JSON reports, Markdown mirrors, simulation, debugging.
+- [Vault Reports](docs/vault/reports.md): JSON reports, Markdown mirrors, debugging.
 
 ## Develop
 

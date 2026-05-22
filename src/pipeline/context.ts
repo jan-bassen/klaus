@@ -17,7 +17,6 @@ import type {
 import type { z } from "zod";
 import { settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
-import { fakeExternal, fakeStateful, getOverlay } from "../infra/simulation.ts";
 import { findFileByExternalId } from "../infra/store/files.ts";
 import { getConversation } from "../infra/store/history.ts";
 import type {
@@ -116,15 +115,6 @@ interface ToolAssembly {
 	wrap(t: ToolDefinition): FunctionTool;
 }
 
-/**
- * Per-call tool dispatcher. Honours `turn.config.simulate`:
- *   - external → never invoke real `execute`; return a plausible fake
- *   - stateful → call the tool's `simulate` handler if declared; else fake
- *   - pure     → pass through
- *
- * Every faked call is recorded on the turn's overlay so the report can
- * surface exactly what would have happened.
- */
 async function invokeTool(
 	t: ToolDefinition,
 	input: unknown,
@@ -137,45 +127,7 @@ async function invokeTool(
 		};
 	}
 
-	if (!turn.config?.simulate) {
-		return t.execute(parsed.data, turn);
-	}
-
-	const overlay = getOverlay(turn);
-
-	// Tool-declared simulate handler wins regardless of category. This lets
-	// pure read tools (e.g. vault_read) consult the overlay so they see
-	// writes made earlier in the same turn.
-	if (t.simulate) {
-		const result = await t.simulate(parsed.data, turn);
-		overlay.actions.push({
-			tool: t.name,
-			sideEffect: t.sideEffect,
-			args: parsed.data,
-			intent: `Custom simulate handler`,
-			result,
-		});
-		return result;
-	}
-
-	// No handler: pure passes through; external/stateful get generic fakes.
-	if (t.sideEffect === "pure") {
-		return t.execute(parsed.data, turn);
-	}
-
-	const { result, intent } =
-		t.sideEffect === "external"
-			? fakeExternal(t.name, parsed.data)
-			: fakeStateful(t.name, parsed.data);
-	overlay.actions.push({
-		tool: t.name,
-		sideEffect: t.sideEffect,
-		args: parsed.data,
-		intent,
-		result,
-	});
-	log.info(`[sim] ${t.name} (${t.sideEffect}) — ${intent}`);
-	return result;
+	return t.execute(parsed.data, turn);
 }
 
 function formatToolInputError(error: z.ZodError): string {
@@ -615,8 +567,8 @@ export async function assembleContext(
 			: assembleHistory(turn, historyOpts),
 	]);
 
-	// Mutate turn state into the caller-owned object. Tool closures, reports, and
-	// simulation overlays must all share the same TurnContext identity.
+	// Mutate turn state into the caller-owned object. Tool closures and reports
+	// must share the same TurnContext identity.
 	Object.assign(turn.messageRefs, history.messageRefs);
 	const fullTurn = Object.assign(turn, { vars }) as TurnContext;
 

@@ -108,7 +108,6 @@ export function buildSkillTool(
 				};
 			}
 		},
-		sideEffect: "pure",
 		kind: "builtin",
 		capability: "resource",
 	};

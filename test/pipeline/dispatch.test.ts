@@ -49,11 +49,6 @@ describe("pipeline/dispatch.dispatch", () => {
 		agentRegistry.set("default", makeAgent("default"));
 		agentRegistry.set("custom", makeAgent("custom", { tools: ["reply"] }));
 		setVariables([testVariable]);
-		overrideRegistry.set("simulate", {
-			name: "simulate",
-			description: "Dry run",
-			overrides: { simulate: true },
-		});
 	});
 
 	afterEach(() => {
@@ -179,16 +174,21 @@ describe("pipeline/dispatch.dispatch", () => {
 	});
 
 	it("feeds override names into buildTurnConfig", async () => {
+		overrideRegistry.set("ghost", {
+			name: "ghost",
+			description: "Ghost run",
+			overrides: { ghost: true, skipHistory: true },
+		});
+
 		await dispatch({
 			agent: "custom",
 			prompt: "objective",
 			chatId: "chat-1",
 			trigger: { kind: "dispatch", parentRunId: "parent-1" },
-			overrides: ["simulate"],
+			overrides: ["ghost"],
 		});
 
 		expect(executedTurn().config).toMatchObject({
-			simulate: true,
 			ghost: true,
 			skipHistory: true,
 		});

@@ -3,7 +3,6 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { settings } from "../../src/infra/config.ts";
-import { getOverlay } from "../../src/infra/simulation.ts";
 import {
 	appendMessage,
 	appendReaction,
@@ -16,7 +15,6 @@ import {
 } from "../../src/pipeline/agents.ts";
 import { assembleContext } from "../../src/pipeline/context.ts";
 import type { TurnContext } from "../../src/pipeline/core.ts";
-import { imageGenerateTool } from "../../src/primitives/tools/image.ts";
 import {
 	registerTool,
 	type ToolDefinition,
@@ -348,14 +346,11 @@ describe("pipeline/context.assembleHistory", () => {
 	});
 });
 
-describe("pipeline/context.invokeTool simulation wrapper", () => {
+describe("pipeline/context.invokeTool", () => {
 	let tmpDir: string;
 	let originalTemplatesDir: string;
 	let pureExecute: ValueTool["execute"];
 	let externalExecute: ValueTool["execute"];
-	let statefulExecute: ValueTool["execute"];
-	let simulatedExecute: ValueTool["execute"];
-	let simulateHandler: NonNullable<ValueTool["simulate"]>;
 
 	beforeEach(() => {
 		tmpDir = makeTmpDir();
@@ -370,23 +365,9 @@ describe("pipeline/context.invokeTool simulation wrapper", () => {
 		externalExecute = vi.fn<ValueTool["execute"]>(async () => ({
 			real: "external",
 		}));
-		statefulExecute = vi.fn<ValueTool["execute"]>(async () => ({
-			real: "stateful",
-		}));
-		simulatedExecute = vi.fn<ValueTool["execute"]>(async () => ({
-			real: "simulated",
-		}));
-		simulateHandler = vi.fn<NonNullable<ValueTool["simulate"]>>(
-			async (input) => ({ simulated: true, input }),
-		);
 
-		registerTool(makeTool("pure_echo", "pure", pureExecute));
-		registerTool(makeTool("external_send", "external", externalExecute));
-		registerTool(makeTool("stateful_write", "stateful", statefulExecute));
-		registerTool(
-			makeTool("custom_sim", "external", simulatedExecute, simulateHandler),
-		);
-		registerTool(imageGenerateTool);
+		registerTool(makeTool("pure_echo", pureExecute));
+		registerTool(makeTool("external_send", externalExecute));
 	});
 
 	afterEach(() => {
@@ -394,7 +375,7 @@ describe("pipeline/context.invokeTool simulation wrapper", () => {
 		rmTmpDir(tmpDir);
 	});
 
-	it("passes through to real tool execution outside simulation", async () => {
+	it("passes through to real tool execution", async () => {
 		const def = makeAgent(tmpDir, "alpha", ["pure_echo", "external_send"]);
 		const turn = baseTurn(tmpDir, {
 			agent: def,
@@ -436,125 +417,6 @@ describe("pipeline/context.invokeTool simulation wrapper", () => {
 		expect(pureExecute).not.toHaveBeenCalled();
 	});
 
-	it("passes pure tools through during simulation", async () => {
-		const def = makeAgent(tmpDir, "alpha", ["pure_echo"]);
-		const turn = baseTurn(tmpDir, {
-			agent: def,
-			config: { simulate: true, skipHistory: true },
-		});
-		const ctx = await assembleContext(turn, def, { variables: [] });
-
-		const result = await ctx.tools.functionTools.pure_echo?.execute({
-			value: "p",
-		});
-
-		expect(result).toEqual({ real: "pure", input: { value: "p" } });
-		expect(pureExecute).toHaveBeenCalledOnce();
-		expect(getOverlay(turn as TurnContext).actions).toEqual([]);
-	});
-
-	it("fakes external tools during simulation and records the intended action", async () => {
-		const def = makeAgent(tmpDir, "alpha", ["external_send"]);
-		const turn = baseTurn(tmpDir, {
-			agent: def,
-			config: { simulate: true, skipHistory: true },
-		});
-		const ctx = await assembleContext(turn, def, { variables: [] });
-
-		const result = await ctx.tools.functionTools.external_send?.execute({
-			value: "payload",
-		});
-
-		expect(result).toBe("ok");
-		expect(externalExecute).not.toHaveBeenCalled();
-		expect(getOverlay(turn as TurnContext).actions).toEqual([
-			expect.objectContaining({
-				tool: "external_send",
-				sideEffect: "external",
-				args: { value: "payload" },
-				intent: "Would invoke external tool external_send",
-				result: "ok",
-			}),
-		]);
-	});
-
-	it("fakes stateful tools during simulation and records the intended action", async () => {
-		const def = makeAgent(tmpDir, "alpha", ["stateful_write"]);
-		const turn = baseTurn(tmpDir, {
-			agent: def,
-			config: { simulate: true, skipHistory: true },
-		});
-		const ctx = await assembleContext(turn, def, { variables: [] });
-
-		const result = await ctx.tools.functionTools.stateful_write?.execute({
-			value: "payload",
-		});
-
-		expect(result).toBe("(sim) stateful_write acknowledged");
-		expect(statefulExecute).not.toHaveBeenCalled();
-		expect(getOverlay(turn as TurnContext).actions).toEqual([
-			expect.objectContaining({
-				tool: "stateful_write",
-				sideEffect: "stateful",
-				args: { value: "payload" },
-				intent: "Would stateful_write value=payload",
-				result: "(sim) stateful_write acknowledged",
-			}),
-		]);
-	});
-
-	it("uses a tool's custom simulate handler before side-effect category routing", async () => {
-		const def = makeAgent(tmpDir, "alpha", ["custom_sim"]);
-		const turn = baseTurn(tmpDir, {
-			agent: def,
-			config: { simulate: true, skipHistory: true },
-		});
-		const ctx = await assembleContext(turn, def, { variables: [] });
-
-		const result = await ctx.tools.functionTools.custom_sim?.execute({
-			value: "payload",
-		});
-
-		expect(result).toEqual({ simulated: true, input: { value: "payload" } });
-		expect(simulatedExecute).not.toHaveBeenCalled();
-		expect(simulateHandler).toHaveBeenCalledOnce();
-		expect(getOverlay(turn as TurnContext).actions).toEqual([
-			expect.objectContaining({
-				tool: "custom_sim",
-				sideEffect: "external",
-				args: { value: "payload" },
-				intent: "Custom simulate handler",
-				result: { simulated: true, input: { value: "payload" } },
-			}),
-		]);
-	});
-
-	it("records image_generate simulation once", async () => {
-		const def = makeAgent(tmpDir, "alpha", ["image_generate"]);
-		const turn = baseTurn(tmpDir, {
-			agent: def,
-			config: { simulate: true, skipHistory: true },
-		});
-		const ctx = await assembleContext(turn, def, { variables: [] });
-
-		const result = await ctx.tools.functionTools.image_generate?.execute({
-			prompt: "make it cinematic",
-			sourceMessageRef: "current",
-		});
-
-		expect(result).toEqual({ sent: true, fileId: null, simulated: true });
-		expect(getOverlay(turn as TurnContext).actions).toEqual([
-			expect.objectContaining({
-				tool: "image_generate",
-				sideEffect: "external",
-				args: {
-					prompt: "make it cinematic",
-					sourceMessageRef: "current",
-				},
-				result: { sent: true, fileId: null, simulated: true },
-			}),
-		]);
-	});
 });
 
 function writeTemplates(tmpDir: string): void {
@@ -651,17 +513,13 @@ function traceStep(toolName: string, result: unknown) {
 
 function makeTool(
 	name: string,
-	sideEffect: ToolDefinition["sideEffect"],
 	execute: ToolDefinition<typeof valueSchema>["execute"],
-	simulate?: ToolDefinition<typeof valueSchema>["simulate"],
 ): ToolDefinition<typeof valueSchema> {
 	return {
 		name,
 		description: name,
 		inputSchema: valueSchema,
 		execute,
-		...(simulate ? { simulate } : {}),
-		sideEffect,
 		kind: "builtin",
 		capability: "tool",
 	};

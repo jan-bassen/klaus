@@ -75,21 +75,12 @@ export const shoutTool: ToolDefinition<typeof schema> = {
 	async execute({ text }) {
 		return text.toUpperCase();
 	},
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "tool",
 };
 ```
 
-Every tool declares a side-effect category:
-
-| Value | Meaning under `!simulate` |
-| --- | --- |
-| `pure` | Read-only. Calls the real tool. |
-| `stateful` | Mutates local durable state. Uses `simulate` when present, otherwise records fake success. |
-| `external` | Touches the outside world. Does not call the real tool. Records a plausible fake. |
-
-Use Zod schemas for inputs. Klaus validates every model-supplied tool call against the schema before `execute` or `simulate` runs; invalid calls return an error result to the model and do not perform side effects. Avoid `any` and type assertions. Return clear values the model can act on, including error objects or strings when runtime conditions are wrong.
+Use Zod schemas for inputs. Klaus validates every model-supplied tool call against the schema before `execute` runs; invalid calls return an error result to the model and do not perform side effects. Avoid `any` and type assertions. Return clear values the model can act on, including error objects or strings when runtime conditions are wrong.
 
 ## Toolsets
 

@@ -93,14 +93,6 @@ const ReportOutcomeSchema = z.discriminatedUnion("kind", [
 	}),
 ]);
 
-const SimulatedActionSchema = z.object({
-	tool: z.string(),
-	sideEffect: z.enum(["external", "stateful", "pure"]),
-	args: z.unknown(),
-	intent: z.string(),
-	result: z.unknown(),
-});
-
 const ReportEntrySchema = z.object({
 	runId: z.string(),
 	chatId: z.string(),
@@ -113,10 +105,6 @@ const ReportEntrySchema = z.object({
 	config: ReportConfigSchema,
 	llm: ReportLlmSchema.optional(),
 	message: ReportMessageSchema.optional(),
-	/** True when the run was a `!simulate` dry-run — surfaced in templates. */
-	simulation: z.boolean().optional(),
-	/** Faked actions captured by the simulation overlay (only when `simulation`). */
-	simulatedActions: z.array(SimulatedActionSchema).optional(),
 });
 
 export type ReportEntry = z.infer<typeof ReportEntrySchema>;

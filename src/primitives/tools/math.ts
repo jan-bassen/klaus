@@ -31,7 +31,6 @@ export const mathTool: ToolDefinition<typeof schema> = {
 			};
 		}
 	},
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "tool",
 };

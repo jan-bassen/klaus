@@ -41,7 +41,6 @@ const replyTool: ToolDefinition<typeof replySchema> = {
 	inputSchema: replySchema,
 	execute: async ({ content }) =>
 		content === "not actually sent" ? { error: "not sent" } : "sent",
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "tool",
 };
@@ -51,7 +50,6 @@ const probeTool: ToolDefinition<typeof probeSchema> = {
 	description: "Record a probe value",
 	inputSchema: probeSchema,
 	execute: async ({ value }) => ({ ok: true, value: value ?? "default" }),
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "tool",
 };
@@ -61,7 +59,6 @@ const hiddenTool: ToolDefinition<typeof hiddenSchema> = {
 	description: "Hidden toolset member",
 	inputSchema: hiddenSchema,
 	execute: async () => ({ ok: true }),
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "tool",
 };

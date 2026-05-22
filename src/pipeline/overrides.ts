@@ -45,12 +45,6 @@ export interface TurnConfig {
 	skipHistory?: boolean;
 	ghost?: boolean;
 	fast?: boolean;
-	/**
-	 * `!simulate` — ephemeral run. Tool wrapper routes by `sideEffect` (no
-	 * external messages, no persistent writes). Implies `ghost` so neither the
-	 * inbound message nor the trace are persisted.
-	 */
-	simulate?: boolean;
 	toolChoice?: "none" | "required";
 	[key: string]: unknown;
 }
@@ -74,7 +68,6 @@ const turnConfigSchema = z
 		skipHistory: z.boolean().optional(),
 		ghost: z.boolean().optional(),
 		fast: z.boolean().optional(),
-		simulate: z.boolean().optional(),
 		toolChoice: z.enum(["none", "required"]).optional(),
 	})
 	.passthrough();
@@ -268,11 +261,5 @@ export function buildTurnConfig(
 
 	if (presets.forceVoice) merged.suppressVoice = false;
 
-	// Sim is a superset of ghost: never persist user-msg or assistant trace.
-	// Pinning ghost here means every existing `if (config.ghost)` site honours it.
-	if (merged.simulate) {
-		merged.ghost = true;
-		merged.skipHistory = true;
-	}
 	return merged;
 }

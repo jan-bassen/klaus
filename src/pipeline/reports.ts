@@ -13,7 +13,6 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
-import { getOverlay } from "../infra/simulation.ts";
 import {
 	localDateString,
 	type ReportEntry,
@@ -82,12 +81,6 @@ function buildReport(input: EmitReportInput): ReportEntry {
 
 	if (result) entry.llm = buildLlmSection(result);
 	if (turn.message) entry.message = buildMessageSection(turn.message);
-
-	if (turn.config?.simulate) {
-		entry.simulation = true;
-		const overlay = getOverlay(turn);
-		if (overlay.actions.length > 0) entry.simulatedActions = overlay.actions;
-	}
 
 	return entry;
 }

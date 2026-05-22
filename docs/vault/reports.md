@@ -1,6 +1,6 @@
 # Reports
 
-Reports are the main way to understand what Klaus actually did. They show the rendered prompt, available variables, history, tool calls, results, simulated actions, errors, and trace output.
+Reports are the main way to understand what Klaus actually did. They show the rendered prompt, available variables, history, tool calls, results, errors, and trace output.
 
 ## Files
 
@@ -39,24 +39,13 @@ Step arguments keep short metadata before long content where that improves scana
 
 Markdown report prompt blocks use fences long enough to contain nested code blocks from snippets, skills, or user messages without breaking the rendered report.
 
-## Simulation
-
-`!simulate` turns always emit reports and are tagged as simulation runs.
-
-```text
-@assistant !simulate clean up Projects/Klaus/Inbox.md
-```
-
-Under simulation, external and stateful tool calls do not perform real side effects. The report includes the simulated actions list so you can inspect what would have happened.
-
 ## Debug Loop
 
 For a weird reply:
 
 1. Send a narrow reproduction message.
-2. Add `!simulate` if tools could write, schedule, upload, or send.
-3. Open the newest report.
-4. Check the rendered system prompt, history, current user message, agent answer, variables, and tool calls.
-5. Fix the smallest agent, snippet, skill, override, setting, or template that explains the behavior.
+2. Open the newest report.
+3. Check the rendered system prompt, history, current user message, agent answer, variables, and tool calls.
+4. Fix the smallest agent, snippet, skill, override, setting, or template that explains the behavior.
 
 For pipeline internals, see [../codebase/pipeline.md](../codebase/pipeline.md).

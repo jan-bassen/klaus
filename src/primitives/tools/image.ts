@@ -143,13 +143,6 @@ export const imageGenerateTool: ToolDefinition<typeof imageGenerateSchema> = {
 
 		return { sent: true, fileId: saved.id };
 	},
-	simulate: async ({ prompt }, context) => {
-		if (context._replyCollector) {
-			context._replyCollector.push(`[image: ${prompt}]`);
-		}
-		return { sent: true, fileId: null, simulated: true };
-	},
-	sideEffect: "external",
 	kind: "builtin",
 	capability: "tool",
 };

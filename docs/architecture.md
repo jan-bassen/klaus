@@ -86,4 +86,4 @@ The Obsidian vault is knowledge and user-owned configuration. The data directory
 
 Reactions are stored against WhatsApp message IDs and rendered on selected history message rows. Agent reactions include agent/run attribution where Klaus produced them.
 
-Reports are the main debugging surface. They include the rendered prompt, variables, history, tool calls, results, simulated actions, and errors. See [vault/reports.md](vault/reports.md).
+Reports are the main debugging surface. They include the rendered prompt, variables, history, tool calls, results, and errors. See [vault/reports.md](vault/reports.md).

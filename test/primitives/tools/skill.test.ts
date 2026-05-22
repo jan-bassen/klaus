@@ -29,7 +29,6 @@ function dummyTool(name: string): ToolDefinition {
 		description: name,
 		inputSchema: undefined as unknown as ToolDefinition["inputSchema"],
 		execute: async () => "ok",
-		sideEffect: "pure",
 		kind: "builtin",
 		capability: "tool",
 	};
@@ -104,7 +103,6 @@ describe("primitives/tools/skill: buildSkillTool", () => {
 
 		const tool = buildSkillTool(["a", "b"], tmp);
 		expect(tool.name).toBe("skill_get");
-		expect(tool.sideEffect).toBe("pure");
 		expect(tool.description).toContain("a (alpha skill)");
 		// Skills with extra tools get the [+tools] marker
 		expect(tool.description).toContain("b (beta skill [+tools])");

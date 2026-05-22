@@ -4,31 +4,11 @@ import { scanFiles } from "../../infra/runtime.ts";
 import type { TurnContext } from "../../pipeline/core.ts";
 // -- Tool types (owned by this domain) --
 
-/**
- * Blast-radius declaration. The simulation wrapper routes by this field:
- *   - `external` — touches the outside world (sends a message, posts a webhook).
- *     Under `!simulate`: never invoked; a plausible fake result is returned and
- *     the intended action is logged into the per-turn overlay.
- *   - `stateful` — mutates persistent local state (vault file, timer, schedule).
- *     Under `!simulate`: optionally calls the tool's own `simulate` handler if
- *     declared (which mutates the per-turn overlay); otherwise a generic fake
- *     "ok" result is returned and the intended write is logged.
- *   - `pure`     — read-only. Always passes through to `execute`.
- */
-export type SideEffect = "external" | "stateful" | "pure";
-
 export interface ToolDefinition<TInput extends z.ZodTypeAny = z.ZodTypeAny> {
 	name: string;
 	description: string;
 	inputSchema: TInput;
 	execute(input: z.infer<TInput>, context: TurnContext): Promise<unknown>;
-	/**
-	 * Optional under-sim handler. When set, called instead of `execute` when
-	 * the turn is in simulation mode. Use it for tools whose fake result or
-	 * read-after-write consistency needs tool-specific behavior.
-	 */
-	simulate?(input: z.infer<TInput>, context: TurnContext): Promise<unknown>;
-	sideEffect: SideEffect;
 	kind: "builtin" | "integration";
 	capability: "tool" | "resource";
 	/** Override for trace-replay truncation of this tool's stringified result. */
@@ -52,18 +32,7 @@ export const toolRegistry = new Map<string, ToolDefinition<z.ZodTypeAny>>();
 /** Maps toolset name → ToolsetDefinition. Populated at startup by loadAllTools(). */
 export const toolsetRegistry = new Map<string, ToolsetDefinition>();
 
-const VALID_SIDE_EFFECTS = new Set<SideEffect>([
-	"external",
-	"stateful",
-	"pure",
-]);
-
 export function registerTool(tool: ToolDefinition<z.ZodTypeAny>): void {
-	if (!VALID_SIDE_EFFECTS.has(tool.sideEffect)) {
-		throw new Error(
-			`Tool "${tool.name}" must declare a sideEffect of "external" | "stateful" | "pure"`,
-		);
-	}
 	toolRegistry.set(tool.name, tool);
 }
 
@@ -88,7 +57,6 @@ export function generateMetaTool(
 		inputSchema: emptySchema,
 		execute: async (_input, _context) =>
 			`Loaded. The ${ts.name} tools are now in your toolset for the next step — call one of them to act on the user's request:\n${toolList}`,
-		sideEffect: "pure",
 		kind: "builtin",
 		capability: "tool",
 	};

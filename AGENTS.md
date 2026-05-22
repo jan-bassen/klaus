@@ -52,12 +52,12 @@ docs/setup.md              # install, first boot, WhatsApp login, troubleshootin
 docs/architecture.md       # high-level map of runtime and authoring surfaces
 docs/codebase/pipeline.md  # turn flow, config, context, model loop, dispatch
 docs/codebase/primitives.md # commands, variables, tools, toolsets, provider tools
-docs/codebase/infra.md     # config, vault/sync, WhatsApp, stores, simulation
+docs/codebase/infra.md     # config, vault/sync, WhatsApp, stores, logging
 docs/vault/agents.md       # agent frontmatter, prompts, schedules, persistence
 docs/vault/prompts.md      # snippets and skills
 docs/vault/templates.md    # message/history/help/error/welcome/report templates
 docs/vault/settings.md     # settings.yml and overrides.yml
-docs/vault/reports.md      # reports, simulation output, debugging
+docs/vault/reports.md      # reports and debugging
 ```
 
 ## Directory layout
@@ -85,7 +85,6 @@ src/
 └── infra/            # external systems + state
     ├── config.ts     # YAML settings + env paths + resolveModel/resolveImageModel (live mutable `settings`)
     ├── logger.ts
-    ├── simulation.ts # per-turn overlay (WeakMap<TurnContext>) + fakers
     ├── store/        # flat-file stores (history, files, report, schedules, timers)
     ├── vault/        # path resolution, permissions, markdown helpers, file watcher, Obsidian sync
     └── whatsapp/     # connection, send queue, receive (+ InboundMessage), presence, login
@@ -156,7 +155,7 @@ Persistence:
 
 ## Primitives
 
-**Tools** declare `sideEffect: "external" | "stateful" | "pure"` (enforced at registration). Under `!simulate`, `external`/`stateful` calls route through the per-turn simulation overlay — either a custom `simulate` handler or a generic faker. `pure` passes through.
+**Tools** are model-callable functions with Zod input schemas. Keep tool behavior explicit in the name and description, and return clear values the model can act on.
 
 **Provider tools** (e.g. `web_search`, `web_fetch`) are OpenRouter server tools — they get appended verbatim to the request's `tools` array (`{ type: "openrouter:web_search" }`) and execute server-side; the agent loop never sees a client-side tool_call for them. Declared per agent in `providerTools: […]`.
 
@@ -178,17 +177,7 @@ Persistence:
 
 One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, explicit tools, toolsets, skills, LLM steps, tool calls, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Toolset members stay grouped in the context summary; individual calls still appear in the step trace. Image data URLs are redacted from text mirrors; the message wrapper records the media as `[Image: filename]` when available. Reply step args keep short metadata such as `voice` before long `content` so truncation stays readable.
 
-Sim runs always set `simulation: true` and carry the `simulatedActions` list from the overlay.
-
 `settings.reports.vaultMarkdown: true` mirrors each report into `{vault}/Klaus/reports/<date>/<file>.md` for Obsidian reading.
-
-## Simulation (`!simulate` / `!sim`)
-
-Try actions with real data, no real consequences. Reports always emitted, tagged `SIM`.
-
-Elevates `ghost: true` + `skipHistory: true` — neither the user message nor the trace persist. Inline dispatch propagates `simulate` into sub-agents automatically.
-
-Overlay gives read-from-write coherence: a `vault_write` followed by `vault_read` sees the pending content. Same for dispatch timers/schedules and file uploads.
 
 ## Storage
 

@@ -15,31 +15,13 @@ function pureTool(name: string): ToolDefinition<z.ZodTypeAny> {
 		description: "x",
 		inputSchema: z.object({}),
 		execute: async () => "ok",
-		sideEffect: "pure",
 		kind: "builtin",
 		capability: "tool",
 	};
 }
 
-describe("primitives/tools: sideEffect enforcement", () => {
-	it("registerTool with invalid sideEffect throws", () => {
-		const bad = {
-			...pureTool("bad"),
-			sideEffect: "invalid" as unknown as "pure",
-		};
-		expect(() => registerTool(bad)).toThrow(/sideEffect/);
-	});
-
-	it("accepts external | stateful | pure", () => {
-		registerTool({ ...pureTool("a"), sideEffect: "external" });
-		registerTool({ ...pureTool("b"), sideEffect: "stateful" });
-		registerTool({ ...pureTool("c"), sideEffect: "pure" });
-		expect(toolRegistry.has("a")).toBe(true);
-		expect(toolRegistry.has("b")).toBe(true);
-		expect(toolRegistry.has("c")).toBe(true);
-	});
-
-	it("generateMetaTool produces a tool with sideEffect: 'pure'", () => {
+describe("primitives/tools: meta-tools", () => {
+	it("generateMetaTool produces a loader tool", () => {
 		const ts: ToolsetDefinition = {
 			name: "files",
 			description: "files toolset",
@@ -47,7 +29,8 @@ describe("primitives/tools: sideEffect enforcement", () => {
 		};
 		const meta = generateMetaTool(ts);
 		expect(meta.name).toBe("load_files");
-		expect(meta.sideEffect).toBe("pure");
+		expect(meta.kind).toBe("builtin");
+		expect(meta.capability).toBe("tool");
 	});
 });
 
@@ -63,17 +46,4 @@ describe("primitives/tools: registerToolset", () => {
 		expect(toolRegistry.has("demo.b")).toBe(true);
 	});
 
-	it("toolset with invalid sideEffect throws at register time", () => {
-		const ts: ToolsetDefinition = {
-			name: "broken",
-			description: "broken",
-			tools: [
-				{
-					...pureTool("broken.x"),
-					sideEffect: "weird" as unknown as "pure",
-				},
-			],
-		};
-		expect(() => registerToolset(ts)).toThrow(/sideEffect/);
-	});
 });

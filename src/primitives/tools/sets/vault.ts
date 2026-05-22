@@ -3,7 +3,6 @@ import path from "node:path";
 import { z } from "zod";
 import { settings } from "../../../infra/config.ts";
 import { readText, scanFiles, writeData } from "../../../infra/runtime.ts";
-import { getOverlay } from "../../../infra/simulation.ts";
 import {
 	checkPermission,
 	getReadableFolders,
@@ -18,7 +17,6 @@ import {
 } from "../../../infra/vault/markdown.ts";
 import {
 	gateVaultTool,
-	readSimulatedVaultContent,
 	vaultMap,
 	vaultRoot,
 	walkVaultDir,
@@ -29,7 +27,6 @@ import type { ToolDefinition, ToolsetDefinition } from "../index.ts";
 interface AppendUpdate {
 	content: string;
 	message: string;
-	simMessage: string;
 }
 
 function formatHeadingList(lines: string[]): string {
@@ -49,7 +46,6 @@ function buildAppendUpdate(
 		return {
 			content: existing ? `${existing}\n${content}` : content,
 			message: `Appended to: ${rel}`,
-			simMessage: `(sim) Appended to: ${rel}`,
 		};
 	}
 
@@ -57,7 +53,6 @@ function buildAppendUpdate(
 		return {
 			content,
 			message: `Appended to: ${rel}`,
-			simMessage: `(sim) Appended to: ${rel}`,
 		};
 	}
 
@@ -76,7 +71,6 @@ function buildAppendUpdate(
 	return {
 		content: [...before, content, ...after].join("\n"),
 		message: `Appended to section ${sectionName} in: ${rel}`,
-		simMessage: `(sim) Appended to section ${sectionName} in: ${rel}`,
 	};
 }
 
@@ -121,13 +115,6 @@ export const vaultReadTool: ToolDefinition<typeof vaultReadSchema> = {
 			return `Note not found: ${rel}`;
 		}
 	},
-	simulate: async ({ path: rel }, context) => {
-		const gated = await gateVaultTool(rel, "read", context);
-		if (typeof gated === "object") return gated.error;
-		const content = await readSimulatedVaultContent(gated, getOverlay(context));
-		return content ?? `Note not found: ${rel}`;
-	},
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "resource",
 };
@@ -188,45 +175,6 @@ export const vaultSearchTool: ToolDefinition<typeof vaultSearchSchema> = {
 			? results.join("\n")
 			: `No notes matching "${query}".`;
 	},
-	simulate: async (input, context) => {
-		const base = await vaultSearchTool.execute(input, context);
-		if (typeof base !== "string") return base;
-		const overlay = getOverlay(context);
-		if (overlay.vaultWrites.size === 0 && overlay.vaultDeletes.size === 0) {
-			return base;
-		}
-		const terms = input.query.toLowerCase().split(/\s+/).filter(Boolean);
-		if (terms.length === 0) return base;
-
-		const root = vaultRoot();
-		const deletedRels = new Set(
-			[...overlay.vaultDeletes].map((abs) => path.relative(root, abs)),
-		);
-		const simHits: string[] = [];
-		for (const [abs, content] of overlay.vaultWrites) {
-			const lower = content.toLowerCase();
-			if (!terms.every((t) => lower.includes(t))) continue;
-			const matchLine = content.split("\n").find((l) => {
-				const ll = l.toLowerCase();
-				return terms.some((t) => ll.includes(t));
-			});
-			const preview = matchLine?.trim().slice(0, 120) ?? "";
-			const rel = path.relative(root, abs);
-			simHits.push(`(sim) ${rel}${preview ? ` — ${preview}` : ""}`);
-		}
-
-		const baseLines =
-			base.startsWith("No notes matching") || !base ? [] : base.split("\n");
-		const keptLines = baseLines.filter((line) => {
-			const rel = line.split(" — ")[0]?.trim();
-			return rel ? !deletedRels.has(rel) : true;
-		});
-		const combined = [...keptLines, ...simHits];
-		return combined.length > 0
-			? combined.join("\n")
-			: `No notes matching "${input.query}".`;
-	},
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "resource",
 };
@@ -289,32 +237,6 @@ export const vaultListTool: ToolDefinition<typeof vaultListSchema> = {
 		await walkVaultDir(result, depth, MAX_ENTRIES, lines, 0);
 		return lines.length > 0 ? lines.join("\n") : "Empty directory.";
 	},
-	simulate: async (input, context) => {
-		const base = await vaultListTool.execute(input, context);
-		if (typeof base !== "string") return base;
-		const overlay = getOverlay(context);
-		if (overlay.vaultWrites.size === 0 && overlay.vaultDeletes.size === 0) {
-			return base;
-		}
-		const root = vaultRoot();
-		const targetDir = input.directory ? path.join(root, input.directory) : root;
-		const scope = (abs: string): boolean =>
-			abs === targetDir || abs.startsWith(`${targetDir}${path.sep}`);
-		const additions = [...overlay.vaultWrites.keys()]
-			.filter(scope)
-			.map((abs) => path.relative(root, abs));
-		const deletions = [...overlay.vaultDeletes]
-			.filter(scope)
-			.map((abs) => path.relative(root, abs));
-		if (additions.length === 0 && deletions.length === 0) return base;
-		const notes: string[] = [];
-		if (additions.length > 0)
-			notes.push(`[sim +${additions.length}: ${additions.join(", ")}]`);
-		if (deletions.length > 0)
-			notes.push(`[sim -${deletions.length}: ${deletions.join(", ")}]`);
-		return `${base}\n${notes.join("\n")}`;
-	},
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "resource",
 };
@@ -347,15 +269,6 @@ export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
 		await writeData(result, content);
 		return `Written: ${rel}`;
 	},
-	simulate: async ({ path: rel, content }, context) => {
-		const gated = await gateVaultTool(rel, "full", context);
-		if (typeof gated === "object") return gated.error;
-		const overlay = getOverlay(context);
-		overlay.vaultWrites.set(gated, content);
-		overlay.vaultDeletes.delete(gated);
-		return `(sim) Written: ${rel}`;
-	},
-	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
 };
@@ -394,19 +307,6 @@ export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
 		await writeData(result, updated.content);
 		return updated.message;
 	},
-	simulate: async ({ path: rel, content, heading }, context) => {
-		const gated = await gateVaultTool(rel, "append", context);
-		if (typeof gated === "object") return gated.error;
-		const overlay = getOverlay(context);
-		const existing = (await readSimulatedVaultContent(gated, overlay)) ?? "";
-
-		const updated = buildAppendUpdate(existing, content, heading, rel);
-		if (typeof updated === "string") return updated;
-		overlay.vaultWrites.set(gated, updated.content);
-		overlay.vaultDeletes.delete(gated);
-		return updated.simMessage;
-	},
-	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
 };
@@ -452,7 +352,6 @@ export const vaultBacklinksTool: ToolDefinition<typeof vaultBacklinksSchema> = {
 			? results.join("\n")
 			: `No backlinks found for "${noteName}".`;
 	},
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "resource",
 };
@@ -535,26 +434,6 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 		}
 		return msg;
 	},
-	simulate: async ({ from, to, updateBacklinks }, context) => {
-		const srcGated = await gateVaultTool(from, "full", context);
-		if (typeof srcGated === "object") return srcGated.error;
-		const dstGated = await gateVaultTool(to, "full", context);
-		if (typeof dstGated === "object") return dstGated.error;
-		const overlay = getOverlay(context);
-		const content = await readSimulatedVaultContent(srcGated, overlay);
-		if (content === null) {
-			return `Failed to move "${from}" — file not found.`;
-		}
-		overlay.vaultWrites.set(dstGated, content);
-		overlay.vaultDeletes.delete(dstGated);
-		overlay.vaultDeletes.add(srcGated);
-		overlay.vaultWrites.delete(srcGated);
-		const backlinkNote = updateBacklinks
-			? " Backlink rewrites skipped under sim."
-			: "";
-		return `(sim) Moved: ${from} → ${to}.${backlinkNote}`;
-	},
-	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
 };
@@ -581,15 +460,6 @@ export const vaultDeleteTool: ToolDefinition<typeof vaultDeleteSchema> = {
 			return `Note not found or could not be deleted: ${rel}`;
 		}
 	},
-	simulate: async ({ path: rel }, context) => {
-		const gated = await gateVaultTool(rel, "full", context);
-		if (typeof gated === "object") return gated.error;
-		const overlay = getOverlay(context);
-		overlay.vaultDeletes.add(gated);
-		overlay.vaultWrites.delete(gated);
-		return `(sim) Deleted: ${rel}`;
-	},
-	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
 };
@@ -629,25 +499,6 @@ export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
 		await writeData(note.absolutePath, updated);
 		return `Patched section "${heading}" in ${rel}.`;
 	},
-	simulate: async ({ path: rel, heading, newContent }, context) => {
-		const gated = await gateVaultTool(rel, "full", context);
-		if (typeof gated === "object") return gated.error;
-		const overlay = getOverlay(context);
-		const existing = await readSimulatedVaultContent(gated, overlay);
-		if (existing === null) return `Note not found: ${rel}`;
-		const lines = existing.split("\n");
-		const section = findSection(lines, heading);
-		if (!section) return `Heading "${heading}" not found in ${rel}.`;
-		const updated = [
-			...lines.slice(0, section.headingIdx + 1),
-			newContent,
-			...lines.slice(section.endIdx),
-		].join("\n");
-		overlay.vaultWrites.set(gated, updated);
-		overlay.vaultDeletes.delete(gated);
-		return `(sim) Patched section "${heading}" in ${rel}.`;
-	},
-	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
 };
@@ -720,7 +571,6 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 			? results.join("\n")
 			: `No notes tagged with: ${tags.join(", ")}.`;
 	},
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "resource",
 };
@@ -746,7 +596,6 @@ export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
 			? targets.join("\n")
 			: `No outgoing links in "${rel}".`;
 	},
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "resource",
 };
@@ -806,7 +655,6 @@ export const vaultOutlineTool: ToolDefinition<typeof vaultOutlineSchema> = {
 
 		return outlineResult.join("\n");
 	},
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "resource",
 };

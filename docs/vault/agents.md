@@ -147,11 +147,7 @@ vaultAccess:
   - "Projects/Klaus:full"
 ```
 
-Use the least access that still lets the agent work. Test risky write access with `!simulate` first:
-
-```text
-@assistant !simulate clean up Projects/Klaus/Inbox.md
-```
+Use the least access that still lets the agent work.
 
 ## Schedules And Persistence
 

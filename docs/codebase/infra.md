@@ -1,6 +1,6 @@
 # Infra
 
-`src/infra/` wraps the outside world and durable runtime state. Pipeline code should treat these modules as boundaries: config, logging, vault access, sync, WhatsApp, stores, and simulation.
+`src/infra/` wraps the outside world and durable runtime state. Pipeline code should treat these modules as boundaries: config, logging, vault access, sync, WhatsApp, and stores.
 
 ## Config
 
@@ -65,12 +65,6 @@ History assistant rows carry their agent, run ID, and a `voice` marker when the 
 Schedules and timers persist only the future work to run. They do not carry chat IDs; scheduled dispatch resolves the single configured chat from `settings.allowedChat` at fire time.
 
 The stores can be loaded while paused. `src/infra/future.ts` activates both clocks only when setup has produced `settings.allowedChat` and the WhatsApp socket is connected, and the connection close handler pauses them again during reconnects. The wait-state log is deduplicated so repeated reconnect checks do not spam the same setup/connection message.
-
-## Simulation
-
-`src/infra/simulation.ts` holds the per-turn simulation overlay. Under `!simulate`, pure tools run normally while stateful and external tools route through their `simulate` handler or a generic fake result.
-
-The overlay gives read-from-write coherence inside one simulated turn. A simulated `vault_write` followed by `vault_read` sees pending content; the same idea applies to dispatch timers, schedules, and file uploads.
 
 ## Logging
 

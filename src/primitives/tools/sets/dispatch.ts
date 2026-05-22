@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { getOverlay } from "../../../infra/simulation.ts";
 import {
 	addSchedule,
 	getSchedules,
@@ -103,26 +102,6 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 		});
 		return result ?? "done";
 	},
-	simulate: async (input, context) => {
-		const agent = input.agent ?? DEFAULT_AGENT;
-
-		if (input.when) {
-			return `(sim) Would schedule @${agent} at ${input.when}`;
-		}
-
-		const slot: string[] = [];
-		const result = await dispatchFn({
-			agent,
-			prompt: input.prompt,
-			...(input.overrides ? { overrides: input.overrides } : {}),
-			chatId: context.chatId,
-			trigger: { kind: "dispatch", parentRunId: context.runId },
-			replyCollector: slot,
-			simulate: true,
-		});
-		return result ?? "(sim) done";
-	},
-	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
 };
@@ -150,14 +129,6 @@ const dispatchScheduleTool: ToolDefinition<typeof dispatchScheduleSchema> = {
 		await addSchedule(scheduleEntry(input, context, id));
 		return `Scheduled @${input.agent} with pattern "${input.pattern}" (${input.label}) [${id}]`;
 	},
-	simulate: async (input, context) => {
-		const id = crypto.randomUUID();
-		getOverlay(context).pendingSchedules.push(
-			scheduleEntry(input, context, id),
-		);
-		return `(sim) Scheduled @${input.agent} with pattern "${input.pattern}" (${input.label}) [${id}]`;
-	},
-	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
 };
@@ -171,21 +142,6 @@ const dispatchListTool: ToolDefinition<typeof dispatchListSchema> = {
 	description: "List all active schedules and pending timers.",
 	inputSchema: dispatchListSchema,
 	execute: async () => renderList(getSchedules(), listTimers()),
-	simulate: async (_input, context) => {
-		const overlay = getOverlay(context);
-		const cancelled = overlay.cancelledIds;
-		const schedules = [...getSchedules(), ...overlay.pendingSchedules].filter(
-			(s) => !cancelled.has(s.id),
-		);
-		const timers = [...listTimers(), ...overlay.pendingTimers].filter(
-			(t) => !cancelled.has(t.id),
-		);
-		return renderList(schedules, timers, {
-			simScheduleIds: new Set(overlay.pendingSchedules.map((s) => s.id)),
-			simTimerIds: new Set(overlay.pendingTimers.map((t) => t.id)),
-		});
-	},
-	sideEffect: "pure",
 	kind: "builtin",
 	capability: "resource",
 };
@@ -193,15 +149,13 @@ const dispatchListTool: ToolDefinition<typeof dispatchListSchema> = {
 function renderList(
 	scheduleEntries: ReturnType<typeof getSchedules>,
 	timerEntries: ReturnType<typeof listTimers>,
-	simMarkers?: { simScheduleIds: Set<string>; simTimerIds: Set<string> },
 ): string {
 	const lines: string[] = [];
 	if (scheduleEntries.length > 0) {
 		lines.push("**Schedules**");
 		for (const s of scheduleEntries) {
-			const tag = simMarkers?.simScheduleIds.has(s.id) ? " (sim)" : "";
 			lines.push(
-				`• [${s.id}]${tag} ${s.agentName} | ${s.pattern} | ${s.label ?? s.objective}`,
+				`• [${s.id}] ${s.agentName} | ${s.pattern} | ${s.label ?? s.objective}`,
 			);
 		}
 	}
@@ -209,9 +163,8 @@ function renderList(
 		if (lines.length > 0) lines.push("");
 		lines.push("**Timers**");
 		for (const t of timerEntries) {
-			const tag = simMarkers?.simTimerIds.has(t.id) ? " (sim)" : "";
 			lines.push(
-				`• [${t.id}]${tag} ${t.agentName} | fires at ${t.runAt} | ${t.objective}`,
+				`• [${t.id}] ${t.agentName} | fires at ${t.runAt} | ${t.objective}`,
 			);
 		}
 	}
@@ -238,33 +191,6 @@ const dispatchCancelTool: ToolDefinition<typeof dispatchCancelSchema> = {
 		if (removedSchedule) return `Cancelled schedule ${input.id}`;
 		return `No schedule or timer found with ID ${input.id}`;
 	},
-	simulate: async (input, context) => {
-		const overlay = getOverlay(context);
-		const pendingTimerIdx = overlay.pendingTimers.findIndex(
-			(t) => t.id === input.id,
-		);
-		if (pendingTimerIdx >= 0) {
-			overlay.pendingTimers.splice(pendingTimerIdx, 1);
-			return `(sim) Cancelled pending timer ${input.id}`;
-		}
-		const pendingSchedIdx = overlay.pendingSchedules.findIndex(
-			(s) => s.id === input.id,
-		);
-		if (pendingSchedIdx >= 0) {
-			overlay.pendingSchedules.splice(pendingSchedIdx, 1);
-			return `(sim) Cancelled pending schedule ${input.id}`;
-		}
-		if (listTimers().some((t) => t.id === input.id)) {
-			overlay.cancelledIds.add(input.id);
-			return `(sim) Would cancel timer ${input.id}`;
-		}
-		if (getSchedules().some((s) => s.id === input.id)) {
-			overlay.cancelledIds.add(input.id);
-			return `(sim) Would cancel schedule ${input.id}`;
-		}
-		return `No schedule or timer found with ID ${input.id}`;
-	},
-	sideEffect: "stateful",
 	kind: "builtin",
 	capability: "tool",
 };
