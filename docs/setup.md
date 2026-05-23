@@ -9,7 +9,7 @@ This guide is the practical path from clone to a running Klaus container. The sh
 - A WhatsApp account to link as a device
 - `OPENROUTER_API_KEY`, unless you reconfigure the default provider to use another endpoint
 
-Klaus runs as one Docker container. Inside it, the app supervises `obsidian-headless`, which keeps `/app/vault` synced with your remote Obsidian vault.
+Klaus runs as one Docker container. Inside it, the app supervises `obsidian-headless`, which keeps the configured vault directory synced with your remote Obsidian vault.
 The image also includes `opus-tools` so Gemini PCM TTS can be encoded to WhatsApp-compatible Ogg Opus voice notes.
 
 ## Environment
@@ -36,10 +36,14 @@ Optional:
 ```dotenv
 OBSIDIAN_MFA=
 OBSIDIAN_E2EE_PASSWORD=
+KLAUS_VAULT_DIR=/app/vault
+KLAUS_DATA_DIR=/app/data
 LOG_FORMAT=text
 STARTUP_CONNECTION_WARN_AFTER_MS=60000
 ALLOWED_CHAT_ID=
 ```
+
+`KLAUS_VAULT_DIR` and `KLAUS_DATA_DIR` default to `/app/vault` and `/app/data` in the Docker image. Set them only when your container mounts use different container paths, such as `/vault` and `/data` in Synology Container Manager.
 
 Prefer `basics.allowedChat` in `{vault}/Klaus/settings.yml` over `ALLOWED_CHAT_ID`; the env var is mainly a fallback for headless or test setups.
 
@@ -67,6 +71,26 @@ The two volumes have different jobs:
 - `klaus-vault`: Synced Obsidian vault.
 - `klaus-data`: WhatsApp credentials, Obsidian login state, conversation JSONL, file blobs, schedules, timers, and per-run report JSON.
 
+Synology Container Manager and other compose-based installs can use host
+folders instead:
+
+```yaml
+services:
+  klaus:
+    image: janbassen1/klaus:latest
+    container_name: klaus
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      KLAUS_VAULT_DIR: /vault
+      KLAUS_DATA_DIR: /data
+    volumes:
+      - /volume1/docker/klaus/vault:/vault
+      - /volume1/docker/klaus/data:/data
+```
+
 Watch logs with:
 
 ```bash
@@ -78,10 +102,10 @@ docker logs -f klaus
 Startup does this in order:
 
 1. Logs in to Obsidian Sync using `.env`.
-2. Links `/app/vault` to `OBSIDIAN_VAULT_NAME`.
+2. Links `{vault}` to `OBSIDIAN_VAULT_NAME`.
 3. Mirrors the remote vault before Klaus writes startup defaults.
-4. Copies the bundled `vault/` template into `/app/vault/Klaus`, *but only if that folder does not already exist*.
-5. Loads `/app/vault/Klaus/settings.yml`.
+4. Copies the bundled `vault/` template into `{vault}/Klaus`, *but only if that folder does not already exist*.
+5. Loads `{vault}/Klaus/settings.yml`.
 6. Creates data directories and starts continuous bidirectional Obsidian Sync.
 7. Loads stores, tools, agents, variables, commands, skills, templates, overrides, schedules, and timers.
 8. Creates the WhatsApp login folder if no allowed chat is configured.
@@ -151,7 +175,7 @@ If you changed `defaultProvider` or an endpoint in `{vault}/Klaus/settings.yml`,
 
 **Obsidian login or vault link fails**
 
-Check that `OBSIDIAN_EMAIL`, `OBSIDIAN_PASSWORD`, and `OBSIDIAN_VAULT_NAME` match the Obsidian Sync account and remote vault exactly. Klaus stores Obsidian login state under `/app/data/obsidian-headless`, so the `klaus-data` volume must be mounted and persistent.
+Check that `OBSIDIAN_EMAIL`, `OBSIDIAN_PASSWORD`, and `OBSIDIAN_VAULT_NAME` match the Obsidian Sync account and remote vault exactly. Klaus stores Obsidian login state under `{dataDir}/obsidian-headless`, so the data volume must be mounted and persistent.
 
 If you need to retry first-time Obsidian setup from a clean state, stop the container and remove only the data volume. This also removes WhatsApp auth, schedules, timers, history, files, and reports:
 
@@ -224,7 +248,7 @@ If you see `WhatsApp pairing/connection is taking longer than expected`, keep th
 
 **WhatsApp QR keeps rotating**
 
-Check that `klaus-data` is mounted and persistent. WhatsApp auth lives under `/app/data/baileys-auth`; losing that data means relinking.
+Check that the data volume is mounted and persistent. WhatsApp auth lives under `{dataDir}/baileys-auth`; losing that data means relinking.
 
 **Setup code is ignored**
 

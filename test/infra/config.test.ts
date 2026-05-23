@@ -7,6 +7,8 @@
  * restores the original references in `afterEach`.
  */
 
+import { execFileSync } from "node:child_process";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	requiredStartupApiKeyEnvVars,
@@ -14,6 +16,36 @@ import {
 	resolveModel,
 	settings,
 } from "../../src/infra/config.ts";
+
+describe("infra/config env paths", () => {
+	it("uses KLAUS_VAULT_DIR and KLAUS_DATA_DIR when set", () => {
+		const output = execFileSync(
+			process.execPath,
+			[
+				"--input-type=module",
+				"--eval",
+				[
+					'import { settings } from "./src/infra/config.ts";',
+					"console.log(JSON.stringify({ vault: settings.vault.root, data: settings.dataDir }));",
+				].join("\n"),
+			],
+			{
+				cwd: path.resolve(import.meta.dirname, "../.."),
+				encoding: "utf8",
+				env: {
+					...process.env,
+					KLAUS_DATA_DIR: "/tmp/klaus-data-env",
+					KLAUS_VAULT_DIR: "/tmp/klaus-vault-env",
+				},
+			},
+		);
+
+		expect(JSON.parse(output)).toEqual({
+			data: "/tmp/klaus-data-env",
+			vault: "/tmp/klaus-vault-env",
+		});
+	});
+});
 
 describe("infra/config.resolveModel", () => {
 	const origProviders = settings.providers;

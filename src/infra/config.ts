@@ -32,7 +32,15 @@ export const bundledVaultDir = existsSync(CONTAINER_DEFAULTS_DIR)
 
 // ── Env-derived paths (resolved once at startup) ───────────────────────────
 
-const VAULT_ROOT = path.join(process.cwd(), "vault");
+function envPath(name: string, fallback: string): string {
+	const value = process.env[name]?.trim();
+	return value ? path.resolve(value) : fallback;
+}
+
+const VAULT_ROOT = envPath(
+	"KLAUS_VAULT_DIR",
+	path.join(process.cwd(), "vault"),
+);
 const INTERNAL_NAME = "Klaus";
 const INTERNAL_PATH = path.join(VAULT_ROOT, INTERNAL_NAME);
 
@@ -50,7 +58,7 @@ const vaultPaths = {
 	settingsPath: path.join(INTERNAL_PATH, "settings.yml"),
 };
 
-const dataDir = path.join(process.cwd(), "data");
+const dataDir = envPath("KLAUS_DATA_DIR", path.join(process.cwd(), "data"));
 
 const logFormat = (process.env.LOG_FORMAT === "json" ? "json" : "text") as
 	| "text"

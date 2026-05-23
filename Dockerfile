@@ -10,6 +10,8 @@ LABEL org.opencontainers.image.description="Headless personal AI agent: WhatsApp
 LABEL org.opencontainers.image.source="https://github.com/jan-bassen/klaus"
 LABEL org.opencontainers.image.version="${VERSION}"
 ENV VERSION=${VERSION}
+ENV KLAUS_VAULT_DIR=/app/vault
+ENV KLAUS_DATA_DIR=/app/data
 WORKDIR /app
 
 RUN apt-get update \

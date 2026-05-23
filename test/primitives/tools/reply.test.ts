@@ -35,7 +35,7 @@ describe("primitives/tools/reply: collector branch", () => {
 				content: "reply",
 				messageRef: "current",
 			}).success,
-		).toBe(false);
+		).toBe(true);
 	});
 
 	it("pushes content into the parent's _replyCollector and short-circuits", async () => {

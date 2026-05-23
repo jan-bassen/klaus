@@ -188,7 +188,7 @@ One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.r
 | `schedules` | JSON + croner | Recurring cron jobs |
 | `timers` | JSON + setTimeout | One-shot future execution |
 
-All under `{dataDir}` (default `./data`). The vault is separate — it's the knowledge graph (notes, wikilinks, frontmatter).
+All under `{dataDir}` (default `./data`, `/app/data` in Docker, or `KLAUS_DATA_DIR` when set). The vault is separate — it's the knowledge graph (notes, wikilinks, frontmatter). Its root follows the same pattern: `./vault`, `/app/vault` in Docker, or `KLAUS_VAULT_DIR` when set.
 
 History reaction events target WhatsApp external IDs and are rendered as metadata on their real message rows. Bot reactions carry `agent` and `runId` when available, so reaction-only turns stay visible in future context without consuming separate `historyLimit` slots.
 

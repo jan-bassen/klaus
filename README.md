@@ -40,7 +40,11 @@ docker run -d --restart unless-stopped \
   klaus
 ```
 
-On first boot, Klaus hydrates `/app/vault` from Obsidian Sync, creates `/app/vault/Klaus` if it is missing, and writes a temporary login folder:
+By default the container uses `/app/vault` and `/app/data`. If you mount the
+volumes somewhere else, set `KLAUS_VAULT_DIR` and `KLAUS_DATA_DIR` to the same
+container paths.
+
+On first boot, Klaus hydrates the configured vault directory from Obsidian Sync, creates `{vault}/Klaus` if it is missing, and writes a temporary login folder:
 
 ```text
 {vault}/Klaus/_login/
