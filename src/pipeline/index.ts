@@ -38,6 +38,7 @@ import type { Trigger, TurnContext } from "./core.ts";
 import { executeAgent, isAbortError } from "./core.ts";
 import { parseMessage } from "./message.ts";
 import { buildTurnConfig } from "./overrides.ts";
+import { registerActiveRun } from "./runs.ts";
 import { renderTemplate } from "./templates.ts";
 
 interface AuthResult {
@@ -140,6 +141,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		}
 
 		const ac = new AbortController();
+		const unregisterActiveRun = registerActiveRun(ac);
 		let resolveThis!: () => void;
 		const done = new Promise<void>((resolve) => {
 			resolveThis = resolve;
@@ -180,6 +182,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 				signal: ac.signal,
 			});
 		} finally {
+			unregisterActiveRun();
 			if (msg.kind === "whatsapp") await stopPresence(effectiveMsg.chatId);
 			if (activeTurns.get(turnKey) === activeEntry) {
 				activeTurns.delete(turnKey);

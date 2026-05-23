@@ -19,6 +19,7 @@ import { getOrLoadAgent } from "./agents.ts";
 import type { ScheduleContext, Trigger, TurnContext } from "./core.ts";
 import { executeAgent } from "./core.ts";
 import { buildTurnConfig } from "./overrides.ts";
+import { registerActiveRun } from "./runs.ts";
 
 interface DispatchOptions {
 	agent: string;
@@ -36,6 +37,7 @@ interface DispatchOptions {
 	 */
 	replyCollector?: string[];
 	schedule?: ScheduleContext;
+	signal?: AbortSignal;
 }
 
 export async function dispatch(
@@ -71,11 +73,21 @@ export async function dispatch(
 		...(replyCollector ? { _replyCollector: replyCollector } : {}),
 	};
 
-	await executeAgent({
-		turn: partialTurn,
-		def,
-		variables: getVariables(),
-	});
+	const ac = new AbortController();
+	const unregisterActiveRun = registerActiveRun(ac);
+	const signal = opts.signal
+		? AbortSignal.any([opts.signal, ac.signal])
+		: ac.signal;
+	try {
+		await executeAgent({
+			turn: partialTurn,
+			def,
+			variables: getVariables(),
+			signal,
+		});
+	} finally {
+		unregisterActiveRun();
+	}
 
 	return replyCollector && replyCollector.length > 0
 		? replyCollector.join("\n\n")

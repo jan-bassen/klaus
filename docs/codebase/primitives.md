@@ -6,6 +6,8 @@ Primitives are the pluggable extension surface under `src/primitives/`. Add a fi
 
 Commands live in `src/primitives/commands/`. They start with `/`, bypass the LLM, and are for deterministic runtime actions.
 
+`/stop` is the panic button: it aborts active agent runs through the shared run registry and pauses schedule/timer clocks without deleting their persisted state. Its alias is `/kill`. `/resume` re-arms future work after a panic stop.
+
 ```ts
 import { settings } from "../../infra/config.ts";
 import type { InboundMessage } from "../../infra/whatsapp/receive.ts";

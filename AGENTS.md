@@ -81,7 +81,7 @@ src/
 ├── primitives/       # pluggable extensions (auto-discovered via glob)
 │   ├── tools/        # reply, react, web, conversation, skill + sets/{vault,dispatch,files}
 │   ├── variables/    # time, media, tasks, dispatch, config, snippets, trigger
-│   └── commands/     # /break, /default, /help, /image, /model, /provider, /retry, /schedules, /voice
+│   └── commands/     # /break, /default, /help, /image, /model, /provider, /resume, /retry, /schedules, /stop, /voice
 └── infra/            # external systems + state
     ├── config.ts     # YAML settings + env paths + resolveModel/resolveImageModel (live mutable `settings`)
     ├── logger.ts
@@ -168,7 +168,7 @@ Persistence:
 
 **Overrides** are `!preset` words in messages, defined in `Klaus/overrides.yml`. Parsed out, merged into `TurnConfig` on top of agent frontmatter defaults. Reserved for pipeline/agent behavior — NOT for prompt content. Aliases resolve at parse time.
 
-**Commands** are `/command` handlers that bypass the LLM. Auto-discovered from `src/primitives/commands/`.
+**Commands** are `/command` handlers that bypass the LLM. Auto-discovered from `src/primitives/commands/`. `/stop` (`/kill`) is the panic button: it aborts active runs and pauses schedules/timers without deleting persisted state; `/resume` re-arms them.
 
 **Extension pattern** — drop a file, export the right shape, restart. No wiring.
 

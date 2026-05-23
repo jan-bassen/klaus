@@ -75,6 +75,8 @@ Use commands for deterministic changes:
 /provider openai
 /voice off
 /schedules
+/stop    # panic stop: abort active runs and pause schedules/timers
+/resume  # restart schedules/timers after /stop
 /image make a small watercolor map
 /break
 /retry   # re-run the latest failed turn

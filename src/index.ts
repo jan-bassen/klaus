@@ -65,7 +65,7 @@ import {
 	agentRegistry,
 	loadAgents,
 } from "./pipeline/agents.ts";
-import type { Trigger } from "./pipeline/core.ts";
+import { isAbortError, type Trigger } from "./pipeline/core.ts";
 import { dispatch } from "./pipeline/dispatch.ts";
 import { loadOverrides } from "./pipeline/overrides.ts";
 import { loadTemplates } from "./pipeline/templates.ts";
@@ -147,6 +147,10 @@ async function runScheduledDispatch(
 			...(frontmatterSchedule ? { schedule: frontmatterSchedule } : {}),
 		});
 	} catch (err) {
+		if (isAbortError(err)) {
+			log.info(`[${source}] dispatch aborted`, { id: entry.id });
+			return;
+		}
 		log.error(`[${source}] dispatch failed`, {
 			[`${source === "cron" ? "schedule" : "timer"}Id`]: entry.id,
 			error: err,

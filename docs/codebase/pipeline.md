@@ -14,6 +14,7 @@ The pipeline owns one turn from inbound message to model execution. It is intent
 | `context.ts` | Variables, tools, toolsets, provider tools, history, message references. |
 | `templates.ts` | Template loading, Handlebars helpers, system/user rendering. |
 | `core.ts` | Model loop, tool calls, traces, dynamic persistence, reports. |
+| `runs.ts` | Shared active-run registry used by `/stop` to abort in-flight message, timer, schedule, and dispatch runs. |
 | `outbound.ts` | Reply/react preparation, quotes, dedup keys, trace persistence. |
 | `dispatch.ts` | Run agents from schedules, timers, persistence, or another agent. |
 | `persistence.ts` | Dynamic self-rescheduling timer creation. |
@@ -73,7 +74,7 @@ Inline dispatch replies return to the caller as the `dispatch` tool result. They
 
 Schedules and timers do not store a chat target. Klaus is a single-chat runtime: when future work fires, it resolves the current `settings.allowedChat`.
 
-Startup loads and syncs schedules/timers while their clocks are paused. `activateFutureWorkIfReady()` starts them only after `settings.allowedChat` exists and WhatsApp is connected. If WhatsApp disconnects, clocks pause again and resume on reconnect. Cron schedules do not backfill missed ticks; timers whose `runAt` is already past fire as soon as activation starts them.
+Startup loads and syncs schedules/timers while their clocks are paused. `activateFutureWorkIfReady()` starts them only after `settings.allowedChat` exists and WhatsApp is connected. If WhatsApp disconnects, clocks pause again and resume on reconnect. `/stop` manually pauses future-work clocks without deleting schedule/timer state; `/resume` unpauses them. Cron schedules do not backfill missed ticks; timers whose `runAt` is already past fire as soon as activation starts them.
 
 ## Reports
 
