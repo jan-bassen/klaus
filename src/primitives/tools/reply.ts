@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { log } from "../../infra/logger.ts";
-import { setPresenceKind } from "../../infra/whatsapp/presence.ts";
+import { setPresenceKind, stopPresence } from "../../infra/whatsapp/presence.ts";
 import { enqueueMessage } from "../../infra/whatsapp/send.ts";
 import { getDefaultAgent } from "../../pipeline/agents.ts";
 import type { TurnContext } from "../../pipeline/core.ts";
@@ -127,6 +127,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			);
 		}
 
+		await stopPresence(context.chatId);
 		return "sent";
 	},
 };

@@ -81,4 +81,10 @@ describe("infra/whatsapp/presence", () => {
 
 		expect(socket.sendPresenceUpdate).not.toHaveBeenCalled();
 	});
+
+	it("does nothing when stopped without an active keeper", async () => {
+		await stopPresence("chat1");
+
+		expect(socket.sendPresenceUpdate).not.toHaveBeenCalled();
+	});
 });

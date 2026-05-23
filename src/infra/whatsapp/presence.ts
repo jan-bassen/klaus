@@ -30,7 +30,10 @@ export function startPresence(chatId: string, kind: PresenceKind): void {
 
 	ping(chatId, kind);
 	const interval = setInterval(
-		() => ping(chatId, keepers.get(chatId)?.kind ?? kind),
+		() => {
+			const current = keepers.get(chatId);
+			if (current) ping(chatId, current.kind);
+		},
 		settings.whatsapp.presenceRefreshMs,
 	);
 	keepers.set(chatId, { kind, interval });
@@ -47,10 +50,9 @@ export function setPresenceKind(chatId: string, kind: PresenceKind): void {
 /** Stop the keeper and clear the indicator. */
 export async function stopPresence(chatId: string): Promise<void> {
 	const existing = keepers.get(chatId);
-	if (existing) {
-		clearInterval(existing.interval);
-		keepers.delete(chatId);
-	}
+	if (!existing) return;
+	clearInterval(existing.interval);
+	keepers.delete(chatId);
 	try {
 		await getSocket().sendPresenceUpdate("paused", chatId);
 	} catch {

@@ -39,7 +39,10 @@ Klaus is fail-closed. It processes only the configured allowed chat unless it is
 `settings.whatsapp.presenceRefreshMs` controls how often Klaus re-sends
 `composing`/`recording` while an inbound WhatsApp turn is running. Keep it
 comfortably below the client expiry window; the bundled default is deliberately
-short so long model/tool runs still show visible activity.
+short so long model/tool runs still show visible activity. Once a top-level
+`reply` has queued visible output, Klaus stops the active presence keeper so
+post-reply persistence and reporting do not reopen the typing/recording bubble.
+Queued refresh callbacks also no-op after the keeper is stopped.
 
 Baileys can close the stream with `restartRequired` (`515`) immediately after
 QR login or credential sync. Klaus treats that as a normal socket restart:

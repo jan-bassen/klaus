@@ -22,6 +22,10 @@ import { settings } from "../../src/infra/config.ts";
 import { persistFileBlob } from "../../src/infra/store/files.ts";
 import { getConversation, getTraces } from "../../src/infra/store/history.ts";
 import { readReports } from "../../src/infra/store/report.ts";
+import {
+	startPresence,
+	stopPresence,
+} from "../../src/infra/whatsapp/presence.ts";
 import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
 import { enqueueMessage, sendReaction } from "../../src/infra/whatsapp/send.ts";
 import type { AgentDefinition } from "../../src/pipeline/agents.ts";
@@ -140,6 +144,8 @@ describe("pipeline/index.handleTurn", () => {
 		sendMock.mockReset();
 		vi.mocked(enqueueMessage).mockReset();
 		vi.mocked(sendReaction).mockReset();
+		vi.mocked(startPresence).mockReset();
+		vi.mocked(stopPresence).mockReset();
 		rmTmpDir(tmpDir);
 	});
 
@@ -155,6 +161,22 @@ describe("pipeline/index.handleTurn", () => {
 			content: "hello back",
 			label: "default",
 		});
+	});
+
+	it("clears active presence after a user-visible reply is queued", async () => {
+		sendMock.mockResolvedValueOnce(replyResponse("hello back"));
+
+		await handleTurn(makeMsg("chat1", "", "hello"));
+
+		expect(startPresence).toHaveBeenCalledWith("chat1", "composing");
+		expect(stopPresence).toHaveBeenCalledWith("chat1");
+		expect(stopPresence).toHaveBeenCalledTimes(2);
+		const enqueueOrder = vi.mocked(enqueueMessage).mock.invocationCallOrder[0];
+		const firstStopOrder = vi.mocked(stopPresence).mock.invocationCallOrder[0];
+		if (enqueueOrder === undefined || firstStopOrder === undefined) {
+			throw new Error("missing mock call order");
+		}
+		expect(enqueueOrder).toBeLessThan(firstStopOrder);
 	});
 
 	it("persists user, assistant, and trace rows for a normal turn", async () => {
