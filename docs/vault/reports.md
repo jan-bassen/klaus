@@ -26,7 +26,7 @@ Reports include:
 - Agent, trigger, model, provider, and overrides
 - Available variable names, explicit tools, toolsets, and skills for the run
 - Rendered system prompt, history transcript, current user message, and agent answer
-- LLM steps, rendered in Markdown as `Step N` / `Finish` sections with token usage, fenced reasoning, and tool calls
+- LLM steps, rendered in Markdown as `Step N` / `Finish` sections with token usage, fenced reasoning, tool calls, and tool results
 - Tool calls and results
 - Simulated actions
 - Errors and trace output
@@ -36,6 +36,8 @@ Toolset members stay grouped in the context summary, so a `vault` toolset appear
 They intentionally include rendered prompt and history text so prompt bugs, injection, missing variables, and wrong history scope are visible. Image data URLs are redacted from the text mirror; the surrounding message template still records the media as `[Image: filename]` when available.
 
 Step arguments keep short metadata before long content where that improves scanability. For example, `reply` calls with `voice: true` render the voice flag before the message text so it remains visible even when the content is truncated.
+
+Markdown step results are fenced and truncated for readability. Inline `dispatch` calls show the child agent's returned reply there, which makes parent/child debugging possible from the caller's report.
 
 Markdown report prompt blocks use fences long enough to contain nested code blocks from snippets, skills, or user messages without breaking the rendered report.
 

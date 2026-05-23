@@ -7,12 +7,15 @@
  * the never-throws contract on the error path.
  */
 
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { settings } from "../../src/infra/config.ts";
 import { initReportStore, readReports } from "../../src/infra/store/report.ts";
 import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
 import type { AgentRunResult, TurnContext } from "../../src/pipeline/core.ts";
 import { emitReport } from "../../src/pipeline/reports.ts";
+import { invalidateTemplate } from "../../src/pipeline/templates.ts";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 import { makeTurn } from "../helpers/turn.ts";
 
@@ -50,16 +53,23 @@ function makeResult(patch: Partial<AgentRunResult> = {}): AgentRunResult {
 describe("pipeline/reports: emitReport", () => {
 	let tmp: string;
 	let savedVaultMarkdown: boolean;
+	let savedTemplatesDir: string;
+	let savedReportsDir: string;
 
 	beforeEach(() => {
 		tmp = makeTmpDir();
 		initReportStore({ dataDir: tmp });
 		savedVaultMarkdown = settings.reports.vaultMarkdown;
+		savedTemplatesDir = settings.vault.templatesDir;
+		savedReportsDir = settings.vault.reportsDir;
 		settings.reports.vaultMarkdown = false; // skip markdown mirror in tests
 	});
 
 	afterEach(() => {
 		settings.reports.vaultMarkdown = savedVaultMarkdown;
+		settings.vault.templatesDir = savedTemplatesDir;
+		settings.vault.reportsDir = savedReportsDir;
+		invalidateTemplate("report");
 		rmTmpDir(tmp);
 	});
 
@@ -134,6 +144,52 @@ describe("pipeline/reports: emitReport", () => {
 		expect(JSON.stringify(entry?.llm?.steps[0]?.toolCalls[0]?.args)).toBe(
 			'{"voice":true,"content":"long spoken answer"}',
 		);
+	});
+
+	it("mirrors tool results into markdown report steps", async () => {
+		settings.reports.vaultMarkdown = true;
+		settings.vault.templatesDir = path.join(tmp, "templates");
+		settings.vault.reportsDir = path.join(tmp, "vault-reports");
+		mkdirSync(settings.vault.templatesDir, { recursive: true });
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "report.md"),
+			readFileSync(path.resolve("vault/templates/report.md"), "utf-8"),
+		);
+		invalidateTemplate("report");
+
+		await emitReport({
+			turn: makeTurn(),
+			startedAt: Date.now() - 10,
+			result: makeResult({
+				steps: [
+					{
+						reasoning: "",
+						toolCalls: [
+							{
+								toolCallId: "dispatch-1",
+								toolName: "dispatch",
+								args: { prompt: "check this" },
+							},
+						],
+						toolResults: [
+							{
+								toolCallId: "dispatch-1",
+								toolName: "dispatch",
+								result: "child result",
+							},
+						],
+					},
+				],
+			}),
+		});
+
+		const [dateDir] = readdirSync(settings.vault.reportsDir);
+		const reportDir = path.join(settings.vault.reportsDir, dateDir ?? "");
+		const [filename] = readdirSync(reportDir);
+		const markdown = readFileSync(path.join(reportDir, filename ?? ""), "utf-8");
+		expect(markdown).toContain("**Tool call: dispatch**");
+		expect(markdown).toContain("**Tool result: dispatch**");
+		expect(markdown).toContain("child result");
 	});
 
 	it("redacts base64 data URLs from report prompts and history", async () => {

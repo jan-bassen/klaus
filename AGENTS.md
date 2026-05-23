@@ -174,7 +174,7 @@ Persistence:
 
 ## Reports
 
-One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, explicit tools, toolsets, skills, LLM steps, tool calls, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Toolset members stay grouped in the context summary; individual calls still appear in the step trace. Image data URLs are redacted from text mirrors; the message wrapper records the media as `[Image: filename]` when available. Reply step args keep short metadata such as `voice` before long `content` so truncation stays readable.
+One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, explicit tools, toolsets, skills, LLM steps, tool calls/results, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Toolset members stay grouped in the context summary; individual calls still appear in the step trace with returned values. Inline dispatch replies show up as the parent `dispatch` tool result. Image data URLs are redacted from text mirrors; the message wrapper records the media as `[Image: filename]` when available. Reply step args keep short metadata such as `voice` before long `content` so truncation stays readable.
 
 `settings.reports.vaultMarkdown: true` mirrors each report into `{vault}/Klaus/reports/<date>/<file>.md` for Obsidian reading.
 

@@ -61,6 +61,11 @@
 `{{trunc (json args) 240}}`
 
 {{/each}}
+{{#each toolResults}}
+**Tool result: {{tool}}**
+{{codeFence (trunc (json result) 1200)}}
+
+{{/each}}
 {{else}}
 ### Finish{{#if finishReason}} ({{finishReason}}){{/if}}
 {{#if usage}}({{usage.inputTokens}}↑/{{usage.outputTokens}}↓)

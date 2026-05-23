@@ -43,7 +43,7 @@ Templates use the same Handlebars environment as prompts. Common namespaces incl
 
 The shared helper `{{codeFence value}}` wraps report/debug text in a Markdown fence that is longer than any backtick run inside `value`, so nested code blocks render safely.
 
-`report.md` also receives `llm.context.variables`, `llm.context.tools`, `llm.context.toolsets`, and `llm.context.skills`, each as a simple string list of what was available to that run. `tools` contains explicit tools plus provider tools; lazy toolset members stay grouped under `toolsets`. Its `llm.steps` section renders each model call as `Step N` or `Finish`, shows token usage on its own line, fences returned reasoning text, and lists tool call JSON below the reasoning.
+`report.md` also receives `llm.context.variables`, `llm.context.tools`, `llm.context.toolsets`, and `llm.context.skills`, each as a simple string list of what was available to that run. `tools` contains explicit tools plus provider tools; lazy toolset members stay grouped under `toolsets`. Its `llm.steps` section renders each model call as `Step N` or `Finish`, shows token usage on its own line, fences returned reasoning text, and lists tool call JSON plus fenced tool results below the reasoning.
 
 For the TypeScript side of variables, see [../codebase/primitives.md](../codebase/primitives.md).
 
