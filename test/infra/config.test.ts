@@ -18,6 +18,37 @@ import {
 } from "../../src/infra/config.ts";
 
 describe("infra/config env paths", () => {
+	it("uses fixed production paths when no override is set", () => {
+		const env: NodeJS.ProcessEnv = {
+			...process.env,
+			NODE_ENV: "production",
+		};
+		delete env.KLAUS_DATA_DIR;
+		delete env.KLAUS_VAULT_DIR;
+
+		const output = execFileSync(
+			process.execPath,
+			[
+				"--input-type=module",
+				"--eval",
+				[
+					'import { settings } from "./src/infra/config.ts";',
+					"console.log(JSON.stringify({ vault: settings.vault.root, data: settings.dataDir }));",
+				].join("\n"),
+			],
+			{
+				cwd: path.resolve(import.meta.dirname, "../.."),
+				encoding: "utf8",
+				env,
+			},
+		);
+
+		expect(JSON.parse(output)).toEqual({
+			data: "/data",
+			vault: "/vault",
+		});
+	});
+
 	it("uses KLAUS_VAULT_DIR and KLAUS_DATA_DIR when set", () => {
 		const output = execFileSync(
 			process.execPath,

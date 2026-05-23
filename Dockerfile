@@ -10,8 +10,7 @@ LABEL org.opencontainers.image.description="Headless personal AI agent: WhatsApp
 LABEL org.opencontainers.image.source="https://github.com/jan-bassen/klaus"
 LABEL org.opencontainers.image.version="${VERSION}"
 ENV VERSION=${VERSION}
-ENV KLAUS_VAULT_DIR=/app/vault
-ENV KLAUS_DATA_DIR=/app/data
+ENV NODE_ENV=production
 WORKDIR /app
 
 RUN apt-get update \
@@ -25,9 +24,9 @@ RUN npm install -g obsidian-headless
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN mkdir -p /app/defaults /app/vault /app/data \
+RUN mkdir -p /app/defaults /vault /data \
 	&& cp -R /app/vault/. /app/defaults/. \
 	&& rm -rf /app/vault \
-	&& mkdir -p /app/vault
-VOLUME ["/app/vault", "/app/data"]
+	&& mkdir -p /vault /data
+VOLUME ["/vault", "/data"]
 CMD ["node", "src/index.ts"]

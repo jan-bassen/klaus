@@ -35,14 +35,12 @@ docker build -t klaus .
 docker run -d --restart unless-stopped \
   --name klaus \
   --env-file .env \
-  -v klaus-vault:/app/vault \
-  -v klaus-data:/app/data \
+  -v klaus-vault:/vault \
+  -v klaus-data:/data \
   klaus
 ```
 
-By default the container uses `/app/vault` and `/app/data`. If you mount the
-volumes somewhere else, set `KLAUS_VAULT_DIR` and `KLAUS_DATA_DIR` to the same
-container paths.
+The container paths are fixed as `/vault` and `/data`; choose any host paths or named volumes you like on the left side of each `-v`.
 
 On first boot, Klaus hydrates the configured vault directory from Obsidian Sync, creates `{vault}/Klaus` if it is missing, and writes a temporary login folder:
 

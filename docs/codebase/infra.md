@@ -51,7 +51,7 @@ raw stream-error log for that expected case.
 
 ## Stores
 
-Runtime state lives under `{dataDir}`. The Docker image defaults this to `/app/data`; deployments that mount another container path set `KLAUS_DATA_DIR` to match. The vault root behaves the same way through `KLAUS_VAULT_DIR`, defaulting to `/app/vault`.
+Runtime state lives under `{dataDir}`. Local runs default to `./data`; production/Docker runs default to `/data`. The vault root follows the same pattern: `./vault` locally and `/vault` in production/Docker. `KLAUS_DATA_DIR` and `KLAUS_VAULT_DIR` can override those defaults, but normal Docker deployments should keep the container paths fixed and change only the host-side volume paths.
 
 | Store | Format | Purpose |
 | --- | --- | --- |

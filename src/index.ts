@@ -227,6 +227,11 @@ function failOnSyncError(err: SyncError, failureMsg: string): never {
 }
 
 async function main(): Promise<void> {
+	log.info("[startup] resolved storage paths", {
+		vaultRoot: settings.vault.root,
+		dataDir: settings.dataDir,
+	});
+
 	await mkdir(settings.vault.root, { recursive: true });
 	const syncDeps = {
 		vaultRoot: settings.vault.root,

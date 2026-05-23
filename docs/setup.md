@@ -36,14 +36,10 @@ Optional:
 ```dotenv
 OBSIDIAN_MFA=
 OBSIDIAN_E2EE_PASSWORD=
-KLAUS_VAULT_DIR=/app/vault
-KLAUS_DATA_DIR=/app/data
 LOG_FORMAT=text
 STARTUP_CONNECTION_WARN_AFTER_MS=60000
 ALLOWED_CHAT_ID=
 ```
-
-`KLAUS_VAULT_DIR` and `KLAUS_DATA_DIR` default to `/app/vault` and `/app/data` in the Docker image. Set them only when your container mounts use different container paths, such as `/vault` and `/data` in Synology Container Manager.
 
 Prefer `basics.allowedChat` in `{vault}/Klaus/settings.yml` over `ALLOWED_CHAT_ID`; the env var is mainly a fallback for headless or test setups.
 
@@ -61,8 +57,8 @@ Run it with separate vault and data volumes:
 docker run -d --restart unless-stopped \
   --name klaus \
   --env-file .env \
-  -v klaus-vault:/app/vault \
-  -v klaus-data:/app/data \
+  -v klaus-vault:/vault \
+  -v klaus-data:/data \
   klaus
 ```
 
@@ -84,12 +80,12 @@ services:
       - .env
     environment:
       NODE_ENV: production
-      KLAUS_VAULT_DIR: /vault
-      KLAUS_DATA_DIR: /data
     volumes:
       - /volume1/docker/klaus/vault:/vault
       - /volume1/docker/klaus/data:/data
 ```
+
+Keep `/vault` and `/data` as the container paths. Change only the host-side paths before the colon.
 
 Watch logs with:
 
@@ -193,13 +189,13 @@ Then start the normal `docker run` command again.
 ```bash
 docker run --rm -it \
   --env-file .env \
-  -v klaus-vault:/app/vault \
-  -v klaus-data:/app/data \
+  -v klaus-vault:/vault \
+  -v klaus-data:/data \
   klaus \
-  env HOME=/app/data/obsidian-headless \
-    XDG_CACHE_HOME=/app/data/obsidian-headless/cache \
-    XDG_CONFIG_HOME=/app/data/obsidian-headless/config \
-    XDG_DATA_HOME=/app/data/obsidian-headless/data \
+  env HOME=/data/obsidian-headless \
+    XDG_CACHE_HOME=/data/obsidian-headless/cache \
+    XDG_CONFIG_HOME=/data/obsidian-headless/config \
+    XDG_DATA_HOME=/data/obsidian-headless/data \
     ob login
 ```
 
