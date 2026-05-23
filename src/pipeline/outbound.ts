@@ -60,18 +60,7 @@ function resolveMessageRef(
 ): OutboundQuote | undefined | Error {
 	if (!messageRef) return undefined;
 
-	let ref: { externalId: string; role: string } | undefined;
-	if (messageRef === "current") {
-		if (!context.message) {
-			return new Error(
-				'messageRef "current" requires an inbound message context',
-			);
-		}
-		ref = { externalId: context.message.id, role: "user" };
-	} else {
-		ref = context.messageRefs?.[messageRef];
-	}
-
+	const ref = context.messageRefs?.[messageRef];
 	if (!ref) return new Error(`Unknown message reference: #${messageRef}`);
 	return { externalId: ref.externalId, fromMe: ref.role !== "user" };
 }

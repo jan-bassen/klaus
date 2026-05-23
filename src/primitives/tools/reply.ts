@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { log } from "../../infra/logger.ts";
-import { setPresenceKind, stopPresence } from "../../infra/whatsapp/presence.ts";
+import {
+	setPresenceKind,
+	stopPresence,
+} from "../../infra/whatsapp/presence.ts";
 import { enqueueMessage } from "../../infra/whatsapp/send.ts";
 import { getDefaultAgent } from "../../pipeline/agents.ts";
 import type { TurnContext } from "../../pipeline/core.ts";
@@ -20,9 +23,7 @@ const replySchema = z.object({
 		.string()
 		.min(1)
 		.refine((value) => value.trim().length > 0, "Message content is required")
-		.describe(
-			"The complete final message to send. Required; never use a placeholder like 'voice'.",
-		),
+		.describe("The complete content of the final message to send (required)."),
 	voice: z
 		.boolean()
 		.optional()
@@ -33,7 +34,7 @@ const replySchema = z.object({
 		.string()
 		.optional()
 		.describe(
-			'Message label from conversation history (e.g. "3") or "current" to quote-reply to that message. Omit for a normal reply.',
+			'Message label from conversation history (e.g. "3") to quote-reply to an older message. Omit for a normal reply.',
 		),
 });
 

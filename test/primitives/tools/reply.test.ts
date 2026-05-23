@@ -30,6 +30,12 @@ describe("primitives/tools/reply: collector branch", () => {
 		expect(replyTool.inputSchema.safeParse({ voice: true }).success).toBe(
 			false,
 		);
+		expect(
+			replyTool.inputSchema.safeParse({
+				content: "reply",
+				messageRef: "current",
+			}).success,
+		).toBe(false);
 	});
 
 	it("pushes content into the parent's _replyCollector and short-circuits", async () => {

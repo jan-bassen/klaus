@@ -94,39 +94,6 @@ describe("pipeline/outbound: prepareAssistantOutbound — message persistence", 
 		expect(conv).toHaveLength(0);
 	});
 
-	it("resolves messageRef=current to the inbound message", async () => {
-		const turn = makeTurn({
-			message: inbound("msg-current"),
-			config: {},
-		});
-		const result = await prepareAssistantOutbound({
-			context: turn,
-			content: "reply",
-			kind: "reply",
-			logPrefix: "[test]",
-			messageRef: "current",
-		});
-
-		expect(result).not.toHaveProperty("error");
-		if ("error" in result) return;
-		expect(result.quoted?.externalId).toBe("msg-current");
-		expect(result.quoted?.fromMe).toBe(false);
-	});
-
-	it("returns error for messageRef=current with no inbound message", async () => {
-		const turn = makeTurn();
-		delete turn.message;
-		const result = await prepareAssistantOutbound({
-			context: turn,
-			content: "reply",
-			kind: "reply",
-			logPrefix: "[test]",
-			messageRef: "current",
-		});
-
-		expect(result).toHaveProperty("error");
-	});
-
 	it("returns error for unknown messageRef label", async () => {
 		const turn = makeTurn({
 			message: inbound("msg-x"),
@@ -141,5 +108,28 @@ describe("pipeline/outbound: prepareAssistantOutbound — message persistence", 
 		});
 
 		expect(result).toHaveProperty("error");
+	});
+
+	it("resolves numbered message refs from history", async () => {
+		const turn = makeTurn({
+			message: inbound("msg-x"),
+			messageRefs: {
+				"2": { externalId: "older-assistant", role: "assistant" },
+			},
+		});
+		const result = await prepareAssistantOutbound({
+			context: turn,
+			content: "reply",
+			kind: "reply",
+			logPrefix: "[test]",
+			messageRef: "2",
+		});
+
+		expect(result).not.toHaveProperty("error");
+		if ("error" in result) return;
+		expect(result.quoted).toEqual({
+			externalId: "older-assistant",
+			fromMe: true,
+		});
 	});
 });
