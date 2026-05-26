@@ -93,7 +93,7 @@ Use `!overrides` anywhere after the route to tweak one turn:
 
 Voice notes are transcribed, images and stickers become vision input, common documents are parsed to text, and quoted messages can carry their original media through the turn. Reports keep the readable media marker and stored filename, while redacting image data URLs. Step traces show tool calls and returned tool results, including inline dispatch replies.
 
-Agents are expected to use the `reply` tool for user-visible messages. The tool takes final message text and can mark that same message for voice delivery. If a reply-capable turn accidentally ends with plain assistant text, Klaus sends it as a fallback reply and marks the run report so the formatting miss is visible.
+Agents are expected to use the `reply` tool for user-visible messages. The tool takes final message text, can mark that same message for voice delivery, and can optionally quote another message with integer `messageRef` (`0` for current, positive history labels for older messages). Normal replies omit `messageRef`. If a reply-capable turn accidentally ends with plain assistant text, Klaus sends it as a fallback reply and marks the run report so the formatting miss is visible.
 
 ## Tinker
 

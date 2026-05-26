@@ -84,7 +84,10 @@ Use Zod schemas for inputs. Klaus validates every model-supplied tool call again
 
 `reply` is the terminal user-visible output tool. It requires complete nonblank
 message content; `voice` is a delivery flag for that same content, not a
-separate action.
+separate action. Message references are numeric: `0` means the current message,
+and positive integers refer to numbered history entries. Omit `messageRef` for
+normal replies to the current message; use it only when an explicit quote target
+matters.
 
 ## Toolsets
 

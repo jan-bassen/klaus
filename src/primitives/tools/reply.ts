@@ -31,10 +31,12 @@ const replySchema = z.object({
 			"Delivery choice for this completed message. Set true only when the content should be spoken as a voice note.",
 		),
 	messageRef: z
-		.string()
+		.number()
+		.int()
+		.nonnegative()
 		.optional()
 		.describe(
-			'Message label from conversation history (e.g. "3") to quote-reply to an older message. Omit for a normal reply.',
+			"Positive integer message label to quote-reply older messages. Omit for a normal reply.",
 		),
 });
 
@@ -63,7 +65,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 					content,
 					kind: "reply",
 					logPrefix: "[reply]",
-					...(messageRef ? { messageRef } : {}),
+					...(messageRef !== undefined ? { messageRef } : {}),
 				});
 				if ("error" in outbound) return outbound;
 				const quotedPart = outbound.quoted ? { quoted: outbound.quoted } : {};
@@ -87,7 +89,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 					kind: "reply",
 					logPrefix: "[reply]",
 					voice: true,
-					...(messageRef ? { messageRef } : {}),
+					...(messageRef !== undefined ? { messageRef } : {}),
 				});
 				if ("error" in voiceOutbound) return voiceOutbound;
 				const voiceQuotedPart = voiceOutbound.quoted
@@ -112,7 +114,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 				content,
 				kind: "reply",
 				logPrefix: "[reply]",
-				...(messageRef ? { messageRef } : {}),
+				...(messageRef !== undefined ? { messageRef } : {}),
 			});
 			if ("error" in outbound) return outbound;
 			const quotedPart = outbound.quoted ? { quoted: outbound.quoted } : {};

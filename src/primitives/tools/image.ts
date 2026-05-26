@@ -25,23 +25,27 @@ const imageGenerateSchema = z.object({
 			"File IDs of input images to edit or use as visual context. Combine with prompt for edits, style transfer, or composition.",
 		),
 	sourceMessageRef: z
-		.string()
+		.number()
+		.int()
+		.nonnegative()
 		.optional()
 		.describe(
-			'Message label from history (e.g. "3") or "current" — uses the image attached to that message as input.',
+			"Integer message label for an input image: 0 for the current message, or a positive history label such as 3 for an older message.",
 		),
 	messageRef: z
-		.string()
+		.number()
+		.int()
+		.nonnegative()
 		.optional()
 		.describe(
-			'Message label from history (e.g. "3") or "current" to quote-reply with the image.',
+			"Integer message label to quote-reply with the image: 0 or omit for the current message, or a positive history label such as 3 for an older message.",
 		),
 });
 
 async function resolveSourceImages(
 	context: TurnContext,
 	fileIds: string[] | undefined,
-	messageRef: string | undefined,
+	messageRef: number | undefined,
 ): Promise<Array<{ bytes: Buffer; mimeType: string }> | Error> {
 	const out: Array<{ bytes: Buffer; mimeType: string }> = [];
 
@@ -52,11 +56,11 @@ async function resolveSourceImages(
 		out.push({ bytes, mimeType: meta.mimeType });
 	}
 
-	if (messageRef) {
+	if (messageRef !== undefined) {
 		const externalId =
-			messageRef === "current"
+			messageRef === 0
 				? context.message?.id
-				: context.messageRefs?.[messageRef]?.externalId;
+				: context.messageRefs?.[String(messageRef)]?.externalId;
 		if (!externalId) {
 			return new Error(`Unknown message reference: #${messageRef}`);
 		}
@@ -125,7 +129,7 @@ export const imageGenerateTool: ToolDefinition<typeof imageGenerateSchema> = {
 			content: `[image: ${prompt}]`,
 			kind: "image",
 			logPrefix: "[image_generate]",
-			...(messageRef ? { messageRef } : {}),
+			...(messageRef !== undefined ? { messageRef } : {}),
 		});
 		if ("error" in outbound) return outbound;
 

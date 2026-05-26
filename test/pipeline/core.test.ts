@@ -271,7 +271,7 @@ describe("pipeline/core.executeAgent", () => {
 						toolCall("reply", { content: "   " }, "reply-blank"),
 						toolCall(
 							"reply",
-							{ content: "not actually sent", messageRef: "missing" },
+							{ content: "not actually sent", messageRef: 99 },
 							"reply-bad-ref",
 						),
 						toolCall("reply", { content: "actual reply" }, "reply-ok"),

@@ -35,6 +35,24 @@ describe("primitives/tools/reply: collector branch", () => {
 				content: "reply",
 				messageRef: "current",
 			}).success,
+		).toBe(false);
+		expect(
+			replyTool.inputSchema.safeParse({
+				content: "reply",
+				messageRef: "3",
+			}).success,
+		).toBe(false);
+		expect(
+			replyTool.inputSchema.safeParse({
+				content: "reply",
+				messageRef: 0,
+			}).success,
+		).toBe(true);
+		expect(
+			replyTool.inputSchema.safeParse({
+				content: "reply",
+				messageRef: 3,
+			}).success,
 		).toBe(true);
 	});
 

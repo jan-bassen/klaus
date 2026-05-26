@@ -104,7 +104,7 @@ describe("pipeline/outbound: prepareAssistantOutbound — message persistence", 
 			content: "reply",
 			kind: "reply",
 			logPrefix: "[test]",
-			messageRef: "99",
+			messageRef: 99,
 		});
 
 		expect(result).toHaveProperty("error");
@@ -122,7 +122,7 @@ describe("pipeline/outbound: prepareAssistantOutbound — message persistence", 
 			content: "reply",
 			kind: "reply",
 			logPrefix: "[test]",
-			messageRef: "2",
+			messageRef: 2,
 		});
 
 		expect(result).not.toHaveProperty("error");
@@ -130,6 +130,27 @@ describe("pipeline/outbound: prepareAssistantOutbound — message persistence", 
 		expect(result.quoted).toEqual({
 			externalId: "older-assistant",
 			fromMe: true,
+		});
+	});
+
+	it("resolves messageRef 0 to the current inbound message", async () => {
+		const turn = makeTurn({
+			message: inbound("msg-x"),
+			messageRefs: {},
+		});
+		const result = await prepareAssistantOutbound({
+			context: turn,
+			content: "reply",
+			kind: "reply",
+			logPrefix: "[test]",
+			messageRef: 0,
+		});
+
+		expect(result).not.toHaveProperty("error");
+		if ("error" in result) return;
+		expect(result.quoted).toEqual({
+			externalId: "msg-x",
+			fromMe: false,
 		});
 	});
 });

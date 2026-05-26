@@ -13,13 +13,15 @@ interface PreparedOutbound {
 	dedupKey: string;
 }
 
+type MessageRef = number;
+
 export async function prepareAssistantOutbound(input: {
 	context: TurnContext;
 	content: string;
 	kind: string;
 	logPrefix: string;
 	voice?: boolean | undefined;
-	messageRef?: string | undefined;
+	messageRef?: MessageRef | undefined;
 }): Promise<PreparedOutbound | { error: string }> {
 	const quoted = resolveMessageRef(input.context, input.messageRef);
 	if (quoted instanceof Error) return { error: quoted.message };
@@ -56,11 +58,19 @@ export function makeDedupKey(context: TurnContext, kind: string): string {
 
 function resolveMessageRef(
 	context: TurnContext,
-	messageRef: string | undefined,
+	messageRef: MessageRef | undefined,
 ): OutboundQuote | undefined | Error {
-	if (!messageRef) return undefined;
+	if (messageRef === undefined) return undefined;
 
-	const ref = context.messageRefs?.[messageRef];
+	if (messageRef === 0) {
+		if (!context.message) {
+			return new Error("No current message to quote-reply to");
+		}
+		return { externalId: context.message.id, fromMe: false };
+	}
+
+	const label = String(messageRef);
+	const ref = context.messageRefs?.[label];
 	if (!ref) return new Error(`Unknown message reference: #${messageRef}`);
 	return { externalId: ref.externalId, fromMe: ref.role !== "user" };
 }

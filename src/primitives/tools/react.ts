@@ -12,17 +12,19 @@ const reactSchema = z.object({
 			'Emoji to react with (e.g. "👍"). Pass an empty string to remove the reaction.',
 		),
 	messageRef: z
-		.string()
+		.number()
+		.int()
+		.nonnegative()
 		.optional()
 		.describe(
-			'Message label from conversation history (e.g. "3") or "current". Defaults to the current message.',
+			"Integer message label to react to: 0 or omit for the current message, or a positive history label such as 3 for an older message.",
 		),
 });
 
 export const reactTool: ToolDefinition<typeof reactSchema> = {
 	name: "react",
 	description:
-		'React to a message with an emoji. Use for lightweight acknowledgements — e.g. 👍 to confirm, ✅ on task done, ❤️ for appreciation. Pass "" to remove. Use messageRef to react to an older message from the conversation history.',
+		'React to a message with an emoji. Use for lightweight acknowledgements — e.g. 👍 to confirm, ✅ on task done, ❤️ for appreciation. Pass "" to remove. Omit messageRef for the current message; use a positive integer to react to an older numbered history message.',
 	inputSchema: reactSchema,
 	execute: async ({ emoji, messageRef }, context) => {
 		if (!context.message) return { error: "No inbound message to react to" };
@@ -31,8 +33,8 @@ export const reactTool: ToolDefinition<typeof reactSchema> = {
 		let externalId: string;
 		let key: MessageKey;
 
-		if (messageRef && messageRef !== "current") {
-			const ref = context.messageRefs?.[messageRef];
+		if (messageRef !== undefined && messageRef !== 0) {
+			const ref = context.messageRefs?.[String(messageRef)];
 			if (!ref) return { error: `Unknown message reference: #${messageRef}` };
 			externalId = ref.externalId;
 			key = { remoteJid: chatId, fromMe: ref.role !== "user", id: externalId };
