@@ -21,7 +21,9 @@ import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 import { makeTurn } from "../helpers/turn.ts";
 
 const sendMock = vi.hoisted(() => vi.fn());
-const replySchema = z.object({ content: z.string() });
+const replySchema = z.object({
+	content: z.string({ error: "Send the complete reply text in content." }),
+});
 const probeSchema = z.object({ value: z.string().optional() });
 const hiddenSchema = z.object({});
 
@@ -314,7 +316,9 @@ describe("pipeline/core.executeAgent", () => {
 
 		expect(result.replyContent).toBe("Recovered final answer.");
 		expect(result.steps[0]?.toolResults[0]?.result).toMatchObject({
-			error: expect.stringContaining("Invalid reply input"),
+			error: expect.stringContaining(
+				"Send the complete reply text in content.",
+			),
 		});
 		expect(result.steps[1]).toMatchObject({
 			fallback: "assistant_content_reply",

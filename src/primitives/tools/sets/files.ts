@@ -24,9 +24,16 @@ function findRequestedFile(name: string): FileMeta | null {
 // ─── upload ───────────────────────────────────────────────────────────────────
 
 const filesUploadSchema = z.object({
-	name: z.string(),
-	content: z.string().describe("Base64-encoded file content"),
-	mimeType: z.string(),
+	name: z
+		.string({ error: "name must be the filename to store." })
+		.min(1, { error: "name must be the filename to store." }),
+	content: z
+		.string({ error: "content must be base64-encoded file content." })
+		.min(1, { error: "content must be base64-encoded file content." })
+		.describe("Base64-encoded file content"),
+	mimeType: z
+		.string({ error: "mimeType must identify the uploaded file type." })
+		.min(1, { error: "mimeType must identify the uploaded file type." }),
 });
 
 export const filesUploadTool: ToolDefinition<typeof filesUploadSchema> = {
@@ -51,7 +58,10 @@ export const filesUploadTool: ToolDefinition<typeof filesUploadSchema> = {
 // ─── download ─────────────────────────────────────────────────────────────────
 
 const filesDownloadSchema = z.object({
-	name: z.string().describe("File UUID or partial filename to match"),
+	name: z
+		.string({ error: "name must be a file UUID or partial filename." })
+		.min(1, { error: "name must be a file UUID or partial filename." })
+		.describe("File UUID or partial filename to match"),
 });
 
 export const filesDownloadTool: ToolDefinition<typeof filesDownloadSchema> = {
@@ -81,7 +91,10 @@ export const filesDownloadTool: ToolDefinition<typeof filesDownloadSchema> = {
 // ─── read ─────────────────────────────────────────────────────────────────────
 
 const filesReadSchema = z.object({
-	name: z.string().describe("File UUID or partial filename to match"),
+	name: z
+		.string({ error: "name must be a file UUID or partial filename." })
+		.min(1, { error: "name must be a file UUID or partial filename." })
+		.describe("File UUID or partial filename to match"),
 });
 
 export const filesReadTool: ToolDefinition<typeof filesReadSchema> = {
@@ -145,7 +158,10 @@ export const filesListTool: ToolDefinition<typeof filesListSchema> = {
 // ─── delete ───────────────────────────────────────────────────────────────────
 
 const filesDeleteSchema = z.object({
-	name: z.string().describe("File UUID or partial filename to match"),
+	name: z
+		.string({ error: "name must be a file UUID or partial filename." })
+		.min(1, { error: "name must be a file UUID or partial filename." })
+		.describe("File UUID or partial filename to match"),
 });
 
 export const filesDeleteTool: ToolDefinition<typeof filesDeleteSchema> = {

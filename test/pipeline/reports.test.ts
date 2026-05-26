@@ -7,7 +7,7 @@
  * the never-throws contract on the error path.
  */
 
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { settings } from "../../src/infra/config.ts";
@@ -186,7 +186,10 @@ describe("pipeline/reports: emitReport", () => {
 		const [dateDir] = readdirSync(settings.vault.reportsDir);
 		const reportDir = path.join(settings.vault.reportsDir, dateDir ?? "");
 		const [filename] = readdirSync(reportDir);
-		const markdown = readFileSync(path.join(reportDir, filename ?? ""), "utf-8");
+		const markdown = readFileSync(
+			path.join(reportDir, filename ?? ""),
+			"utf-8",
+		);
 		expect(markdown).toContain("**Tool call: dispatch**");
 		expect(markdown).toContain("**Tool result: dispatch**");
 		expect(markdown).toContain("child result");

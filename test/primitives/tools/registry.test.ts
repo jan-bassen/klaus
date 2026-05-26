@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
 	generateMetaTool,
-	registerTool,
 	registerToolset,
 	type ToolDefinition,
 	type ToolsetDefinition,
@@ -42,5 +41,4 @@ describe("primitives/tools: registerToolset", () => {
 		expect(toolRegistry.has("demo.a")).toBe(true);
 		expect(toolRegistry.has("demo.b")).toBe(true);
 	});
-
 });

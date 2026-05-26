@@ -96,7 +96,8 @@ async function readVaultNote(
 
 const vaultReadSchema = z.object({
 	path: z
-		.string()
+		.string({ error: "path must be the vault-relative note path to read." })
+		.min(1, { error: "path must be the vault-relative note path to read." })
 		.describe('Relative path to the note, e.g. "Projects/Klaus.md"'),
 });
 
@@ -121,11 +122,18 @@ export const vaultReadTool: ToolDefinition<typeof vaultReadSchema> = {
 
 const vaultSearchSchema = z.object({
 	query: z
-		.string()
+		.string({ error: "query must include search text." })
+		.min(1, { error: "query must include search text." })
 		.describe(
 			"Search terms (case-insensitive substring match across all notes)",
 		),
-	limit: z.number().optional().default(10).describe("Max results to return"),
+	limit: z
+		.number({ error: "limit must be a whole number." })
+		.int({ error: "limit must be a whole number." })
+		.min(1, { error: "limit must be at least 1." })
+		.optional()
+		.default(10)
+		.describe("Max results to return"),
 });
 
 export const vaultSearchTool: ToolDefinition<typeof vaultSearchSchema> = {
@@ -184,7 +192,9 @@ const vaultListSchema = z.object({
 		.default("")
 		.describe('Relative directory path, e.g. "Projects" or "" for root'),
 	depth: z
-		.number()
+		.number({ error: "depth must be a whole number." })
+		.int({ error: "depth must be a whole number." })
+		.nonnegative({ error: "depth must be 0 or greater." })
 		.optional()
 		.default(2)
 		.describe("How many levels deep to list (max 5)"),
@@ -239,12 +249,14 @@ export const vaultListTool: ToolDefinition<typeof vaultListSchema> = {
 
 const vaultWriteSchema = z.object({
 	path: z
-		.string()
+		.string({ error: "path must be the vault-relative note path to write." })
+		.min(1, { error: "path must be the vault-relative note path to write." })
 		.describe(
 			'Relative path including .md extension, e.g. "Projects/New Note.md"',
 		),
 	content: z
-		.string()
+		.string({ error: "content must be the markdown to write." })
+		.min(1, { error: "content must be the markdown to write." })
 		.describe(
 			"Full markdown content of the note (including frontmatter if desired)",
 		),
@@ -268,8 +280,18 @@ export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
 // ─── append ──────────────────────────────────────────────────────────────────
 
 const vaultAppendSchema = z.object({
-	path: z.string().describe("Relative path to the note to append to"),
-	content: z.string().describe("Content to append (added after a newline)"),
+	path: z
+		.string({
+			error: "path must be the vault-relative note path to append to.",
+		})
+		.min(1, {
+			error: "path must be the vault-relative note path to append to.",
+		})
+		.describe("Relative path to the note to append to"),
+	content: z
+		.string({ error: "content must be the markdown to append." })
+		.min(1, { error: "content must be the markdown to append." })
+		.describe("Content to append (added after a newline)"),
 	heading: z
 		.string()
 		.optional()
@@ -305,7 +327,8 @@ export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
 
 const vaultBacklinksSchema = z.object({
 	noteName: z
-		.string()
+		.string({ error: "noteName must be the linked note name to search for." })
+		.min(1, { error: "noteName must be the linked note name to search for." })
 		.describe('Note name without .md extension, e.g. "Klaus"'),
 });
 
@@ -348,10 +371,12 @@ export const vaultBacklinksTool: ToolDefinition<typeof vaultBacklinksSchema> = {
 
 const vaultMoveSchema = z.object({
 	from: z
-		.string()
+		.string({ error: "from must be the source vault-relative path." })
+		.min(1, { error: "from must be the source vault-relative path." })
 		.describe('Source relative path, e.g. "Projects/Old Name.md"'),
 	to: z
-		.string()
+		.string({ error: "to must be the destination vault-relative path." })
+		.min(1, { error: "to must be the destination vault-relative path." })
 		.describe('Destination relative path, e.g. "Archive/Old Name.md"'),
 	updateBacklinks: z
 		.boolean()
@@ -427,7 +452,10 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 // ─── delete ──────────────────────────────────────────────────────────────────
 
 const vaultDeleteSchema = z.object({
-	path: z.string().describe("Relative path to the note to delete"),
+	path: z
+		.string({ error: "path must be the vault-relative note path to delete." })
+		.min(1, { error: "path must be the vault-relative note path to delete." })
+		.describe("Relative path to the note to delete"),
 });
 
 export const vaultDeleteTool: ToolDefinition<typeof vaultDeleteSchema> = {
@@ -451,12 +479,17 @@ export const vaultDeleteTool: ToolDefinition<typeof vaultDeleteSchema> = {
 // ─── patch ───────────────────────────────────────────────────────────────────
 
 const vaultPatchSchema = z.object({
-	path: z.string().describe("Relative path to the note"),
+	path: z
+		.string({ error: "path must be the vault-relative note path to patch." })
+		.min(1, { error: "path must be the vault-relative note path to patch." })
+		.describe("Relative path to the note"),
 	heading: z
-		.string()
+		.string({ error: "heading must be the exact section heading to patch." })
+		.min(1, { error: "heading must be the exact section heading to patch." })
 		.describe('Exact heading text without # markers, e.g. "Goals" or "Notes"'),
 	newContent: z
-		.string()
+		.string({ error: "newContent must be the replacement section body." })
+		.min(1, { error: "newContent must be the replacement section body." })
 		.describe(
 			"Replacement content for the section body (heading line is preserved)",
 		),
@@ -558,7 +591,10 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 // ─── links ───────────────────────────────────────────────────────────────────
 
 const vaultLinksSchema = z.object({
-	path: z.string().describe("Relative path to the note"),
+	path: z
+		.string({ error: "path must be the vault-relative note path to inspect." })
+		.min(1, { error: "path must be the vault-relative note path to inspect." })
+		.describe("Relative path to the note"),
 });
 
 export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
@@ -581,7 +617,10 @@ export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
 // ─── outline ─────────────────────────────────────────────────────────────────
 
 const vaultOutlineSchema = z.object({
-	path: z.string().describe("Relative path to the note"),
+	path: z
+		.string({ error: "path must be the vault-relative note path to outline." })
+		.min(1, { error: "path must be the vault-relative note path to outline." })
+		.describe("Relative path to the note"),
 });
 
 export const vaultOutlineTool: ToolDefinition<typeof vaultOutlineSchema> = {

@@ -12,9 +12,12 @@ const reactSchema = z.object({
 			'Emoji to react with (e.g. "👍"). Pass an empty string to remove the reaction.',
 		),
 	messageRef: z
-		.number()
-		.int()
-		.nonnegative()
+		.number({ error: "messageRef must be an integer label, not a string." })
+		.int({ error: "messageRef must be an integer label, not a string." })
+		.nonnegative({
+			error:
+				"messageRef must be 0 for the current message or a positive history label.",
+		})
 		.optional()
 		.describe(
 			"Integer message label to react to: 0 or omit for the current message, or a positive history label such as 3 for an older message.",

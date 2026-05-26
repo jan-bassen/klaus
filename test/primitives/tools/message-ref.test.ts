@@ -16,8 +16,7 @@ describe("primitives/tools: numeric message references", () => {
 				.success,
 		).toBe(false);
 		expect(
-			reactTool.inputSchema.safeParse({ emoji: "👍", messageRef: "3" })
-				.success,
+			reactTool.inputSchema.safeParse({ emoji: "👍", messageRef: "3" }).success,
 		).toBe(false);
 	});
 

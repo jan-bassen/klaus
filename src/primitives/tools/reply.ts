@@ -20,8 +20,8 @@ export const REPLY_TOOL_NAME = "reply";
 
 const replySchema = z.object({
 	content: z
-		.string()
-		.min(1)
+		.string({ error: "Send the complete reply text in content." })
+		.min(1, { error: "Send the complete reply text in content." })
 		.refine((value) => value.trim().length > 0, "Message content is required")
 		.describe("The complete content of the final message to send (required)."),
 	voice: z
@@ -31,9 +31,12 @@ const replySchema = z.object({
 			"Delivery choice for this completed message. Set true only when the content should be spoken as a voice note.",
 		),
 	messageRef: z
-		.number()
-		.int()
-		.nonnegative()
+		.number({ error: "messageRef must be an integer label, not a string." })
+		.int({ error: "messageRef must be an integer label, not a string." })
+		.nonnegative({
+			error:
+				"messageRef must be 0 for the current message or a positive history label.",
+		})
 		.optional()
 		.describe(
 			"Positive integer message label to quote-reply older messages. Omit for a normal reply.",

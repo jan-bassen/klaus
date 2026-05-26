@@ -45,9 +45,16 @@ const schema = z.object({
 		.string()
 		.optional()
 		.describe("ISO timestamp — only return messages before this time"),
-	limit: z.number().optional().describe("Max results to return (default 20)"),
+	limit: z
+		.number({ error: "limit must be a whole number." })
+		.int({ error: "limit must be a whole number." })
+		.min(1, { error: "limit must be at least 1." })
+		.optional()
+		.describe("Max results to return (default 20)"),
 	context_window: z
-		.number()
+		.number({ error: "context_window must be a whole number." })
+		.int({ error: "context_window must be a whole number." })
+		.nonnegative({ error: "context_window must be 0 or greater." })
 		.optional()
 		.describe("Messages before/after for around_message_id mode (default 5)"),
 });

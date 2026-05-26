@@ -14,7 +14,8 @@ import type { ToolDefinition } from "./index.ts";
 
 const imageGenerateSchema = z.object({
 	prompt: z
-		.string()
+		.string({ error: "Describe the image to generate or edit in prompt." })
+		.min(1, { error: "Describe the image to generate or edit in prompt." })
 		.describe(
 			"Description of the image to generate, or edit instructions when source images are provided.",
 		),
@@ -25,17 +26,27 @@ const imageGenerateSchema = z.object({
 			"File IDs of input images to edit or use as visual context. Combine with prompt for edits, style transfer, or composition.",
 		),
 	sourceMessageRef: z
-		.number()
-		.int()
-		.nonnegative()
+		.number({
+			error: "sourceMessageRef must be an integer label, not a string.",
+		})
+		.int({
+			error: "sourceMessageRef must be an integer label, not a string.",
+		})
+		.nonnegative({
+			error:
+				"sourceMessageRef must be 0 for the current message or a positive history label.",
+		})
 		.optional()
 		.describe(
 			"Integer message label for an input image: 0 for the current message, or a positive history label such as 3 for an older message.",
 		),
 	messageRef: z
-		.number()
-		.int()
-		.nonnegative()
+		.number({ error: "messageRef must be an integer label, not a string." })
+		.int({ error: "messageRef must be an integer label, not a string." })
+		.nonnegative({
+			error:
+				"messageRef must be 0 for the current message or a positive history label.",
+		})
 		.optional()
 		.describe(
 			"Integer message label to quote-reply with the image: 0 or omit for the current message, or a positive history label such as 3 for an older message.",

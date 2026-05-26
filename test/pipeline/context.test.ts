@@ -25,6 +25,11 @@ import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 import { makeTurn } from "../helpers/turn.ts";
 
 const valueSchema = z.object({ value: z.string().optional() });
+const refSchema = z.object({
+	messageRef: z
+		.number({ error: "messageRef must be an integer label, not a string." })
+		.int({ error: "messageRef must be an integer label, not a string." }),
+});
 type ValueTool = ToolDefinition<typeof valueSchema>;
 
 describe("pipeline/context.assembleVariables", () => {
@@ -417,6 +422,34 @@ describe("pipeline/context.invokeTool", () => {
 		expect(pureExecute).not.toHaveBeenCalled();
 	});
 
+	it("returns corrective schema messages for invalid tool input", async () => {
+		const execute = vi.fn<ToolDefinition<typeof refSchema>["execute"]>(
+			async () => "ok",
+		);
+		registerTool({
+			name: "quote_probe",
+			description: "Probe quote refs.",
+			inputSchema: refSchema,
+			execute,
+		});
+		const def = makeAgent(tmpDir, "alpha", ["quote_probe"]);
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			config: { skipHistory: true },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		const result = await ctx.tools.functionTools.quote_probe?.execute({
+			messageRef: "3",
+		});
+
+		expect(result).toEqual({
+			error: expect.stringContaining(
+				"messageRef: messageRef must be an integer label, not a string.",
+			),
+		});
+		expect(execute).not.toHaveBeenCalled();
+	});
 });
 
 function writeTemplates(tmpDir: string): void {

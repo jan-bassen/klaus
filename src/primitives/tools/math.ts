@@ -4,7 +4,8 @@ import type { ToolDefinition } from "./index.ts";
 
 const schema = z.object({
 	expression: z
-		.string()
+		.string({ error: "Provide the mathjs expression to evaluate." })
+		.min(1, { error: "Provide the mathjs expression to evaluate." })
 		.describe(
 			"A mathjs expression to evaluate. Supports arithmetic, units, matrices, statistics, calculus, and named variables via `scope`.",
 		),

@@ -46,12 +46,16 @@ function scheduleEntry(
 
 const dispatchSchema = z.object({
 	agent: z
-		.string()
+		.string({ error: "agent must be a non-empty agent name." })
+		.min(1, { error: "agent must be a non-empty agent name." })
 		.optional()
 		.describe(
 			`Agent to invoke. Defaults to "${DEFAULT_AGENT}" (a generic helper).`,
 		),
-	prompt: z.string().describe("What the agent should accomplish"),
+	prompt: z
+		.string({ error: "prompt must describe what the agent should do." })
+		.min(1, { error: "prompt must describe what the agent should do." })
+		.describe("What the agent should accomplish"),
 	overrides: z
 		.array(z.string())
 		.optional()
@@ -107,14 +111,26 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 // ── dispatch_schedule ──────────────────────────────────────────────────────
 
 const dispatchScheduleSchema = z.object({
-	agent: z.string().describe("Name of the agent to schedule"),
-	pattern: z.string().describe("Cron expression (e.g. '0 8 * * 1-5')"),
-	prompt: z.string().describe("What the agent should accomplish on each run"),
+	agent: z
+		.string({ error: "agent must be the name of the agent to schedule." })
+		.min(1, { error: "agent must be the name of the agent to schedule." })
+		.describe("Name of the agent to schedule"),
+	pattern: z
+		.string({ error: "pattern must be a cron expression." })
+		.min(1, { error: "pattern must be a cron expression." })
+		.describe("Cron expression (e.g. '0 8 * * 1-5')"),
+	prompt: z
+		.string({ error: "prompt must describe each scheduled run." })
+		.min(1, { error: "prompt must describe each scheduled run." })
+		.describe("What the agent should accomplish on each run"),
 	overrides: z
 		.array(z.string())
 		.optional()
 		.describe("Override preset names forwarded on each fire"),
-	label: z.string().describe("Human-readable label for this schedule"),
+	label: z
+		.string({ error: "label must briefly name this schedule." })
+		.min(1, { error: "label must briefly name this schedule." })
+		.describe("Human-readable label for this schedule"),
 });
 
 const dispatchScheduleTool: ToolDefinition<typeof dispatchScheduleSchema> = {
@@ -170,7 +186,10 @@ function renderList(
 // ── dispatch_cancel ────────────────────────────────────────────────────────
 
 const dispatchCancelSchema = z.object({
-	id: z.string().describe("ID of the schedule or timer to cancel"),
+	id: z
+		.string({ error: "id must be the schedule or timer ID to cancel." })
+		.min(1, { error: "id must be the schedule or timer ID to cancel." })
+		.describe("ID of the schedule or timer to cancel"),
 });
 
 const dispatchCancelTool: ToolDefinition<typeof dispatchCancelSchema> = {

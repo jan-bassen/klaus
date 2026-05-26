@@ -29,13 +29,10 @@ export function startPresence(chatId: string, kind: PresenceKind): void {
 	if (existing) clearInterval(existing.interval);
 
 	ping(chatId, kind);
-	const interval = setInterval(
-		() => {
-			const current = keepers.get(chatId);
-			if (current) ping(chatId, current.kind);
-		},
-		settings.whatsapp.presenceRefreshMs,
-	);
+	const interval = setInterval(() => {
+		const current = keepers.get(chatId);
+		if (current) ping(chatId, current.kind);
+	}, settings.whatsapp.presenceRefreshMs);
 	keepers.set(chatId, { kind, interval });
 }
 

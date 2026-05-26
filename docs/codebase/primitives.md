@@ -80,7 +80,7 @@ export const shoutTool: ToolDefinition<typeof schema> = {
 };
 ```
 
-Use Zod schemas for inputs. Klaus validates every model-supplied tool call against the schema before `execute` runs; invalid calls return an error result to the model and do not perform side effects. Avoid `any` and type assertions. Return clear values the model can act on, including error objects or strings when runtime conditions are wrong.
+Use Zod schemas for inputs. Klaus validates every model-supplied tool call against the schema before `execute` runs; invalid calls return an error result to the model and do not perform side effects. Put corrective `error` messages on constraints the model commonly gets wrong (for example integer message refs, nonnegative counts, nonempty required text), so the returned validation error tells the agent how to retry. Avoid `any` and type assertions. Return clear values the model can act on, including error objects or strings when runtime conditions are wrong.
 
 `reply` is the terminal user-visible output tool. It requires complete nonblank
 message content; `voice` is a delivery flag for that same content, not a

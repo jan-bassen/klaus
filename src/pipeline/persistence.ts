@@ -21,12 +21,22 @@ const PERSIST_TOOL_NAME = "persist";
 
 const persistInputSchema = z.object({
 	nextRun: z
-		.string()
+		.string({
+			error: "nextRun must be an ISO datetime or a duration like '6h'.",
+		})
+		.min(1, {
+			error: "nextRun must be an ISO datetime or a duration like '6h'.",
+		})
 		.describe(
 			"When to run again. ISO 8601 datetime (e.g. 2026-04-23T08:00:00Z) or duration like '6h', '30m', '2d'.",
 		),
 	prompt: z
-		.string()
+		.string({
+			error: "prompt must describe the objective for the next run.",
+		})
+		.min(1, {
+			error: "prompt must describe the objective for the next run.",
+		})
 		.describe("Objective/instructions for the next run of this agent."),
 	overrides: z
 		.array(z.string())
