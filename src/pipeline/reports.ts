@@ -22,7 +22,7 @@ import {
 	writeReport,
 } from "../infra/store/report.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
-import { SEND_MESSAGE_TOOL_NAME } from "../primitives/tools/send-message.ts";
+import { SEND_MESSAGE_TOOL_NAME } from "../primitives/tools/message.ts";
 import type { AgentRunResult, TurnContext } from "./core.ts";
 import type { TurnConfig } from "./overrides.ts";
 import { renderTemplate } from "./templates.ts";

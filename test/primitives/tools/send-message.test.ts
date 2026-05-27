@@ -1,5 +1,5 @@
 /**
- * `primitives/tools/send-message.ts` — collector branch.
+ * `primitives/tools/message.ts` — collector branch.
  *
  * The full send path goes through `enqueueMessage`, the message-agent template,
  * and (optionally) TTS. Those are exercised end-to-end in
@@ -9,7 +9,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { toJSONSchema } from "zod/v4";
-import { sendMessageTool } from "../../../src/primitives/tools/send-message.ts";
+import { sendMessageTool } from "../../../src/primitives/tools/message.ts";
 import { makeTurn } from "../../helpers/turn.ts";
 
 vi.mock("../../../src/infra/whatsapp/send.ts", () => ({

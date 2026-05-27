@@ -41,7 +41,7 @@ import {
 	registerTool,
 	type ToolDefinition,
 } from "../../src/primitives/tools/index.ts";
-import { sendMessageTool } from "../../src/primitives/tools/send-message.ts";
+import { sendMessageTool } from "../../src/primitives/tools/message.ts";
 import { initAllStores } from "../helpers/stores.ts";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 

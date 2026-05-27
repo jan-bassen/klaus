@@ -22,7 +22,7 @@ import { type ModelTier, resolveModel, settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
 import { appendTrace, type TraceStep } from "../infra/store/history.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
-import { SEND_MESSAGE_TOOL_NAME } from "../primitives/tools/send-message.ts";
+import { SEND_MESSAGE_TOOL_NAME } from "../primitives/tools/message.ts";
 import type { Variable } from "../primitives/variables/index.ts";
 import type { AgentDefinition } from "./agents.ts";
 import {
