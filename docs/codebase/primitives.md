@@ -84,10 +84,9 @@ Use Zod schemas for inputs. Klaus validates every model-supplied tool call again
 
 `send_message` is the terminal user-visible output tool. It requires complete
 nonblank `text`; `asVoiceNote` is a delivery flag for that same text, not a
-separate action. Message labels are numeric: `0` means the current message, and
-positive integers refer to visible `[#n]` history entries. Omit
-`quoteMessageLabel` for normal messages; use it only when an explicit WhatsApp
-quote target matters.
+separate action. Omit `quoteMessageLabel` for normal messages. Use it only for
+explicit WhatsApp quotes to older visible `[#n]` history labels; `0` is accepted
+but ignored so the agent does not quote the current message by habit.
 
 ## Toolsets
 

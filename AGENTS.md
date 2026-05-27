@@ -100,7 +100,7 @@ src/
 
 Scheduled runs, timers, persistence, and `run_agent` start at step 5 with a synthesised `Trigger`.
 Frontmatter schedules render `# Message` with `{{schedule.*}}`; timer and agent-task runs prefer `# Message` with `{{dispatch.prompt}}`, falling back to the raw objective when no `# Message` exists.
-Inline `run_agent` messages return to the caller as the tool result; only schedule/timer runs send directly to WhatsApp. The `send_message` tool requires final `text`, can include `asVoiceNote: true` for voice delivery, and only uses integer `quoteMessageLabel` when explicitly quoting in WhatsApp (`0` for current, positive visible `[#n]` labels for older messages); omit it for normal messages. `forceVoice` and `suppressVoice` override that choice. TTS output format is set by `media.voice.tts.responseFormat`; PCM responses are converted from 24 kHz, 16-bit mono PCM to Ogg Opus before WhatsApp voice-note send.
+Inline `run_agent` messages return to the caller as the tool result; only schedule/timer runs send directly to WhatsApp. The `send_message` tool requires final `text`, can include `asVoiceNote: true` for voice delivery, and only uses integer `quoteMessageLabel` when explicitly quoting an older WhatsApp message by positive visible `[#n]` label; omit it for normal messages. `quoteMessageLabel: 0` is accepted but ignored so agents do not quote the current message by habit. `forceVoice` and `suppressVoice` override voice choice. TTS output format is set by `media.voice.tts.responseFormat`; PCM responses are converted from 24 kHz, 16-bit mono PCM to Ogg Opus before WhatsApp voice-note send.
 
 ## Agents
 

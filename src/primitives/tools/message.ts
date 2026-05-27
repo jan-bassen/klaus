@@ -40,12 +40,11 @@ const sendMessageSchema = z.object({
 				"quoteMessageLabel must be an integer message label, not a string.",
 		})
 		.nonnegative({
-			error:
-				"quoteMessageLabel must be 0 for the current message or a positive visible message label.",
+			error: "quoteMessageLabel must be 0 or a positive visible message label.",
 		})
 		.optional()
 		.describe(
-			"Visible message label to quote in WhatsApp. Use 0 for the current message, or a positive [#n] history label. Omit for a normal message.",
+			"Visible message label to quote in WhatsApp. Use only positive [#n] history labels for older messages. Omit for normal messages; 0 is accepted but ignored.",
 		),
 });
 

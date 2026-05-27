@@ -63,10 +63,7 @@ function resolveMessageRef(
 	if (messageRef === undefined) return undefined;
 
 	if (messageRef === 0) {
-		if (!context.message) {
-			return new Error("No current message to quote");
-		}
-		return { externalId: context.message.id, fromMe: false };
+		return undefined;
 	}
 
 	const label = String(messageRef);

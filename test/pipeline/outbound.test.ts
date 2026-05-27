@@ -133,7 +133,7 @@ describe("pipeline/outbound: prepareAssistantOutbound — message persistence", 
 		});
 	});
 
-	it("resolves messageRef 0 to the current inbound message", async () => {
+	it("ignores messageRef 0 instead of quoting the current inbound message", async () => {
 		const turn = makeTurn({
 			message: inbound("msg-x"),
 			messageRefs: {},
@@ -148,9 +148,6 @@ describe("pipeline/outbound: prepareAssistantOutbound — message persistence", 
 
 		expect(result).not.toHaveProperty("error");
 		if ("error" in result) return;
-		expect(result.quoted).toEqual({
-			externalId: "msg-x",
-			fromMe: false,
-		});
+		expect(result.quoted).toBeUndefined();
 	});
 });
