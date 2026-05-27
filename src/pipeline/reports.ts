@@ -22,7 +22,7 @@ import {
 	writeReport,
 } from "../infra/store/report.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
-import { REPLY_TOOL_NAME } from "../primitives/tools/reply.ts";
+import { SEND_MESSAGE_TOOL_NAME } from "../primitives/tools/send-message.ts";
 import type { AgentRunResult, TurnContext } from "./core.ts";
 import type { TurnConfig } from "./overrides.ts";
 import { renderTemplate } from "./templates.ts";
@@ -146,13 +146,17 @@ function toReportStep(s: AgentRunResult["steps"][number]): ReportStep {
 }
 
 function reorderReportArgs(toolName: string, args: unknown): unknown {
-	if (toolName !== REPLY_TOOL_NAME || !isRecord(args) || !("voice" in args)) {
+	if (
+		toolName !== SEND_MESSAGE_TOOL_NAME ||
+		!isRecord(args) ||
+		!("asVoiceNote" in args)
+	) {
 		return args;
 	}
 
-	const out: Record<string, unknown> = { voice: args.voice };
+	const out: Record<string, unknown> = { asVoiceNote: args.asVoiceNote };
 	for (const [key, value] of Object.entries(args)) {
-		if (key !== "voice") out[key] = value;
+		if (key !== "asVoiceNote") out[key] = value;
 	}
 	return out;
 }

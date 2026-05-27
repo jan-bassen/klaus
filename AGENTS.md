@@ -50,7 +50,7 @@ Stack: Node 25, native TypeScript, strict TypeScript, Zod, Handlebars, Baileys. 
 README.md                  # public front door
 docs/setup.md              # install, first boot, WhatsApp login, troubleshooting
 docs/architecture.md       # high-level map of runtime and authoring surfaces
-docs/codebase/pipeline.md  # turn flow, config, context, model loop, dispatch
+docs/codebase/pipeline.md  # turn flow, config, context, model loop, agent runs
 docs/codebase/primitives.md # commands, variables, tools, toolsets, provider tools
 docs/codebase/infra.md     # config, vault/sync, WhatsApp, stores, logging
 docs/vault/agents.md       # agent frontmatter, prompts, schedules, persistence
@@ -75,11 +75,11 @@ src/
 │   ├── context.ts    # variables + tools + history assembly
 │   ├── templates.ts  # system/user message rendering
 │   ├── core.ts       # core model loop (runAgent, executeAgent, persist) + TurnContext + Trigger
-│   ├── dispatch.ts   # dispatch() primitive
+│   ├── dispatch.ts   # scheduled/timer/agent-run entrypoint
 │   ├── media.ts      # STT, doc parsing, image prep
 │   └── reports.ts    # per-turn report emitter
 ├── primitives/       # pluggable extensions (auto-discovered via glob)
-│   ├── tools/        # reply, react, web, conversation, skill + sets/{vault,dispatch,files}
+│   ├── tools/        # send_message, set_reaction, search_messages, read_skill + sets/{vault,agents,files}
 │   ├── variables/    # time, media, tasks, dispatch, config, snippets, trigger
 │   └── commands/     # /break, /default, /help, /image, /model, /provider, /resume, /retry, /schedules, /stop, /voice
 └── infra/            # external systems + state
@@ -96,11 +96,11 @@ src/
 2. **Parse** — `parseMessage`: STT transcribe → doc extract → image/sticker vision media → voice transcript rewrite → `/command` → `@agent` → `!overrides`.
 3. **Resolve agent + build config** — `getOrLoadAgent` + `buildTurnConfig` (globalDefaults → frontmatter → `!overrides`).
 4. **Persist message** — append to day-partitioned JSONL, resolve quoted media.
-5. **Execute agent** — `executeAgent`: assemble context (vars + tools + history) → compile prompts → `runLoop` (multi-step `completeChat` calls until the model stops calling tools) → recover plain assistant content as a visible fallback `reply` when reply is active → report → reschedule if persistent.
+5. **Execute agent** — `executeAgent`: assemble context (vars + tools + history) → compile prompts → `runLoop` (multi-step `completeChat` calls until the model stops calling tools) → recover plain assistant content as a visible fallback `send_message` when that tool is active → report → reschedule if persistent.
 
-Dispatched runs (cron, timer, `dispatch` tool) start at step 5 with a synthesised `Trigger`.
-Frontmatter schedules render `# Message` with `{{schedule.*}}`; timer and dispatch-tool runs prefer `# Message` with `{{dispatch.prompt}}`, falling back to the raw objective when no `# Message` exists.
-Inline `dispatch` tool replies return to the caller as the tool result; only schedule/timer dispatches send directly to WhatsApp. The `reply` tool requires final message text, can include `voice: true` for voice delivery, and only uses integer `messageRef` when explicitly quote-replying (`0` for current, positive history labels for older messages); omit it for normal replies. `forceVoice` and `suppressVoice` override that choice. TTS output format is set by `media.voice.tts.responseFormat`; PCM responses are converted from 24 kHz, 16-bit mono PCM to Ogg Opus before WhatsApp voice-note send.
+Scheduled runs, timers, persistence, and `run_agent` start at step 5 with a synthesised `Trigger`.
+Frontmatter schedules render `# Message` with `{{schedule.*}}`; timer and agent-task runs prefer `# Message` with `{{dispatch.prompt}}`, falling back to the raw objective when no `# Message` exists.
+Inline `run_agent` messages return to the caller as the tool result; only schedule/timer runs send directly to WhatsApp. The `send_message` tool requires final `text`, can include `asVoiceNote: true` for voice delivery, and only uses integer `quoteMessageLabel` when explicitly quoting in WhatsApp (`0` for current, positive visible `[#n]` labels for older messages); omit it for normal messages. `forceVoice` and `suppressVoice` override that choice. TTS output format is set by `media.voice.tts.responseFormat`; PCM responses are converted from 24 kHz, 16-bit mono PCM to Ogg Opus before WhatsApp voice-note send.
 
 ## Agents
 
@@ -110,14 +110,14 @@ Bundled first-run agents:
 - `assistant` — general daily driver.
 - `research` (`@r`) — read-oriented web/vault investigation and synthesis.
 - `meta` (`@m`) — edits the user-owned `Klaus/` configuration folder.
-- `dispatch` (`@d`) — generic delegated worker used by the dispatch tool.
+- `dispatch` (`@d`) — generic delegated worker used by `run_agent`.
 
 ```yaml
 ---
 name: agentName
 aliases: [short]
-tools: [reply, react]
-toolsets: [vault, dispatch]
+tools: [send_message, set_reaction]
+toolsets: [vault, agents]
 providerTools: [web_search]
 skills: [workout-plan]
 provider: Codex|openai|gemini|qwen|deepseek
@@ -149,7 +149,7 @@ Scheduled-run message with {{schedule.label}} metadata.
 ```
 
 Persistence:
-- `schedules` — recurring cron entries fire with the agent's `# Message` as the synthetic user message. Timer and dispatch-tool runs also use `# Message` when present, with `{{dispatch.prompt}}` carrying the objective.
+- `schedules` — recurring cron entries fire with the agent's `# Message` as the synthetic user message. Timer and `run_agent` runs also use `# Message` when present, with `{{dispatch.prompt}}` carrying the objective.
 - `persist: true` — after each run, a forced `persist` tool call produces `{nextRun, prompt, overrides?}`; one-shot timer created, chain unbreakable.
 
 ## Primitives
@@ -160,7 +160,7 @@ Persistence:
 
 **Toolsets** are lazy-loaded via `load_<name>` meta-tools so the initial context stays lean.
 
-**Skills** are `.md` docs in `{vault}/Klaus/skills/`, loaded via a per-agent `skill_get` tool scoped to the agent's declared list.
+**Skills** are `.md` docs in `{vault}/Klaus/skills/`, loaded via a per-agent `read_skill` tool scoped to the agent's declared list.
 
 **Snippets** are `.md` fragments in `{vault}/Klaus/snippets/`, compiled once against the normal variable namespace. Use `{{snippets.name}}` in agent prompts; snippets do not expand other snippets.
 
@@ -174,7 +174,7 @@ Persistence:
 
 ## Reports
 
-One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, explicit tools, toolsets, skills, LLM steps, tool calls/results, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Toolset members stay grouped in the context summary; individual calls still appear in the step trace with returned values. Inline dispatch replies show up as the parent `dispatch` tool result. Image data URLs are redacted from text mirrors; the message wrapper records the media as `[Image: filename]` when available. Reply step args keep short metadata such as `voice` before long `content` so truncation stays readable.
+One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, explicit tools, toolsets, skills, LLM steps, tool calls/results, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Toolset members stay grouped in the context summary; individual calls still appear in the step trace with returned values. Inline agent-task messages show up as the parent `run_agent` tool result. Image data URLs are redacted from text mirrors; the message wrapper records the media as `[Image: filename]` when available. `send_message` step args keep short metadata such as `asVoiceNote` before long `text` so truncation stays readable.
 
 `settings.reports.vaultMarkdown: true` mirrors each report into `{vault}/Klaus/reports/<date>/<file>.md` for Obsidian reading.
 

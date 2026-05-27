@@ -12,51 +12,59 @@ import { generateImage } from "../../pipeline/media.ts";
 import { prepareAssistantOutbound } from "../../pipeline/outbound.ts";
 import type { ToolDefinition } from "./index.ts";
 
-const imageGenerateSchema = z.object({
+const sendImageSchema = z.object({
 	prompt: z
 		.string({ error: "Describe the image to generate or edit in prompt." })
 		.min(1, { error: "Describe the image to generate or edit in prompt." })
 		.describe(
 			"Description of the image to generate, or edit instructions when source images are provided.",
 		),
-	sourceFileIds: z
+	inputFileIds: z
 		.array(z.string())
 		.optional()
 		.describe(
 			"File IDs of input images to edit or use as visual context. Combine with prompt for edits, style transfer, or composition.",
 		),
-	sourceMessageRef: z
+	inputMessageLabel: z
 		.number({
-			error: "sourceMessageRef must be an integer label, not a string.",
+			error:
+				"inputMessageLabel must be an integer message label, not a string.",
 		})
 		.int({
-			error: "sourceMessageRef must be an integer label, not a string.",
+			error:
+				"inputMessageLabel must be an integer message label, not a string.",
 		})
 		.nonnegative({
 			error:
-				"sourceMessageRef must be 0 for the current message or a positive history label.",
+				"inputMessageLabel must be 0 for the current message or a positive visible message label.",
 		})
 		.optional()
 		.describe(
-			"Integer message label for an input image: 0 for the current message, or a positive history label such as 3 for an older message.",
+			"Visible message label for an input image. Use 0 for the current message, or a positive [#n] history label.",
 		),
-	messageRef: z
-		.number({ error: "messageRef must be an integer label, not a string." })
-		.int({ error: "messageRef must be an integer label, not a string." })
+	quoteMessageLabel: z
+		.number({
+			error:
+				"quoteMessageLabel must be an integer message label, not a string.",
+		})
+		.int({
+			error:
+				"quoteMessageLabel must be an integer message label, not a string.",
+		})
 		.nonnegative({
 			error:
-				"messageRef must be 0 for the current message or a positive history label.",
+				"quoteMessageLabel must be 0 for the current message or a positive visible message label.",
 		})
 		.optional()
 		.describe(
-			"Integer message label to quote-reply with the image: 0 or omit for the current message, or a positive history label such as 3 for an older message.",
+			"Visible message label to quote in WhatsApp. Use 0 for the current message, or a positive [#n] history label. Omit for a normal image message.",
 		),
 });
 
 async function resolveSourceImages(
 	context: TurnContext,
 	fileIds: string[] | undefined,
-	messageRef: number | undefined,
+	messageLabel: number | undefined,
 ): Promise<Array<{ bytes: Buffer; mimeType: string }> | Error> {
 	const out: Array<{ bytes: Buffer; mimeType: string }> = [];
 
@@ -67,17 +75,17 @@ async function resolveSourceImages(
 		out.push({ bytes, mimeType: meta.mimeType });
 	}
 
-	if (messageRef !== undefined) {
+	if (messageLabel !== undefined) {
 		const externalId =
-			messageRef === 0
+			messageLabel === 0
 				? context.message?.id
-				: context.messageRefs?.[String(messageRef)]?.externalId;
+				: context.messageRefs?.[String(messageLabel)]?.externalId;
 		if (!externalId) {
-			return new Error(`Unknown message reference: #${messageRef}`);
+			return new Error(`Unknown message label: #${messageLabel}`);
 		}
 		const found = findFileByExternalId(externalId);
 		if (!found) {
-			return new Error(`No image attached to message #${messageRef}`);
+			return new Error(`No image attached to message #${messageLabel}`);
 		}
 		const bytes = Buffer.from(await readArrayBuffer(found.path));
 		out.push({ bytes, mimeType: found.mimeType });
@@ -86,16 +94,16 @@ async function resolveSourceImages(
 	return out;
 }
 
-export const imageGenerateTool: ToolDefinition<typeof imageGenerateSchema> = {
-	name: "image_generate",
+export const sendImageTool: ToolDefinition<typeof sendImageSchema> = {
+	name: "send_image",
 	description:
-		"Generate or edit an image and send it to the user as a WhatsApp message. With no source images, generates from the prompt alone. Pass sourceFileIds and/or sourceMessageRef to edit, restyle, or compose existing images per the prompt. Returns the saved fileId.",
-	inputSchema: imageGenerateSchema,
+		"Generate or edit an image and send it as a WhatsApp message. With no input images, generates from the prompt alone. Returns the saved fileId.",
+	inputSchema: sendImageSchema,
 	execute: async (
-		{ prompt, sourceFileIds, sourceMessageRef, messageRef },
+		{ prompt, inputFileIds, inputMessageLabel, quoteMessageLabel },
 		context,
 	) => {
-		// Inline dispatch: surface a short description to the parent and skip the real send.
+		// Inline agent runs return a short description to their caller instead of sending to WhatsApp.
 		if (context._replyCollector) {
 			context._replyCollector.push(`[image: ${prompt}]`);
 			return { sent: true, fileId: null };
@@ -103,11 +111,11 @@ export const imageGenerateTool: ToolDefinition<typeof imageGenerateSchema> = {
 
 		const sources = await resolveSourceImages(
 			context,
-			sourceFileIds,
-			sourceMessageRef,
+			inputFileIds,
+			inputMessageLabel,
 		);
 		if (sources instanceof Error) {
-			log.warn("[image_generate] failed to resolve sources", {
+			log.warn("[send_image] failed to resolve sources", {
 				error: sources.message,
 			});
 			return { error: sources.message };
@@ -118,7 +126,7 @@ export const imageGenerateTool: ToolDefinition<typeof imageGenerateSchema> = {
 			...(sources.length ? { images: sources } : {}),
 		});
 		if (result instanceof Error) {
-			log.warn("[image_generate] failed", { error: result.message });
+			log.warn("[send_image] failed", { error: result.message });
 			return { error: result.message };
 		}
 
@@ -130,7 +138,7 @@ export const imageGenerateTool: ToolDefinition<typeof imageGenerateSchema> = {
 			return { error: `Failed to save image: ${saved.message}` };
 		}
 		if (!saved.metadataSaved) {
-			log.warn("[image_generate] failed to save metadata", {
+			log.warn("[send_image] failed to save metadata", {
 				path: saved.path,
 			});
 		}
@@ -139,8 +147,10 @@ export const imageGenerateTool: ToolDefinition<typeof imageGenerateSchema> = {
 			context,
 			content: `[image: ${prompt}]`,
 			kind: "image",
-			logPrefix: "[image_generate]",
-			...(messageRef !== undefined ? { messageRef } : {}),
+			logPrefix: "[send_image]",
+			...(quoteMessageLabel !== undefined
+				? { messageRef: quoteMessageLabel }
+				: {}),
 		});
 		if ("error" in outbound) return outbound;
 

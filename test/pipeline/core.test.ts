@@ -21,8 +21,8 @@ import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 import { makeTurn } from "../helpers/turn.ts";
 
 const sendMock = vi.hoisted(() => vi.fn());
-const replySchema = z.object({
-	content: z.string({ error: "Send the complete reply text in content." }),
+const sendMessageSchema = z.object({
+	text: z.string({ error: "Send the complete message text in text." }),
 });
 const probeSchema = z.object({ value: z.string().optional() });
 const hiddenSchema = z.object({});
@@ -37,12 +37,12 @@ vi.mock("@openrouter/sdk", () => ({
 	}),
 }));
 
-const replyTool: ToolDefinition<typeof replySchema> = {
-	name: "reply",
-	description: "Reply with text",
-	inputSchema: replySchema,
-	execute: async ({ content }) =>
-		content === "not actually sent" ? { error: "not sent" } : "sent",
+const sendMessageTool: ToolDefinition<typeof sendMessageSchema> = {
+	name: "send_message",
+	description: "Send message with text",
+	inputSchema: sendMessageSchema,
+	execute: async ({ text }) =>
+		text === "not actually sent" ? { error: "not sent" } : "sent",
 };
 
 const probeTool: ToolDefinition<typeof probeSchema> = {
@@ -106,7 +106,7 @@ describe("pipeline/core.executeAgent", () => {
 			"{{prompt}}",
 		);
 
-		registerTool(replyTool);
+		registerTool(sendMessageTool);
 		registerTool(probeTool);
 		registerToolset({
 			name: "bundle",
@@ -134,7 +134,7 @@ describe("pipeline/core.executeAgent", () => {
 			.mockResolvedValueOnce(
 				chatResponse({
 					toolCalls: [
-						toolCall("reply", { content: "hello" }, "reply-1"),
+						toolCall("send_message", { text: "hello" }, "send_message-1"),
 						toolCall("probe", { value: "seen" }, "probe-1"),
 					],
 					reasoning: "use the available tools",
@@ -150,7 +150,7 @@ describe("pipeline/core.executeAgent", () => {
 				}),
 			);
 
-		const def = makeAgent(tmpDir, { tools: ["reply", "probe"] });
+		const def = makeAgent(tmpDir, { tools: ["send_message", "probe"] });
 		const turn = makeTurn({
 			agent: def,
 			config: { report: false, stepLimit: 2, skipHistory: true },
@@ -173,14 +173,18 @@ describe("pipeline/core.executeAgent", () => {
 			reasoning: "use the available tools",
 			toolCalls: [
 				{
-					toolCallId: "reply-1",
-					toolName: "reply",
-					args: { content: "hello" },
+					toolCallId: "send_message-1",
+					toolName: "send_message",
+					args: { text: "hello" },
 				},
 				{ toolCallId: "probe-1", toolName: "probe", args: { value: "seen" } },
 			],
 			toolResults: [
-				{ toolCallId: "reply-1", toolName: "reply", result: "sent" },
+				{
+					toolCallId: "send_message-1",
+					toolName: "send_message",
+					result: "sent",
+				},
 				{
 					toolCallId: "probe-1",
 					toolName: "probe",
@@ -198,7 +202,7 @@ describe("pipeline/core.executeAgent", () => {
 		expect(firstChatRequest().tools).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					function: expect.objectContaining({ name: "reply" }),
+					function: expect.objectContaining({ name: "send_message" }),
 				}),
 				expect.objectContaining({
 					function: expect.objectContaining({ name: "probe" }),
@@ -216,20 +220,20 @@ describe("pipeline/core.executeAgent", () => {
 		);
 	});
 
-	it("joins reply tool calls and ignores non-reply calls when deriving replyContent", async () => {
+	it("joins send_message tool calls and ignores non-send_message calls when deriving replyContent", async () => {
 		sendMock
 			.mockResolvedValueOnce(
 				chatResponse({
 					toolCalls: [
-						toolCall("reply", { content: "first" }, "reply-1"),
+						toolCall("send_message", { text: "first" }, "send_message-1"),
 						toolCall("probe", { value: "ignored" }, "probe-1"),
-						toolCall("reply", { content: "second" }, "reply-2"),
+						toolCall("send_message", { text: "second" }, "send_message-2"),
 					],
 				}),
 			)
 			.mockResolvedValueOnce(chatResponse());
 
-		const def = makeAgent(tmpDir, { tools: ["reply", "probe"] });
+		const def = makeAgent(tmpDir, { tools: ["send_message", "probe"] });
 		const turn = makeTurn({
 			agent: def,
 			config: { report: false, stepLimit: 2, skipHistory: true },
@@ -245,7 +249,7 @@ describe("pipeline/core.executeAgent", () => {
 		sendMock.mockResolvedValueOnce(chatResponse({ content: "done" }));
 
 		const def = makeAgent(tmpDir, {
-			tools: ["reply"],
+			tools: ["send_message"],
 			toolsets: ["bundle"],
 		});
 		const turn = makeTurn({
@@ -258,31 +262,35 @@ describe("pipeline/core.executeAgent", () => {
 
 		expect(result.context).toEqual({
 			variables: [],
-			tools: ["reply"],
+			tools: ["send_message"],
 			toolsets: ["bundle"],
 			skills: [],
 		});
 	});
 
-	it("derives replyContent from accepted reply tool calls only", async () => {
+	it("derives replyContent from accepted send_message tool calls only", async () => {
 		sendMock
 			.mockResolvedValueOnce(
 				chatResponse({
 					toolCalls: [
-						toolCall("reply", {}, "reply-empty-args"),
-						toolCall("reply", { content: "   " }, "reply-blank"),
+						toolCall("send_message", {}, "send_message-empty-args"),
+						toolCall("send_message", { text: "   " }, "send_message-blank"),
 						toolCall(
-							"reply",
-							{ content: "not actually sent", messageRef: 99 },
-							"reply-bad-ref",
+							"send_message",
+							{ text: "not actually sent", quoteMessageLabel: 99 },
+							"send_message-bad-ref",
 						),
-						toolCall("reply", { content: "actual reply" }, "reply-ok"),
+						toolCall(
+							"send_message",
+							{ text: "actual send_message" },
+							"send_message-ok",
+						),
 					],
 				}),
 			)
 			.mockResolvedValueOnce(chatResponse());
 
-		const def = makeAgent(tmpDir, { tools: ["reply"] });
+		const def = makeAgent(tmpDir, { tools: ["send_message"] });
 		const turn = makeTurn({
 			agent: def,
 			config: { report: false, stepLimit: 2, skipHistory: true },
@@ -291,21 +299,21 @@ describe("pipeline/core.executeAgent", () => {
 
 		const result = await executeAgent({ turn, def, variables: [] });
 
-		expect(result.replyContent).toBe("actual reply");
+		expect(result.replyContent).toBe("actual send_message");
 	});
 
-	it("can recover direct assistant content after an invalid reply call", async () => {
+	it("can recover direct assistant text after an invalid send_message call", async () => {
 		sendMock
 			.mockResolvedValueOnce(
 				chatResponse({
-					toolCalls: [toolCall("reply", {}, "reply-empty-args")],
+					toolCalls: [toolCall("send_message", {}, "send_message-empty-args")],
 				}),
 			)
 			.mockResolvedValueOnce(
 				chatResponse({ content: "Recovered final answer." }),
 			);
 
-		const def = makeAgent(tmpDir, { tools: ["reply"] });
+		const def = makeAgent(tmpDir, { tools: ["send_message"] });
 		const turn = makeTurn({
 			agent: def,
 			config: { report: false, stepLimit: 2, skipHistory: true },
@@ -316,65 +324,70 @@ describe("pipeline/core.executeAgent", () => {
 
 		expect(result.replyContent).toBe("Recovered final answer.");
 		expect(result.steps[0]?.toolResults[0]?.result).toMatchObject({
-			error: expect.stringContaining(
-				"Send the complete reply text in content.",
-			),
+			error: expect.stringContaining("Send the complete message text in text."),
 		});
 		expect(result.steps[1]).toMatchObject({
 			fallback: "assistant_content_reply",
 			toolCalls: [
 				{
-					toolName: "reply",
-					args: { content: "Recovered final answer." },
+					toolName: "send_message",
+					args: { text: "Recovered final answer." },
 				},
 			],
 		});
 	});
 
-	it("recovers direct assistant content as a visible fallback reply", async () => {
+	it("recovers direct assistant text as a visible fallback send_message", async () => {
 		sendMock.mockResolvedValueOnce(
-			chatResponse({ content: "  I should have used reply.  " }),
+			chatResponse({ content: "  I should have used send_message.  " }),
 		);
 
-		const def = makeAgent(tmpDir, { tools: ["reply"] });
+		const def = makeAgent(tmpDir, { tools: ["send_message"] });
 		const turn = makeTurn({
 			agent: def,
-			runId: "run-direct-reply",
+			runId: "run-direct-send_message",
 			config: { report: true, stepLimit: 1, skipHistory: true },
 			dispatchContext: { prompt: "objective" },
 		});
 
 		const result = await executeAgent({ turn, def, variables: [] });
 
-		expect(result.replyContent).toBe("I should have used reply.");
+		expect(result.replyContent).toBe("I should have used send_message.");
 		expect(result.steps[0]).toMatchObject({
 			fallback: "assistant_content_reply",
 			toolCalls: [
 				{
-					toolCallId: "fallback-reply-1",
-					toolName: "reply",
-					args: { content: "I should have used reply." },
+					toolCallId: "fallback-send-message-1",
+					toolName: "send_message",
+					args: { text: "I should have used send_message." },
 				},
 			],
 			toolResults: [
-				{ toolCallId: "fallback-reply-1", toolName: "reply", result: "sent" },
+				{
+					toolCallId: "fallback-send-message-1",
+					toolName: "send_message",
+					result: "sent",
+				},
 			],
 		});
 
-		const report = await waitForReport("run-direct-reply");
+		const report = await waitForReport("run-direct-send_message");
 		expect(report.llm?.steps[0]).toMatchObject({
 			fallback: "assistant_content_reply",
 			toolCalls: [
-				{ tool: "reply", args: { content: "I should have used reply." } },
+				{
+					tool: "send_message",
+					args: { text: "I should have used send_message." },
+				},
 			],
-			toolResults: [{ tool: "reply", result: "sent" }],
+			toolResults: [{ tool: "send_message", result: "sent" }],
 		});
 	});
 
-	it("does not recover direct assistant content when tools are disabled", async () => {
+	it("does not recover direct assistant text when tools are disabled", async () => {
 		sendMock.mockResolvedValueOnce(chatResponse({ content: "plain text" }));
 
-		const def = makeAgent(tmpDir, { tools: ["reply"] });
+		const def = makeAgent(tmpDir, { tools: ["send_message"] });
 		const turn = makeTurn({
 			agent: def,
 			config: {
@@ -612,19 +625,19 @@ describe("pipeline/core.executeAgent", () => {
 		});
 	});
 
-	it("persists non-reply tool traces with the runId and trigger", async () => {
+	it("persists non-send_message tool traces with the runId and trigger", async () => {
 		sendMock
 			.mockResolvedValueOnce(
 				chatResponse({
 					toolCalls: [
-						toolCall("reply", { content: "not traced" }, "reply-1"),
+						toolCall("send_message", { text: "not traced" }, "send_message-1"),
 						toolCall("probe", { value: "traced" }, "probe-1"),
 					],
 				}),
 			)
 			.mockResolvedValueOnce(chatResponse());
 
-		const def = makeAgent(tmpDir, { tools: ["reply", "probe"] });
+		const def = makeAgent(tmpDir, { tools: ["send_message", "probe"] });
 		const turn = makeTurn({
 			agent: def,
 			runId: "run-trace",
@@ -688,7 +701,9 @@ describe("pipeline/core.executeAgent", () => {
 		sendMock
 			.mockResolvedValueOnce(
 				chatResponse({
-					toolCalls: [toolCall("reply", { content: "done" }, "reply-1")],
+					toolCalls: [
+						toolCall("send_message", { text: "done" }, "send_message-1"),
+					],
 				}),
 			)
 			.mockResolvedValueOnce(chatResponse())
@@ -705,7 +720,7 @@ describe("pipeline/core.executeAgent", () => {
 			);
 
 		const def = makeAgent(tmpDir, {
-			tools: ["reply"],
+			tools: ["send_message"],
 			persistence: { hint: "Pick a useful follow-up.", overrides: [] },
 		});
 		const turn = makeTurn({

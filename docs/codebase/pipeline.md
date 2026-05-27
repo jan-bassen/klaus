@@ -14,8 +14,8 @@ The pipeline owns one turn from inbound message to model execution. It is intent
 | `context.ts` | Variables, tools, toolsets, provider tools, history, message references. |
 | `templates.ts` | Template loading, Handlebars helpers, system/user rendering. |
 | `core.ts` | Model loop, tool calls, traces, dynamic persistence, reports. |
-| `runs.ts` | Shared active-run registry used by `/stop` to abort in-flight message, timer, schedule, and dispatch runs. |
-| `outbound.ts` | Reply/react preparation, quotes, dedup keys, trace persistence. |
+| `runs.ts` | Shared active-run registry used by `/stop` to abort in-flight message, timer, schedule, and agent-task runs. |
+| `outbound.ts` | Send/reaction preparation, quotes, dedup keys, trace persistence. |
 | `dispatch.ts` | Run agents from schedules, timers, persistence, or another agent. |
 | `persistence.ts` | Dynamic self-rescheduling timer creation. |
 | `reports.ts` | JSON reports and optional vault Markdown mirrors. |
@@ -51,9 +51,9 @@ Overrides are config only. They should not carry prompt content. Agent prompts a
 
 `executeAgent` gathers variables, tool definitions, provider tools, and history. `templates.ts` renders the templates, then `core.ts` runs the chat-completions loop until the model stops calling tools or the turn reaches its step limit.
 
-Agents should send user-visible text through the `reply` tool. The tool requires nonblank message content, accepts an optional `voice` delivery flag, and accepts an optional integer `messageRef` for quote-replying (`0` for the current message, positive history labels for older messages). Omitting `messageRef` is the default and means a normal reply to the current message. `forceVoice` and `suppressVoice` still override the model's voice choice. If a reply-capable turn ends with plain assistant content instead of tool calls, `core.ts` treats that text as a fallback `reply` call, logs a warning, and marks the report step with `fallback: "assistant_content_reply"`. Empty assistant content still means no reply, and `toolChoice: "none"` keeps tools disabled.
+Agents should send user-visible text through `send_message`. The tool requires nonblank `text`, accepts optional `asVoiceNote`, and accepts optional integer `quoteMessageLabel` for WhatsApp quotes (`0` for the current message, positive visible `[#n]` labels for older messages). Omitting `quoteMessageLabel` sends a normal message. `forceVoice` and `suppressVoice` still override the model's voice choice. If a message-capable turn ends with plain assistant content instead of tool calls, `core.ts` treats that text as a fallback `send_message` call, logs a warning, and marks the report step with `fallback: "assistant_content_reply"`. Empty assistant content still means no reply, and `toolChoice: "none"` keeps tools disabled.
 
-Successful TTS replies persist the original text with `voice: true` on the assistant history row. OpenRouter TTS requests use `media.voice.tts.responseFormat`; PCM responses are encoded to Ogg Opus and sent with WhatsApp's voice-note flag. Text fallbacks after TTS failure remain normal text rows.
+Successful TTS messages persist the original text with `voice: true` on the assistant history row. OpenRouter TTS requests use `media.voice.tts.responseFormat`; PCM responses are encoded to Ogg Opus and sent with WhatsApp's voice-note flag. Text fallbacks after TTS failure remain normal text rows.
 
 Reactions are replayed as metadata on real history messages, not as separate history slots. `historyLimit` still counts message rows; selected rows can include `{{reactions}}` such as `alpha ✅` or `user ❤️`, so a reaction-only agent turn is visible without shrinking the transcript window.
 
@@ -66,11 +66,11 @@ Dispatch runs do not start from an inbound WhatsApp message. They synthesize a `
 - Cron schedules from agent frontmatter
 - One-shot timers
 - Dynamic persistence follow-ups
-- Inline `dispatch` tool calls
+- Inline `run_agent` tool calls
 
-Frontmatter schedules render the agent's `# Message` section with `{{schedule.*}}`. Timer and dispatch-tool runs prefer the agent's `# Message` section with `{{dispatch.prompt}}`, falling back to the raw objective for agents without that section. Dynamic persistence forces a final `persist` tool call after the main turn; if that call fails, the chain breaks visibly.
+Frontmatter schedules render the agent's `# Message` section with `{{schedule.*}}`. Timer and agent-task runs prefer the agent's `# Message` section with `{{dispatch.prompt}}`, falling back to the raw objective for agents without that section. Dynamic persistence forces a final `persist` tool call after the main turn; if that call fails, the chain breaks visibly.
 
-Inline dispatch replies return to the caller as the `dispatch` tool result. They are not auto-sent to WhatsApp; the caller decides what, if anything, to tell the user. Timer and schedule dispatches have no caller, so their `reply` calls send directly to WhatsApp.
+Inline `run_agent` messages return to the caller as the tool result. They are not auto-sent to WhatsApp; the caller decides what, if anything, to tell the user. Timer and schedule runs have no caller, so their `send_message` calls send directly to WhatsApp.
 
 Schedules and timers do not store a chat target. Klaus is a single-chat runtime: when future work fires, it resolves the current `settings.allowedChat`.
 
@@ -78,4 +78,4 @@ Startup loads and syncs schedules/timers while their clocks are paused. `activat
 
 ## Reports
 
-Reports are emitted unless `turn.config.report === false`. They include the assembled variable names, explicit tools, toolsets, and skill names alongside prompts, history, steps, tool calls, and tool results. Toolset members stay grouped by set in the context summary; individual calls still appear in the step trace with their returned values. Inline dispatch replies are visible as the parent `dispatch` tool result. The human-facing agent message is derived from nonblank `reply.content` tool calls only; malformed or empty reply calls remain visible in the step trace without becoming separator-only message fragments. Reply step args keep `voice` before long `content` values for readable truncation. The report path and vault Markdown mirror are configured in `settings.yml`; the runtime log records the report filename and whether a vault mirror was written. See [../vault/reports.md](../vault/reports.md).
+Reports are emitted unless `turn.config.report === false`. They include the assembled variable names, explicit tools, toolsets, and skill names alongside prompts, history, steps, tool calls, and tool results. Toolset members stay grouped by set in the context summary; individual calls still appear in the step trace with their returned values. Inline agent-task messages are visible as the parent `run_agent` tool result. The human-facing agent message is derived from nonblank `send_message.text` tool calls only; malformed or empty calls remain visible in the step trace without becoming separator-only message fragments. `send_message` step args keep `asVoiceNote` before long `text` values for readable truncation. The report path and vault Markdown mirror are configured in `settings.yml`; the runtime log records the report filename and whether a vault mirror was written. See [../vault/reports.md](../vault/reports.md).

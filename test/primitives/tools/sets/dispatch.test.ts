@@ -12,7 +12,7 @@ vi.mock("../../../../src/pipeline/dispatch.ts", () => ({
 }));
 
 const dispatchTool = dispatchToolset.tools.find(
-	(tool) => tool.name === "dispatch",
+	(tool) => tool.name === "run_agent",
 );
 
 describe("parseRunAt", () => {
@@ -35,19 +35,19 @@ describe("parseRunAt", () => {
 	});
 
 	it("garbage input throws with helpful message", () => {
-		expect(() => parseRunAt("not a date")).toThrow(/Invalid when value/);
+		expect(() => parseRunAt("not a date")).toThrow(/Invalid runAt value/);
 	});
 });
 
-describe("dispatch tool", () => {
-	it("returns inline child replies to the caller without queueing them for user send", async () => {
+describe("run_agent tool", () => {
+	it("returns child messages to the caller without queueing them for user send", async () => {
 		dispatchMock.mockImplementationOnce(async ({ replyCollector }) => {
 			replyCollector.push("child result");
 			return "child result";
 		});
 
 		const turn = makeTurn();
-		const result = await dispatchTool?.execute({ prompt: "check this" }, turn);
+		const result = await dispatchTool?.execute({ task: "check this" }, turn);
 
 		expect(result).toBe("child result");
 		expect(dispatchMock).toHaveBeenCalledWith(

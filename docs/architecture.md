@@ -36,7 +36,7 @@ Inbound WhatsApp messages enter through `src/infra/whatsapp/receive.ts` and are 
 6. The model loop runs until it replies or reaches the step limit.
 7. Reports are written, traces are persisted, and persistent agents schedule their next run.
 
-Scheduled, timer, persistence, and dispatch runs enter through `src/pipeline/dispatch.ts` and converge on the same execution path.
+Scheduled, timer, persistence, and agent-task runs enter through `src/pipeline/dispatch.ts` and converge on the same execution path.
 
 For the code-level details, see [codebase/pipeline.md](codebase/pipeline.md).
 
@@ -66,7 +66,7 @@ Primitives are the extension points under `src/primitives/`:
 | --- | --- |
 | Commands | Deterministic `/command` handlers that bypass the LLM. |
 | Variables | Handlebars namespaces such as `{{time.*}}` and `{{media.*}}`. |
-| Tools | Model-callable functions such as `reply`, `react`, and `skill_get`. |
+| Tools | Model-callable functions such as `send_message`, `set_reaction`, and `read_skill`. |
 | Toolsets | Lazy groups exposed through `load_<name>` meta-tools. |
 | Provider tools | Server-side OpenRouter tools passed through to the request. |
 

@@ -53,7 +53,7 @@ export async function loadSkills(skillsDir: string): Promise<void> {
 }
 
 /**
- * Build a skill_get tool scoped to the given skill names.
+ * Build a read_skill tool scoped to the given skill names.
  * Only registered for agents that declare `skills:` in frontmatter.
  */
 export function buildSkillTool(
@@ -73,7 +73,7 @@ export function buildSkillTool(
 	});
 
 	return {
-		name: "skill_get",
+		name: "read_skill",
 		description,
 		inputSchema,
 		execute: async ({ name }) => {

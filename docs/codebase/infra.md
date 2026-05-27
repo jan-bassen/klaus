@@ -40,8 +40,8 @@ Klaus is fail-closed. It processes only the configured allowed chat unless it is
 `composing`/`recording` while an inbound WhatsApp turn is running. Keep it
 comfortably below the client expiry window; the bundled default is deliberately
 short so long model/tool runs still show visible activity. Once a top-level
-`reply` has queued visible output, Klaus stops the active presence keeper so
-post-reply persistence and reporting do not reopen the typing/recording bubble.
+Once `send_message` has queued visible output, Klaus stops the active presence keeper so
+post-message persistence and reporting do not reopen the typing/recording bubble.
 Queued refresh callbacks also no-op after the keeper is stopped.
 
 Baileys can close the stream with `restartRequired` (`515`) immediately after
@@ -63,9 +63,9 @@ Runtime state lives under `{dataDir}`. Local runs default to `./data`; productio
 
 Stores should stay simple and typed. Prefer flat files and explicit migrations only when a real format change requires them.
 
-History assistant rows carry their agent, run ID, and a `voice` marker when the reply was successfully sent as TTS audio. History reaction events target WhatsApp external IDs. Bot reactions include the agent and run ID when Klaus produced them, so history replay can show reaction-only agent turns and agent-scoped history can treat them as handled messages.
+History assistant rows carry their agent, run ID, and a `voice` marker when the message was successfully sent as TTS audio. History reaction events target WhatsApp external IDs. Bot reactions include the agent and run ID when Klaus produced them, so history replay can show reaction-only agent turns and agent-scoped history can treat them as handled messages.
 
-Schedules and timers persist only the future work to run. They do not carry chat IDs; scheduled dispatch resolves the single configured chat from `settings.allowedChat` at fire time.
+Schedules and timers persist only the future work to run. They do not carry chat IDs; scheduled agent runs resolve the single configured chat from `settings.allowedChat` at fire time.
 
 The stores can be loaded while paused. `src/infra/future.ts` activates both clocks only when setup has produced `settings.allowedChat` and the WhatsApp socket is connected, and the connection close handler pauses them again during reconnects. The wait-state log is deduplicated so repeated reconnect checks do not spam the same setup/connection message.
 

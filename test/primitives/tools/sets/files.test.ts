@@ -53,8 +53,8 @@ describe("primitives/tools/sets/files: real execute paths", () => {
 	it("upload returns the new fileId and persists the blob", async () => {
 		const out = (await filesUploadTool.execute(
 			{
-				name: "hello.txt",
-				content: Buffer.from("hi").toString("base64"),
+				filename: "hello.txt",
+				base64: Buffer.from("hi").toString("base64"),
 				mimeType: "text/plain",
 			},
 			makeTurn(),
@@ -65,7 +65,7 @@ describe("primitives/tools/sets/files: real execute paths", () => {
 	it("download by full UUID returns base64 content", async () => {
 		const meta = await seed("note.txt", Buffer.from("hi"), "text/plain");
 		const out = (await filesDownloadTool.execute(
-			{ name: meta.id },
+			{ fileIdOrName: meta.id },
 			makeTurn(),
 		)) as { fileId: string; content: string; mimeType: string };
 		expect(out.fileId).toBe(meta.id);
@@ -73,13 +73,19 @@ describe("primitives/tools/sets/files: real execute paths", () => {
 	});
 
 	it("download missing → not-found message", async () => {
-		const out = await filesDownloadTool.execute({ name: "nope" }, makeTurn());
+		const out = await filesDownloadTool.execute(
+			{ fileIdOrName: "nope" },
+			makeTurn(),
+		);
 		expect(out).toBe("No file found for: nope");
 	});
 
 	it("read returns text/* content directly", async () => {
 		const meta = await seed("notes.txt", Buffer.from("plain"), "text/plain");
-		const out = await filesReadTool.execute({ name: meta.id }, makeTurn());
+		const out = await filesReadTool.execute(
+			{ fileIdOrName: meta.id },
+			makeTurn(),
+		);
 		expect(out).toBe("plain");
 	});
 
@@ -89,13 +95,19 @@ describe("primitives/tools/sets/files: real execute paths", () => {
 			Buffer.from([137, 80, 78, 71]),
 			"image/png",
 		);
-		const out = await filesReadTool.execute({ name: meta.id }, makeTurn());
+		const out = await filesReadTool.execute(
+			{ fileIdOrName: meta.id },
+			makeTurn(),
+		);
 		expect(out).toMatch(/use files_download/i);
 	});
 
 	it("read on an unsupported mime explains the limitation", async () => {
 		const meta = await seed("blob.bin", Buffer.from([0]), "application/x-foo");
-		const out = await filesReadTool.execute({ name: meta.id }, makeTurn());
+		const out = await filesReadTool.execute(
+			{ fileIdOrName: meta.id },
+			makeTurn(),
+		);
 		expect(out).toMatch(/unsupported mime/i);
 	});
 
@@ -114,13 +126,13 @@ describe("primitives/tools/sets/files: real execute paths", () => {
 	it("delete removes blob + metadata", async () => {
 		const meta = await seed("doomed.txt", Buffer.from("x"), "text/plain");
 		const out = (await filesDeleteTool.execute(
-			{ name: meta.id },
+			{ fileIdOrName: meta.id },
 			makeTurn(),
 		)) as string;
 		expect(out).toMatch(new RegExp(`\\(${meta.id}\\)$`));
 		expect(out).toMatch(/^Deleted [0-9a-f-]{36}\.\w+ /);
-		expect(await filesDownloadTool.execute({ name: meta.id }, makeTurn())).toBe(
-			`No file found for: ${meta.id}`,
-		);
+		expect(
+			await filesDownloadTool.execute({ fileIdOrName: meta.id }, makeTurn()),
+		).toBe(`No file found for: ${meta.id}`);
 	});
 });

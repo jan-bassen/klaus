@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { appendMessage } from "../../../src/infra/store/history.ts";
-import { conversationTool } from "../../../src/primitives/tools/conversation.ts";
+import { searchMessagesTool } from "../../../src/primitives/tools/conversation.ts";
 import { initAllStores } from "../../helpers/stores.ts";
 import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 import { makeTurn } from "../../helpers/turn.ts";
@@ -27,7 +27,7 @@ async function addMsg(
 	});
 }
 
-describe("conversationTool: text search", () => {
+describe("searchMessagesTool: text search", () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
@@ -45,7 +45,7 @@ describe("conversationTool: text search", () => {
 		await addMsg("user", "What should I eat for lunch?");
 
 		const ctx = makeTurn();
-		const result = await conversationTool.execute({ query: "run" }, ctx);
+		const result = await searchMessagesTool.execute({ text: "run" }, ctx);
 
 		expect(result).toMatchObject({
 			count: 2,
@@ -57,8 +57,8 @@ describe("conversationTool: text search", () => {
 		await addMsg("user", "Hello there");
 
 		const ctx = makeTurn();
-		const result = await conversationTool.execute(
-			{ query: "nonexistent term xyz" },
+		const result = await searchMessagesTool.execute(
+			{ text: "nonexistent term xyz" },
 			ctx,
 		);
 
@@ -74,13 +74,13 @@ describe("conversationTool: text search", () => {
 		}
 
 		const ctx = makeTurn();
-		const result = await conversationTool.execute({ limit: 2 }, ctx);
+		const result = await searchMessagesTool.execute({ limit: 2 }, ctx);
 
 		expect(result).toMatchObject({ count: 2 });
 	});
 });
 
-describe("conversationTool: around_message_id", () => {
+describe("searchMessagesTool: aroundMessageId", () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
@@ -98,8 +98,8 @@ describe("conversationTool: around_message_id", () => {
 		await addMsg("user", "after-1");
 
 		const ctx = makeTurn();
-		const result = await conversationTool.execute(
-			{ around_message_id: "ext-target", context_window: 1 },
+		const result = await searchMessagesTool.execute(
+			{ aroundMessageId: "ext-target", contextMessages: 1 },
 			ctx,
 		);
 
@@ -110,8 +110,8 @@ describe("conversationTool: around_message_id", () => {
 		await addMsg("user", "some message");
 
 		const ctx = makeTurn();
-		const result = await conversationTool.execute(
-			{ around_message_id: "no-such-ext-id" },
+		const result = await searchMessagesTool.execute(
+			{ aroundMessageId: "no-such-ext-id" },
 			ctx,
 		);
 
@@ -122,7 +122,7 @@ describe("conversationTool: around_message_id", () => {
 	});
 });
 
-describe("conversationTool: time filters", () => {
+describe("searchMessagesTool: time filters", () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
@@ -139,7 +139,7 @@ describe("conversationTool: time filters", () => {
 
 		const futureTimestamp = new Date(Date.now() + 1_000_000).toISOString();
 		const ctx = makeTurn();
-		const result = await conversationTool.execute(
+		const result = await searchMessagesTool.execute(
 			{ after: futureTimestamp },
 			ctx,
 		);
@@ -155,7 +155,7 @@ describe("conversationTool: time filters", () => {
 
 		const pastTimestamp = new Date(Date.now() - 1_000_000).toISOString();
 		const ctx = makeTurn();
-		const result = await conversationTool.execute(
+		const result = await searchMessagesTool.execute(
 			{ before: pastTimestamp },
 			ctx,
 		);
@@ -167,7 +167,7 @@ describe("conversationTool: time filters", () => {
 	});
 });
 
-describe("conversationTool: message formatting", () => {
+describe("searchMessagesTool: message formatting", () => {
 	let tmpDir: string;
 
 	beforeEach(() => {
@@ -184,7 +184,7 @@ describe("conversationTool: message formatting", () => {
 		await addMsg("assistant", "reply");
 
 		const ctx = makeTurn({ agent: { ...makeTurn().agent, name: "fitness" } });
-		const result = await conversationTool.execute({}, ctx);
+		const result = await searchMessagesTool.execute({}, ctx);
 
 		expect(result).toMatchObject({ count: 2 });
 		if (result && typeof result === "object" && "messages" in result) {

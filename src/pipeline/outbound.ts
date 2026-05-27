@@ -64,14 +64,14 @@ function resolveMessageRef(
 
 	if (messageRef === 0) {
 		if (!context.message) {
-			return new Error("No current message to quote-reply to");
+			return new Error("No current message to quote");
 		}
 		return { externalId: context.message.id, fromMe: false };
 	}
 
 	const label = String(messageRef);
 	const ref = context.messageRefs?.[label];
-	if (!ref) return new Error(`Unknown message reference: #${messageRef}`);
+	if (!ref) return new Error(`Unknown message label: #${messageRef}`);
 	return { externalId: ref.externalId, fromMe: ref.role !== "user" };
 }
 

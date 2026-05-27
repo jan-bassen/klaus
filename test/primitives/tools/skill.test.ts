@@ -1,8 +1,8 @@
 /**
- * `primitives/tools/skill.ts` — frontmatter parsing, scoped `skill_get` tool,
+ * `primitives/tools/skill.ts` — frontmatter parsing, scoped `read_skill` tool,
  * tools/toolset activation surfaced to the agent.
  *
- * Security note: `skill_get`'s input is constrained to the agent's declared
+ * Security note: `read_skill`'s input is constrained to the agent's declared
  * skill list via z.enum, so an agent can't read arbitrary skills from disk.
  * This test pins that contract.
  */
@@ -36,14 +36,14 @@ describe("primitives/tools/skill: parseSkillMeta", () => {
 	it("extracts description / tools / toolsets from YAML frontmatter", () => {
 		const raw = `---
 description: workout plan
-tools: [reply, math]
+tools: [send_message, math]
 toolsets: [vault]
 ---
 body`;
 		expect(parseSkillMeta("workout-plan", raw)).toEqual({
 			name: "workout-plan",
 			description: "workout plan",
-			tools: ["reply", "math"],
+			tools: ["send_message", "math"],
 			toolsets: ["vault"],
 		});
 	});
@@ -100,7 +100,7 @@ describe("primitives/tools/skill: buildSkillTool", () => {
 		});
 
 		const tool = buildSkillTool(["a", "b"], tmp);
-		expect(tool.name).toBe("skill_get");
+		expect(tool.name).toBe("read_skill");
 		expect(tool.description).toContain("a (alpha skill)");
 		// Skills with extra tools get the [+tools] marker
 		expect(tool.description).toContain("b (beta skill [+tools])");

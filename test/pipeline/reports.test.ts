@@ -27,9 +27,11 @@ function makeResult(patch: Partial<AgentRunResult> = {}): AgentRunResult {
 			{
 				reasoning: "let me think",
 				toolCalls: [
-					{ toolCallId: "t1", toolName: "reply", args: { content: "hi" } },
+					{ toolCallId: "t1", toolName: "send_message", args: { text: "hi" } },
 				],
-				toolResults: [{ toolCallId: "t1", toolName: "reply", result: "sent" }],
+				toolResults: [
+					{ toolCallId: "t1", toolName: "send_message", result: "sent" },
+				],
 				finishReason: "tool_calls",
 				usage: { inputTokens: 100, outputTokens: 50 },
 			},
@@ -38,7 +40,7 @@ function makeResult(patch: Partial<AgentRunResult> = {}): AgentRunResult {
 		tier: "medium",
 		context: {
 			variables: ["time", "user"],
-			tools: ["reply", "openrouter:web_search"],
+			tools: ["send_message", "openrouter:web_search"],
 			toolsets: ["vault"],
 			skills: ["obsidian-markdown"],
 		},
@@ -108,14 +110,14 @@ describe("pipeline/reports: emitReport", () => {
 		expect(entry?.message?.mediaType).toBe("image/png");
 		expect(entry?.llm?.context).toEqual({
 			variables: ["time", "user"],
-			tools: ["reply", "openrouter:web_search"],
+			tools: ["send_message", "openrouter:web_search"],
 			toolsets: ["vault"],
 			skills: ["obsidian-markdown"],
 		});
 		expect(entry?.overrides).toEqual(["voice"]);
 	});
 
-	it("keeps reply voice metadata before long content in report step args", async () => {
+	it("keeps send_message voice metadata before long text in report step args", async () => {
 		const turn: TurnContext = makeTurn();
 
 		await emitReport({
@@ -128,12 +130,12 @@ describe("pipeline/reports: emitReport", () => {
 						toolCalls: [
 							{
 								toolCallId: "t1",
-								toolName: "reply",
-								args: { content: "long spoken answer", voice: true },
+								toolName: "send_message",
+								args: { text: "long spoken answer", asVoiceNote: true },
 							},
 						],
 						toolResults: [
-							{ toolCallId: "t1", toolName: "reply", result: "sent" },
+							{ toolCallId: "t1", toolName: "send_message", result: "sent" },
 						],
 					},
 				],
@@ -142,7 +144,7 @@ describe("pipeline/reports: emitReport", () => {
 
 		const [entry] = await readReports({ days: 1 });
 		expect(JSON.stringify(entry?.llm?.steps[0]?.toolCalls[0]?.args)).toBe(
-			'{"voice":true,"content":"long spoken answer"}',
+			'{"asVoiceNote":true,"text":"long spoken answer"}',
 		);
 	});
 
@@ -166,15 +168,15 @@ describe("pipeline/reports: emitReport", () => {
 						reasoning: "",
 						toolCalls: [
 							{
-								toolCallId: "dispatch-1",
-								toolName: "dispatch",
-								args: { prompt: "check this" },
+								toolCallId: "run-agent-1",
+								toolName: "run_agent",
+								args: { task: "check this" },
 							},
 						],
 						toolResults: [
 							{
-								toolCallId: "dispatch-1",
-								toolName: "dispatch",
+								toolCallId: "run-agent-1",
+								toolName: "run_agent",
 								result: "child result",
 							},
 						],
@@ -190,8 +192,8 @@ describe("pipeline/reports: emitReport", () => {
 			path.join(reportDir, filename ?? ""),
 			"utf-8",
 		);
-		expect(markdown).toContain("**Tool call: dispatch**");
-		expect(markdown).toContain("**Tool result: dispatch**");
+		expect(markdown).toContain("**Tool call: run_agent**");
+		expect(markdown).toContain("**Tool result: run_agent**");
 		expect(markdown).toContain("child result");
 	});
 

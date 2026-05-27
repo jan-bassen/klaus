@@ -4,11 +4,11 @@
  * Setup strategy:
  *   - Mock `src/infra/whatsapp/send.ts` so `enqueueMessage` becomes a spy.
  *   - Mock `@openrouter/sdk` so `new OpenRouter(...).chat.send` returns
- *     canned `ChatResult` payloads with a single `reply` tool call.
+ *     canned `ChatResult` payloads with a single `send_message` tool call.
  *   - `initAllStores(tmpDir)` in beforeEach; point `settings.basics.allowedChat`
  *     at a known chatId (mutate the live `settings` object from `src/infra/config.ts`
  *     directly in beforeEach, or use `vi.resetModules` + dynamic import).
- *   - Register the `reply` tool and a minimal agent manually (bypass glob load).
+ *   - Register the `send_message` tool and a minimal agent manually (bypass glob load).
  *
  * Universal gotcha: `src/infra/logger.ts` eagerly reads settings — `test/setup.ts`
  * preloads `src/infra/config.ts` to avoid the crash. Don't reorder.
@@ -41,7 +41,7 @@ import {
 	registerTool,
 	type ToolDefinition,
 } from "../../src/primitives/tools/index.ts";
-import { replyTool } from "../../src/primitives/tools/reply.ts";
+import { sendMessageTool } from "../../src/primitives/tools/send-message.ts";
 import { initAllStores } from "../helpers/stores.ts";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 
@@ -115,7 +115,7 @@ describe("pipeline/index.handleTurn", () => {
 			"Hey! Klaus is set up and ready to go 🤙",
 		);
 
-		registerTool(replyTool);
+		registerTool(sendMessageTool);
 		registerTool(probeTool);
 		agentRegistry.set("default", makeAgent("default", tmpDir));
 		agentRegistry.set("researcher", makeAgent("researcher", tmpDir));
@@ -149,7 +149,7 @@ describe("pipeline/index.handleTurn", () => {
 		rmTmpDir(tmpDir);
 	});
 
-	it("routes a text message to the default agent and enqueues the assistant reply", async () => {
+	it("routes a text message to the default agent and enqueues the assistant send_message", async () => {
 		sendMock.mockResolvedValueOnce(replyResponse("hello back"));
 
 		await handleTurn(makeMsg("chat1", "", "hello"));
@@ -163,7 +163,7 @@ describe("pipeline/index.handleTurn", () => {
 		});
 	});
 
-	it("clears active presence after a user-visible reply is queued", async () => {
+	it("clears active presence after a user-visible send_message is queued", async () => {
 		sendMock.mockResolvedValueOnce(replyResponse("hello back"));
 
 		await handleTurn(makeMsg("chat1", "", "hello"));
@@ -234,7 +234,7 @@ describe("pipeline/index.handleTurn", () => {
 				model: "anthropic/claude-sonnet-4.6",
 				steps: [
 					expect.objectContaining({
-						toolCalls: [expect.objectContaining({ tool: "reply" })],
+						toolCalls: [expect.objectContaining({ tool: "send_message" })],
 					}),
 				],
 			}),
@@ -320,7 +320,7 @@ describe("pipeline/index.handleTurn", () => {
 	});
 
 	it("parses !overrides before routing to the model", async () => {
-		sendMock.mockResolvedValueOnce(replyResponse("large reply"));
+		sendMock.mockResolvedValueOnce(replyResponse("large send_message"));
 
 		await handleTurn(makeMsg("chat1", "", "!large hello"));
 
@@ -390,7 +390,7 @@ describe("pipeline/index.handleTurn", () => {
 		it("rapid same-agent messages leave only the newest turn active", async () => {
 			sendMock.mockImplementation(
 				(body: unknown, options?: { signal?: AbortSignal }) =>
-					JSON.stringify(body).includes("C")
+					requestUserText(body).includes("C")
 						? Promise.resolve(replyResponse("third"))
 						: rejectOnAbort(options?.signal),
 			);
@@ -445,11 +445,11 @@ function makeAgent(name: string, dir: string, report = false): AgentDefinition {
 	const promptPath = path.join(dir, `${name}.md`);
 	writeFileSync(
 		promptPath,
-		`---\nname: ${name}\ntools: [reply, probe]\nreport: ${report}\nstepLimit: 1\n---\nYou are ${name}.`,
+		`---\nname: ${name}\ntools: [send_message, probe]\nreport: ${report}\nstepLimit: 1\n---\nYou are ${name}.`,
 	);
 	const parsed = AgentSchema.parse({
 		name,
-		tools: ["reply", "probe"],
+		tools: ["send_message", "probe"],
 		report,
 		stepLimit: 1,
 	});
@@ -472,7 +472,7 @@ function makeMsg(
 	};
 }
 
-function replyResponse(content: string) {
+function replyResponse(text: string) {
 	return {
 		choices: [
 			{
@@ -484,8 +484,8 @@ function replyResponse(content: string) {
 							id: crypto.randomUUID(),
 							type: "function",
 							function: {
-								name: "reply",
-								arguments: JSON.stringify({ content }),
+								name: "send_message",
+								arguments: JSON.stringify({ text }),
 							},
 						},
 					],
@@ -497,7 +497,7 @@ function replyResponse(content: string) {
 }
 
 function mixedResponse(
-	content: string,
+	text: string,
 	toolName: string,
 	args: Record<string, unknown>,
 ) {
@@ -509,11 +509,11 @@ function mixedResponse(
 					content: "",
 					toolCalls: [
 						{
-							id: "reply-call",
+							id: "send_message-call",
 							type: "function",
 							function: {
-								name: "reply",
-								arguments: JSON.stringify({ content }),
+								name: "send_message",
+								arguments: JSON.stringify({ text }),
 							},
 						},
 						{
@@ -530,6 +530,21 @@ function mixedResponse(
 		],
 		usage: { promptTokens: 1, completionTokens: 1 },
 	};
+}
+
+function requestUserText(body: unknown): string {
+	if (!isRecord(body)) return "";
+	const chatRequest = body.chatRequest;
+	if (!isRecord(chatRequest) || !Array.isArray(chatRequest.messages)) return "";
+	const lastUser = chatRequest.messages.findLast(
+		(message) => isRecord(message) && message.role === "user",
+	);
+	if (!isRecord(lastUser)) return "";
+	return typeof lastUser.content === "string" ? lastUser.content : "";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function stopResponse() {

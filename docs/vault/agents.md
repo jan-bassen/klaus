@@ -12,10 +12,10 @@ The first-run vault template includes four agents:
 
 | Agent | Alias | Role |
 | --- | --- | --- |
-| `assistant` |  | General daily driver with conversation, vault, files, dispatch, image, math, and web access. |
+| `assistant` |  | General daily driver with messages, vault, files, agent tasks, image, math, and web access. |
 | `research` | `r` | Read-oriented investigation agent with web search/fetch, vault/file context, careful synthesis, and no broad vault write permission. |
 | `meta` | `m` | Klaus-folder maintainer for agents, skills, snippets, templates, overrides, and settings. |
-| `dispatch` | `d` | Generic helper used by the dispatch tool for delegated work. |
+| `dispatch` | `d` | Generic helper used by `run_agent` for delegated work. |
 
 ## Shape
 
@@ -23,7 +23,7 @@ The first-run vault template includes four agents:
 ---
 name: research
 aliases: [r]
-tools: [reply, react]
+tools: [send_message, set_reaction]
 toolsets: [vault]
 providerTools: [web_search]
 skills: [obsidian-markdown]
@@ -71,10 +71,10 @@ Unprefixed messages go to the current default agent. Change it with:
 | `tools` | string array | Always-visible local tools. |
 | `toolsets` | string array | Lazy groups exposed through `load_<name>`. |
 | `providerTools` | string array | Server-side provider tools, such as `web_search`. |
-| `skills` | string array | Skill files this agent may load. Adds `skill_get` automatically. |
+| `skills` | string array | Skill files this agent may load. Adds `read_skill` automatically. |
 | `provider` | string | Provider key from `settings.yml`. |
 | `modelTier` | `small`, `medium`, `large` | Model tier for this agent. |
-| `voice` | `on`, `auto`, `off` | Voice reply behavior. |
+| `voice` | `on`, `auto`, `off` | Voice message behavior. |
 | `temp` | `cold`, `default`, `hot` | Temperature preset. |
 | `topP` | `creative`, `default`, `rigid` | Top-p preset. |
 | `reasoningEffort` | `low`, `default`, `high` | Reasoning effort preset. |
@@ -98,24 +98,24 @@ Without recognized H1 sections, the whole Markdown body is the system prompt.
 With sections:
 
 - `# System` is the stable agent instruction.
-- `# Message` is the synthetic user message for frontmatter schedules, timers, and dispatch runs.
+- `# Message` is the synthetic user message for frontmatter schedules, timers, and agent-task runs.
 
 Frontmatter schedules expose `{{schedule.id}}`, `{{schedule.pattern}}`, and optional `{{schedule.label}}` while rendering `# Message`.
-Timer and dispatch runs expose the requested objective as `{{dispatch.prompt}}`; if an agent has no `# Message` section, Klaus falls back to using that objective directly as the user message.
-Inline `dispatch` tool runs return their `reply` content to the caller as the tool result. Schedule and timer dispatches have no caller, so their `reply` calls send directly to WhatsApp.
+Timer and agent-task runs expose the requested objective as `{{dispatch.prompt}}`; if an agent has no `# Message` section, Klaus falls back to using that objective directly as the user message.
+Inline `run_agent` calls return their `send_message` text to the caller as the tool result. Schedule and timer runs have no caller, so their `send_message` calls send directly to WhatsApp.
 
 ## Tools
 
 Always-visible tools:
 
 ```yaml
-tools: [reply, react, conversation, math]
+tools: [send_message, set_reaction, search_messages, math]
 ```
 
 Lazy toolsets:
 
 ```yaml
-toolsets: [vault, dispatch, files]
+toolsets: [vault, agents, files]
 ```
 
 Provider tools:
@@ -126,7 +126,7 @@ providerTools: [web_search, web_fetch]
 
 TypeScript implementations for these primitives are documented in [../codebase/primitives.md](../codebase/primitives.md).
 
-When an agent declares `skills`, Klaus adds the scoped `skill_get` tool automatically.
+When an agent declares `skills`, Klaus adds the scoped `read_skill` tool automatically.
 
 ## Vault Permissions
 
@@ -167,7 +167,7 @@ persistHint: "Schedule the next follow-up based on the user's last commitment."
 persistOverrides: [voice]
 ```
 
-For dynamic persistence, Klaus forces a final `persist` tool call after the main reply. The agent returns:
+For dynamic persistence, Klaus forces a final `persist` tool call after the main message. The agent returns:
 
 | Field | Meaning |
 | --- | --- |
@@ -177,6 +177,6 @@ For dynamic persistence, Klaus forces a final `persist` tool call after the main
 
 `nextRun` is clamped by `settings.persistence.minNextRun` and `settings.persistence.maxNextRun`.
 
-Frontmatter schedules, dispatch-created schedules, and persistence timers all run in the single configured chat. They do not store their own chat target; Klaus resolves `settings.allowedChat` when the run fires.
+Frontmatter schedules, `schedule_agent` schedules, and persistence timers all run in the single configured chat. They do not store their own chat target; Klaus resolves `settings.allowedChat` when the run fires.
 
 At startup, Klaus registers schedules before WhatsApp setup may be complete, but keeps schedule and timer clocks paused until the configured chat exists and WhatsApp is connected. Clocks pause again during WhatsApp reconnects. Repeated checks in the same wait state are logged only once.

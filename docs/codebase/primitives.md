@@ -82,12 +82,12 @@ export const shoutTool: ToolDefinition<typeof schema> = {
 
 Use Zod schemas for inputs. Klaus validates every model-supplied tool call against the schema before `execute` runs; invalid calls return an error result to the model and do not perform side effects. Put corrective `error` messages on constraints the model commonly gets wrong (for example integer message refs, nonnegative counts, nonempty required text), so the returned validation error tells the agent how to retry. Avoid `any` and type assertions. Return clear values the model can act on, including error objects or strings when runtime conditions are wrong.
 
-`reply` is the terminal user-visible output tool. It requires complete nonblank
-message content; `voice` is a delivery flag for that same content, not a
-separate action. Message references are numeric: `0` means the current message,
-and positive integers refer to numbered history entries. Omit `messageRef` for
-normal replies to the current message; use it only when an explicit quote target
-matters.
+`send_message` is the terminal user-visible output tool. It requires complete
+nonblank `text`; `asVoiceNote` is a delivery flag for that same text, not a
+separate action. Message labels are numeric: `0` means the current message, and
+positive integers refer to visible `[#n]` history entries. Omit
+`quoteMessageLabel` for normal messages; use it only when an explicit WhatsApp
+quote target matters.
 
 ## Toolsets
 
@@ -110,7 +110,7 @@ Reference a toolset from agent frontmatter:
 toolsets: [text]
 ```
 
-Use toolsets for clusters like vault operations, dispatch scheduling, or file-store helpers. Use always-visible `tools` for tiny core tools like `reply` and `react`. The scoped `skill_get` tool is generated automatically for agents that declare `skills`.
+Use toolsets for clusters like vault operations, agent-task scheduling, or file-store helpers. Use always-visible `tools` for tiny core tools like `send_message` and `set_reaction`. The scoped `read_skill` tool is generated automatically for agents that declare `skills`.
 
 ## Provider Tools
 

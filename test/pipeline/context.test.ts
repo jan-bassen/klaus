@@ -26,9 +26,13 @@ import { makeTurn } from "../helpers/turn.ts";
 
 const valueSchema = z.object({ value: z.string().optional() });
 const refSchema = z.object({
-	messageRef: z
-		.number({ error: "messageRef must be an integer label, not a string." })
-		.int({ error: "messageRef must be an integer label, not a string." }),
+	messageLabel: z
+		.number({
+			error: "messageLabel must be an integer message label, not a string.",
+		})
+		.int({
+			error: "messageLabel must be an integer message label, not a string.",
+		}),
 });
 type ValueTool = ToolDefinition<typeof valueSchema>;
 
@@ -440,12 +444,12 @@ describe("pipeline/context.invokeTool", () => {
 		const ctx = await assembleContext(turn, def, { variables: [] });
 
 		const result = await ctx.tools.functionTools.quote_probe?.execute({
-			messageRef: "3",
+			messageLabel: "3",
 		});
 
 		expect(result).toEqual({
 			error: expect.stringContaining(
-				"messageRef: messageRef must be an integer label, not a string.",
+				"messageLabel: messageLabel must be an integer message label, not a string.",
 			),
 		});
 		expect(execute).not.toHaveBeenCalled();

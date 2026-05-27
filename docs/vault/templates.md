@@ -36,9 +36,9 @@ Templates use the same Handlebars environment as prompts. Common namespaces incl
 | `{{media.*}}` | Voice, image, document, and attachment context. |
 | `{{tasks.*}}` | Active schedules and timers. |
 | `{{config.*}}` | Effective agent and turn config facts. |
-| `{{dispatch.*}}` | Dispatch trigger prompt and context. |
+| `{{dispatch.*}}` | Agent-task prompt and context. |
 | `{{schedule.*}}` | Current frontmatter schedule metadata. |
-| `{{trigger.*}}` | Message, schedule, timer, or dispatch trigger facts. |
+| `{{trigger.*}}` | Message, schedule, timer, or agent-task trigger facts. |
 | `{{snippets.*}}` | Compiled snippets from `{vault}/Klaus/snippets/*.md`. |
 
 The shared helper `{{codeFence value}}` wraps report/debug text in a Markdown fence that is longer than any backtick run inside `value`, so nested code blocks render safely.

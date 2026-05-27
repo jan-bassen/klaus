@@ -20,7 +20,7 @@ function writeAgent(
 ): void {
 	writeFileSync(
 		path.join(dir, `${name}.md`),
-		`---\nname: ${name}\ntools: [reply]\n${extra}---\n${body}`,
+		`---\nname: ${name}\ntools: [send_message]\n${extra}---\n${body}`,
 	);
 }
 
@@ -40,7 +40,7 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 		const def = await loadAgentDefinition(path.join(tmpDir, "coach.md"));
 		expect(def.name).toBe("coach");
 		expect(def.promptPath).toBe(path.join(tmpDir, "coach.md"));
-		expect(def.tools).toEqual(["reply"]);
+		expect(def.tools).toEqual(["send_message"]);
 	});
 
 	it("applies AgentSettings defaults (voice/temp/topP/showTrace/report)", async () => {
@@ -153,9 +153,9 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 	it("parses the bundled meta agent contract", async () => {
 		const def = await loadAgentDefinition(path.resolve("vault/agents/meta.md"));
 		const expectedTools = [
-			"reply",
-			"react",
-			"conversation",
+			"send_message",
+			"set_reaction",
+			"search_messages",
 			"math",
 			"vault_read",
 			"vault_search",

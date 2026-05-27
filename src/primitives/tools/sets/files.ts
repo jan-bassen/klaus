@@ -15,21 +15,21 @@ import type { ToolDefinition, ToolsetDefinition } from "../index.ts";
 
 const fileIdPattern = /^[0-9a-f-]{36}$/i;
 
-function findRequestedFile(name: string): FileMeta | null {
-	return fileIdPattern.test(name)
-		? findFile(name)
-		: (listFiles(name)[0] ?? null);
+function findRequestedFile(fileIdOrName: string): FileMeta | null {
+	return fileIdPattern.test(fileIdOrName)
+		? findFile(fileIdOrName)
+		: (listFiles(fileIdOrName)[0] ?? null);
 }
 
 // ─── upload ───────────────────────────────────────────────────────────────────
 
 const filesUploadSchema = z.object({
-	name: z
-		.string({ error: "name must be the filename to store." })
-		.min(1, { error: "name must be the filename to store." }),
-	content: z
-		.string({ error: "content must be base64-encoded file content." })
-		.min(1, { error: "content must be base64-encoded file content." })
+	filename: z
+		.string({ error: "filename must be the filename to store." })
+		.min(1, { error: "filename must be the filename to store." }),
+	base64: z
+		.string({ error: "base64 must be base64-encoded file content." })
+		.min(1, { error: "base64 must be base64-encoded file content." })
 		.describe("Base64-encoded file content"),
 	mimeType: z
 		.string({ error: "mimeType must identify the uploaded file type." })
@@ -41,26 +41,26 @@ export const filesUploadTool: ToolDefinition<typeof filesUploadSchema> = {
 	description:
 		"Upload a file to the files directory and create a metadata entry.",
 	inputSchema: filesUploadSchema,
-	execute: async ({ name, content, mimeType }, _context) => {
-		const bytes = Buffer.from(content, "base64");
+	execute: async ({ filename, base64, mimeType }, _context) => {
+		const bytes = Buffer.from(base64, "base64");
 		const saved = await persistFileBlob({
 			bytes,
 			mimeType,
-			name,
+			name: filename,
 		});
 
 		if (saved instanceof Error) return `Upload failed: ${saved.message}`;
-		if (!saved.metadataSaved) return `Upload metadata failed for ${name}`;
-		return `Uploaded ${name} — fileId: ${saved.id}`;
+		if (!saved.metadataSaved) return `Upload metadata failed for ${filename}`;
+		return `Uploaded ${filename} — fileId: ${saved.id}`;
 	},
 };
 
 // ─── download ─────────────────────────────────────────────────────────────────
 
 const filesDownloadSchema = z.object({
-	name: z
-		.string({ error: "name must be a file UUID or partial filename." })
-		.min(1, { error: "name must be a file UUID or partial filename." })
+	fileIdOrName: z
+		.string({ error: "fileIdOrName must be a file ID or partial filename." })
+		.min(1, { error: "fileIdOrName must be a file ID or partial filename." })
 		.describe("File UUID or partial filename to match"),
 });
 
@@ -69,10 +69,10 @@ export const filesDownloadTool: ToolDefinition<typeof filesDownloadSchema> = {
 	description:
 		"Download a file by UUID or partial filename. Returns base64-encoded content.",
 	inputSchema: filesDownloadSchema,
-	execute: async ({ name }, _context) => {
-		const meta = findRequestedFile(name);
+	execute: async ({ fileIdOrName }, _context) => {
+		const meta = findRequestedFile(fileIdOrName);
 
-		if (!meta) return `No file found for: ${name}`;
+		if (!meta) return `No file found for: ${fileIdOrName}`;
 
 		try {
 			const bytes = await readArrayBuffer(meta.path);
@@ -91,9 +91,9 @@ export const filesDownloadTool: ToolDefinition<typeof filesDownloadSchema> = {
 // ─── read ─────────────────────────────────────────────────────────────────────
 
 const filesReadSchema = z.object({
-	name: z
-		.string({ error: "name must be a file UUID or partial filename." })
-		.min(1, { error: "name must be a file UUID or partial filename." })
+	fileIdOrName: z
+		.string({ error: "fileIdOrName must be a file ID or partial filename." })
+		.min(1, { error: "fileIdOrName must be a file ID or partial filename." })
 		.describe("File UUID or partial filename to match"),
 });
 
@@ -102,10 +102,10 @@ export const filesReadTool: ToolDefinition<typeof filesReadSchema> = {
 	description:
 		"Read a file's text content. Parses PDFs, docx, xlsx, pptx to plain text; returns text files directly. For images, use files_download.",
 	inputSchema: filesReadSchema,
-	execute: async ({ name }, _context) => {
-		const meta = findRequestedFile(name);
+	execute: async ({ fileIdOrName }, _context) => {
+		const meta = findRequestedFile(fileIdOrName);
 
-		if (!meta) return `No file found for: ${name}`;
+		if (!meta) return `No file found for: ${fileIdOrName}`;
 
 		if (isParseableDocument(meta.mimeType)) {
 			const text = await parseDocument(meta.path, meta.mimeType);
@@ -132,7 +132,7 @@ export const filesReadTool: ToolDefinition<typeof filesReadSchema> = {
 // ─── list ─────────────────────────────────────────────────────────────────────
 
 const filesListSchema = z.object({
-	prefix: z
+	query: z
 		.string()
 		.optional()
 		.describe("Optional filter — matches against filename or path"),
@@ -140,10 +140,10 @@ const filesListSchema = z.object({
 
 export const filesListTool: ToolDefinition<typeof filesListSchema> = {
 	name: "files_list",
-	description: "List files. Optionally filter by name prefix.",
+	description: "List files. Optionally filter by file name or path.",
 	inputSchema: filesListSchema,
-	execute: async ({ prefix }, _context) => {
-		const rows = listFiles(prefix);
+	execute: async ({ query }, _context) => {
+		const rows = listFiles(query);
 
 		if (rows.length === 0) return "No files found.";
 		return rows
@@ -158,9 +158,9 @@ export const filesListTool: ToolDefinition<typeof filesListSchema> = {
 // ─── delete ───────────────────────────────────────────────────────────────────
 
 const filesDeleteSchema = z.object({
-	name: z
-		.string({ error: "name must be a file UUID or partial filename." })
-		.min(1, { error: "name must be a file UUID or partial filename." })
+	fileIdOrName: z
+		.string({ error: "fileIdOrName must be a file ID or partial filename." })
+		.min(1, { error: "fileIdOrName must be a file ID or partial filename." })
 		.describe("File UUID or partial filename to match"),
 });
 
@@ -168,10 +168,10 @@ export const filesDeleteTool: ToolDefinition<typeof filesDeleteSchema> = {
 	name: "files_delete",
 	description: "Delete a file — removes both the blob and its metadata.",
 	inputSchema: filesDeleteSchema,
-	execute: async ({ name }, _context) => {
-		const meta = findRequestedFile(name);
+	execute: async ({ fileIdOrName }, _context) => {
+		const meta = findRequestedFile(fileIdOrName);
 
-		if (!meta) return `No file found for: ${name}`;
+		if (!meta) return `No file found for: ${fileIdOrName}`;
 
 		try {
 			await unlink(meta.path);

@@ -91,9 +91,9 @@ Use `!overrides` anywhere after the route to tweak one turn:
 @meta !ghost inspect this without saving it to history
 ```
 
-Voice notes are transcribed, images and stickers become vision input, common documents are parsed to text, and quoted messages can carry their original media through the turn. Reports keep the readable media marker and stored filename, while redacting image data URLs. Step traces show tool calls and returned tool results, including inline dispatch replies.
+Voice notes are transcribed, images and stickers become vision input, common documents are parsed to text, and quoted messages can carry their original media through the turn. Reports keep the readable media marker and stored filename, while redacting image data URLs. Step traces show tool calls and returned tool results, including inline `run_agent` messages.
 
-Agents are expected to use the `reply` tool for user-visible messages. The tool takes final message text, can mark that same message for voice delivery, and can optionally quote another message with integer `messageRef` (`0` for current, positive history labels for older messages). Normal replies omit `messageRef`. If a reply-capable turn accidentally ends with plain assistant text, Klaus sends it as a fallback reply and marks the run report so the formatting miss is visible.
+Agents are expected to use `send_message` for user-visible messages. The tool takes final `text`, can mark that same text for voice delivery with `asVoiceNote`, and can optionally quote another message with integer `quoteMessageLabel` (`0` for current, positive `[#n]` labels for older messages). Normal messages omit `quoteMessageLabel`. If a message-capable turn accidentally ends with plain assistant text, Klaus sends it as a fallback message and marks the run report so the formatting miss is visible.
 
 ## Tinker
 
@@ -114,7 +114,7 @@ Start with [docs/architecture.md](docs/architecture.md) for the product model, t
 
 - [Setup](docs/setup.md): Docker, Obsidian Sync, WhatsApp login, troubleshooting.
 - [Architecture](docs/architecture.md): the main map from WhatsApp to pipeline, tools, vault, stores, and reports.
-- [Codebase Pipeline](docs/codebase/pipeline.md): parse, config, context, model loop, dispatch, persistence, reports.
+- [Codebase Pipeline](docs/codebase/pipeline.md): parse, config, context, model loop, agent runs, persistence, reports.
 - [Codebase Primitives](docs/codebase/primitives.md): adding TypeScript commands, variables, tools, toolsets, and provider tools.
 - [Codebase Infra](docs/codebase/infra.md): config, vault/sync, WhatsApp, stores, logging.
 - [Vault Agents](docs/vault/agents.md): agent files, frontmatter, routing, tools, schedules, persistence, permissions.

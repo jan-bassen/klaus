@@ -2,16 +2,16 @@
 name: research
 aliases: [r]
 tools:
-  - reply
-  - react
-  - conversation
+  - send_message
+  - set_reaction
+  - search_messages
   - math
-  - dispatch
 providerTools:
   - web_search
   - web_fetch
 toolsets:
   - vault
+  - agents
   - files
 skills:
   - obsidian-markdown

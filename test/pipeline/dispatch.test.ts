@@ -44,10 +44,13 @@ describe("pipeline/dispatch.dispatch", () => {
 		settings.agent.maxChainDepth = 10;
 
 		executeMock.mockImplementation(async ({ turn }) => {
-			turn._replyCollector?.push("child reply");
+			turn._replyCollector?.push("child message");
 		});
 		agentRegistry.set("default", makeAgent("default"));
-		agentRegistry.set("custom", makeAgent("custom", { tools: ["reply"] }));
+		agentRegistry.set(
+			"custom",
+			makeAgent("custom", { tools: ["send_message"] }),
+		);
 		setVariables([testVariable]);
 	});
 
@@ -71,7 +74,10 @@ describe("pipeline/dispatch.dispatch", () => {
 
 		expect(executeAgent).toHaveBeenCalledOnce();
 		const call = executeMock.mock.calls[0]?.[0];
-		expect(call?.def).toMatchObject({ name: "custom", tools: ["reply"] });
+		expect(call?.def).toMatchObject({
+			name: "custom",
+			tools: ["send_message"],
+		});
 		expect(call?.variables).toEqual([testVariable]);
 		expect(call?.turn).toMatchObject({
 			chatId: "chat-1",
@@ -141,7 +147,7 @@ describe("pipeline/dispatch.dispatch", () => {
 		);
 	});
 
-	it("wires an inline reply collector onto the child turn and returns joined replies", async () => {
+	it("wires an inline message collector onto the child turn and returns joined messages", async () => {
 		const collector: string[] = ["first"];
 		executeMock.mockImplementationOnce(async ({ turn }) => {
 			turn._replyCollector?.push("second", "third");
@@ -159,7 +165,7 @@ describe("pipeline/dispatch.dispatch", () => {
 		expect(result).toBe("first\n\nsecond\n\nthird");
 	});
 
-	it("omits the reply collector for top-level dispatches and returns undefined", async () => {
+	it("omits the message collector for top-level dispatches and returns undefined", async () => {
 		executeMock.mockResolvedValueOnce(undefined);
 
 		const result = await dispatch({
@@ -240,7 +246,7 @@ function makeAgent(
 function writeAgentFile(dir: string, name: string): void {
 	writeFileSync(
 		path.join(dir, `${name}.md`),
-		`---\nname: ${name}\ntools: [reply]\nreport: false\n---\nYou are ${name}.`,
+		`---\nname: ${name}\ntools: [send_message]\nreport: false\n---\nYou are ${name}.`,
 	);
 }
 

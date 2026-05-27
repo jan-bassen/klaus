@@ -1,17 +1,17 @@
 ---
 name: assistant
 tools:
-  - reply
-  - react
-  - conversation
-  - image_generate
+  - send_message
+  - set_reaction
+  - search_messages
+  - send_image
   - math
 providerTools:
   - web_search
   - web_fetch
 toolsets:
   - vault
-  - dispatch
+  - agents
   - files
 skills:
   - obsidian-markdown

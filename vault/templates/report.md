@@ -10,7 +10,7 @@
 {{#if llm}}
 **Tokens**: {{llm.usage.promptTokens}} in / {{llm.usage.completionTokens}} out
 **Prompt**: {{llm.systemPromptChars}} chars system + {{llm.userMessageChars}} chars user, {{llm.historyMessageCount}} history msgs
-**Reply**: {{llm.replyChars}} chars
+**Message**: {{llm.replyChars}} chars
 
 ### Context
 **Variables**

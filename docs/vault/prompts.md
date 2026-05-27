@@ -44,7 +44,7 @@ Avoid decorative structure unless it helps the answer.
 
 ## Skills
 
-Skills are single-file Markdown references in `{vault}/Klaus/skills/*.md`. Agents can load them on demand with `skill_get`.
+Skills are single-file Markdown references in `{vault}/Klaus/skills/*.md`. Agents can load them on demand with `read_skill`.
 
 ```markdown
 ---
@@ -66,11 +66,11 @@ Use this shape:
 Allow a skill in agent frontmatter:
 
 ```yaml
-tools: [reply]
+tools: [send_message]
 skills: [meeting-notes]
 ```
 
-The model can now call the automatically generated `skill_get` tool when the skill is useful. Skills can also grant tools or toolsets after they are loaded.
+The model can now call the automatically generated `read_skill` tool when the skill is useful. Skills can also grant tools or toolsets after they are loaded.
 
 ## When To Use Which
 

@@ -22,7 +22,7 @@ import { type ModelTier, resolveModel, settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
 import { appendTrace, type TraceStep } from "../infra/store/history.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
-import { REPLY_TOOL_NAME } from "../primitives/tools/reply.ts";
+import { SEND_MESSAGE_TOOL_NAME } from "../primitives/tools/send-message.ts";
 import type { Variable } from "../primitives/variables/index.ts";
 import type { AgentDefinition } from "./agents.ts";
 import {
@@ -85,13 +85,13 @@ export interface TurnContext {
 	config: TurnConfig;
 	/** Unified nested variable namespace (e.g. vars.media.doc.text, vars.time.date). */
 	vars: Record<string, unknown>;
-	/** Label → externalId mapping for message references (reply/react tools). */
+	/** Visible message label → externalId mapping for quote/reaction tools. */
 	messageRefs: Record<string, { externalId: string; role: string }>;
 	/** The prompt a parent, timer, or tool-created schedule handed to this agent. */
 	dispatchContext?: { prompt: string };
 	/** Present for generated frontmatter schedules while rendering # Message. */
 	schedule?: ScheduleContext;
-	/** @internal — collects reply content for inline-dispatched agents instead of sending to WhatsApp */
+	/** @internal — collects message text for inline agent runs instead of sending to WhatsApp. */
 	_replyCollector?: string[];
 }
 
@@ -276,7 +276,7 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 		...(input.signal ? { signal: input.signal } : {}),
 	});
 
-	// Fire-and-forget — trace persistence is best-effort, never blocks reply.
+	// Fire-and-forget — trace persistence is best-effort, never blocks user-visible output.
 	// Skipped under ghost so ephemeral runs don't pollute the conversation log.
 	if (!turn.config?.ghost && result.steps.length > 0) {
 		const traceSteps = toTraceSteps(result.steps);
@@ -327,15 +327,15 @@ function sortedUnique(values: string[]): string[] {
 
 function acceptedReplyContents(step: ModelCallStep): string[] {
 	return step.toolCalls.flatMap((call) => {
-		if (call.toolName !== REPLY_TOOL_NAME) return [];
+		if (call.toolName !== SEND_MESSAGE_TOOL_NAME) return [];
 
 		const result = step.toolResults.find(
 			(toolResult) => toolResult.toolCallId === call.toolCallId,
 		);
 		if (isToolError(result?.result)) return [];
 
-		const content = call.args.content;
-		return typeof content === "string" && content.trim() ? [content] : [];
+		const text = call.args.text;
+		return typeof text === "string" && text.trim() ? [text] : [];
 	});
 }
 
@@ -381,7 +381,7 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 
 	const messages: ChatMessage[] = [...opts.messages];
 	let active =
-		opts.toolChoice === "none" ? [REPLY_TOOL_NAME] : tools.initialActive;
+		opts.toolChoice === "none" ? [SEND_MESSAGE_TOOL_NAME] : tools.initialActive;
 	const steps: ModelCallStep[] = [];
 	let totalIn = 0;
 	let totalOut = 0;
@@ -455,13 +455,13 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 			);
 			if (fallbackReply) {
 				log.warn(
-					`[agent] @${opts.agentName} returned direct assistant content; sending as fallback reply`,
+					`[agent] @${opts.agentName} returned direct assistant content; sending as fallback message`,
 				);
 				toolCalls = [
 					{
-						toolCallId: `fallback-reply-${i + 1}`,
-						toolName: REPLY_TOOL_NAME,
-						args: { content: fallbackReply },
+						toolCallId: `fallback-send-message-${i + 1}`,
+						toolName: SEND_MESSAGE_TOOL_NAME,
+						args: { text: fallbackReply },
 					},
 				];
 				fallback = "assistant_content_reply";
@@ -548,7 +548,7 @@ function directReplyFallback(
 	if (
 		hasPriorReply ||
 		toolChoice === "none" ||
-		!activeTools.includes(REPLY_TOOL_NAME)
+		!activeTools.includes(SEND_MESSAGE_TOOL_NAME)
 	) {
 		return undefined;
 	}
@@ -679,7 +679,7 @@ async function callWithRetry(
 // ── Trace transform (private) ──────────────────────────────────────────────
 
 /**
- * Convert model steps into persisted trace steps. Drops reply tool calls
+ * Convert model steps into persisted trace steps. Drops send_message tool calls
  * (they go in the message body) and orphaned calls (would break replay).
  */
 function toTraceSteps(steps: ModelCallStep[]): TraceStep[] {
@@ -687,10 +687,10 @@ function toTraceSteps(steps: ModelCallStep[]): TraceStep[] {
 
 	for (const step of steps) {
 		const allCalls = step.toolCalls.filter(
-			(tc) => tc.toolName !== REPLY_TOOL_NAME,
+			(tc) => tc.toolName !== SEND_MESSAGE_TOOL_NAME,
 		);
 		const allResults = step.toolResults.filter(
-			(tr) => tr.toolName !== REPLY_TOOL_NAME,
+			(tr) => tr.toolName !== SEND_MESSAGE_TOOL_NAME,
 		);
 
 		const resultIds = new Set(allResults.map((tr) => tr.toolCallId));

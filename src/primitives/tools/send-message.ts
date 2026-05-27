@@ -15,64 +15,72 @@ import {
 import { renderTemplate } from "../../pipeline/templates.ts";
 import type { ToolDefinition } from "./index.ts";
 
-/** The canonical name of the output tool. Referenced by runner/messages to filter reply calls from traces. */
-export const REPLY_TOOL_NAME = "reply";
+/** The canonical name of the output tool. Referenced by runner/messages to filter message sends from traces. */
+export const SEND_MESSAGE_TOOL_NAME = "send_message";
 
-const replySchema = z.object({
-	content: z
-		.string({ error: "Send the complete reply text in content." })
-		.min(1, { error: "Send the complete reply text in content." })
+const sendMessageSchema = z.object({
+	text: z
+		.string({ error: "Send the complete message text in text." })
+		.min(1, { error: "Send the complete message text in text." })
 		.refine((value) => value.trim().length > 0, "Message content is required")
-		.describe("The complete content of the final message to send (required)."),
-	voice: z
-		.boolean()
+		.describe("Complete text of the WhatsApp message to send."),
+	asVoiceNote: z
+		.boolean({ error: "asVoiceNote must be a boolean value." })
 		.optional()
 		.describe(
-			"Delivery choice for this completed message. Set true only when the content should be spoken as a voice note.",
+			"Set true to send this same text as a WhatsApp voice note. Omit for a normal text message.",
 		),
-	messageRef: z
-		.number({ error: "messageRef must be an integer label, not a string." })
-		.int({ error: "messageRef must be an integer label, not a string." })
+	quoteMessageLabel: z
+		.number({
+			error:
+				"quoteMessageLabel must be an integer message label, not a string.",
+		})
+		.int({
+			error:
+				"quoteMessageLabel must be an integer message label, not a string.",
+		})
 		.nonnegative({
 			error:
-				"messageRef must be 0 for the current message or a positive history label.",
+				"quoteMessageLabel must be 0 for the current message or a positive visible message label.",
 		})
 		.optional()
 		.describe(
-			"Positive integer message label to quote-reply older messages. Omit for a normal reply.",
+			"Visible message label to quote in WhatsApp. Use 0 for the current message, or a positive [#n] history label. Omit for a normal message.",
 		),
 });
 
-export const replyTool: ToolDefinition<typeof replySchema> = {
-	name: REPLY_TOOL_NAME,
+export const sendMessageTool: ToolDefinition<typeof sendMessageSchema> = {
+	name: SEND_MESSAGE_TOOL_NAME,
 	description:
-		"Send one user-visible WhatsApp message only when the final content is ready; use voice as the delivery flag for that same content.",
-	inputSchema: replySchema,
-	execute: async ({ content, voice, messageRef }, context) => {
-		// Inline dispatch: capture reply for caller instead of sending to WhatsApp
+		"Send one user-visible WhatsApp message when the final text is ready. Use asVoiceNote only for voice-note delivery of that same text.",
+	inputSchema: sendMessageSchema,
+	execute: async ({ text, asVoiceNote, quoteMessageLabel }, context) => {
+		// Inline agent runs return the message text to their caller instead of sending to WhatsApp.
 		if (context._replyCollector) {
-			context._replyCollector.push(content);
+			context._replyCollector.push(text);
 			return "sent";
 		}
 
-		log.info("[reply] enqueuing message");
+		log.info("[send_message] enqueuing message");
 
-		const userFacingContent = formatUserFacingAgentMessage(content, context);
-		const useVoice = shouldSendVoice(voice, context);
+		const userFacingContent = formatUserFacingAgentMessage(text, context);
+		const useVoice = shouldSendVoice(asVoiceNote, context);
 		if (useVoice) {
 			setPresenceKind(context.chatId, "recording");
-			const audio = await textToSpeech(content);
+			const audio = await textToSpeech(text);
 			if (audio instanceof Error) {
 				const outbound = await prepareAssistantOutbound({
 					context,
-					content,
-					kind: "reply",
-					logPrefix: "[reply]",
-					...(messageRef !== undefined ? { messageRef } : {}),
+					content: text,
+					kind: "send-message",
+					logPrefix: "[send_message]",
+					...(quoteMessageLabel !== undefined
+						? { messageRef: quoteMessageLabel }
+						: {}),
 				});
 				if ("error" in outbound) return outbound;
 				const quotedPart = outbound.quoted ? { quoted: outbound.quoted } : {};
-				log.warn("[reply] TTS failed, falling back to text", {
+				log.warn("[send_message] TTS failed, falling back to text", {
 					error: audio.message,
 				});
 				enqueueMessage(
@@ -88,11 +96,13 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 			} else {
 				const voiceOutbound = await prepareAssistantOutbound({
 					context,
-					content,
-					kind: "reply",
-					logPrefix: "[reply]",
+					content: text,
+					kind: "send-message",
+					logPrefix: "[send_message]",
 					voice: true,
-					...(messageRef !== undefined ? { messageRef } : {}),
+					...(quoteMessageLabel !== undefined
+						? { messageRef: quoteMessageLabel }
+						: {}),
 				});
 				if ("error" in voiceOutbound) return voiceOutbound;
 				const voiceQuotedPart = voiceOutbound.quoted
@@ -104,7 +114,7 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 						content: audio.bytes,
 						mimeType: audio.mimeType,
 						...(audio.mimeType.includes("opus") ? { voiceNote: true } : {}),
-						dedupKey: makeDedupKey(context, "reply-voice"),
+						dedupKey: makeDedupKey(context, "send-message-voice"),
 						label: context.agent.name,
 						...voiceQuotedPart,
 					},
@@ -114,10 +124,12 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 		} else {
 			const outbound = await prepareAssistantOutbound({
 				context,
-				content,
-				kind: "reply",
-				logPrefix: "[reply]",
-				...(messageRef !== undefined ? { messageRef } : {}),
+				content: text,
+				kind: "send-message",
+				logPrefix: "[send_message]",
+				...(quoteMessageLabel !== undefined
+					? { messageRef: quoteMessageLabel }
+					: {}),
 			});
 			if ("error" in outbound) return outbound;
 			const quotedPart = outbound.quoted ? { quoted: outbound.quoted } : {};
@@ -139,12 +151,12 @@ export const replyTool: ToolDefinition<typeof replySchema> = {
 };
 
 function shouldSendVoice(
-	voice: boolean | undefined,
+	asVoiceNote: boolean | undefined,
 	context: TurnContext,
 ): boolean {
 	if (context.config?.suppressVoice) return false;
 	if (context.config?.forceVoice) return true;
-	return voice === true;
+	return asVoiceNote === true;
 }
 
 function formatUserFacingAgentMessage(

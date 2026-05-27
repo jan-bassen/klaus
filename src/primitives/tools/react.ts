@@ -11,34 +11,38 @@ const reactSchema = z.object({
 		.describe(
 			'Emoji to react with (e.g. "👍"). Pass an empty string to remove the reaction.',
 		),
-	messageRef: z
-		.number({ error: "messageRef must be an integer label, not a string." })
-		.int({ error: "messageRef must be an integer label, not a string." })
+	messageLabel: z
+		.number({
+			error: "messageLabel must be an integer message label, not a string.",
+		})
+		.int({
+			error: "messageLabel must be an integer message label, not a string.",
+		})
 		.nonnegative({
 			error:
-				"messageRef must be 0 for the current message or a positive history label.",
+				"messageLabel must be 0 for the current message or a positive visible message label.",
 		})
 		.optional()
 		.describe(
-			"Integer message label to react to: 0 or omit for the current message, or a positive history label such as 3 for an older message.",
+			"Visible message label to react to. Use 0 or omit for the current message, or a positive [#n] history label.",
 		),
 });
 
-export const reactTool: ToolDefinition<typeof reactSchema> = {
-	name: "react",
+export const setReactionTool: ToolDefinition<typeof reactSchema> = {
+	name: "set_reaction",
 	description:
-		'React to a message with an emoji. Use for lightweight acknowledgements — e.g. 👍 to confirm, ✅ on task done, ❤️ for appreciation. Pass "" to remove. Omit messageRef for the current message; use a positive integer to react to an older numbered history message.',
+		'Set an emoji reaction on a WhatsApp message. Use for lightweight acknowledgements. Pass "" to remove a reaction.',
 	inputSchema: reactSchema,
-	execute: async ({ emoji, messageRef }, context) => {
+	execute: async ({ emoji, messageLabel }, context) => {
 		if (!context.message) return { error: "No inbound message to react to" };
 		const chatId = context.chatId;
 
 		let externalId: string;
 		let key: MessageKey;
 
-		if (messageRef !== undefined && messageRef !== 0) {
-			const ref = context.messageRefs?.[String(messageRef)];
-			if (!ref) return { error: `Unknown message reference: #${messageRef}` };
+		if (messageLabel !== undefined && messageLabel !== 0) {
+			const ref = context.messageRefs?.[String(messageLabel)];
+			if (!ref) return { error: `Unknown message label: #${messageLabel}` };
 			externalId = ref.externalId;
 			key = { remoteJid: chatId, fromMe: ref.role !== "user", id: externalId };
 		} else {

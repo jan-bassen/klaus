@@ -280,7 +280,7 @@ function prepareActiveTools(
 			if (name.startsWith("load_")) {
 				const toolset = toolsetRegistry.get(name.slice(5));
 				if (toolset) activateToolset(active, toolset);
-			} else if (name === "skill_get") {
+			} else if (name === "read_skill") {
 				const skillName =
 					typeof call.args?.name === "string" ? call.args.name : undefined;
 				activateSkillTools(active, skillName);
@@ -295,7 +295,7 @@ function prepareActiveTools(
  *
  * Core tools, provider tools, and toolset meta-tools start active. Toolset
  * tools are pre-registered but hidden until `load_<set>` is called. Skills
- * pre-register their tools too; `skill_get` activates them.
+ * pre-register their tools too; `read_skill` activates them.
  */
 function assembleTools(
 	def: AgentDefinition,

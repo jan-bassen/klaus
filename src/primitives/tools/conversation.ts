@@ -18,24 +18,24 @@ function formatMessageTimestamp(date: Date): string {
 }
 
 function formatChatMessage(opts: {
-	label: string;
+	messageId: string;
 	role: string;
 	timestamp: string;
 	body: string;
 }): string {
-	return `[#${opts.label} | ${opts.role} | ${opts.timestamp}]\n${opts.body}`;
+	return `messageId: ${opts.messageId}\nrole: ${opts.role}\ntime: ${opts.timestamp}\n${opts.body}`;
 }
 
 const schema = z.object({
-	query: z
+	text: z
 		.string()
 		.optional()
 		.describe("Case-insensitive text to search for in message content"),
-	around_message_id: z
+	aroundMessageId: z
 		.string()
 		.optional()
 		.describe(
-			"WhatsApp externalId — returns messages surrounding this one. Use with message refs from conversation history.",
+			"WhatsApp messageId from search_messages results. Returns nearby messages around that message.",
 		),
 	after: z
 		.string()
@@ -51,30 +51,32 @@ const schema = z.object({
 		.min(1, { error: "limit must be at least 1." })
 		.optional()
 		.describe("Max results to return (default 20)"),
-	context_window: z
-		.number({ error: "context_window must be a whole number." })
-		.int({ error: "context_window must be a whole number." })
-		.nonnegative({ error: "context_window must be 0 or greater." })
+	contextMessages: z
+		.number({ error: "contextMessages must be a whole number." })
+		.int({ error: "contextMessages must be a whole number." })
+		.nonnegative({ error: "contextMessages must be 0 or greater." })
 		.optional()
-		.describe("Messages before/after for around_message_id mode (default 5)"),
+		.describe(
+			"Messages before and after aroundMessageId to return (default 5)",
+		),
 });
 
-export const conversationTool: ToolDefinition<typeof schema> = {
-	name: "conversation",
+export const searchMessagesTool: ToolDefinition<typeof schema> = {
+	name: "search_messages",
 	description:
-		"Search conversation history across current and archived messages. Use to find past messages by text content, get context around a specific message, or filter by time range.",
+		"Search WhatsApp conversation history. Use to find past messages by text, get context around a messageId, or filter by time range.",
 	inputSchema: schema,
 	execute: async (
-		{ query, around_message_id, after, before, limit, context_window },
+		{ text, aroundMessageId, after, before, limit, contextMessages },
 		context,
 	) => {
 		const results = await searchConversation({
-			...(query ? { query } : {}),
-			...(around_message_id ? { around: around_message_id } : {}),
+			...(text ? { query: text } : {}),
+			...(aroundMessageId ? { around: aroundMessageId } : {}),
 			...(after ? { after } : {}),
 			...(before ? { before } : {}),
 			...(limit != null ? { limit } : {}),
-			...(context_window != null ? { contextWindow: context_window } : {}),
+			...(contextMessages != null ? { contextWindow: contextMessages } : {}),
 		});
 
 		if (results.length === 0) {
@@ -82,11 +84,11 @@ export const conversationTool: ToolDefinition<typeof schema> = {
 		}
 
 		const agentLabel = context.agent?.name ?? "assistant";
-		const formatted = results.map((msg, i) => {
+		const formatted = results.map((msg) => {
 			const role = msg.role === "user" ? "user" : agentLabel;
 			const ts = formatMessageTimestamp(new Date(msg.createdAt));
 			return formatChatMessage({
-				label: String(i + 1),
+				messageId: msg.externalId ?? msg.id,
 				role,
 				timestamp: ts,
 				body: msg.content ?? "",

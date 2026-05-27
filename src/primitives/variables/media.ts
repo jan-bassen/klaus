@@ -19,7 +19,7 @@ export interface MediaNamespace {
 	doc: DocMedia | null;
 	image: ImageMedia | null;
 	voice: VoiceMedia | null;
-	/** Quoted-message media, if this is a reply to a message with media. */
+	/** Media from the WhatsApp message the user quoted, if any. */
 	quoted: { mime: string } | null;
 }
 

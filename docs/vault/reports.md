@@ -35,15 +35,15 @@ Toolset members stay grouped in the context summary, so a `vault` toolset appear
 
 They intentionally include rendered prompt and history text so prompt bugs, injection, missing variables, and wrong history scope are visible. Image data URLs are redacted from the text mirror; the surrounding message template still records the media as `[Image: filename]` when available.
 
-Step arguments keep short metadata before long content where that improves scanability. For example, `reply` calls with `voice: true` render the voice flag before the message text so it remains visible even when the content is truncated.
+Step arguments keep short metadata before long content where that improves scanability. For example, `send_message` calls with `asVoiceNote: true` render the voice flag before the message text so it remains visible even when the text is truncated.
 
-Markdown step results are fenced and truncated for readability. Inline `dispatch` calls show the child agent's returned reply there, which makes parent/child debugging possible from the caller's report.
+Markdown step results are fenced and truncated for readability. Inline `run_agent` calls show the child agent's returned message there, which makes parent/child debugging possible from the caller's report.
 
 Markdown report prompt blocks use fences long enough to contain nested code blocks from snippets, skills, or user messages without breaking the rendered report.
 
 ## Debug Loop
 
-For a weird reply:
+For a weird message:
 
 1. Send a narrow reproduction message.
 2. Open the newest report.

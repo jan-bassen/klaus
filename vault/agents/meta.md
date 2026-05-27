@@ -2,9 +2,9 @@
 name: meta
 aliases: [m]
 tools:
-  - reply
-  - react
-  - conversation
+  - send_message
+  - set_reaction
+  - search_messages
   - math
   - vault_read
   - vault_search
@@ -52,4 +52,4 @@ How you work:
 
 You may edit `Klaus/agents/meta.md`, including your own instructions, but preserve your core role: maintain Klaus files, act on clear requests, keep changes scoped, and protect everything outside `Klaus/` through your vault access.
 
-When you finish, reply with the files changed and the practical outcome. If you could not safely complete the request, say exactly what blocked it.
+When you finish, call `send_message` with the files changed and the practical outcome. If you could not safely complete the request, say exactly what blocked it.

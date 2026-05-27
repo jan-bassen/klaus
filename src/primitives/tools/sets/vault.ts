@@ -326,9 +326,9 @@ export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
 // ─── backlinks ───────────────────────────────────────────────────────────────
 
 const vaultBacklinksSchema = z.object({
-	noteName: z
-		.string({ error: "noteName must be the linked note name to search for." })
-		.min(1, { error: "noteName must be the linked note name to search for." })
+	noteTitle: z
+		.string({ error: "noteTitle must be the linked note title to search for." })
+		.min(1, { error: "noteTitle must be the linked note title to search for." })
 		.describe('Note name without .md extension, e.g. "Klaus"'),
 });
 
@@ -337,8 +337,8 @@ export const vaultBacklinksTool: ToolDefinition<typeof vaultBacklinksSchema> = {
 	description:
 		"Find all notes that link to a given note via [[wikilinks]]. Returns file paths with the linking line.",
 	inputSchema: vaultBacklinksSchema,
-	execute: async ({ noteName }, context) => {
-		const pattern = wikilinkTargetPattern(noteName);
+	execute: async ({ noteTitle }, context) => {
+		const pattern = wikilinkTargetPattern(noteTitle);
 		const readable = getReadableFolders(vaultMap(context));
 		const results: string[] = [];
 
@@ -363,22 +363,22 @@ export const vaultBacklinksTool: ToolDefinition<typeof vaultBacklinksSchema> = {
 
 		return results.length > 0
 			? results.join("\n")
-			: `No backlinks found for "${noteName}".`;
+			: `No backlinks found for "${noteTitle}".`;
 	},
 };
 
 // ─── move ────────────────────────────────────────────────────────────────────
 
 const vaultMoveSchema = z.object({
-	from: z
-		.string({ error: "from must be the source vault-relative path." })
-		.min(1, { error: "from must be the source vault-relative path." })
+	oldPath: z
+		.string({ error: "oldPath must be the source vault-relative path." })
+		.min(1, { error: "oldPath must be the source vault-relative path." })
 		.describe('Source relative path, e.g. "Projects/Old Name.md"'),
-	to: z
-		.string({ error: "to must be the destination vault-relative path." })
-		.min(1, { error: "to must be the destination vault-relative path." })
+	newPath: z
+		.string({ error: "newPath must be the destination vault-relative path." })
+		.min(1, { error: "newPath must be the destination vault-relative path." })
 		.describe('Destination relative path, e.g. "Archive/Old Name.md"'),
-	updateBacklinks: z
+	updateLinks: z
 		.boolean()
 		.optional()
 		.default(false)
@@ -392,24 +392,24 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 	description:
 		"Move or rename a note within the vault. Optionally updates all [[wikilinks]] across the vault that referenced the old name.",
 	inputSchema: vaultMoveSchema,
-	execute: async ({ from, to, updateBacklinks }, context) => {
+	execute: async ({ oldPath, newPath, updateLinks }, context) => {
 		// Both source (delete) and destination (create) need full permission
-		const srcResult = await gateVaultTool(from, "full", context);
+		const srcResult = await gateVaultTool(oldPath, "full", context);
 		if (typeof srcResult === "object") return srcResult.error;
-		const dstResult = await gateVaultTool(to, "full", context);
+		const dstResult = await gateVaultTool(newPath, "full", context);
 		if (typeof dstResult === "object") return dstResult.error;
 
 		try {
 			await mkdir(path.dirname(dstResult), { recursive: true });
 			await rename(srcResult, dstResult);
 		} catch {
-			return `Failed to move "${from}" — file may not exist or destination is occupied.`;
+			return `Failed to move "${oldPath}" — file may not exist or destination is occupied.`;
 		}
 
-		if (!updateBacklinks) return `Moved: ${from} → ${to}`;
+		if (!updateLinks) return `Moved: ${oldPath} → ${newPath}`;
 
-		const oldName = path.basename(from, ".md");
-		const newName = path.basename(to, ".md");
+		const oldName = path.basename(oldPath, ".md");
+		const newName = path.basename(newPath, ".md");
 		const pattern = wikilinkTargetPattern(oldName, "gi");
 
 		let updatedCount = 0;
@@ -441,7 +441,7 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 			}
 		}
 
-		let msg = `Moved: ${from} → ${to}. Updated backlinks in ${updatedCount} note(s).`;
+		let msg = `Moved: ${oldPath} → ${newPath}. Updated links in ${updatedCount} note(s).`;
 		if (skipped.length > 0) {
 			msg += `\nSkipped (no write permission): ${skipped.join(", ")}`;
 		}
@@ -487,9 +487,9 @@ const vaultPatchSchema = z.object({
 		.string({ error: "heading must be the exact section heading to patch." })
 		.min(1, { error: "heading must be the exact section heading to patch." })
 		.describe('Exact heading text without # markers, e.g. "Goals" or "Notes"'),
-	newContent: z
-		.string({ error: "newContent must be the replacement section body." })
-		.min(1, { error: "newContent must be the replacement section body." })
+	replacement: z
+		.string({ error: "replacement must be the replacement section body." })
+		.min(1, { error: "replacement must be the replacement section body." })
 		.describe(
 			"Replacement content for the section body (heading line is preserved)",
 		),
@@ -500,7 +500,7 @@ export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
 	description:
 		"Replace the body of a specific section in a note by heading. The heading line is kept; everything beneath it until the next same-or-higher-level heading (or EOF) is replaced. Read the note first with vault_read to see current content before replacing.",
 	inputSchema: vaultPatchSchema,
-	execute: async ({ path: rel, heading, newContent }, context) => {
+	execute: async ({ path: rel, heading, replacement }, context) => {
 		const note = await readVaultNote(rel, "full", context);
 		if (typeof note === "string") return note;
 
@@ -510,7 +510,7 @@ export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
 
 		const updated = [
 			...lines.slice(0, section.headingIdx + 1),
-			newContent,
+			replacement,
 			...lines.slice(section.endIdx),
 		].join("\n");
 		await writeData(note.absolutePath, updated);
@@ -525,7 +525,7 @@ const vaultTagsSchema = z.object({
 		.array(z.string())
 		.optional()
 		.describe("Return notes that have any of these tags in their frontmatter"),
-	list: z
+	listAll: z
 		.boolean()
 		.optional()
 		.default(false)
@@ -535,12 +535,12 @@ const vaultTagsSchema = z.object({
 export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 	name: "vault_tags",
 	description:
-		"Find notes by frontmatter tag, or list all tags used across the vault. Use list: true to discover available tags.",
+		"Find notes by frontmatter tag, or list all tags used across the vault. Use listAll: true to discover available tags.",
 	inputSchema: vaultTagsSchema,
-	execute: async ({ tags, list }, context) => {
+	execute: async ({ tags, listAll }, context) => {
 		const readable = getReadableFolders(vaultMap(context));
 
-		if (list) {
+		if (listAll) {
 			const allTags = new Set<string>();
 			for (const { absolutePath } of readable) {
 				for await (const file of scanFiles(absolutePath, "**/*.md")) {
@@ -558,7 +558,7 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 		}
 
 		if (!tags || tags.length === 0)
-			return "Provide tags to search for, or set list: true.";
+			return "Provide tags to search for, or set listAll: true.";
 
 		const searchTags = new Set(tags.map((t) => t.toLowerCase()));
 		const results: string[] = [];

@@ -41,7 +41,7 @@ directly as a WhatsApp voice note.
 `composing`/`recording` updates while Klaus is working on an inbound message.
 WhatsApp clients can clear the bubble quickly, so the bundled template uses a
 short interval. Klaus stops the active presence keeper as soon as a top-level
-reply is queued, which keeps follow-up persistence/report work from showing a
+message is queued, which keeps follow-up persistence/report work from showing a
 fresh typing or recording indicator after the visible message.
 
 ## Overrides
