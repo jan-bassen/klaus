@@ -22,7 +22,7 @@ Templates are required. If a required template is missing, execution fails visib
 
 `message-user.md` is the right place for live per-turn context such as active tasks, voice transcripts, attachments, quoted text, and the user's actual message. `history-user.md` and `history-agent.md` intentionally avoid live context so replayed chat turns do not duplicate stale state. Keeping dynamic material out of agent `# System` prompts helps provider prompt caching.
 
-Bundled message and history templates use square brackets for metadata that is not the literal message body, such as `[Transcript of voice note]`, `[Image: file.png]`, `[Attached: file.pdf (...)]`, and `[Voice]` on assistant voice replies.
+Bundled history templates put metadata on a compact first line such as `ref #3 | voice transcript | reactions alpha ✅`, followed by the literal message body. Tool parameters use the integer from `ref #n`; the marker itself is metadata, not text the agent should copy into replies.
 
 History templates receive `{{reactions}}` when the selected message has active WhatsApp reactions. Entries include the source, for example `assistant ✅`, `alpha 👍`, or `user ❤️`. Reactions ride along with selected messages and do not consume `historyLimit` slots.
 

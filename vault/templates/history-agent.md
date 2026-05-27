@@ -1,3 +1,2 @@
-{{#if isVoice}}[Voice] {{/if}}{{#if label}}[#{{label}}] {{/if}}{{#if isNotDefaultAgent}}[{{agentLabel}}] {{/if}}{{message}}{{#if reactions}}
-Reactions: {{reactions}}{{else}}{{#if reactionEmojis}}
-{{reactionEmojis}}{{/if}}{{/if}}
+ref #{{label}}{{#if isNotDefaultAgent}} | agent {{agentLabel}}{{/if}}{{#if isVoice}} | voice reply{{/if}}{{#if reactions}} | reactions {{reactions}}{{/if}}
+{{message}}

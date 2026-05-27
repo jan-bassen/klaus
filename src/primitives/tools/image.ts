@@ -40,7 +40,7 @@ const sendImageSchema = z.object({
 		})
 		.optional()
 		.describe(
-			"Visible message label for an input image. Use 0 for the current message, or a positive [#n] history label.",
+			"Visible message label for an input image. Use 0 for the current message, or the positive integer from a history ref like 'ref #3'.",
 		),
 	quoteMessageLabel: z
 		.number({
@@ -56,7 +56,7 @@ const sendImageSchema = z.object({
 		})
 		.optional()
 		.describe(
-			"Visible message label to quote in WhatsApp. Use only positive [#n] history labels for older messages. Omit for normal image messages; 0 is accepted but ignored.",
+			"Visible message label to quote in WhatsApp. Use the positive integer from a history ref like 'ref #3'. Omit for normal image messages; 0 is accepted but ignored.",
 		),
 });
 

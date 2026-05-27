@@ -100,7 +100,7 @@ src/
 
 Scheduled runs, timers, persistence, and `run_agent` start at step 5 with a synthesised `Trigger`.
 Frontmatter schedules render `# Message` with `{{schedule.*}}`; timer and agent-task runs prefer `# Message` with `{{dispatch.prompt}}`, falling back to the raw objective when no `# Message` exists.
-Inline `run_agent` messages return to the caller as the tool result; only schedule/timer runs send directly to WhatsApp. The `send_message` tool requires final `text`, can include `asVoiceNote: true` for voice delivery, and only uses integer `quoteMessageLabel` when explicitly quoting an older WhatsApp message by positive visible `[#n]` label; omit it for normal messages. `quoteMessageLabel: 0` is accepted but ignored so agents do not quote the current message by habit. `forceVoice` and `suppressVoice` override voice choice. TTS output format is set by `media.voice.tts.responseFormat`; PCM responses are converted from 24 kHz, 16-bit mono PCM to Ogg Opus before WhatsApp voice-note send.
+Inline `run_agent` messages return to the caller as the tool result; only schedule/timer runs send directly to WhatsApp. The `send_message` tool requires final `text`, can include `asVoiceNote: true` for voice delivery, and only uses integer `quoteMessageLabel` when explicitly quoting an older WhatsApp message by positive visible `ref #n` history metadata; omit it for normal messages. `quoteMessageLabel: 0` is accepted but ignored so agents do not quote the current message by habit. `forceVoice` and `suppressVoice` override voice choice. TTS output format is set by `media.voice.tts.responseFormat`; PCM responses are converted from 24 kHz, 16-bit mono PCM to Ogg Opus before WhatsApp voice-note send.
 
 ## Agents
 
@@ -174,7 +174,7 @@ Persistence:
 
 ## Reports
 
-One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, explicit tools, toolsets, skills, LLM steps, tool calls/results, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Toolset members stay grouped in the context summary; individual calls still appear in the step trace with returned values. Inline agent-task messages show up as the parent `run_agent` tool result. Image data URLs are redacted from text mirrors; the message wrapper records the media as `[Image: filename]` when available. `send_message` step args keep short metadata such as `asVoiceNote` before long `text` so truncation stays readable.
+One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, explicit tools, toolsets, skills, LLM steps, tool calls/results, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Toolset members stay grouped in the context summary; individual calls still appear in the step trace with returned values. Inline agent-task messages show up as the parent `run_agent` tool result. Image data URLs are redacted from text mirrors; the message wrapper records readable media metadata such as `input: image filename` when available. `send_message` step args keep short metadata such as `asVoiceNote` before long `text` so truncation stays readable.
 
 `settings.reports.vaultMarkdown: true` mirrors each report into `{vault}/Klaus/reports/<date>/<file>.md` for Obsidian reading.
 

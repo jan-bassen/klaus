@@ -33,7 +33,7 @@ Reports include:
 
 Toolset members stay grouped in the context summary, so a `vault` toolset appears as `vault` instead of every individual vault helper. Individual tool calls still appear in the step trace.
 
-They intentionally include rendered prompt and history text so prompt bugs, injection, missing variables, and wrong history scope are visible. Image data URLs are redacted from the text mirror; the surrounding message template still records the media as `[Image: filename]` when available.
+They intentionally include rendered prompt and history text so prompt bugs, injection, missing variables, and wrong history scope are visible. Image data URLs are redacted from the text mirror; the surrounding message template still records readable media metadata such as `input: image filename` when available.
 
 Step arguments keep short metadata before long content where that improves scanability. For example, `send_message` calls with `asVoiceNote: true` render the voice flag before the message text so it remains visible even when the text is truncated.
 

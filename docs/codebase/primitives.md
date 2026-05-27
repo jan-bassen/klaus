@@ -85,8 +85,8 @@ Use Zod schemas for inputs. Klaus validates every model-supplied tool call again
 `send_message` is the terminal user-visible output tool. It requires complete
 nonblank `text`; `asVoiceNote` is a delivery flag for that same text, not a
 separate action. Omit `quoteMessageLabel` for normal messages. Use it only for
-explicit WhatsApp quotes to older visible `[#n]` history labels; `0` is accepted
-but ignored so the agent does not quote the current message by habit.
+explicit WhatsApp quotes to older visible `ref #n` history metadata; `0` is
+accepted but ignored so the agent does not quote the current message by habit.
 
 ## Toolsets
 

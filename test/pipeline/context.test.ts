@@ -149,8 +149,8 @@ describe("pipeline/context.assembleHistory", () => {
 		const ctx = await assembleContext(turn, def, { variables: [] });
 
 		expect(ctx.history.messages).toEqual([
-			{ role: "user", content: "1:First question" },
-			{ role: "assistant", content: "2:Alpha answer" },
+			{ role: "user", content: "ref #1\nFirst question" },
+			{ role: "assistant", content: "ref #2\nAlpha answer" },
 		]);
 		expect(ctx.history.messageRefs).toEqual({
 			"1": { externalId: "u1", role: "user" },
@@ -178,9 +178,9 @@ describe("pipeline/context.assembleHistory", () => {
 		const ctx = await assembleContext(turn, def, { variables: [] });
 
 		expect(ctx.history.messages).toEqual([
-			{ role: "user", content: "1:Question" },
-			{ role: "user", content: "2:Follow-up" },
-			{ role: "assistant", content: "3:Real answer" },
+			{ role: "user", content: "ref #1\nQuestion" },
+			{ role: "user", content: "ref #2\nFollow-up" },
+			{ role: "assistant", content: "ref #3\nReal answer" },
 		]);
 	});
 
@@ -199,8 +199,8 @@ describe("pipeline/context.assembleHistory", () => {
 		const ctx = await assembleContext(turn, def, { variables: [] });
 
 		expect(ctx.history.messages).toEqual([
-			{ role: "user", content: "1:Ask alpha" },
-			{ role: "assistant", content: "2:Alpha answer" },
+			{ role: "user", content: "ref #1\nAsk alpha" },
+			{ role: "assistant", content: "ref #2\nAlpha answer" },
 		]);
 	});
 
@@ -224,7 +224,10 @@ describe("pipeline/context.assembleHistory", () => {
 		const ctx = await assembleContext(turn, def, { variables: [] });
 
 		expect(ctx.history.messages).toEqual([
-			{ role: "user", content: "1:Confirm this\nReactions: alpha ✅" },
+			{
+				role: "user",
+				content: "ref #1 | reactions alpha ✅\nConfirm this",
+			},
 		]);
 	});
 
@@ -252,7 +255,10 @@ describe("pipeline/context.assembleHistory", () => {
 		const ctx = await assembleContext(turn, def, { variables: [] });
 
 		expect(ctx.history.messages).toEqual([
-			{ role: "assistant", content: "1:All set\nReactions: user ❤️" },
+			{
+				role: "assistant",
+				content: "ref #1 | reactions user ❤️\nAll set",
+			},
 		]);
 	});
 
@@ -278,8 +284,8 @@ describe("pipeline/context.assembleHistory", () => {
 		const ctx = await assembleContext(turn, def, { variables: [] });
 
 		expect(ctx.history.messages).toEqual([
-			{ role: "user", content: "1:Recent question" },
-			{ role: "assistant", content: "2:Recent answer" },
+			{ role: "user", content: "ref #1\nRecent question" },
+			{ role: "assistant", content: "ref #2\nRecent answer" },
 		]);
 	});
 
@@ -299,8 +305,8 @@ describe("pipeline/context.assembleHistory", () => {
 		const ctx = await assembleContext(turn, def, { variables: [] });
 
 		expect(ctx.history.messages).toEqual([
-			{ role: "user", content: "1:Recent question" },
-			{ role: "assistant", content: "2:Recent answer" },
+			{ role: "user", content: "ref #1\nRecent question" },
+			{ role: "assistant", content: "ref #2\nRecent answer" },
 		]);
 	});
 
@@ -349,8 +355,11 @@ describe("pipeline/context.assembleHistory", () => {
 		const ctx = await assembleContext(turn, def, { variables: [] });
 
 		expect(ctx.history.messages).toEqual([
-			{ role: "user", content: "1:Question" },
-			{ role: "assistant", content: "2:Answer survives" },
+			{ role: "user", content: "ref #1\nQuestion" },
+			{
+				role: "assistant",
+				content: "ref #2\nAnswer survives",
+			},
 		]);
 	});
 });
@@ -469,11 +478,11 @@ function writeTemplates(tmpDir: string): void {
 	);
 	writeFileSync(
 		path.join(settings.vault.templatesDir, "history-user.md"),
-		"{{label}}:{{messageText}}{{#if reactions}}\nReactions: {{reactions}}{{/if}}",
+		"ref #{{label}}{{#if reactions}} | reactions {{reactions}}{{/if}}\n{{messageText}}",
 	);
 	writeFileSync(
 		path.join(settings.vault.templatesDir, "history-agent.md"),
-		"{{label}}:{{message}}{{#if reactions}}\nReactions: {{reactions}}{{/if}}",
+		"ref #{{label}}{{#if reactions}} | reactions {{reactions}}{{/if}}\n{{message}}",
 	);
 }
 

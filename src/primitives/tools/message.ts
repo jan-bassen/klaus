@@ -44,7 +44,7 @@ const sendMessageSchema = z.object({
 		})
 		.optional()
 		.describe(
-			"Visible message label to quote in WhatsApp. Use only positive [#n] history labels for older messages. Omit for normal messages; 0 is accepted but ignored.",
+			"Visible message label to quote in WhatsApp. Use the positive integer from a history ref like 'ref #3'. Omit for normal messages; 0 is accepted but ignored.",
 		),
 });
 

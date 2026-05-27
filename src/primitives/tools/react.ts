@@ -24,7 +24,7 @@ const reactSchema = z.object({
 		})
 		.optional()
 		.describe(
-			"Visible message label to react to. Use 0 or omit for the current message, or a positive [#n] history label.",
+			"Visible message label to react to. Use 0 or omit for the current message, or the positive integer from a history ref like 'ref #3'.",
 		),
 });
 
