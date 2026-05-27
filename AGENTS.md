@@ -192,6 +192,8 @@ All under `{dataDir}` (`./data` locally, `/data` in production/Docker, or `KLAUS
 
 History reaction events target WhatsApp external IDs and are rendered as metadata on their real message rows. Bot reactions carry `agent` and `runId` when available, so reaction-only turns stay visible in future context without consuming separate `historyLimit` slots.
 
+When `showTrace` is enabled, assistant history rows with persisted traces get a compact names-only `toolSummary` such as `search_messages, read_note`; tool arguments and results remain report-only.
+
 Schedules and timers store future work, not chat routing. Klaus has one configured chat; fired runs resolve `settings.allowedChat` at execution time. Future-work clocks stay paused until setup has produced `settings.allowedChat` and WhatsApp is connected, and pause again during reconnects. Repeated checks in the same wait state log only once.
 
 ## Vault layout (`{vault}/Klaus/`)

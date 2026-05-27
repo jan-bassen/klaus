@@ -130,7 +130,7 @@ describe("pipeline/context.assembleHistory", () => {
 		rmTmpDir(tmpDir);
 	});
 
-	it("renders chat-only history (no tool replay), numbering both sides", async () => {
+	it("renders history with compact tool names, numbering both sides", async () => {
 		await appendUser("u1", "First question");
 		await appendTrace(
 			"actual-run",
@@ -150,11 +150,35 @@ describe("pipeline/context.assembleHistory", () => {
 
 		expect(ctx.history.messages).toEqual([
 			{ role: "user", content: "ref #1\nFirst question" },
-			{ role: "assistant", content: "ref #2\nAlpha answer" },
+			{ role: "assistant", content: "ref #2 | tools probe\nAlpha answer" },
 		]);
 		expect(ctx.history.messageRefs).toEqual({
 			"1": { externalId: "u1", role: "user" },
 		});
+	});
+
+	it("omits tool summaries when showTrace is false", async () => {
+		await appendUser("u1", "First question");
+		await appendTrace(
+			"actual-run",
+			"alpha",
+			{ kind: "message", messageId: "u1" },
+			[traceStep("probe", { ok: true })],
+		);
+		await appendAssistant("Alpha answer", "alpha", "actual-run");
+
+		const def = makeAgent(tmpDir, "alpha");
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			message: inbound("current", "Current question"),
+			config: { historyLimit: 10, showTrace: false },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.history.messages).toEqual([
+			{ role: "user", content: "ref #1\nFirst question" },
+			{ role: "assistant", content: "ref #2\nAlpha answer" },
+		]);
 	});
 
 	it("drops empty assistant rows from replay (failed turns leave no transcript hole)", async () => {
@@ -482,7 +506,7 @@ function writeTemplates(tmpDir: string): void {
 	);
 	writeFileSync(
 		path.join(settings.vault.templatesDir, "history-agent.md"),
-		"ref #{{label}}{{#if reactions}} | reactions {{reactions}}{{/if}}\n{{message}}",
+		"ref #{{label}}{{#if toolSummary}} | tools {{toolSummary}}{{/if}}{{#if reactions}} | reactions {{reactions}}{{/if}}\n{{message}}",
 	);
 }
 

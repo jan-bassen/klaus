@@ -18,7 +18,7 @@ import type { z } from "zod";
 import { settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
 import { findFileByExternalId } from "../infra/store/files.ts";
-import { getConversation } from "../infra/store/history.ts";
+import { getConversation, getTraces } from "../infra/store/history.ts";
 import type {
 	ToolDefinition,
 	ToolsetDefinition,
@@ -339,6 +339,7 @@ interface AssembledHistory {
 }
 
 type ConversationRow = Awaited<ReturnType<typeof getConversation>>[number];
+type TraceMap = Awaited<ReturnType<typeof getTraces>>;
 
 function withoutCurrentMessage(
 	rows: ConversationRow[],
@@ -455,6 +456,7 @@ function renderHistoryAssistantMessage(
 	row: ConversationRow,
 	label: number,
 	defaultAgent: string,
+	toolSummary: string | undefined,
 ): ChatMessage {
 	const reactions = reactionSummary(row);
 	return {
@@ -465,6 +467,7 @@ function renderHistoryAssistantMessage(
 			agentLabel: row.agent ?? "",
 			isVoice: row.voice === true,
 			isNotDefaultAgent: row.agent ? row.agent !== defaultAgent : false,
+			...(toolSummary ? { toolSummary } : {}),
 			...(reactions ? { reactions, reactionEmojis: reactions } : {}),
 		}),
 	};
@@ -474,19 +477,46 @@ function renderHistoryRow(
 	row: ConversationRow,
 	label: number,
 	defaultAgent: string,
+	toolSummaries: Map<string, string>,
 ): ChatMessage {
 	return row.role === "user"
 		? renderHistoryUserMessage(row, label)
-		: renderHistoryAssistantMessage(row, label, defaultAgent);
+		: renderHistoryAssistantMessage(
+				row,
+				label,
+				defaultAgent,
+				row.runId ? toolSummaries.get(row.runId) : undefined,
+			);
+}
+
+function summarizeTraceTools(steps: TraceMap): Map<string, string> {
+	const summaries = new Map<string, string>();
+
+	for (const [runId, trace] of steps) {
+		const names: string[] = [];
+		for (const step of trace.steps) {
+			const resultIds = new Set(
+				step.toolResults.map((result) => result.toolCallId),
+			);
+			for (const call of step.toolCalls) {
+				if (!resultIds.has(call.toolCallId)) continue;
+				if (names.includes(call.toolName)) continue;
+				names.push(call.toolName);
+			}
+		}
+		if (names.length > 0) summaries.set(runId, names.join(", "));
+	}
+
+	return summaries;
 }
 
 /**
  * Read the conversation log, trim to `limit`, and render each chat turn via
  * replay-only `history-user` / `history-agent` templates.
  *
- * Tool calls/results are deliberately *not* replayed — past tool scratch
- * doesn't earn its place in future-turn context. The trace remains in the
- * report (the human-facing debug mirror) at full fidelity.
+ * Tool args/results are deliberately *not* replayed — past tool scratch
+ * doesn't earn its place in future-turn context. When enabled, history only
+ * gets a names-only tool summary; full traces stay in reports.
  *
  * Numbering covers user + assistant turns (everything WhatsApp-visible) so the
  * model can quote/react to either side via `messageRefs`.
@@ -501,8 +531,13 @@ async function assembleHistory(
 	const scope = opts.scope ?? "full";
 	const agentName = turn.agent?.name;
 	const defaultAgent = getDefaultAgent(turn.chatId);
+	const showTrace = turn.config?.showTrace ?? settings.agentDefaults.showTrace;
 
-	const allMessages = await getConversation();
+	const [allMessages, traces] = await Promise.all([
+		getConversation(),
+		showTrace ? getTraces() : Promise.resolve<TraceMap>(new Map()),
+	]);
+	const toolSummaries = summarizeTraceTools(traces);
 	const filtered = filterAgentHistory(
 		withoutCurrentMessage(allMessages, turn.message.id),
 		agentName,
@@ -519,7 +554,7 @@ async function assembleHistory(
 
 		const label = i + 1;
 		addMessageRef(messageRefs, label, row);
-		messages.push(renderHistoryRow(row, label, defaultAgent));
+		messages.push(renderHistoryRow(row, label, defaultAgent, toolSummaries));
 	}
 
 	return { messages, messageRefs };
