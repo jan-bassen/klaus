@@ -50,6 +50,8 @@ On first boot, Klaus hydrates the configured vault directory from Obsidian Sync,
 
 Open `{vault}/Klaus/_login/instructions.md`, choose solo mode or active chat mode, then scan `{vault}/Klaus/_login/qr-code.svg` from WhatsApp Linked Devices.
 
+If you already pinned `basics.allowedChat` but removed `{dataDir}/baileys-auth`, Klaus writes the same temporary folder only for relinking WhatsApp and removes it after the connection opens.
+
 For the full install path, E2EE vaults, self-mode, and fixes for common startup problems, use [docs/setup.md](docs/setup.md).
 
 ## First Messages

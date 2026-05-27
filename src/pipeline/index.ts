@@ -24,8 +24,7 @@ import {
 } from "../infra/store/history.ts";
 import { getSocket, normalizeJid } from "../infra/whatsapp/connection.ts";
 import {
-	clearLoginFolder,
-	clearSetupCode,
+	completeConfiguredLogin,
 	getSetupCode,
 } from "../infra/whatsapp/login.ts";
 import { startPresence, stopPresence } from "../infra/whatsapp/presence.ts";
@@ -215,14 +214,13 @@ async function handleSetupMode(msg: InboundMessage): Promise<void> {
 		log.info("[pipeline] self-mode: auto-setup");
 		await updateAllowedChat(ownJid);
 		activateFutureWorkIfReady();
-		clearSetupCode();
-		clearLoginFolder().catch(() => {});
 		enqueueMessage({
 			chatId: msg.chatId,
 			content: renderTemplate("welcome", {}),
 			dedupKey: `${msg.id}:setup-complete`,
 			label: settings.whatsapp.systemLabel,
 		});
+		await completeConfiguredLogin();
 		return;
 	}
 
@@ -231,14 +229,13 @@ async function handleSetupMode(msg: InboundMessage): Promise<void> {
 		log.info("[pipeline] setup code matched, configuring allowed chat");
 		await updateAllowedChat(msg.chatId);
 		activateFutureWorkIfReady();
-		clearSetupCode();
-		clearLoginFolder().catch(() => {});
 		enqueueMessage({
 			chatId: msg.chatId,
 			content: renderTemplate("welcome", {}),
 			dedupKey: `${msg.id}:setup-complete`,
 			label: settings.whatsapp.systemLabel,
 		});
+		await completeConfiguredLogin();
 	} else {
 		log.info("[pipeline] setup mode, awaiting setup code");
 	}

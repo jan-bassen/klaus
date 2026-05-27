@@ -24,6 +24,15 @@ Active chat setup code:
 \`{{code}}\`
 `;
 
+const PAIRING_INSTRUCTIONS = `# Klaus WhatsApp Pairing
+
+Klaus already has an allowed chat configured, so this folder is only for linking WhatsApp again.
+
+1. Open WhatsApp on your phone → Settings → Linked Devices → Link a device
+2. Scan qr-code.svg
+3. After WhatsApp connects, Klaus removes this folder automatically
+`;
+
 let _setupCode: string | null = null;
 let _watcherCtl: AbortController | null = null;
 
@@ -75,6 +84,12 @@ export async function prepareLoginFolderForStartup(): Promise<void> {
 
 export async function writeQrToVault(qrData: string): Promise<void> {
 	await mkdir(settings.vault.loginDir, { recursive: true });
+	if (settings.allowedChat) {
+		await writeData(
+			`${settings.vault.loginDir}/instructions.md`,
+			PAIRING_INSTRUCTIONS,
+		);
+	}
 	const svg = await QRCode.toString(qrData, {
 		type: "svg",
 		margin: 2,
@@ -96,6 +111,13 @@ export async function clearLoginFolder(): Promise<void> {
 			error: err instanceof Error ? err.message : String(err),
 		});
 	}
+}
+
+export async function completeConfiguredLogin(): Promise<boolean> {
+	if (!settings.allowedChat) return false;
+	clearSetupCode();
+	await clearLoginFolder();
+	return true;
 }
 
 /**
@@ -170,13 +192,12 @@ export async function completeSoloSetup(): Promise<boolean> {
 	log.info("[login] solo mode chosen — auto-configuring");
 	await updateAllowedChat(ownJid);
 	activateFutureWorkIfReady();
-	clearSetupCode();
 	enqueueMessage({
 		chatId: ownJid,
 		content: renderTemplate("welcome", {}),
 		dedupKey: `solo-setup:${ownJid}`,
 		label: settings.whatsapp.systemLabel,
 	});
-	await clearLoginFolder();
+	await completeConfiguredLogin();
 	return true;
 }

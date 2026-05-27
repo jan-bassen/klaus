@@ -49,6 +49,7 @@ import {
 	startConnection,
 } from "./infra/whatsapp/connection.ts";
 import {
+	completeConfiguredLogin,
 	completeSoloSetup,
 	prepareLoginFolderForStartup,
 	writeQrToVault,
@@ -385,7 +386,9 @@ async function main(): Promise<void> {
 		onOpen: async (socket) => {
 			clearTimeout(connectionWarnTimer);
 			setSocket(socket);
-			if (!settings.allowedChat && settings.whatsapp.selfMode) {
+			if (settings.allowedChat) {
+				await completeConfiguredLogin();
+			} else if (settings.whatsapp.selfMode) {
 				await completeSoloSetup().catch((err) =>
 					log.error("[startup] solo setup failed", {
 						error: err instanceof Error ? err.message : String(err),

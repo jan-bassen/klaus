@@ -104,8 +104,8 @@ Startup does this in order:
 5. Loads `{vault}/Klaus/settings.yml`.
 6. Creates data directories and starts continuous bidirectional Obsidian Sync.
 7. Loads stores, tools, agents, variables, commands, skills, templates, overrides, schedules, and timers.
-8. Creates the WhatsApp login folder if no allowed chat is configured.
-9. Connects WhatsApp and writes the QR code when Baileys provides one.
+8. Creates the WhatsApp setup folder if no allowed chat is configured.
+9. Connects WhatsApp and writes the QR code when Baileys provides one. If an allowed chat is already configured, the folder is only a relink helper and is removed once WhatsApp connects.
 10. Starts schedule and timer clocks once the allowed chat is configured and WhatsApp is connected.
 
 ## WhatsApp Login
@@ -128,6 +128,7 @@ Scan it from WhatsApp -> Linked Devices after choosing the setup mode:
 
 - **Solo mode**: Tick the solo checkbox before scanning. Klaus runs on the WhatsApp account you are linking, auto-resolves its own chat, writes `basics.allowedChat` and `whatsapp.selfMode`, sends the welcome message, and removes `_login`.
 - **Active chat mode**: Leave the checkbox unticked, scan the QR, then send the six-digit setup code from the chat Klaus should listen to. Klaus writes `basics.allowedChat`, sends the welcome message, and removes `_login`.
+- **Relink mode**: If `basics.allowedChat` or `ALLOWED_CHAT_ID` is already set but `{dataDir}/baileys-auth` is missing, Klaus still writes `_login/qr-code.svg` so you can link WhatsApp again. No setup code is needed; `_login` is removed after WhatsApp connects.
 
 You can still pin `basics.allowedChat` manually in `{vault}/Klaus/settings.yml` or with `ALLOWED_CHAT_ID`, but the normal clone-and-deploy path should not need it.
 
@@ -226,7 +227,7 @@ Also check `sync.fileTypes` in `{vault}/Klaus/settings.yml`. It should include `
 
 **No `{vault}/Klaus/_login/` folder appears**
 
-Klaus only creates `_login` when no allowed chat is configured. If `basics.allowedChat` is already set in `{vault}/Klaus/settings.yml` or `ALLOWED_CHAT_ID` is set in `.env`, setup mode is skipped.
+Klaus creates `_login` immediately only when no allowed chat is configured. If `basics.allowedChat` is already set in `{vault}/Klaus/settings.yml` or `ALLOWED_CHAT_ID` is set in `.env`, setup mode is skipped and `_login` appears only if WhatsApp needs a fresh QR.
 
 If neither is set, check logs for earlier startup errors. WhatsApp setup happens after Obsidian sync, settings validation, provider API-key validation, store initialization, and primitive loading.
 
