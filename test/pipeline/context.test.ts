@@ -386,6 +386,25 @@ describe("pipeline/context.assembleHistory", () => {
 			},
 		]);
 	});
+
+	it("lets history templates cap long message bodies", async () => {
+		await appendUser("u1", "A".repeat(80));
+
+		const def = makeAgent(tmpDir, "alpha");
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			message: inbound("current", "Current question"),
+			config: { historyLimit: 10 },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.history.messages).toEqual([
+			{
+				role: "user",
+				content: `ref #1\n${"A".repeat(40)}...`,
+			},
+		]);
+	});
 });
 
 describe("pipeline/context.invokeTool", () => {
@@ -502,11 +521,11 @@ function writeTemplates(tmpDir: string): void {
 	);
 	writeFileSync(
 		path.join(settings.vault.templatesDir, "history-user.md"),
-		"ref #{{label}}{{#if reactions}} | reactions {{reactions}}{{/if}}\n{{messageText}}",
+		'ref #{{label}}{{#if reactions}} | reactions {{reactions}}{{/if}}\n{{trunc messageText 40 suffix="..."}}',
 	);
 	writeFileSync(
 		path.join(settings.vault.templatesDir, "history-agent.md"),
-		"ref #{{label}}{{#if toolSummary}} | tools {{toolSummary}}{{/if}}{{#if reactions}} | reactions {{reactions}}{{/if}}\n{{message}}",
+		'ref #{{label}}{{#if toolSummary}} | tools {{toolSummary}}{{/if}}{{#if reactions}} | reactions {{reactions}}{{/if}}\n{{trunc message 40 suffix="..."}}',
 	);
 }
 

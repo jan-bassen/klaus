@@ -20,7 +20,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { settings } from "../../src/infra/config.ts";
 import { persistFileBlob } from "../../src/infra/store/files.ts";
-import { getConversation, getTraces } from "../../src/infra/store/history.ts";
+import {
+	appendMessage,
+	getConversation,
+	getTraces,
+} from "../../src/infra/store/history.ts";
 import { readReports } from "../../src/infra/store/report.ts";
 import {
 	startPresence,
@@ -215,6 +219,56 @@ describe("pipeline/index.handleTurn", () => {
 					toolCalls: [expect.objectContaining({ toolName: "probe" })],
 				}),
 			],
+		});
+	});
+
+	it("persists quoted context from the stored original message", async () => {
+		const quotedExternalId = "quoted-stored";
+		await appendMessage({
+			role: "assistant",
+			agent: "default",
+			runId: "quoted-run",
+			content: "the earlier answer",
+			externalId: quotedExternalId,
+		});
+		sendMock.mockResolvedValueOnce(replyResponse("reply"));
+		const msg: InboundMessage = {
+			...makeMsg("chat1", "", "following up"),
+			quotedMessage: { externalId: quotedExternalId },
+		};
+
+		await handleTurn(msg);
+
+		const row = (await getConversation()).find(
+			(entry) => entry.externalId === msg.id,
+		);
+		expect(row).toMatchObject({
+			quotedText: "the earlier answer",
+			quotedRole: "assistant",
+		});
+	});
+
+	it("persists a quoted media descriptor when no quoted text exists", async () => {
+		const saved = await persistFileBlob({
+			bytes: Buffer.from("source image"),
+			mimeType: "image/png",
+			externalId: "quoted-image",
+		});
+		if (saved instanceof Error) throw saved;
+		sendMock.mockResolvedValueOnce(replyResponse("reply"));
+		const msg: InboundMessage = {
+			...makeMsg("chat1", "", "what is this?"),
+			quotedMessage: { externalId: "quoted-image" },
+		};
+
+		await handleTurn(msg);
+
+		const row = (await getConversation()).find(
+			(entry) => entry.externalId === msg.id,
+		);
+		expect(row).toMatchObject({
+			quotedText: "quoted image",
+			quotedRole: "user",
 		});
 	});
 

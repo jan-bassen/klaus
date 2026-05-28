@@ -15,6 +15,7 @@ Guidance for Codex when working in this repository.
 - Fully typesafe. No `any`. No `as`.
 - `vault/settings.yml` (repo) is the first-run template for tunable settings. At runtime Klaus reads the user's `{vault}/Klaus/settings.yml` directly; it is not merged with repo defaults. Zod validates only — no `.default()` fallbacks. Add new fields here + in `src/infra/config.ts`'s schema.
 - No inline magic numbers — route through `settings.*`.
+- Prefer direct edits to the owned surface over adding configuration. For example, tune bundled templates in `vault/templates/` with existing helpers before adding settings/schema fields. This codebase is intentionally minimal; do not add new knobs, abstractions, or migration burden unless the behavior truly needs to be runtime-configurable.
 - Comments explain *why*, never *what*. Prefer good naming.
 - Keep the dependency list short; `npm install` only when genuinely needed.
 
@@ -193,6 +194,8 @@ All under `{dataDir}` (`./data` locally, `/data` in production/Docker, or `KLAUS
 History reaction events target WhatsApp external IDs and are rendered as metadata on their real message rows. Bot reactions carry `agent` and `runId` when available, so reaction-only turns stay visible in future context without consuming separate `historyLimit` slots.
 
 When `showTrace` is enabled, assistant history rows with persisted traces get a compact names-only `toolSummary` such as `search_messages, read_note`; tool arguments and results remain report-only.
+
+Quoted context is persisted on user rows from WhatsApp quoted text, the stored original message, or a short media descriptor such as `quoted image`. Bundled history templates use the existing `{{trunc ...}}` helper to keep long quoted snippets, message bodies, and document extracts from bloating future turns.
 
 Schedules and timers store future work, not chat routing. Klaus has one configured chat; fired runs resolve `settings.allowedChat` at execution time. Future-work clocks stay paused until setup has produced `settings.allowedChat` and WhatsApp is connected, and pause again during reconnects. Repeated checks in the same wait state log only once.
 

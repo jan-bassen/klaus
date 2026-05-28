@@ -41,7 +41,7 @@ Templates use the same Handlebars environment as prompts. Common namespaces incl
 | `{{trigger.*}}` | Message, schedule, timer, or agent-task trigger facts. |
 | `{{snippets.*}}` | Compiled snippets from `{vault}/Klaus/snippets/*.md`. |
 
-The shared helper `{{codeFence value}}` wraps report/debug text in a Markdown fence that is longer than any backtick run inside `value`, so nested code blocks render safely.
+The shared helper `{{codeFence value}}` wraps report/debug text in a Markdown fence that is longer than any backtick run inside `value`, so nested code blocks render safely. Use `{{trunc value 4000 suffix="..."}}` where templates should cap long message bodies or extracted text before they re-enter model context.
 
 `report.md` also receives `llm.context.variables`, `llm.context.tools`, `llm.context.toolsets`, and `llm.context.skills`, each as a simple string list of what was available to that run. `tools` contains explicit tools plus provider tools; lazy toolset members stay grouped under `toolsets`. Its `llm.steps` section renders each model call as `Step N` or `Finish`, shows token usage on its own line, fences returned reasoning text, and lists tool call JSON plus fenced tool results below the reasoning.
 

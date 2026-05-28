@@ -35,7 +35,7 @@ infra/whatsapp/receive.ts
   -> primitives/tools/* + pipeline/outbound.ts + pipeline/reports.ts
 ```
 
-`parseMessage` does the messy edge work before the model sees anything: transcribes voice, extracts documents, prepares images and stickers for vision, normalizes spoken routes, detects `/commands`, resolves `@agent`, and strips `!overrides`. `handleTurn` resolves quoted media before dispatching a command, so commands such as `/image` can use a quoted image as input.
+`parseMessage` does the messy edge work before the model sees anything: transcribes voice, extracts documents, prepares images and stickers for vision, normalizes spoken routes, detects `/commands`, resolves `@agent`, and strips `!overrides`. `handleTurn` resolves quoted media before dispatching a command, so commands such as `/image` can use a quoted image as input. For persisted user turns, quoted context is saved from the WhatsApp payload, the stored original message, or a short media descriptor so future history keeps useful reply context even when the quoted message has no text.
 
 ## Config Resolution
 
@@ -55,7 +55,7 @@ Agents should send user-visible text through `send_message`. The tool requires n
 
 Successful TTS messages persist the original text with `voice: true` on the assistant history row. OpenRouter TTS requests use `media.voice.tts.responseFormat`; PCM responses are encoded to Ogg Opus and sent with WhatsApp's voice-note flag. Text fallbacks after TTS failure remain normal text rows.
 
-Reactions are replayed as metadata on real history messages, not as separate history slots. `historyLimit` still counts message rows; selected rows can include `{{reactions}}` such as `alpha ✅` or `user ❤️`, so a reaction-only agent turn is visible without shrinking the transcript window. When `showTrace` is enabled, assistant rows with persisted traces also receive `{{toolSummary}}`, a names-only list such as `search_messages, read_note`; tool arguments and results stay out of model history.
+Reactions are replayed as metadata on real history messages, not as separate history slots. `historyLimit` still counts message rows; selected rows can include `{{reactions}}` such as `alpha ✅` or `user ❤️`, so a reaction-only agent turn is visible without shrinking the transcript window. When `showTrace` is enabled, assistant rows with persisted traces also receive `{{toolSummary}}`, a names-only list such as `search_messages, read_note`; tool arguments and results stay out of model history. Bundled history templates use `{{trunc ...}}` around quoted snippets, message bodies, and extracted text so large inputs do not bloat the next turn.
 
 Tools return values for the model to act on. User-correctable failures should be returned as values, not thrown. Throw only at system boundaries where continuing would hide a runtime problem.
 

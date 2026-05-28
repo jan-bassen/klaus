@@ -21,6 +21,7 @@ import {
 	appendMessage,
 	appendReaction,
 	findByExternalId,
+	getConversation,
 } from "../infra/store/history.ts";
 import { getSocket, normalizeJid } from "../infra/whatsapp/connection.ts";
 import {
@@ -52,6 +53,7 @@ interface ActiveTurn {
 
 const activeTurns = new Map<string, ActiveTurn>();
 const turnGenerations = new Map<string, number>();
+let nextTurnGeneration = 1;
 
 /** Verify the sender's chatId matches the configured allowed chat. Fail-closed: unset blocks all. */
 function checkAllowlist(msg: InboundMessage): AuthResult {
@@ -68,6 +70,7 @@ function checkAllowlist(msg: InboundMessage): AuthResult {
 }
 
 export async function handleTurn(msg: InboundMessage): Promise<void> {
+	const arrivalGeneration = nextTurnGeneration++;
 	let failedContext: { agent: string; runId: string } | undefined;
 	try {
 		const auth = checkAllowlist(msg);
@@ -100,16 +103,12 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		let messageId: string | undefined;
 		if (!config.ghost) {
 			const overrideNames = Object.keys(parsed.overrides);
+			const quotedContext = await buildQuotedContext(effectiveMsg);
 			messageId = await appendMessage({
 				role: "user",
 				content: effectiveMsg.text ?? null,
 				externalId: effectiveMsg.id,
-				...(effectiveMsg.quotedMessage?.text
-					? {
-							quotedText: effectiveMsg.quotedMessage.text,
-							quotedRole: "user",
-						}
-					: {}),
+				...(quotedContext ?? {}),
 				...(overrideNames.length > 0 ? { overrides: overrideNames } : {}),
 			});
 
@@ -127,7 +126,11 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		}
 
 		const turnKey = `${effectiveMsg.chatId}:${agentName}`;
-		const generation = (turnGenerations.get(turnKey) ?? 0) + 1;
+		const latestGeneration = turnGenerations.get(turnKey) ?? 0;
+		if (arrivalGeneration < latestGeneration) {
+			throw new DOMException("Turn superseded", "AbortError");
+		}
+		const generation = arrivalGeneration;
 		turnGenerations.set(turnKey, generation);
 		for (;;) {
 			const existing = activeTurns.get(turnKey);
@@ -261,6 +264,44 @@ function resolveQuotedMedia(msg: InboundMessage): InboundMessage {
 		...msg,
 		quotedMessage: { ...msg.quotedMessage, media: quotedMedia },
 	};
+}
+
+async function buildQuotedContext(
+	msg: InboundMessage,
+): Promise<{ quotedText: string; quotedRole: string } | undefined> {
+	const quoted = msg.quotedMessage;
+	if (!quoted) return undefined;
+
+	const rows = await getConversation();
+	const prior = rows.find((row) => row.externalId === quoted.externalId);
+	const role = prior?.role ?? "user";
+	const text = firstText(
+		quoted.text,
+		prior?.content,
+		describeQuotedMedia(quoted),
+	);
+
+	return text ? { quotedText: text, quotedRole: role } : undefined;
+}
+
+function firstText(
+	...values: Array<string | null | undefined>
+): string | undefined {
+	for (const value of values) {
+		const text = value?.trim();
+		if (text) return text;
+	}
+	return undefined;
+}
+
+function describeQuotedMedia(
+	quoted: NonNullable<InboundMessage["quotedMessage"]>,
+): string | undefined {
+	const media = quoted.media ?? findFileByExternalId(quoted.externalId);
+	if (!media) return "quoted message";
+	if (media.mimeType.startsWith("image/")) return "quoted image";
+	if (media.mimeType.startsWith("audio/")) return "quoted voice note";
+	return `quoted attachment (${media.mimeType})`;
 }
 
 async function reportPipelineError(
