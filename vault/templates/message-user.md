@@ -10,4 +10,4 @@
 {{extractedText}}{{/if}}{{/if}}
 {{#if quotedText}}> Quoted{{#if quotedRole}} ({{quotedRole}}){{/if}}: {{quotedText}}{{/if}}
 
-{{messageText}}
+[{{time}}]: {{messageText}}
