@@ -252,6 +252,76 @@ describe("pipeline/context.assembleHistory", () => {
 				role: "user",
 				content: "ref #1 | reactions alpha ✅\nConfirm this",
 			},
+			{
+				role: "assistant",
+				content: "Handled ref #1 with reaction alpha ✅. No message was sent.",
+			},
+		]);
+		expect(ctx.history.messageRefs).toEqual({
+			"1": { externalId: "u-alpha", role: "user" },
+		});
+	});
+
+	it("synthesizes handled context for full-scope reaction-only turns", async () => {
+		await appendUser("u-alpha", "Looks good?");
+		await appendReaction({
+			messageExternalId: "u-alpha",
+			emoji: "👍",
+			senderId: "bot",
+			fromMe: true,
+			agent: "alpha",
+			runId: "run-alpha",
+		});
+
+		const def = makeAgent(tmpDir, "alpha");
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			message: inbound("current", "Current question"),
+			config: { historyLimit: 10 },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.history.messages).toEqual([
+			{
+				role: "user",
+				content: "ref #1 | reactions alpha 👍\nLooks good?",
+			},
+			{
+				role: "assistant",
+				content: "Handled ref #1 with reaction alpha 👍. No message was sent.",
+			},
+		]);
+		expect(ctx.history.messageRefs).toEqual({
+			"1": { externalId: "u-alpha", role: "user" },
+		});
+	});
+
+	it("does not synthesize handled context when a real reply follows", async () => {
+		await appendUser("u-alpha", "Confirm this");
+		await appendReaction({
+			messageExternalId: "u-alpha",
+			emoji: "✅",
+			senderId: "bot",
+			fromMe: true,
+			agent: "alpha",
+			runId: "run-alpha",
+		});
+		await appendAssistant("Confirmed.", "alpha", "run-alpha");
+
+		const def = makeAgent(tmpDir, "alpha");
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			message: inbound("current", "Current question"),
+			config: { historyLimit: 10 },
+		});
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.history.messages).toEqual([
+			{
+				role: "user",
+				content: "ref #1 | reactions alpha ✅\nConfirm this",
+			},
+			{ role: "assistant", content: "ref #2\nConfirmed." },
 		]);
 	});
 

@@ -63,7 +63,7 @@ Runtime state lives under `{dataDir}`. Local runs default to `./data`; productio
 
 Stores should stay simple and typed. Prefer flat files and explicit migrations only when a real format change requires them.
 
-History assistant rows carry their agent, run ID, and a `voice` marker when the message was successfully sent as TTS audio. History reaction events target WhatsApp external IDs. Bot reactions include the agent and run ID when Klaus produced them, so history replay can show reaction-only agent turns and agent-scoped history can treat them as handled messages.
+History assistant rows carry their agent, run ID, and a `voice` marker when the message was successfully sent as TTS audio. History reaction events target WhatsApp external IDs. Bot reactions include the agent and run ID when Klaus produced them, so history replay can show reaction-only agent turns and agent-scoped history can treat them as handled messages. Reaction-only turns are represented by render-time assistant cues, not persisted assistant rows.
 
 Schedules and timers persist only the future work to run. They do not carry chat IDs; scheduled agent runs resolve the single configured chat from `settings.allowedChat` at fire time.
 

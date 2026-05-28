@@ -24,7 +24,7 @@ Templates are required. If a required template is missing, execution fails visib
 
 Bundled history templates put metadata on a compact first line such as `ref #3 | voice transcript | tools search_messages | reactions alpha ✅`, followed by the literal message body. Tool parameters use the integer from `ref #n`; the marker itself is metadata, not text the agent should copy into replies.
 
-History templates receive `{{reactions}}` when the selected message has active WhatsApp reactions. Entries include the source, for example `assistant ✅`, `alpha 👍`, or `user ❤️`. Reactions ride along with selected messages and do not consume `historyLimit` slots.
+History templates receive `{{reactions}}` when the selected message has active WhatsApp reactions. Entries include the source, for example `assistant ✅`, `alpha 👍`, or `user ❤️`. Reactions ride along with selected messages and do not consume `historyLimit` slots. Reaction-only user turns also get a render-time assistant cue in the model transcript, outside the template system, so the turn reads as handled even though no WhatsApp message was sent.
 
 ## Variables
 

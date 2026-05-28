@@ -191,7 +191,7 @@ One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.r
 
 All under `{dataDir}` (`./data` locally, `/data` in production/Docker, or `KLAUS_DATA_DIR` when set). The vault is separate — it's the knowledge graph (notes, wikilinks, frontmatter). Its root follows the same pattern: `./vault` locally, `/vault` in production/Docker, or `KLAUS_VAULT_DIR` when set.
 
-History reaction events target WhatsApp external IDs and are rendered as metadata on their real message rows. Bot reactions carry `agent` and `runId` when available, so reaction-only turns stay visible in future context without consuming separate `historyLimit` slots.
+History reaction events target WhatsApp external IDs and are rendered as metadata on their real message rows. Bot reactions carry `agent` and `runId` when available, so reaction-only turns stay visible in future context without consuming separate `historyLimit` slots. If an agent reacts to a user message without sending a real reply, history rendering adds a transient assistant cue for the model only; it is not stored and has no quoteable `ref #n`.
 
 When `showTrace` is enabled, assistant history rows with persisted traces get a compact names-only `toolSummary` such as `search_messages, read_note`; tool arguments and results remain report-only.
 

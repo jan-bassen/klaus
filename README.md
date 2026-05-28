@@ -95,7 +95,7 @@ Use `!overrides` anywhere after the route to tweak one turn:
 
 Voice notes are transcribed, images and stickers become vision input, common documents are parsed to text, and quoted messages can carry their original media through the turn. Reports keep the readable media marker and stored filename, while redacting image data URLs. Step traces show tool calls and returned tool results, including inline `run_agent` messages.
 
-Agents are expected to use `send_message` for user-visible messages. The tool takes final `text`, can mark that same text for voice delivery with `asVoiceNote`, and can optionally quote an older message with positive integer `quoteMessageLabel` from visible `ref #n` history metadata. Normal messages omit `quoteMessageLabel`; `0` is accepted but ignored so agents do not quote the current message by habit. If a message-capable turn accidentally ends with plain assistant text, Klaus sends it as a fallback message and marks the run report so the formatting miss is visible.
+Agents are expected to use `send_message` for user-visible messages. The tool takes final `text`, can mark that same text for voice delivery with `asVoiceNote`, and can optionally quote an older message with positive integer `quoteMessageLabel` from visible `ref #n` history metadata. Normal messages omit `quoteMessageLabel`; `0` is accepted but ignored so agents do not quote the current message by habit. Reaction-only turns stay allowed: future model transcripts get a temporary handled cue, without storing a fake assistant message. If a message-capable turn accidentally ends with plain assistant text, Klaus sends it as a fallback message and marks the run report so the formatting miss is visible.
 
 ## Tinker
 

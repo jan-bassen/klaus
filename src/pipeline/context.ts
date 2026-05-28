@@ -452,6 +452,58 @@ function reactionSummary(row: ConversationRow): string {
 		.join(", ");
 }
 
+type AgentReaction = ConversationRow["reactions"][number];
+
+function realAssistantReplyMatches(
+	row: ConversationRow,
+	reaction: AgentReaction,
+): boolean {
+	if (row.role !== "assistant") return false;
+	if ((row.content ?? "").trim().length === 0) return false;
+	return reaction.agent ? row.agent === reaction.agent : true;
+}
+
+function hasRealReplyBeforeNextUser(
+	rows: ConversationRow[],
+	index: number,
+	reaction: AgentReaction,
+): boolean {
+	for (let j = index + 1; j < rows.length; j++) {
+		const row = rows[j];
+		if (!row) continue;
+		if (row.role === "user") return false;
+		if (realAssistantReplyMatches(row, reaction)) return true;
+	}
+	return false;
+}
+
+function reactionOnlyHandlers(
+	rows: ConversationRow[],
+	index: number,
+): AgentReaction[] {
+	const row = rows[index];
+	if (!row || row.role !== "user") return [];
+	return row.reactions.filter(
+		(reaction) =>
+			reaction.fromMe &&
+			reaction.emoji.length > 0 &&
+			!hasRealReplyBeforeNextUser(rows, index, reaction),
+	);
+}
+
+function renderReactionOnlyAssistantMessage(
+	userLabel: number,
+	reactions: AgentReaction[],
+): ChatMessage {
+	const summary = reactions
+		.map((reaction) => `${reaction.agent ?? "assistant"} ${reaction.emoji}`)
+		.join(", ");
+	return {
+		role: "assistant",
+		content: `Handled ref #${userLabel} with reaction ${summary}. No message was sent.`,
+	};
+}
+
 function renderHistoryAssistantMessage(
 	row: ConversationRow,
 	label: number,
@@ -544,6 +596,9 @@ async function assembleHistory(
 		scope,
 	);
 	const recent = visibleHistoryRows(filtered, limit);
+	const filteredIndexes = new Map(
+		filtered.map((row, index): [string, number] => [row.id, index]),
+	);
 
 	const messages: ChatMessage[] = [];
 	const messageRefs: Record<string, { externalId: string; role: string }> = {};
@@ -555,6 +610,14 @@ async function assembleHistory(
 		const label = i + 1;
 		addMessageRef(messageRefs, label, row);
 		messages.push(renderHistoryRow(row, label, defaultAgent, toolSummaries));
+		const filteredIndex = filteredIndexes.get(row.id);
+		const reactionOnly =
+			filteredIndex === undefined
+				? []
+				: reactionOnlyHandlers(filtered, filteredIndex);
+		if (reactionOnly.length > 0) {
+			messages.push(renderReactionOnlyAssistantMessage(label, reactionOnly));
+		}
 	}
 
 	return { messages, messageRefs };
