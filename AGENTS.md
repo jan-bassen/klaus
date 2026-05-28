@@ -52,7 +52,7 @@ README.md                  # public front door
 docs/setup.md              # install, first boot, WhatsApp login, troubleshooting
 docs/architecture.md       # high-level map of runtime and authoring surfaces
 docs/codebase/pipeline.md  # turn flow, config, context, model loop, agent runs
-docs/codebase/primitives.md # commands, variables, tools, toolsets, provider tools
+docs/codebase/primitives.md # commands, variables, tools, toolsets, server tools
 docs/codebase/infra.md     # config, vault/sync, WhatsApp, stores, logging
 docs/vault/agents.md       # agent frontmatter, prompts, schedules, persistence
 docs/vault/prompts.md      # snippets and skills
@@ -119,7 +119,7 @@ name: agentName
 aliases: [short]
 tools: [send_message, set_reaction]
 toolsets: [vault, agents]
-providerTools: [web_search]
+serverTools: [web_search]
 skills: [workout-plan]
 provider: Codex|openai|gemini|qwen|deepseek
 modelTier: small|medium|large
@@ -157,7 +157,7 @@ Persistence:
 
 **Tools** are model-callable functions with Zod input schemas. Keep tool behavior explicit in the name and description, and return clear values the model can act on.
 
-**Provider tools** (e.g. `web_search`, `web_fetch`) are OpenRouter server tools — they get appended verbatim to the request's `tools` array (`{ type: "openrouter:web_search" }`) and execute server-side; the agent loop never sees a client-side tool_call for them. Declared per agent in `providerTools: […]`.
+**Server tools** (e.g. `web_search`, `web_fetch`) are OpenRouter server tools — they get appended verbatim to the request's `tools` array (`{ type: "openrouter:web_search" }`) and execute server-side; the agent loop never sees a client-side tool_call for them. Declared per agent in `serverTools: […]`. Reports show the declared server tools separately from local tools and include OpenRouter-exposed server-tool usage/citations when the Chat Completions response surfaces them.
 
 **Toolsets** are lazy-loaded via `load_<name>` meta-tools so the initial context stays lean.
 
@@ -175,7 +175,7 @@ Persistence:
 
 ## Reports
 
-One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, explicit tools, toolsets, skills, LLM steps, tool calls/results, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Toolset members stay grouped in the context summary; individual calls still appear in the step trace with returned values. Inline agent-task messages show up as the parent `run_agent` tool result. Image data URLs are redacted from text mirrors; the message wrapper records readable media metadata such as `input: image filename` when available. `send_message` step args keep short metadata such as `asVoiceNote` before long `text` so truncation stays readable.
+One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, explicit local tools, server tools, toolsets, skills, LLM steps, local tool calls/results, server-tool usage/citations when OpenRouter exposes them, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Toolset members stay grouped in the context summary; individual local calls still appear in the step trace with returned values. Inline agent-task messages show up as the parent `run_agent` tool result. Image data URLs are redacted from text mirrors; the message wrapper records readable media metadata such as `input: image filename` when available. `send_message` step args keep short metadata such as `asVoiceNote` before long `text` so truncation stays readable.
 
 `settings.reports.vaultMarkdown: true` mirrors each report into `{vault}/Klaus/reports/<date>/<file>.md` for Obsidian reading.
 

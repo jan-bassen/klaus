@@ -139,10 +139,29 @@ function toReportStep(s: AgentRunResult["steps"][number]): ReportStep {
 		})),
 	};
 	if (s.reasoning) step.reasoning = sanitizeReportText(s.reasoning);
+	if (s.serverToolUse) step.serverToolUse = s.serverToolUse;
+	if (s.citations) step.citations = s.citations.map(sanitizeCitation);
 	if (s.fallback) step.fallback = s.fallback;
 	if (s.finishReason) step.finishReason = s.finishReason;
 	if (s.usage) step.usage = s.usage;
 	return step;
+}
+
+function sanitizeCitation(
+	citation: NonNullable<AgentRunResult["steps"][number]["citations"]>[number],
+): NonNullable<ReportStep["citations"]>[number] {
+	return {
+		type: citation.type,
+		url: sanitizeReportText(citation.url),
+		...(citation.title ? { title: sanitizeReportText(citation.title) } : {}),
+		...(citation.content
+			? { content: sanitizeReportText(citation.content) }
+			: {}),
+		...(citation.startIndex !== undefined
+			? { startIndex: citation.startIndex }
+			: {}),
+		...(citation.endIndex !== undefined ? { endIndex: citation.endIndex } : {}),
+	};
 }
 
 function reorderReportArgs(toolName: string, args: unknown): unknown {

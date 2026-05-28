@@ -18,7 +18,7 @@ tools:
   - vault_backlinks
   - vault_move
   - vault_delete
-providerTools:
+serverTools:
   - web_search
   - web_fetch
 modelTier: large

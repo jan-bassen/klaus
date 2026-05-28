@@ -40,7 +40,8 @@ function makeResult(patch: Partial<AgentRunResult> = {}): AgentRunResult {
 		tier: "medium",
 		context: {
 			variables: ["time", "user"],
-			tools: ["send_message", "openrouter:web_search"],
+			tools: ["send_message"],
+			serverTools: ["openrouter:web_search"],
 			toolsets: ["vault"],
 			skills: ["obsidian-markdown"],
 		},
@@ -110,7 +111,8 @@ describe("pipeline/reports: emitReport", () => {
 		expect(entry?.message?.mediaType).toBe("image/png");
 		expect(entry?.llm?.context).toEqual({
 			variables: ["time", "user"],
-			tools: ["send_message", "openrouter:web_search"],
+			tools: ["send_message"],
+			serverTools: ["openrouter:web_search"],
 			toolsets: ["vault"],
 			skills: ["obsidian-markdown"],
 		});
@@ -195,6 +197,61 @@ describe("pipeline/reports: emitReport", () => {
 		expect(markdown).toContain("**Tool call: run_agent**");
 		expect(markdown).toContain("**Tool result: run_agent**");
 		expect(markdown).toContain("child result");
+	});
+
+	it("mirrors server tool usage and citations into markdown report steps", async () => {
+		settings.reports.vaultMarkdown = true;
+		settings.vault.templatesDir = path.join(tmp, "templates");
+		settings.vault.reportsDir = path.join(tmp, "vault-reports");
+		mkdirSync(settings.vault.templatesDir, { recursive: true });
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "report.md"),
+			readFileSync(path.resolve("vault/templates/report.md"), "utf-8"),
+		);
+		invalidateTemplate("report");
+
+		await emitReport({
+			turn: makeTurn(),
+			startedAt: Date.now() - 10,
+			result: makeResult({
+				steps: [
+					{
+						reasoning: "",
+						toolCalls: [],
+						toolResults: [],
+						serverToolUse: { web_search_requests: 2 },
+						citations: [
+							{
+								type: "url_citation",
+								url: "https://example.com",
+								title: "Example",
+								content: "cited content",
+								startIndex: 0,
+								endIndex: 12,
+							},
+						],
+					},
+				],
+			}),
+		});
+
+		const [entry] = await readReports({ days: 1 });
+		expect(entry?.llm?.steps[0]).toMatchObject({
+			serverToolUse: { web_search_requests: 2 },
+			citations: [{ url: "https://example.com", title: "Example" }],
+		});
+
+		const [dateDir] = readdirSync(settings.vault.reportsDir);
+		const reportDir = path.join(settings.vault.reportsDir, dateDir ?? "");
+		const [filename] = readdirSync(reportDir);
+		const markdown = readFileSync(
+			path.join(reportDir, filename ?? ""),
+			"utf-8",
+		);
+		expect(markdown).toContain("**Server tool use**");
+		expect(markdown).toContain('"web_search_requests":2');
+		expect(markdown).toContain("Example");
+		expect(markdown).toContain("https://example.com");
 	});
 
 	it("redacts base64 data URLs from report prompts and history", async () => {

@@ -64,7 +64,7 @@ describe("primitives/commands/default", () => {
 			aliases: [],
 			tools: [],
 			toolsets: [],
-			providerTools: [],
+			serverTools: [],
 			skills: [],
 			settings: {},
 			promptPath: "/tmp/none.md",

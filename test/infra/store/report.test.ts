@@ -90,6 +90,7 @@ describe("infra/store/report", () => {
 				context: {
 					variables: ["time"],
 					tools: ["reply"],
+					serverTools: [],
 					toolsets: [],
 					skills: [],
 				},

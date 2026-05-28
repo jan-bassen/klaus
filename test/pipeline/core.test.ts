@@ -263,8 +263,70 @@ describe("pipeline/core.executeAgent", () => {
 		expect(result.context).toEqual({
 			variables: [],
 			tools: ["send_message"],
+			serverTools: [],
 			toolsets: ["bundle"],
 			skills: [],
+		});
+	});
+
+	it("reports server tools separately and captures surfaced server metadata", async () => {
+		sendMock.mockResolvedValueOnce(
+			chatResponse({
+				content: "done",
+				usage: {
+					promptTokens: 3,
+					completionTokens: 4,
+					serverToolUse: { web_search_requests: 1 },
+				},
+				annotations: [
+					{
+						type: "url_citation",
+						url_citation: {
+							url: "https://example.com/result",
+							title: "Result",
+							content: "search excerpt",
+							start_index: 5,
+							end_index: 12,
+						},
+					},
+				],
+			}),
+		);
+
+		const def = makeAgent(tmpDir, {
+			tools: ["send_message"],
+			serverTools: ["web_search"],
+		});
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 1, skipHistory: true },
+			dispatchContext: { prompt: "objective" },
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(firstChatRequest().tools).toEqual(
+			expect.arrayContaining([{ type: "openrouter:web_search" }]),
+		);
+		expect(result.context).toEqual({
+			variables: [],
+			tools: ["send_message"],
+			serverTools: ["openrouter:web_search"],
+			toolsets: [],
+			skills: [],
+		});
+		expect(result.steps[0]).toMatchObject({
+			serverToolUse: { web_search_requests: 1 },
+			citations: [
+				{
+					type: "url_citation",
+					url: "https://example.com/result",
+					title: "Result",
+					content: "search excerpt",
+					startIndex: 5,
+					endIndex: 12,
+				},
+			],
 		});
 	});
 
@@ -776,6 +838,7 @@ function makeAgent(
 	patch: {
 		tools?: string[];
 		toolsets?: string[];
+		serverTools?: string[];
 		persistence?: AgentDefinition["persistence"];
 		prompt?: AgentDefinition["prompt"];
 	} = {},
@@ -786,6 +849,7 @@ function makeAgent(
 		name: "core-test",
 		tools: patch.tools ?? [],
 		toolsets: patch.toolsets ?? [],
+		serverTools: patch.serverTools ?? [],
 		report: false,
 		stepLimit: 2,
 		...(patch.persistence
@@ -808,10 +872,16 @@ function chatResponse(
 		content?: string;
 		toolCalls?: ReturnType<typeof toolCall>[];
 		reasoning?: string;
-		usage?: { promptTokens: number; completionTokens: number };
+		usage?: {
+			promptTokens: number;
+			completionTokens: number;
+			serverToolUse?: Record<string, number>;
+		};
 		finishReason?: string;
+		annotations?: unknown[];
 	} = {},
 ) {
+	const usage = input.usage ?? { promptTokens: 1, completionTokens: 1 };
 	return {
 		choices: [
 			{
@@ -824,10 +894,15 @@ function chatResponse(
 					content: input.content ?? "",
 					reasoning: input.reasoning ?? null,
 					toolCalls: input.toolCalls ?? [],
+					...(input.annotations ? { annotations: input.annotations } : {}),
 				},
 			},
 		],
-		usage: input.usage ?? { promptTokens: 1, completionTokens: 1 },
+		usage: {
+			promptTokens: usage.promptTokens,
+			completionTokens: usage.completionTokens,
+			...(usage.serverToolUse ? { serverToolUse: usage.serverToolUse } : {}),
+		},
 	};
 }
 

@@ -28,7 +28,7 @@ import {
 	toolRegistry,
 	toolsetRegistry,
 } from "../primitives/tools/index.ts";
-import { getProviderTool } from "../primitives/tools/provider.ts";
+import { getServerTool } from "../primitives/tools/server.ts";
 import { buildSkillTool, skillRegistry } from "../primitives/tools/skill.ts";
 import type { Variable } from "../primitives/variables/index.ts";
 import type { AgentDefinition } from "./agents.ts";
@@ -166,14 +166,14 @@ function addInitialTool(name: string, assembly: ToolAssembly): void {
 	assembly.initialActive.push(tool.name);
 }
 
-function addProviderTools(def: AgentDefinition, assembly: ToolAssembly): void {
-	for (const name of def.providerTools ?? []) {
-		const providerTool = getProviderTool(name);
-		if (!providerTool) {
-			log.warn(`[context] provider tool "${name}" not available`);
+function addServerTools(def: AgentDefinition, assembly: ToolAssembly): void {
+	for (const name of def.serverTools ?? []) {
+		const serverTool = getServerTool(name);
+		if (!serverTool) {
+			log.warn(`[context] server tool "${name}" not available`);
 			continue;
 		}
-		assembly.serverTools.push(providerTool);
+		assembly.serverTools.push(serverTool);
 	}
 }
 
@@ -293,7 +293,7 @@ function prepareActiveTools(
 /**
  * Build the function-tool set + initial allowlist.
  *
- * Core tools, provider tools, and toolset meta-tools start active. Toolset
+ * Core tools, server tools, and toolset meta-tools start active. Toolset
  * tools are pre-registered but hidden until `load_<set>` is called. Skills
  * pre-register their tools too; `read_skill` activates them.
  */
@@ -306,7 +306,7 @@ function assembleTools(
 	for (const name of def.tools) {
 		addInitialTool(name, assembly);
 	}
-	addProviderTools(def, assembly);
+	addServerTools(def, assembly);
 	for (const tsName of def.toolsets ?? []) {
 		addToolsetTools(tsName, assembly);
 	}

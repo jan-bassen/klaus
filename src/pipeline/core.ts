@@ -9,9 +9,11 @@
  */
 
 import { OpenRouter } from "@openrouter/sdk";
+import { SDKHooks } from "@openrouter/sdk/hooks/hooks";
 import type {
 	ChatMessages as ChatMessage,
 	ChatRequest,
+	ChatResult,
 	ChatFunctionTool as ChatTool,
 	ChatToolCall,
 	ChatToolChoice,
@@ -118,9 +120,20 @@ export interface ModelCallStep {
 		toolName: string;
 		result: unknown;
 	}>;
+	serverToolUse?: Record<string, number> | undefined;
+	citations?: ServerCitation[] | undefined;
 	fallback?: "assistant_content_reply" | undefined;
 	finishReason?: string | undefined;
 	usage?: { inputTokens: number; outputTokens: number } | undefined;
+}
+
+export interface ServerCitation {
+	type: "url_citation";
+	url: string;
+	title?: string | undefined;
+	content?: string | undefined;
+	startIndex?: number | undefined;
+	endIndex?: number | undefined;
 }
 
 export interface AgentRunResult {
@@ -132,6 +145,7 @@ export interface AgentRunResult {
 	context: {
 		variables: string[];
 		tools: string[];
+		serverTools: string[];
 		toolsets: string[];
 		skills: string[];
 	};
@@ -305,8 +319,8 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 			variables: sortedUnique(variables.map((v) => v.key)),
 			tools: sortedUnique([
 				...def.tools.filter((name) => tools.functionTools[name] !== undefined),
-				...tools.serverTools.map((t) => t.type),
 			]),
+			serverTools: sortedUnique(tools.serverTools.map((t) => t.type)),
 			toolsets: sortedUnique(
 				(def.toolsets ?? []).filter((name) =>
 					tools.initialActive.includes(`load_${name}`),
@@ -415,13 +429,14 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 				: {}),
 		};
 
-		const response = await callWithRetry(
+		const completion = await callWithRetry(
 			requestBody,
 			opts.modelId,
 			opts.baseURL,
 			opts.apiKey,
 			opts.signal,
 		);
+		const { response, raw } = completion;
 		const choice = response.choices[0];
 		if (!choice) {
 			throw new Error(
@@ -433,6 +448,11 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 		const outputTokens = response.usage?.completionTokens ?? 0;
 		totalIn += inputTokens;
 		totalOut += outputTokens;
+		const serverToolUse =
+			extractServerToolUse(response.usage) ??
+			extractServerToolUse(rawUsage(raw));
+		const citations =
+			extractCitations(msg) ?? extractCitations(rawMessage(raw));
 
 		// Narrow to function-type tool calls (the only kind we care about — custom
 		// tool calls aren't part of Klaus's surface).
@@ -475,6 +495,8 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 			reasoning,
 			toolCalls,
 			toolResults,
+			serverToolUse,
+			citations,
 			fallback,
 			finishReason: choice.finishReason ?? undefined,
 			usage: { inputTokens, outputTokens },
@@ -572,6 +594,89 @@ function parseArgs(raw: string): Record<string, unknown> {
 	}
 }
 
+function extractServerToolUse(
+	usage: unknown,
+): Record<string, number> | undefined {
+	if (!isRecord(usage)) return undefined;
+	const raw = usage.serverToolUse ?? usage.server_tool_use;
+	if (!isRecord(raw)) return undefined;
+
+	const out: Record<string, number> = {};
+	for (const [key, value] of Object.entries(raw)) {
+		if (typeof value === "number" && Number.isFinite(value)) {
+			out[key] = value;
+		}
+	}
+	return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function rawUsage(raw: unknown): unknown {
+	return isRecord(raw) ? raw.usage : undefined;
+}
+
+function rawMessage(raw: unknown): unknown {
+	if (!isRecord(raw) || !Array.isArray(raw.choices)) return undefined;
+	const [first] = raw.choices;
+	return isRecord(first) ? first.message : undefined;
+}
+
+function extractCitations(message: unknown): ServerCitation[] | undefined {
+	if (!isRecord(message) || !Array.isArray(message.annotations))
+		return undefined;
+	const citations = message.annotations
+		.map((annotation) => toCitation(annotation))
+		.filter((citation) => citation !== undefined);
+	return citations.length > 0 ? citations : undefined;
+}
+
+function toCitation(annotation: unknown): ServerCitation | undefined {
+	if (!isRecord(annotation) || annotation.type !== "url_citation") {
+		return undefined;
+	}
+
+	const nested = isRecord(annotation.url_citation)
+		? annotation.url_citation
+		: annotation;
+	const url = stringField(nested, "url");
+	if (!url) return undefined;
+
+	return {
+		type: "url_citation",
+		url,
+		...(stringField(nested, "title")
+			? { title: stringField(nested, "title") }
+			: {}),
+		...(stringField(nested, "content")
+			? { content: stringField(nested, "content") }
+			: {}),
+		...numberFieldObject(nested, "start_index", "startIndex"),
+		...numberFieldObject(nested, "end_index", "endIndex"),
+	};
+}
+
+function stringField(
+	record: Record<string, unknown>,
+	key: string,
+): string | undefined {
+	const value = record[key];
+	return typeof value === "string" && value ? value : undefined;
+}
+
+function numberFieldObject(
+	record: Record<string, unknown>,
+	snakeKey: string,
+	camelKey: "startIndex" | "endIndex",
+): Partial<Pick<ServerCitation, "startIndex" | "endIndex">> {
+	const value = record[snakeKey] ?? record[camelKey];
+	return typeof value === "number" && Number.isFinite(value)
+		? { [camelKey]: value }
+		: {};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function buildRequestTools(
 	functionTools: FunctionToolSet,
 	serverTools: ChatTool[],
@@ -619,15 +724,32 @@ async function callWithRetry(
 	baseURL: string,
 	apiKey: string,
 	signal?: AbortSignal,
-) {
+): Promise<{ response: ChatResult; raw: unknown }> {
 	const timeoutMs = settings.agent.timeout;
 	const MAX_ATTEMPTS = settings.agent.retries.max;
+	const hooks = new SDKHooks();
+	let raw: unknown;
+	hooks.registerAfterSuccessHook({
+		afterSuccess: async (hookCtx, response) => {
+			if (hookCtx.operationID === "sendChatCompletionRequest") {
+				raw = await response
+					.clone()
+					.json()
+					.catch(() => undefined);
+			}
+			return response;
+		},
+	});
 
-	const client = new OpenRouter({
+	const retryConfig: { strategy: "none" } = { strategy: "none" };
+	const clientOptions = {
 		apiKey,
 		serverURL: baseURL,
-		retryConfig: { strategy: "none" },
-	});
+		retryConfig,
+		hooks,
+	};
+
+	const client = new OpenRouter(clientOptions);
 
 	let lastErr: unknown;
 	for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -642,7 +764,7 @@ async function callWithRetry(
 				{ signal: combinedSignal },
 			);
 			clearTimeout(timeoutId);
-			return response;
+			return { response, raw };
 		} catch (err) {
 			clearTimeout(timeoutId);
 			if (isAbortError(err) && signal?.aborted) {

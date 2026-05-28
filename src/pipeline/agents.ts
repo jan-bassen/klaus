@@ -108,7 +108,7 @@ const AgentFrontmatterSchema = z
 		aliases: z.array(z.string()).default([]),
 		tools: z.array(z.string()).default([]),
 		toolsets: z.array(z.string()).default([]),
-		providerTools: z.array(z.string()).default([]),
+		serverTools: z.array(z.string()).default([]),
 		skills: z.array(z.string()).default([]),
 		provider: z.string().optional(),
 		modelTier: z.enum(modelTiers).optional(),
@@ -150,7 +150,7 @@ const AgentFrontmatterSchema = z
 			aliases: front.aliases,
 			tools: front.tools,
 			toolsets: front.toolsets,
-			providerTools: front.providerTools,
+			serverTools: front.serverTools,
 			skills: front.skills,
 			settings: AgentSettingsSchema.parse({
 				provider: front.provider,

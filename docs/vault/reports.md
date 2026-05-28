@@ -24,14 +24,14 @@ The process log announces each emitted report by filename, plus whether a vault 
 Reports include:
 
 - Agent, trigger, model, provider, and overrides
-- Available variable names, explicit tools, toolsets, and skills for the run
+- Available variable names, explicit local tools, server tools, toolsets, and skills for the run
 - Rendered system prompt, history transcript, current user message, and agent answer
-- LLM steps, rendered in Markdown as `Step N` / `Finish` sections with token usage, fenced reasoning, tool calls, and tool results
+- LLM steps, rendered in Markdown as `Step N` / `Finish` sections with token usage, fenced reasoning, tool calls, tool results, server-tool usage counts, and URL citations
 - Tool calls and results
 - Simulated actions
 - Errors and trace output
 
-Toolset members stay grouped in the context summary, so a `vault` toolset appears as `vault` instead of every individual vault helper. Individual tool calls still appear in the step trace.
+Toolset members stay grouped in the context summary, so a `vault` toolset appears as `vault` instead of every individual vault helper. Individual local tool calls still appear in the step trace. Server tools execute inside OpenRouter; reports show declared server tools and the usage/citation metadata OpenRouter returns, but not the hidden server-side transcript.
 
 They intentionally include rendered prompt and history text so prompt bugs, injection, missing variables, and wrong history scope are visible. Image data URLs are redacted from the text mirror; the surrounding message template still records readable media metadata such as `input: image filename` when available.
 

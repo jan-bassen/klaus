@@ -111,15 +111,15 @@ toolsets: [text]
 
 Use toolsets for clusters like vault operations, agent-task scheduling, or file-store helpers. Use always-visible `tools` for tiny core tools like `send_message` and `set_reaction`. The scoped `read_skill` tool is generated automatically for agents that declare `skills`.
 
-## Provider Tools
+## Server Tools
 
-Provider tools are not local TypeScript tools. Agents declare them in frontmatter:
+Server tools are not local TypeScript tools. Agents declare them in frontmatter:
 
 ```yaml
-providerTools: [web_search, web_fetch]
+serverTools: [web_search, web_fetch]
 ```
 
-Klaus passes these through to the OpenRouter-compatible request. The provider executes them server-side, and the local tool loop does not see a client-side tool call.
+Klaus passes these through to the OpenRouter-compatible request. OpenRouter executes them server-side, and the local tool loop does not see a client-side tool call. Reports capture usage counts and URL citations when OpenRouter includes them in the Chat Completions response.
 
 ## Restart Boundary
 

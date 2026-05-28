@@ -25,7 +25,7 @@ name: research
 aliases: [r]
 tools: [send_message, set_reaction]
 toolsets: [vault]
-providerTools: [web_search]
+serverTools: [web_search]
 skills: [obsidian-markdown]
 modelTier: large
 historyLimit: 20
@@ -70,7 +70,7 @@ Unprefixed messages go to the current default agent. Change it with:
 | `aliases` | string array | Extra route names. Colliding aliases are skipped and logged. |
 | `tools` | string array | Always-visible local tools. |
 | `toolsets` | string array | Lazy groups exposed through `load_<name>`. |
-| `providerTools` | string array | Server-side provider tools, such as `web_search`. |
+| `serverTools` | string array | OpenRouter server-side tools, such as `web_search`. |
 | `skills` | string array | Skill files this agent may load. Adds `read_skill` automatically. |
 | `provider` | string | Provider key from `settings.yml`. |
 | `modelTier` | `small`, `medium`, `large` | Model tier for this agent. |
@@ -118,10 +118,10 @@ Lazy toolsets:
 toolsets: [vault, agents, files]
 ```
 
-Provider tools:
+Server tools:
 
 ```yaml
-providerTools: [web_search, web_fetch]
+serverTools: [web_search, web_fetch]
 ```
 
 TypeScript implementations for these primitives are documented in [../codebase/primitives.md](../codebase/primitives.md).

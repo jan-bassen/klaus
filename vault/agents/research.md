@@ -6,7 +6,7 @@ tools:
   - set_reaction
   - search_messages
   - math
-providerTools:
+serverTools:
   - web_search
   - web_fetch
 toolsets:

@@ -15,7 +15,7 @@ export function makeTurn(patch: Partial<TurnContext> = {}): TurnContext {
 			aliases: [],
 			tools: [],
 			toolsets: [],
-			providerTools: [],
+			serverTools: [],
 			skills: [],
 			settings: {
 				voice: "auto",

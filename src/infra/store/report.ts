@@ -34,6 +34,19 @@ const ReportStepSchema = z.object({
 			result: z.unknown(),
 		}),
 	),
+	serverToolUse: z.record(z.string(), z.number()).optional(),
+	citations: z
+		.array(
+			z.object({
+				type: z.literal("url_citation"),
+				url: z.string(),
+				title: z.string().optional(),
+				content: z.string().optional(),
+				startIndex: z.number().optional(),
+				endIndex: z.number().optional(),
+			}),
+		)
+		.optional(),
 	fallback: z.enum(["assistant_content_reply"]).optional(),
 	finishReason: z.string().optional(),
 	usage: z
@@ -50,6 +63,7 @@ const ReportLlmSchema = z.object({
 	context: z.object({
 		variables: z.array(z.string()),
 		tools: z.array(z.string()),
+		serverTools: z.array(z.string()),
 		toolsets: z.array(z.string()),
 		skills: z.array(z.string()),
 	}),

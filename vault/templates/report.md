@@ -21,6 +21,10 @@
 ```
 {{#if llm.context.tools.length}}{{join llm.context.tools ", "}}{{else}}none{{/if}}
 ```
+**Server tools**
+```
+{{#if llm.context.serverTools.length}}{{join llm.context.serverTools ", "}}{{else}}none{{/if}}
+```
 **Toolsets**
 ```
 {{#if llm.context.toolsets.length}}{{join llm.context.toolsets ", "}}{{else}}none{{/if}}
@@ -47,13 +51,25 @@
 {{/if}}
 ### Steps
 {{#each llm.steps}}
-{{#if toolCalls.length}}
+{{#if (or toolCalls.length serverToolUse citations.length)}}
 ### Step {{inc @index}}
 {{#if usage}}({{usage.inputTokens}}↑/{{usage.outputTokens}}↓)
 
 {{/if}}{{#if reasoning}}
 **Reasoning**
 {{codeFence (trunc reasoning 800)}}
+
+{{/if}}
+{{#if serverToolUse}}
+**Server tool use**
+`{{json serverToolUse}}`
+
+{{/if}}
+{{#if citations.length}}
+**Citations**
+{{#each citations}}
+- {{#if title}}{{title}} — {{/if}}{{url}}{{#if content}}: {{trunc content 240}}{{/if}}
+{{/each}}
 
 {{/if}}
 {{#each toolCalls}}

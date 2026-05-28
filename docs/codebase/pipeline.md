@@ -11,7 +11,7 @@ The pipeline owns one turn from inbound message to model execution. It is intent
 | `media.ts` | Speech-to-text, text-to-speech, document extraction, image prep. |
 | `agents.ts` | Agent schema, prompt sections, aliases, registry, default agent. |
 | `overrides.ts` | `TurnConfig`, override registry, config merge. |
-| `context.ts` | Variables, tools, toolsets, provider tools, history, message references. |
+| `context.ts` | Variables, local tools, toolsets, server tools, history, message references. |
 | `templates.ts` | Template loading, Handlebars helpers, system/user rendering. |
 | `core.ts` | Model loop, tool calls, traces, dynamic persistence, reports. |
 | `runs.ts` | Shared active-run registry used by `/stop` to abort in-flight message, timer, schedule, and agent-task runs. |
@@ -49,7 +49,7 @@ Overrides are config only. They should not carry prompt content. Agent prompts a
 
 ## Execution
 
-`executeAgent` gathers variables, tool definitions, provider tools, and history. `templates.ts` renders the templates, then `core.ts` runs the chat-completions loop until the model stops calling tools or the turn reaches its step limit.
+`executeAgent` gathers variables, local tool definitions, OpenRouter server tools, and history. `templates.ts` renders the templates, then `core.ts` runs the chat-completions loop until the model stops calling tools or the turn reaches its step limit.
 
 Agents should send user-visible text through `send_message`. The tool requires nonblank `text`, accepts optional `asVoiceNote`, and accepts optional integer `quoteMessageLabel` for explicit WhatsApp quotes to older visible `ref #n` history metadata. Omitting `quoteMessageLabel` sends a normal message. `quoteMessageLabel: 0` is accepted but ignored, because answering the current message should not create a WhatsApp quote. `forceVoice` and `suppressVoice` still override the model's voice choice. If a message-capable turn ends with plain assistant content instead of tool calls, `core.ts` treats that text as a fallback `send_message` call, logs a warning, and marks the report step with `fallback: "assistant_content_reply"`. Empty assistant content still means no reply, and `toolChoice: "none"` keeps tools disabled.
 
@@ -78,4 +78,4 @@ Startup loads and syncs schedules/timers while their clocks are paused. `activat
 
 ## Reports
 
-Reports are emitted unless `turn.config.report === false`. They include the assembled variable names, explicit tools, toolsets, and skill names alongside prompts, history, steps, tool calls, and tool results. Toolset members stay grouped by set in the context summary; individual calls still appear in the step trace with their returned values. Inline agent-task messages are visible as the parent `run_agent` tool result. The human-facing agent message is derived from nonblank `send_message.text` tool calls only; malformed or empty calls remain visible in the step trace without becoming separator-only message fragments. `send_message` step args keep `asVoiceNote` before long `text` values for readable truncation. The report path and vault Markdown mirror are configured in `settings.yml`; the runtime log records the report filename and whether a vault mirror was written. See [../vault/reports.md](../vault/reports.md).
+Reports are emitted unless `turn.config.report === false`. They include the assembled variable names, explicit local tools, server tools, toolsets, and skill names alongside prompts, history, steps, tool calls, and tool results. Toolset members stay grouped by set in the context summary; individual local calls still appear in the step trace with their returned values. Server tools run inside OpenRouter, so Klaus records the declared server tools plus response-surfaced usage counts and URL citations when available, not a hidden call transcript. Inline agent-task messages are visible as the parent `run_agent` tool result. The human-facing agent message is derived from nonblank `send_message.text` tool calls only; malformed or empty calls remain visible in the step trace without becoming separator-only message fragments. `send_message` step args keep `asVoiceNote` before long `text` values for readable truncation. The report path and vault Markdown mirror are configured in `settings.yml`; the runtime log records the report filename and whether a vault mirror was written. See [../vault/reports.md](../vault/reports.md).

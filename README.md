@@ -117,7 +117,7 @@ Start with [docs/architecture.md](docs/architecture.md) for the product model, t
 - [Setup](docs/setup.md): Docker, Obsidian Sync, WhatsApp login, troubleshooting.
 - [Architecture](docs/architecture.md): the main map from WhatsApp to pipeline, tools, vault, stores, and reports.
 - [Codebase Pipeline](docs/codebase/pipeline.md): parse, config, context, model loop, agent runs, persistence, reports.
-- [Codebase Primitives](docs/codebase/primitives.md): adding TypeScript commands, variables, tools, toolsets, and provider tools.
+- [Codebase Primitives](docs/codebase/primitives.md): adding TypeScript commands, variables, tools, toolsets, and server tools.
 - [Codebase Infra](docs/codebase/infra.md): config, vault/sync, WhatsApp, stores, logging.
 - [Vault Agents](docs/vault/agents.md): agent files, frontmatter, routing, tools, schedules, persistence, permissions.
 - [Vault Prompts](docs/vault/prompts.md): snippets and skills as reusable prompt context.

@@ -6,7 +6,7 @@ tools:
   - search_messages
   - send_image
   - math
-providerTools:
+serverTools:
   - web_search
   - web_fetch
 toolsets:

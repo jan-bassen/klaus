@@ -68,7 +68,7 @@ Primitives are the extension points under `src/primitives/`:
 | Variables | Handlebars namespaces such as `{{time.*}}` and `{{media.*}}`. |
 | Tools | Model-callable functions such as `send_message`, `set_reaction`, and `read_skill`. |
 | Toolsets | Lazy groups exposed through `load_<name>` meta-tools. |
-| Provider tools | Server-side OpenRouter tools passed through to the request. |
+| Server tools | Server-side OpenRouter tools passed through to the request. |
 
 Drop in a file, export the right shape, restart, and the registry loader picks it up. See [codebase/primitives.md](codebase/primitives.md).
 

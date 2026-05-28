@@ -28,7 +28,7 @@ function makeAgent(
 		aliases: [],
 		tools: [],
 		toolsets: [],
-		providerTools: [],
+		serverTools: [],
 		skills: [],
 		settings: {
 			voice: "auto",
