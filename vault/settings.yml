@@ -24,7 +24,7 @@ agentDefaults:
   reasoningEffort: default
   historyLimit: 20
   historyScope: full
-  showTrace: true
+  showTools: true
   report: true
   vault:
     "*": full

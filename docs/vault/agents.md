@@ -81,7 +81,7 @@ Unprefixed messages go to the current default agent. Change it with:
 | `stepLimit` | number | Per-turn model/tool step cap. |
 | `historyLimit` | number | Prior history rows to include. |
 | `historyScope` | `full`, `agent` | Full chat history or only this agent's rows. |
-| `showTrace` | boolean | Show compact names-only tool summaries on future assistant history rows. |
+| `showTools` | boolean | Show compact names-only tool summaries on future assistant history rows. |
 | `report` | boolean | Emit run reports for this agent. |
 | `vaultAccess` | string array | Agent vault permissions as `path:permission`. |
 | `persist` | boolean | Enable dynamic self-rescheduling. |

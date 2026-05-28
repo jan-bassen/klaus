@@ -37,7 +37,7 @@ export interface TurnConfig {
 	stepLimit?: number;
 	historyLimit?: number;
 	historyScope?: "full" | "agent";
-	showTrace?: boolean;
+	showTools?: boolean;
 	report?: boolean;
 	vault?: Record<string, AgentVaultEntry>;
 	// override-only
@@ -61,7 +61,7 @@ const turnConfigSchema = z
 		stepLimit: z.number().optional(),
 		historyLimit: z.number().optional(),
 		historyScope: z.enum(["full", "agent"]).optional(),
-		showTrace: z.boolean().optional(),
+		showTools: z.boolean().optional(),
 		report: z.boolean().optional(),
 		vault: z.record(z.string(), z.enum(["none", "read", "full"])).optional(),
 		skipHistory: z.boolean().optional(),
@@ -199,7 +199,7 @@ function fromFrontmatter(def: AgentDefinition): TurnConfig {
 	if (s.stepLimit !== undefined) out.stepLimit = s.stepLimit;
 	if (s.historyLimit !== undefined) out.historyLimit = s.historyLimit;
 	if (s.historyScope !== undefined) out.historyScope = s.historyScope;
-	if (s.showTrace !== undefined) out.showTrace = s.showTrace;
+	if (s.showTools !== undefined) out.showTools = s.showTools;
 	if (s.report !== undefined) out.report = s.report;
 	if (s.vault !== undefined) out.vault = s.vault;
 

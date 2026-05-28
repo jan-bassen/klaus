@@ -10,7 +10,7 @@
 - There are no `.default()` fallbacks for missing runtime fields.
 - New tunable settings must be added to both `vault/settings.yml` and the schema.
 - Runtime does not merge repo defaults into an existing user vault.
-- Startup fails if the synced runtime `settings.yml` exists but is invalid. Hot reload keeps the last valid config and warns the user.
+- Startup fails if the synced runtime `settings.yml` is missing or invalid. Hot reload keeps the last valid config and warns the user.
 
 The exported `settings` object is live and mutable, which tests use for targeted overrides.
 
@@ -20,7 +20,7 @@ The exported `settings` object is live and mutable, which tests use for targeted
 
 The first-run rule is important: `ensureDefaults()` checks only whether `{vault}/Klaus/` exists. If it does not, Klaus copies the repo `vault/` tree once. If it does, that folder is user-owned and must not be merged or overwritten.
 
-Vault permissions are layered from settings defaults, agent frontmatter, and per-turn overrides. The tool implementations live in `src/infra/vault/tools.ts` and are exposed through the `vault` toolset.
+Vault permissions are layered from settings defaults, agent frontmatter, and per-turn overrides. The tool implementations live in `src/primitives/tools/sets/vault.ts`; `src/infra/vault/tools.ts` holds shared permission/listing helpers.
 
 ## WhatsApp
 
@@ -39,8 +39,8 @@ Klaus is fail-closed. It processes only the configured allowed chat unless it is
 `settings.whatsapp.presenceRefreshMs` controls how often Klaus re-sends
 `composing`/`recording` while an inbound WhatsApp turn is running. Keep it
 comfortably below the client expiry window; the bundled default is deliberately
-short so long model/tool runs still show visible activity. Once a top-level
-Once `send_message` has queued visible output, Klaus stops the active presence keeper so
+short so long model/tool runs still show visible activity. Once `send_message`
+has queued visible output, Klaus stops the active presence keeper so
 post-message persistence and reporting do not reopen the typing/recording bubble.
 Queued refresh callbacks also no-op after the keeper is stopped.
 

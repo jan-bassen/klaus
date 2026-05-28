@@ -9,7 +9,7 @@ For the TypeScript side of commands, variables, tools, and toolsets, see [../cod
 ## Runtime Settings
 
 `settings.yml` is strict. Klaus validates it but does not fill missing fields.
-Startup fails if the synced file is invalid; live edits after startup keep the
+Startup fails if the synced file is missing or invalid; live edits after startup keep the
 last valid config and send a warning.
 
 | Section | Purpose |
@@ -80,7 +80,7 @@ Overrides are for behavior, not prompt content. Use [prompts.md](prompts.md) for
 | `stepLimit` | number |
 | `historyLimit` | number |
 | `historyScope` | `full`, `agent` |
-| `showTrace` | boolean |
+| `showTools` | boolean |
 | `report` | boolean |
 | `vault` | map of path to `none`, `read`, or `full` |
 | `skipHistory` | boolean |

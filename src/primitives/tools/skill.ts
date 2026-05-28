@@ -4,7 +4,8 @@ import { log } from "../../infra/logger.ts";
 import { readText, scanFiles } from "../../infra/runtime.ts";
 import type { ToolDefinition } from "./index.ts";
 import { toolsetRegistry } from "./index.ts";
-export const SkillFrontmatterSchema = z.object({
+
+const SkillFrontmatterSchema = z.object({
 	description: z.string().min(1).optional(),
 	tools: z.array(z.string()).default([]),
 	toolsets: z.array(z.string()).default([]),

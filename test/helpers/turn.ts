@@ -23,7 +23,7 @@ export function makeTurn(patch: Partial<TurnContext> = {}): TurnContext {
 				temp: "default",
 				topP: "default",
 				reasoningEffort: "default",
-				showTrace: true,
+				showTools: true,
 				report: true,
 			},
 			promptPath: "/tmp/nonexistent.md",

@@ -36,7 +36,7 @@ function makeAgent(
 			temp: "default",
 			topP: "default",
 			reasoningEffort: "default",
-			showTrace: true,
+			showTools: true,
 			report: true,
 			...patch,
 		},

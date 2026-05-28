@@ -157,7 +157,7 @@ describe("pipeline/context.assembleHistory", () => {
 		});
 	});
 
-	it("omits tool summaries when showTrace is false", async () => {
+	it("omits tool summaries when showTools is false", async () => {
 		await appendUser("u1", "First question");
 		await appendTrace(
 			"actual-run",
@@ -171,7 +171,7 @@ describe("pipeline/context.assembleHistory", () => {
 		const turn = baseTurn(tmpDir, {
 			agent: def,
 			message: inbound("current", "Current question"),
-			config: { historyLimit: 10, showTrace: false },
+			config: { historyLimit: 10, showTools: false },
 		});
 		const ctx = await assembleContext(turn, def, { variables: [] });
 

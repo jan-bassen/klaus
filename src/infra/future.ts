@@ -59,7 +59,3 @@ export function resumeFutureWorkIfReady(): boolean {
 	paused = false;
 	return activateFutureWorkIfReady();
 }
-
-export function isFutureWorkPaused(): boolean {
-	return paused;
-}

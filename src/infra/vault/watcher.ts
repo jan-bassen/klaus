@@ -6,6 +6,7 @@ import {
 	loadAgentDefinition,
 } from "../../pipeline/agents.ts";
 import { loadOverrides } from "../../pipeline/overrides.ts";
+import { frontmatterScheduleEntry } from "../../pipeline/schedules.ts";
 import { invalidateTemplate } from "../../pipeline/templates.ts";
 import { parseSkillMeta, skillRegistry } from "../../primitives/tools/skill.ts";
 import { loadSettingsFromDisk, settings } from "../config.ts";
@@ -43,10 +44,6 @@ function findAgentByPath(promptPath: string): { name: string } | undefined {
 		if (def.promptPath === promptPath && def.name === name) return { name };
 	}
 	return undefined;
-}
-
-function frontmatterScheduleId(agentName: string, index: number): string {
-	return `frontmatter:${agentName}:${index}`;
 }
 
 interface AgentChange {
@@ -123,18 +120,9 @@ async function syncFrontmatterSchedules(change: AgentChange): Promise<void> {
 	if (oldName !== newName) await removeFrontmatterSchedules(newName);
 
 	for (const [index, schedule] of change.newDef.schedules.entries()) {
-		await addSchedule({
-			id: frontmatterScheduleId(newName, index),
-			agentName: newName,
-			pattern: schedule.pattern,
-			objective: "# Message",
-			...(schedule.overrides.length > 0
-				? { overrides: schedule.overrides }
-				: {}),
-			...(schedule.label ? { label: schedule.label } : {}),
-			createdBy: "scheduler",
-			createdAt: new Date().toISOString(),
-		});
+		await addSchedule(
+			frontmatterScheduleEntry(change.newDef.name, index, schedule),
+		);
 	}
 	log.info(`[watcher] schedules synced for @${newName}`);
 }

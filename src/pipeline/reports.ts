@@ -96,7 +96,7 @@ function pickConfig(c: TurnConfig): ReportEntry["config"] {
 	if (c.provider) out.provider = c.provider;
 	if (c.historyLimit !== undefined) out.historyLimit = c.historyLimit;
 	if (c.historyScope) out.historyScope = c.historyScope;
-	if (c.showTrace !== undefined) out.showTrace = c.showTrace;
+	if (c.showTools !== undefined) out.showTools = c.showTools;
 	if (c.report !== undefined) out.report = c.report;
 	return out;
 }

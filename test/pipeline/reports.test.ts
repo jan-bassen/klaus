@@ -272,7 +272,7 @@ describe("pipeline/reports: emitReport", () => {
 				modelTier: "large",
 				historyLimit: 20,
 				historyScope: "agent",
-				showTrace: true,
+				showTools: true,
 				report: true,
 			},
 		});
@@ -289,7 +289,7 @@ describe("pipeline/reports: emitReport", () => {
 			modelTier: "large",
 			historyLimit: 20,
 			historyScope: "agent",
-			showTrace: true,
+			showTools: true,
 			report: true,
 		});
 	});

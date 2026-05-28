@@ -8,10 +8,7 @@ import { enqueueMessage } from "../../infra/whatsapp/send.ts";
 import { getDefaultAgent } from "../../pipeline/agents.ts";
 import type { TurnContext } from "../../pipeline/core.ts";
 import { textToSpeech } from "../../pipeline/media.ts";
-import {
-	makeDedupKey,
-	prepareAssistantOutbound,
-} from "../../pipeline/outbound.ts";
+import { prepareAssistantOutbound } from "../../pipeline/outbound.ts";
 import { renderTemplate } from "../../pipeline/templates.ts";
 import type { ToolDefinition } from "./index.ts";
 
@@ -64,90 +61,105 @@ export const sendMessageTool: ToolDefinition<typeof sendMessageSchema> = {
 
 		const userFacingContent = formatUserFacingAgentMessage(text, context);
 		const useVoice = shouldSendVoice(asVoiceNote, context);
-		if (useVoice) {
-			setPresenceKind(context.chatId, "recording");
-			const audio = await textToSpeech(text);
-			if (audio instanceof Error) {
-				const outbound = await prepareAssistantOutbound({
+		try {
+			if (useVoice) {
+				setPresenceKind(context.chatId, "recording");
+				const audio = await textToSpeech(text);
+				if (audio instanceof Error) {
+					const outbound = await prepareSendMessageOutbound(
+						context,
+						text,
+						quoteMessageLabel,
+					);
+					if ("error" in outbound) return outbound;
+					log.warn("[send_message] TTS failed, falling back to text", {
+						error: audio.message,
+					});
+					enqueueMessage(
+						{
+							chatId: context.chatId,
+							content: userFacingContent,
+							dedupKey: outbound.dedupKey,
+							label: context.agent.name,
+							...quotedPart(outbound),
+						},
+						outbound.onSent,
+					);
+				} else {
+					const voiceOutbound = await prepareSendMessageOutbound(
+						context,
+						text,
+						quoteMessageLabel,
+						true,
+					);
+					if ("error" in voiceOutbound) return voiceOutbound;
+					enqueueMessage(
+						{
+							chatId: context.chatId,
+							content: audio.bytes,
+							mimeType: audio.mimeType,
+							...(audio.mimeType.includes("opus") ? { voiceNote: true } : {}),
+							dedupKey: voiceOutbound.dedupKey,
+							label: context.agent.name,
+							...quotedPart(voiceOutbound),
+						},
+						voiceOutbound.onSent,
+					);
+				}
+			} else {
+				const outbound = await prepareSendMessageOutbound(
 					context,
-					content: text,
-					kind: "send-message",
-					logPrefix: "[send_message]",
-					...(quoteMessageLabel !== undefined
-						? { messageRef: quoteMessageLabel }
-						: {}),
-				});
+					text,
+					quoteMessageLabel,
+				);
 				if ("error" in outbound) return outbound;
-				const quotedPart = outbound.quoted ? { quoted: outbound.quoted } : {};
-				log.warn("[send_message] TTS failed, falling back to text", {
-					error: audio.message,
-				});
 				enqueueMessage(
 					{
 						chatId: context.chatId,
 						content: userFacingContent,
 						dedupKey: outbound.dedupKey,
 						label: context.agent.name,
-						...quotedPart,
+						...quotedPart(outbound),
 					},
 					outbound.onSent,
 				);
-			} else {
-				const voiceOutbound = await prepareAssistantOutbound({
-					context,
-					content: text,
-					kind: "send-message",
-					logPrefix: "[send_message]",
-					voice: true,
-					...(quoteMessageLabel !== undefined
-						? { messageRef: quoteMessageLabel }
-						: {}),
-				});
-				if ("error" in voiceOutbound) return voiceOutbound;
-				const voiceQuotedPart = voiceOutbound.quoted
-					? { quoted: voiceOutbound.quoted }
-					: {};
-				enqueueMessage(
-					{
-						chatId: context.chatId,
-						content: audio.bytes,
-						mimeType: audio.mimeType,
-						...(audio.mimeType.includes("opus") ? { voiceNote: true } : {}),
-						dedupKey: makeDedupKey(context, "send-message-voice"),
-						label: context.agent.name,
-						...voiceQuotedPart,
-					},
-					voiceOutbound.onSent,
-				);
 			}
-		} else {
-			const outbound = await prepareAssistantOutbound({
-				context,
-				content: text,
-				kind: "send-message",
-				logPrefix: "[send_message]",
-				...(quoteMessageLabel !== undefined
-					? { messageRef: quoteMessageLabel }
-					: {}),
-			});
-			if ("error" in outbound) return outbound;
-			const quotedPart = outbound.quoted ? { quoted: outbound.quoted } : {};
-			enqueueMessage(
-				{
-					chatId: context.chatId,
-					content: userFacingContent,
-					dedupKey: outbound.dedupKey,
-					label: context.agent.name,
-					...quotedPart,
-				},
-				outbound.onSent,
-			);
-		}
 
-		await stopPresence(context.chatId);
-		return "sent";
+			return "sent";
+		} finally {
+			await stopPresence(context.chatId);
+		}
 	},
 };
+
+type PreparedSendMessageOutbound = Exclude<
+	Awaited<ReturnType<typeof prepareAssistantOutbound>>,
+	{ error: string }
+>;
+
+function prepareSendMessageOutbound(
+	context: TurnContext,
+	text: string,
+	quoteMessageLabel: number | undefined,
+	voice = false,
+): ReturnType<typeof prepareAssistantOutbound> {
+	return prepareAssistantOutbound({
+		context,
+		content: text,
+		kind: voice ? "send-message-voice" : "send-message",
+		logPrefix: "[send_message]",
+		...(voice ? { voice } : {}),
+		...(quoteMessageLabel !== undefined
+			? { messageRef: quoteMessageLabel }
+			: {}),
+	});
+}
+
+function quotedPart(
+	outbound: PreparedSendMessageOutbound,
+): Partial<Pick<PreparedSendMessageOutbound, "quoted">> {
+	return outbound.quoted ? { quoted: outbound.quoted } : {};
+}
 
 function shouldSendVoice(
 	asVoiceNote: boolean | undefined,

@@ -583,11 +583,11 @@ async function assembleHistory(
 	const scope = opts.scope ?? "full";
 	const agentName = turn.agent?.name;
 	const defaultAgent = getDefaultAgent(turn.chatId);
-	const showTrace = turn.config?.showTrace ?? settings.agentDefaults.showTrace;
+	const showTools = turn.config?.showTools ?? settings.agentDefaults.showTools;
 
 	const [allMessages, traces] = await Promise.all([
 		getConversation(),
-		showTrace ? getTraces() : Promise.resolve<TraceMap>(new Map()),
+		showTools ? getTraces() : Promise.resolve<TraceMap>(new Map()),
 	]);
 	const toolSummaries = summarizeTraceTools(traces);
 	const filtered = filterAgentHistory(

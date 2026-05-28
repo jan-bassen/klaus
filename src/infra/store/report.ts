@@ -74,7 +74,7 @@ const ReportConfigSchema = z.object({
 	modelTier: z.string().optional(),
 	historyLimit: z.number().optional(),
 	historyScope: z.string().optional(),
-	showTrace: z.boolean().optional(),
+	showTools: z.boolean().optional(),
 	report: z.boolean().optional(),
 });
 

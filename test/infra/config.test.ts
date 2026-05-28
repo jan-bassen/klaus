@@ -11,11 +11,13 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+	loadSettingsFromDisk,
 	requiredStartupApiKeyEnvVars,
 	resolveImageModel,
 	resolveModel,
 	settings,
 } from "../../src/infra/config.ts";
+import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 
 describe("infra/config env paths", () => {
 	it("uses fixed production paths when no override is set", () => {
@@ -74,6 +76,29 @@ describe("infra/config env paths", () => {
 		expect(JSON.parse(output)).toEqual({
 			data: "/tmp/klaus-data-env",
 			vault: "/tmp/klaus-vault-env",
+		});
+	});
+});
+
+describe("infra/config.loadSettingsFromDisk", () => {
+	let tmpDir: string;
+	let originalSettingsPath: string;
+
+	beforeEach(() => {
+		tmpDir = makeTmpDir();
+		originalSettingsPath = settings.vault.settingsPath;
+		settings.vault.settingsPath = path.join(tmpDir, "missing-settings.yml");
+	});
+
+	afterEach(() => {
+		settings.vault.settingsPath = originalSettingsPath;
+		rmTmpDir(tmpDir);
+	});
+
+	it("fails when the runtime settings file is missing", async () => {
+		await expect(loadSettingsFromDisk()).resolves.toMatchObject({
+			ok: false,
+			error: expect.stringContaining("Missing settings.yml"),
 		});
 	});
 });

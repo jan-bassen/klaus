@@ -129,7 +129,7 @@ topP: creative|default|rigid
 reasoningEffort: low|default|high
 historyLimit: 20
 historyScope: full|agent
-showTrace: true
+showTools: true
 report: true|false
 vaultAccess:
   - "*:full"
@@ -193,7 +193,7 @@ All under `{dataDir}` (`./data` locally, `/data` in production/Docker, or `KLAUS
 
 History reaction events target WhatsApp external IDs and are rendered as metadata on their real message rows. Bot reactions carry `agent` and `runId` when available, so reaction-only turns stay visible in future context without consuming separate `historyLimit` slots. If an agent reacts to a user message without sending a real reply, history rendering adds a transient assistant cue for the model only; it is not stored and has no quoteable `ref #n`.
 
-When `showTrace` is enabled, assistant history rows with persisted traces get a compact names-only `toolSummary` such as `search_messages, read_note`; tool arguments and results remain report-only.
+When `showTools` is enabled, assistant history rows with persisted traces get a compact names-only `toolSummary` such as `search_messages, read_note`; tool arguments and results remain report-only.
 
 Quoted context is persisted on user rows from WhatsApp quoted text, the stored original message, or a short media descriptor such as `quoted image`. Bundled history templates use the existing `{{trunc ...}}` helper to keep long quoted snippets, message bodies, and document extracts from bloating future turns.
 

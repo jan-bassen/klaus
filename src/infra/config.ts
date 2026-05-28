@@ -142,7 +142,7 @@ const AgentDefaultsSchema = z
 		reasoningEffort: z.enum(["low", "default", "high"]),
 		historyLimit: z.number(),
 		historyScope: z.enum(["full", "agent"]),
-		showTrace: z.boolean(),
+		showTools: z.boolean(),
 		report: z.boolean(),
 		/** Per-folder overrides applied on top of folder defaults. "*" is the wildcard fallback. */
 		vault: z.record(z.string(), AgentVaultEntrySchema),
@@ -169,11 +169,11 @@ const ProviderSchema = z
 const SamplingSchema = z
 	.object({
 		temperature: z.number().optional(),
-		coldTemperature: z.number().optional(),
-		hotTemperature: z.number().optional(),
+		coldTemperature: z.number(),
+		hotTemperature: z.number(),
 		topP: z.number().optional(),
-		creativeTopP: z.number().optional(),
-		rigidTopP: z.number().optional(),
+		creativeTopP: z.number(),
+		rigidTopP: z.number(),
 	})
 	.strict();
 
@@ -411,8 +411,7 @@ export async function loadSettingsFromDisk(): Promise<
 	const filePath = settings.vault.settingsPath;
 
 	if (!existsSync(filePath)) {
-		log.info("[config] no settings.yml in vault, using bundled defaults");
-		return { ok: true };
+		return { ok: false, error: `Missing settings.yml at ${filePath}` };
 	}
 
 	try {

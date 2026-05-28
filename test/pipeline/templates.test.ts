@@ -19,45 +19,55 @@ function writeTemplate(dir: string, name: string, content: string): void {
 }
 
 describe("pipeline/templates: resolveSampling", () => {
-	afterEach(() => {
-		// Reset sampling to a clean state
-		settings.sampling = {};
+	let originalSampling: typeof settings.sampling;
+
+	beforeEach(() => {
+		originalSampling = { ...settings.sampling };
 	});
 
-	it("returns empty object when no presets and no global sampling", () => {
-		settings.sampling = {};
+	afterEach(() => {
+		settings.sampling = originalSampling;
+	});
+
+	it("returns empty object when no active preset and no global sampling", () => {
+		settings.sampling = {
+			coldTemperature: 0,
+			hotTemperature: 1,
+			creativeTopP: 0.95,
+			rigidTopP: 0.1,
+		};
 		expect(resolveSampling({})).toEqual({});
 	});
 
 	it("cold preset → coldTemperature from settings", () => {
-		settings.sampling = { coldTemperature: 0.1 };
+		settings.sampling = { ...settings.sampling, coldTemperature: 0.1 };
 		expect(resolveSampling({ temperaturePreset: "cold" }).temperature).toBe(
 			0.1,
 		);
 	});
 
 	it("hot preset → hotTemperature from settings", () => {
-		settings.sampling = { hotTemperature: 0.9 };
+		settings.sampling = { ...settings.sampling, hotTemperature: 0.9 };
 		expect(resolveSampling({ temperaturePreset: "hot" }).temperature).toBe(0.9);
 	});
 
 	it("creative topP preset → creativeTopP from settings", () => {
-		settings.sampling = { creativeTopP: 0.98 };
+		settings.sampling = { ...settings.sampling, creativeTopP: 0.98 };
 		expect(resolveSampling({ topPPreset: "creative" }).topP).toBe(0.98);
 	});
 
 	it("rigid topP preset → rigidTopP from settings", () => {
-		settings.sampling = { rigidTopP: 0.05 };
+		settings.sampling = { ...settings.sampling, rigidTopP: 0.05 };
 		expect(resolveSampling({ topPPreset: "rigid" }).topP).toBe(0.05);
 	});
 
 	it("passes through global temperature when no preset", () => {
-		settings.sampling = { temperature: 0.5 };
+		settings.sampling = { ...settings.sampling, temperature: 0.5 };
 		expect(resolveSampling({}).temperature).toBe(0.5);
 	});
 
 	it("passes through global topP when no preset", () => {
-		settings.sampling = { topP: 0.8 };
+		settings.sampling = { ...settings.sampling, topP: 0.8 };
 		expect(resolveSampling({}).topP).toBe(0.8);
 	});
 

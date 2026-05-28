@@ -69,6 +69,10 @@ import {
 import { isAbortError, type Trigger } from "./pipeline/core.ts";
 import { dispatch } from "./pipeline/dispatch.ts";
 import { loadOverrides } from "./pipeline/overrides.ts";
+import {
+	frontmatterScheduleEntry,
+	frontmatterScheduleId,
+} from "./pipeline/schedules.ts";
 import { loadTemplates } from "./pipeline/templates.ts";
 import { loadAllTools } from "./primitives/tools/index.ts";
 import { loadSkills, skillRegistry } from "./primitives/tools/skill.ts";
@@ -165,10 +169,6 @@ async function runScheduledDispatch(
 	}
 }
 
-function frontmatterScheduleId(agentName: string, index: number): string {
-	return `frontmatter:${agentName}:${index}`;
-}
-
 function isFrontmatterSchedule(
 	entry: ScheduleEntry | TimerEntry,
 ): entry is ScheduleEntry {
@@ -197,18 +197,7 @@ async function syncAgentSchedules(def: AgentDefinition): Promise<void> {
 	}
 
 	for (const [index, schedule] of def.schedules.entries()) {
-		await addSchedule({
-			id: frontmatterScheduleId(def.name, index),
-			agentName: def.name,
-			pattern: schedule.pattern,
-			objective: "# Message",
-			...(schedule.overrides.length > 0
-				? { overrides: schedule.overrides }
-				: {}),
-			...(schedule.label ? { label: schedule.label } : {}),
-			createdBy: "scheduler",
-			createdAt: new Date().toISOString(),
-		});
+		await addSchedule(frontmatterScheduleEntry(def.name, index, schedule));
 	}
 }
 

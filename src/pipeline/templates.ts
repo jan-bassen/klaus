@@ -282,18 +282,18 @@ export function resolveSampling(config: TurnConfig): ResolvedSampling {
 
 	const tempPreset = config.temperaturePreset;
 	if (tempPreset === "cold") {
-		out.temperature = s.coldTemperature ?? 0;
+		out.temperature = s.coldTemperature;
 	} else if (tempPreset === "hot") {
-		out.temperature = s.hotTemperature ?? 1;
+		out.temperature = s.hotTemperature;
 	} else if (s.temperature !== undefined) {
 		out.temperature = s.temperature;
 	}
 
 	const topPPreset = config.topPPreset;
 	if (topPPreset === "creative") {
-		out.topP = s.creativeTopP ?? 0.95;
+		out.topP = s.creativeTopP;
 	} else if (topPPreset === "rigid") {
-		out.topP = s.rigidTopP ?? 0.1;
+		out.topP = s.rigidTopP;
 	} else if (s.topP !== undefined) {
 		out.topP = s.topP;
 	}

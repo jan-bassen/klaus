@@ -41,8 +41,8 @@ const AgentSettingsSchema = z
 		stepLimit: z.number().optional(),
 		historyLimit: z.number().optional(),
 		historyScope: z.enum(["full", "agent"]).optional(),
-		/** Render the per-turn `[Used X, Y → replied]` summary in history? */
-		showTrace: z.boolean().default(true),
+		/** Render names-only tool summaries on future assistant history rows? */
+		showTools: z.boolean().default(true),
 		report: z.boolean().default(true),
 		vault: z.record(z.string(), z.enum(["none", "read", "full"])).optional(),
 	})
@@ -119,7 +119,7 @@ const AgentFrontmatterSchema = z
 		stepLimit: z.number().optional(),
 		historyLimit: z.number().optional(),
 		historyScope: z.enum(["full", "agent"]).optional(),
-		showTrace: z.boolean().default(true),
+		showTools: z.boolean().default(true),
 		report: z.boolean().default(true),
 		vaultAccess: z.array(z.string()).default([]),
 		persist: z.boolean().default(false),
@@ -162,7 +162,7 @@ const AgentFrontmatterSchema = z
 				stepLimit: front.stepLimit,
 				historyLimit: front.historyLimit,
 				historyScope: front.historyScope,
-				showTrace: front.showTrace,
+				showTools: front.showTools,
 				report: front.report,
 				vault: parseVaultAccess(front.vaultAccess, ctx),
 			}),

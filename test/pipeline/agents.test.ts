@@ -43,13 +43,13 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 		expect(def.tools).toEqual(["send_message"]);
 	});
 
-	it("applies AgentSettings defaults (voice/temp/topP/showTrace/report)", async () => {
+	it("applies AgentSettings defaults (voice/temp/topP/showTools/report)", async () => {
 		writeAgent(tmpDir, "bare");
 		const def = await loadAgentDefinition(path.join(tmpDir, "bare.md"));
 		expect(def.settings.voice).toBe("auto");
 		expect(def.settings.temp).toBe("default");
 		expect(def.settings.topP).toBe("default");
-		expect(def.settings.showTrace).toBe(true);
+		expect(def.settings.showTools).toBe(true);
 		expect(def.settings.report).toBe(true);
 	});
 

@@ -40,7 +40,7 @@ export function getSetupCode(): string | null {
 	return _setupCode;
 }
 
-export function clearSetupCode(): void {
+function clearSetupCode(): void {
 	_setupCode = null;
 }
 
