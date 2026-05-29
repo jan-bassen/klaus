@@ -73,7 +73,6 @@ const connectionWarnAfterMs = Number(
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export type VaultPermission = "none" | "read" | "append" | "full";
 export type ModelTier = "small" | "medium" | "large";
 
 export const modelTiers: [ModelTier, ...ModelTier[]] = [
@@ -82,26 +81,23 @@ export const modelTiers: [ModelTier, ...ModelTier[]] = [
 	"large",
 ];
 
-export interface VaultFolder {
-	/** Relative to vault root, e.g. "Notes". Empty string "" for root-level files. */
-	path: string;
-	/** Always-on permission level. */
-	default: VaultPermission;
-}
-
 /** Per-agent override entry. */
 export type AgentVaultEntry = "none" | "read" | "full";
 
 // ── Zod schema (validates YAML from settings.yml) ──────────────────────────
 
-const VaultPermissionSchema = z.enum(["none", "read", "append", "full"]);
-
-const VaultFolderSchema = z
-	.object({
-		path: z.string(),
-		default: VaultPermissionSchema,
-	})
-	.strict();
+const VaultScopeSchema = z
+	.string()
+	.min(1)
+	.refine((value) => value !== "", "Use . for the vault root")
+	.refine((value) => !path.isAbsolute(value), "Scope must be vault-relative")
+	.refine(
+		(value) => {
+			const normalized = path.normalize(value);
+			return normalized === "." || !normalized.startsWith("..");
+		},
+		"Scope must stay inside the vault",
+	);
 
 const AgentVaultEntrySchema = z.enum(["none", "read", "full"]);
 
@@ -144,8 +140,8 @@ const AgentDefaultsSchema = z
 		historyScope: z.enum(["full", "agent"]),
 		showTools: z.boolean(),
 		report: z.boolean(),
-		/** Per-folder overrides applied on top of folder defaults. "*" is the wildcard fallback. */
-		vault: z.record(z.string(), AgentVaultEntrySchema),
+		/** Baseline path permissions inside `vault.scopes`; "*" is the wildcard fallback. */
+		vaultAccess: z.record(z.string(), AgentVaultEntrySchema),
 	})
 	.strict();
 
@@ -244,12 +240,7 @@ const VaultYamlSchema = z
 	.object({
 		watcherDebounce: z.number(),
 		maxList: z.number(),
-		folders: z.array(VaultFolderSchema),
-		internalPermission: z
-			.object({
-				default: VaultPermissionSchema,
-			})
-			.strict(),
+		scopes: z.array(VaultScopeSchema),
 	})
 	.strict();
 
@@ -363,7 +354,7 @@ function loadBundledDefaults(): YamlSettings {
  * existing imports stay valid after hot-reload. Consumers read fields
  * directly — no getter facade — so the structure is obvious.
  *
- * `vault` merges YAML fields (`folders`, `maxList`, …) with env-derived
+ * `vault` merges YAML fields (`scopes`, `maxList`, …) with env-derived
  * paths (`root`, `agentsDir`, …) into one surface. Env fields never change.
  *
  * `allowedChat` stays a getter because it falls back to `process.env` at read

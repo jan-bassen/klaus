@@ -26,11 +26,12 @@ agentDefaults:
   historyScope: full
   showTools: true
   report: true
-  vault:
-    "*": full
+  vaultAccess:
+    "*": read
+    Klaus: none
 
 # Active provider — name must match a key under `providers:`.
-defaultProvider: claude
+defaultProvider: openai
 
 # OpenAI-compatible chat completions endpoints. Add direct endpoints here
 # (e.g. anthropic-direct, openai-direct) if you want to bypass OpenRouter for
@@ -49,7 +50,7 @@ providers:
     tempScale: 1
     small: anthropic/claude-haiku-4.5
     medium: anthropic/claude-sonnet-4.6
-    large: anthropic/claude-opus-4.7
+    large: anthropic/claude-opus-4.8
   openai:
     endpoint: openrouter
     tempScale: 2
@@ -59,15 +60,15 @@ providers:
   gemini:
     endpoint: openrouter
     tempScale: 2
-    small: google/gemini-3.1-flash-lite-preview
-    medium: google/gemini-3-flash-preview
-    large: google/gemini-3.1-pro-preview
+    small: google/gemini-3.1-flash-lite
+    medium: google/gemini-3-flash
+    large: google/gemini-3.5-flash
   qwen:
     endpoint: openrouter
     tempScale: 2
-    small: qwen/qwen3.5-flash-02-23
+    small: qwen/qwen3.6-flash
     medium: qwen/qwen3.6-plus
-    large: qwen/qwen3.6-plus
+    large: qwen/qwen3.7-max
   deepseek:
     endpoint: openrouter
     tempScale: 2
@@ -123,11 +124,8 @@ whatsapp:
 vault:
   watcherDebounce: 1000
   maxList: 200
-  folders:
-    - path: ""
-      default: full
-  internalPermission:
-    default: read
+  scopes:
+    - "."
 
 persistence:
   minNextRun: 60000

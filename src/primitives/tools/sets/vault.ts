@@ -6,6 +6,7 @@ import { readText, scanFiles, writeData } from "../../../infra/runtime.ts";
 import {
 	checkPermission,
 	getReadableFolders,
+	isVaultPathReadable,
 	type VaultOp,
 } from "../../../infra/vault/index.ts";
 import {
@@ -147,15 +148,19 @@ export const vaultSearchTool: ToolDefinition<typeof vaultSearchSchema> = {
 
 		const readable = getReadableFolders(vaultMap(context));
 		const results: string[] = [];
+		const access = vaultMap(context);
 
 		for (const { absolutePath } of readable) {
 			if (results.length >= limit) break;
 
 			for await (const file of scanFiles(absolutePath, "**/*.md")) {
 				if (results.length >= limit) break;
+				const filePath = path.join(absolutePath, file);
+				const vaultRel = path.relative(vaultRoot(), filePath);
+				if (!isVaultPathReadable(vaultRel, access)) continue;
 
 				try {
-					const text = await readText(path.join(absolutePath, file));
+					const text = await readText(filePath);
 					const lower = text.toLowerCase();
 					if (terms.every((t) => lower.includes(t))) {
 						const lines = text.split("\n");
@@ -164,11 +169,6 @@ export const vaultSearchTool: ToolDefinition<typeof vaultSearchSchema> = {
 							return terms.some((t) => ll.includes(t));
 						});
 						const preview = matchLine?.trim().slice(0, 120) ?? "";
-						// Return vault-relative path
-						const vaultRel = path.relative(
-							vaultRoot(),
-							path.join(absolutePath, file),
-						);
 						results.push(`${vaultRel}${preview ? ` — ${preview}` : ""}`);
 					}
 				} catch {
@@ -210,7 +210,8 @@ export const vaultListTool: ToolDefinition<typeof vaultListSchema> = {
 
 		// No directory specified → show accessible top-level structure
 		if (!directory) {
-			const readable = getReadableFolders(vaultMap(context));
+			const access = vaultMap(context);
+			const readable = getReadableFolders(access);
 			const MAX_ENTRIES = settings.vault.maxList;
 			const lines: string[] = [];
 
@@ -227,6 +228,7 @@ export const vaultListTool: ToolDefinition<typeof vaultListSchema> = {
 					remaining,
 					lines,
 					folderName === "." ? 0 : 1,
+					access,
 				);
 			}
 
@@ -240,7 +242,7 @@ export const vaultListTool: ToolDefinition<typeof vaultListSchema> = {
 
 		const MAX_ENTRIES = settings.vault.maxList;
 		const lines: string[] = [];
-		await walkVaultDir(result, depth, MAX_ENTRIES, lines, 0);
+		await walkVaultDir(result, depth, MAX_ENTRIES, lines, 0, vaultMap(context));
 		return lines.length > 0 ? lines.join("\n") : "Empty directory.";
 	},
 };
@@ -341,18 +343,19 @@ export const vaultBacklinksTool: ToolDefinition<typeof vaultBacklinksSchema> = {
 		const pattern = wikilinkTargetPattern(noteTitle);
 		const readable = getReadableFolders(vaultMap(context));
 		const results: string[] = [];
+		const access = vaultMap(context);
 
 		for (const { absolutePath } of readable) {
 			for await (const file of scanFiles(absolutePath, "**/*.md")) {
+				const filePath = path.join(absolutePath, file);
+				const vaultRel = path.relative(vaultRoot(), filePath);
+				if (!isVaultPathReadable(vaultRel, access)) continue;
+
 				try {
-					const text = await readText(path.join(absolutePath, file));
+					const text = await readText(filePath);
 					const lines = text.split("\n");
 					const match = lines.find((l) => pattern.test(l));
 					if (match) {
-						const vaultRel = path.relative(
-							vaultRoot(),
-							path.join(absolutePath, file),
-						);
 						results.push(`${vaultRel} — ${match.trim().slice(0, 120)}`);
 					}
 				} catch {
@@ -414,15 +417,16 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 
 		let updatedCount = 0;
 		const skipped: string[] = [];
-		const readable = getReadableFolders(vaultMap(context));
+		const access = vaultMap(context);
+		const readable = getReadableFolders(access);
 
-		for (const { folder, absolutePath } of readable) {
-			// Only update backlinks in folders where we have default write access
-			const canWrite =
-				checkPermission(folder, "full", vaultMap(context)) === "allowed";
-
+		for (const { absolutePath } of readable) {
 			for await (const file of scanFiles(absolutePath, "**/*.md")) {
 				const filePath = path.join(absolutePath, file);
+				const vaultRel = path.relative(vaultRoot(), filePath);
+				if (!isVaultPathReadable(vaultRel, access)) continue;
+				const canWrite = checkPermission(vaultRel, "full", access) === "allowed";
+
 				try {
 					const text = await readText(filePath);
 					const updated = text.replace(pattern, `[[${newName}$1]]`);
@@ -431,7 +435,6 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 							await writeData(filePath, updated);
 							updatedCount++;
 						} else {
-							const vaultRel = path.relative(vaultRoot(), filePath);
 							skipped.push(vaultRel);
 						}
 					}
@@ -538,14 +541,19 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 		"Find notes by frontmatter tag, or list all tags used across the vault. Use listAll: true to discover available tags.",
 	inputSchema: vaultTagsSchema,
 	execute: async ({ tags, listAll }, context) => {
-		const readable = getReadableFolders(vaultMap(context));
+		const access = vaultMap(context);
+		const readable = getReadableFolders(access);
 
 		if (listAll) {
 			const allTags = new Set<string>();
 			for (const { absolutePath } of readable) {
 				for await (const file of scanFiles(absolutePath, "**/*.md")) {
+					const filePath = path.join(absolutePath, file);
+					const vaultRel = path.relative(vaultRoot(), filePath);
+					if (!isVaultPathReadable(vaultRel, access)) continue;
+
 					try {
-						const text = await readText(path.join(absolutePath, file));
+						const text = await readText(filePath);
 						for (const t of extractFrontmatterTags(text)) allTags.add(t);
 					} catch {
 						// Skip unreadable files
@@ -564,16 +572,16 @@ export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
 		const results: string[] = [];
 		for (const { absolutePath } of readable) {
 			for await (const file of scanFiles(absolutePath, "**/*.md")) {
+				const filePath = path.join(absolutePath, file);
+				const vaultRel = path.relative(vaultRoot(), filePath);
+				if (!isVaultPathReadable(vaultRel, access)) continue;
+
 				try {
-					const text = await readText(path.join(absolutePath, file));
+					const text = await readText(filePath);
 					const noteTags = extractFrontmatterTags(text).map((t) =>
 						t.toLowerCase(),
 					);
 					if (noteTags.some((t) => searchTags.has(t))) {
-						const vaultRel = path.relative(
-							vaultRoot(),
-							path.join(absolutePath, file),
-						);
 						results.push(vaultRel);
 					}
 				} catch {
@@ -679,7 +687,7 @@ export const vaultOutlineTool: ToolDefinition<typeof vaultOutlineSchema> = {
 export const vaultToolset: ToolsetDefinition = {
 	name: "vault",
 	description:
-		"Use when the request involves Jan's vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. The vault has multiple folders with different permission levels. Notes are memory, [[wikilinks]] are relationships, frontmatter tags enable discovery. Use for anything that sounds like a note, a document, something to remember, or something Jan would have written down. Prefer read-before-write: use vault_read or vault_outline before modifying notes to understand structure, language, and existing content.",
+		"Use when the request involves Jan's vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. Agent vault access is path-scoped, so some notes or folders may be unreadable or read-only. Notes are memory, [[wikilinks]] are relationships, frontmatter tags enable discovery. Use for anything that sounds like a note, a document, something to remember, or something Jan would have written down. Prefer read-before-write: use vault_read or vault_outline before modifying notes to understand structure, language, and existing content.",
 	tools: [
 		vaultReadTool,
 		vaultSearchTool,

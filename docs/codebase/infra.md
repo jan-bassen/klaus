@@ -20,7 +20,11 @@ The exported `settings` object is live and mutable, which tests use for targeted
 
 The first-run rule is important: `ensureDefaults()` checks only whether `{vault}/Klaus/` exists. If it does not, Klaus copies the repo `vault/` tree once. If it does, that folder is user-owned and must not be merged or overwritten.
 
-Vault permissions are layered from settings defaults, agent frontmatter, and per-turn overrides. The tool implementations live in `src/primitives/tools/sets/vault.ts`; `src/infra/vault/tools.ts` holds shared permission/listing helpers.
+Vault access starts with `settings.vault.scopes`, the global path allowlist for
+what Klaus may ever touch. Inside those scopes, permissions are layered from
+`settings.agentDefaults.vaultAccess`, agent frontmatter, and per-turn overrides.
+The tool implementations live in `src/primitives/tools/sets/vault.ts`;
+`src/infra/vault/tools.ts` holds shared permission/listing helpers.
 
 ## WhatsApp
 

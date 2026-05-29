@@ -23,12 +23,18 @@ last valid config and send a warning.
 | `sampling` | Normalized sampling presets. |
 | `media` | Voice, image, and document parsing/generation settings. |
 | `whatsapp` | Self-mode, labels, send delays, retries, media limits, presence. |
-| `vault` | Watcher, list limits, folder defaults, internal permissions. |
+| `vault` | Watcher, list limits, and global vault scopes. |
 | `persistence` | Dynamic persistence timing clamps. |
 | `reports` | JSON/Markdown report behavior. |
 | `sync` | Obsidian Sync supervisor settings. |
 
 If code adds a tunable setting, add it to both `vault/settings.yml` and `src/infra/config.ts`. Do not use Zod `.default()` fallbacks for runtime settings.
+
+`vault.scopes` is Klaus' global vault sandbox. Each entry is a vault-relative
+path, with `"."` meaning the vault root. Agent access can only grant permissions
+inside these scopes; it cannot open paths outside them. Permissions live under
+`agentDefaults.vaultAccess`, agent frontmatter `vaultAccess`, and per-turn
+override `vault` maps.
 
 `media.voice.tts` and `media.voice.stt` use the same named endpoints as the
 model providers. The bundled template routes both through OpenRouter: Gemini

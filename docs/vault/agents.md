@@ -130,11 +130,13 @@ When an agent declares `skills`, Klaus adds the scoped `read_skill` tool automat
 
 ## Vault Permissions
 
-Vault access is layered:
+Vault access has two layers:
 
-1. Folder defaults from `settings.yml`
-2. Agent `vaultAccess`
-3. Per-turn override `vault` entries
+1. `settings.vault.scopes` is the global path allowlist for what Klaus may ever touch.
+2. `agentDefaults.vaultAccess`, agent `vaultAccess`, and per-turn override `vault` entries decide permissions inside those scopes.
+
+Access keys are vault-relative paths. Longest path wins, and `"*"` is the
+fallback. Agent permissions cannot grant access outside `vault.scopes`.
 
 Example:
 
@@ -142,6 +144,7 @@ Example:
 toolsets: [vault]
 vaultAccess:
   - "*:read"
+  - "Klaus:none"
   - "Journal:none"
   - "Projects/Klaus:full"
 ```

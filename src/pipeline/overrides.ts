@@ -236,8 +236,9 @@ function fromGlobalDefaults(): TurnConfig {
  * Layered build: globalDefaults → agent settings → per-message overrides.
  * Per-message wins. `!voice` always clears `suppressVoice` (UX guarantee).
  *
- * `vault` map is deep-merged across the three layers (later keys win) so a
- * global wildcard like `{"*":"read"}` survives a per-agent `{"Training":"full"}`.
+ * Vault access maps are deep-merged across the three layers (later keys win) so
+ * a global wildcard like `{"*":"read"}` survives a per-agent
+ * `{"Training":"full"}`.
  */
 export function buildTurnConfig(
 	def: AgentDefinition,
@@ -251,7 +252,7 @@ export function buildTurnConfig(
 	};
 
 	const vaultMap: Record<string, AgentVaultEntry> = {
-		...(settings.agentDefaults.vault ?? {}),
+		...(settings.agentDefaults.vaultAccess ?? {}),
 		...(def.settings.vault ?? {}),
 		...(presets.vault ?? {}),
 	};

@@ -1,9 +1,3 @@
-/**
- * Covers the security-critical path-traversal guard, the longest-prefix
- * folder match, the internal-folder shortcut, and how agent maps prune the
- * readable folder list.
- */
-
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { settings } from "../../../src/infra/config.ts";
@@ -16,37 +10,24 @@ import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 describe("infra/vault: resolveVaultPath", () => {
 	let tmp: string;
 	let savedRoot: string;
-	let savedInternalPath: string;
-	let savedFolders: typeof settings.vault.folders;
-	let savedInternalPerm: typeof settings.vault.internalPermission;
+	let savedScopes: typeof settings.vault.scopes;
 
 	beforeEach(() => {
 		tmp = makeTmpDir();
 		savedRoot = settings.vault.root;
-		savedInternalPath = settings.vault.internalPath;
-		savedFolders = settings.vault.folders;
-		savedInternalPerm = settings.vault.internalPermission;
+		savedScopes = settings.vault.scopes;
 
 		settings.vault.root = tmp;
-		settings.vault.internalPath = path.join(tmp, "Klaus");
-		settings.vault.folders = [
-			{ path: "", default: "read" },
-			{ path: "Notes", default: "full" },
-			{ path: "Notes/Private", default: "none" },
-			{ path: "Inbox", default: "append" },
-		];
-		settings.vault.internalPermission = { default: "full" };
+		settings.vault.scopes = ["."];
 	});
 
 	afterEach(() => {
 		settings.vault.root = savedRoot;
-		settings.vault.internalPath = savedInternalPath;
-		settings.vault.folders = savedFolders;
-		settings.vault.internalPermission = savedInternalPerm;
+		settings.vault.scopes = savedScopes;
 		rmTmpDir(tmp);
 	});
 
-	it("rejects ../ traversal that escapes the vault root", () => {
+	it("rejects traversal that escapes the vault root", () => {
 		expect(resolveVaultPath("../etc/passwd")).toBeNull();
 		expect(resolveVaultPath("Notes/../../escape")).toBeNull();
 	});
@@ -55,111 +36,93 @@ describe("infra/vault: resolveVaultPath", () => {
 		expect(resolveVaultPath("/etc/passwd")).toBeNull();
 	});
 
-	it("resolves files inside a configured folder", () => {
-		const r = resolveVaultPath("Notes/today.md");
-		expect(r).not.toBeNull();
-		expect(r?.folder.path).toBe("Notes");
-		expect(r?.absolute).toBe(path.join(tmp, "Notes/today.md"));
-		expect(r?.isInternal).toBe(false);
+	it("'.' scope resolves root files and nested files", () => {
+		expect(resolveVaultPath("scratch.md")).toMatchObject({
+			absolute: path.join(tmp, "scratch.md"),
+			path: "scratch.md",
+		});
+		expect(resolveVaultPath("Notes/today.md")).toMatchObject({
+			absolute: path.join(tmp, "Notes/today.md"),
+			path: path.join("Notes", "today.md"),
+		});
 	});
 
-	it("longest-prefix wins (Notes/Private beats Notes)", () => {
-		const r = resolveVaultPath("Notes/Private/journal.md");
-		expect(r?.folder.path).toBe("Notes/Private");
-	});
+	it("specific scopes allow only their subtree", () => {
+		settings.vault.scopes = ["Notes"];
 
-	it("root-level files match the empty-string catch-all folder", () => {
-		const r = resolveVaultPath("scratch.md");
-		expect(r?.folder.path).toBe("");
-		expect(r?.isInternal).toBe(false);
-	});
-
-	it("internal Klaus/ paths return isInternal=true with internalPermission", () => {
-		const r = resolveVaultPath("Klaus/agents/coach.md");
-		expect(r?.isInternal).toBe(true);
-		expect(r?.folder.path).toBe("Klaus");
-		expect(r?.folder.default).toBe("full");
-	});
-
-	it("returns null when no folder matches and there's no root catch-all", () => {
-		settings.vault.folders = [{ path: "Notes", default: "read" }];
+		expect(resolveVaultPath("Notes/today.md")?.path).toBe(
+			path.join("Notes", "today.md"),
+		);
 		expect(resolveVaultPath("Inbox/thing.md")).toBeNull();
 	});
 
-	it("similar-prefix folders don't false-match (Notes vs NotesArchive)", () => {
-		settings.vault.folders = [
-			{ path: "Notes", default: "full" },
-			{ path: "NotesArchive", default: "read" },
-		];
-		expect(resolveVaultPath("NotesArchive/x.md")?.folder.path).toBe(
-			"NotesArchive",
+	it("Klaus paths are normal vault paths when covered by scope", () => {
+		const r = resolveVaultPath("Klaus/agents/coach.md");
+		expect(r).toMatchObject({
+			absolute: path.join(tmp, "Klaus/agents/coach.md"),
+			path: path.join("Klaus", "agents", "coach.md"),
+		});
+	});
+
+	it("similar-prefix scopes do not false-match", () => {
+		settings.vault.scopes = ["Notes", "NotesArchive"];
+
+		expect(resolveVaultPath("NotesArchive/x.md")?.path).toBe(
+			path.join("NotesArchive", "x.md"),
 		);
-		expect(resolveVaultPath("Notes/x.md")?.folder.path).toBe("Notes");
+		expect(resolveVaultPath("Notes/x.md")?.path).toBe(path.join("Notes", "x.md"));
+		expect(resolveVaultPath("Notebook/x.md")).toBeNull();
 	});
 });
 
 describe("infra/vault: getReadableFolders", () => {
 	let tmp: string;
 	let savedRoot: string;
-	let savedInternalPath: string;
-	let savedFolders: typeof settings.vault.folders;
-	let savedInternalPerm: typeof settings.vault.internalPermission;
+	let savedScopes: typeof settings.vault.scopes;
 
 	beforeEach(() => {
 		tmp = makeTmpDir();
 		savedRoot = settings.vault.root;
-		savedInternalPath = settings.vault.internalPath;
-		savedFolders = settings.vault.folders;
-		savedInternalPerm = settings.vault.internalPermission;
+		savedScopes = settings.vault.scopes;
 
 		settings.vault.root = tmp;
-		settings.vault.internalPath = path.join(tmp, "Klaus");
-		settings.vault.folders = [
-			{ path: "Notes", default: "full" },
-			{ path: "Private", default: "read" },
-			{ path: "Secrets", default: "none" },
-		];
-		settings.vault.internalPermission = { default: "full" };
+		settings.vault.scopes = ["."];
 	});
 
 	afterEach(() => {
 		settings.vault.root = savedRoot;
-		settings.vault.internalPath = savedInternalPath;
-		settings.vault.folders = savedFolders;
-		settings.vault.internalPermission = savedInternalPerm;
+		settings.vault.scopes = savedScopes;
 		rmTmpDir(tmp);
 	});
 
-	it("excludes folders with default 'none'", () => {
-		const r = getReadableFolders();
-		const paths = r.map((x) => x.folder.path);
-		expect(paths).toContain("Notes");
-		expect(paths).toContain("Private");
-		expect(paths).not.toContain("Secrets");
-		expect(paths).toContain("Klaus");
+	it("returns scoped roots allowed by the access map", () => {
+		const r = getReadableFolders({ "*": "read", Klaus: "none" });
+		expect(r).toEqual([{ path: ".", absolutePath: tmp }]);
 	});
 
-	it("agent map can drop a folder out of readable list", () => {
-		const r = getReadableFolders({ Notes: "none" });
-		expect(r.map((x) => x.folder.path)).not.toContain("Notes");
+	it("can expose an explicitly allowed subpath under an unreadable scope", () => {
+		const r = getReadableFolders({ "*": "none", Klaus: "full" });
+		expect(r).toEqual([
+			{ path: "Klaus", absolutePath: path.join(tmp, "Klaus") },
+		]);
 	});
 
-	it("agent map can make a folder readable", () => {
-		const r = getReadableFolders({ Secrets: "read" });
-		expect(r.map((x) => x.folder.path)).toContain("Secrets");
+	it("cannot expose access paths outside vault scopes", () => {
+		settings.vault.scopes = ["Notes"];
+		const r = getReadableFolders({ "*": "none", Klaus: "full" });
+		expect(r).toEqual([]);
 	});
 
-	it("'*' wildcard hides everything not explicitly overridden", () => {
-		const r = getReadableFolders({ "*": "none", Notes: "read" });
-		expect(r.map((x) => x.folder.path)).toEqual(
-			expect.arrayContaining(["Notes"]),
-		);
-		expect(r.map((x) => x.folder.path)).not.toContain("Private");
+	it("ignores explicit access paths that escape the vault", () => {
+		const r = getReadableFolders({ "*": "none", "../outside": "full" });
+		expect(r).toEqual([]);
 	});
 
 	it("returns absolute paths anchored at the vault root", () => {
-		const r = getReadableFolders();
-		const notes = r.find((x) => x.folder.path === "Notes");
-		expect(notes?.absolutePath).toBe(path.join(tmp, "Notes"));
+		settings.vault.scopes = ["Notes"];
+		const r = getReadableFolders({ "*": "read" });
+		expect(r).toEqual([
+			{ path: "Notes", absolutePath: path.join(tmp, "Notes") },
+		]);
 	});
 });

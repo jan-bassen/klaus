@@ -134,6 +134,7 @@ showTools: true
 report: true|false
 vaultAccess:
   - "*:full"
+  - "Klaus:none"
   - "Private:none"
 persist: true
 persistHint: "reschedule based on user's next workout"

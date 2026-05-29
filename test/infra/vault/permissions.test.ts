@@ -1,60 +1,42 @@
 import { describe, expect, it } from "vitest";
-import type { VaultFolder } from "../../../src/infra/config.ts";
 import { checkPermission } from "../../../src/infra/vault/index.ts";
 
-const FOLDER_PRIVATE: VaultFolder = {
-	path: "Private",
-	default: "read",
-};
-
-const FOLDER_INBOX: VaultFolder = {
-	path: "Inbox",
-	default: "full",
-};
-
-const FOLDER_SECRETS: VaultFolder = {
-	path: "Secrets",
-	default: "none",
-};
-
 describe("infra/vault: checkPermission", () => {
-	it("returns 'allowed' when op is at or below default", () => {
-		expect(checkPermission(FOLDER_PRIVATE, "read")).toBe("allowed");
-		expect(checkPermission(FOLDER_INBOX, "full")).toBe("allowed");
+	it("denies when no access rule matches", () => {
+		expect(checkPermission("Notes/today.md", "read")).toBe("denied");
 	});
 
-	it("returns 'denied' when op exceeds default", () => {
-		expect(checkPermission(FOLDER_INBOX, "full")).toBe("allowed");
-		expect(checkPermission(FOLDER_SECRETS, "read")).toBe("denied");
-		expect(checkPermission(FOLDER_SECRETS, "full")).toBe("denied");
-	});
-
-	it("agent override replaces the default", () => {
-		expect(checkPermission(FOLDER_PRIVATE, "full", { Private: "read" })).toBe(
+	it("uses '*' as the fallback access rule", () => {
+		expect(checkPermission("Inbox/today.md", "read", { "*": "read" })).toBe(
+			"allowed",
+		);
+		expect(checkPermission("Inbox/today.md", "full", { "*": "read" })).toBe(
 			"denied",
 		);
-		expect(
-			checkPermission(FOLDER_PRIVATE, "full", {
-				Private: "full",
-			}),
-		).toBe("allowed");
 	});
 
-	it("'*' wildcard applies when no exact match", () => {
-		expect(checkPermission(FOLDER_INBOX, "full", { "*": "read" })).toBe(
+	it("longest matching path wins over wildcard and shorter paths", () => {
+		const access = {
+			"*": "read",
+			Projects: "none",
+			"Projects/Klaus": "full",
+		} as const;
+
+		expect(checkPermission("Daily.md", "read", access)).toBe("allowed");
+		expect(checkPermission("Projects/Secret.md", "read", access)).toBe(
 			"denied",
 		);
-		expect(checkPermission(FOLDER_INBOX, "read", { "*": "read" })).toBe(
+		expect(checkPermission("Projects/Klaus/Plan.md", "full", access)).toBe(
 			"allowed",
 		);
 	});
 
-	it("exact path match wins over wildcard", () => {
-		expect(
-			checkPermission(FOLDER_INBOX, "full", {
-				"*": "read",
-				Inbox: "full",
-			}),
-		).toBe("allowed");
+	it("requires full access for append operations", () => {
+		expect(checkPermission("Inbox/today.md", "append", { "*": "read" })).toBe(
+			"denied",
+		);
+		expect(checkPermission("Inbox/today.md", "append", { "*": "full" })).toBe(
+			"allowed",
+		);
 	});
 });

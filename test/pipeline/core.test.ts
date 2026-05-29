@@ -27,6 +27,12 @@ const sendMessageSchema = z.object({
 const probeSchema = z.object({ value: z.string().optional() });
 const hiddenSchema = z.object({});
 
+function defaultModel(tier: "medium" | "large"): string {
+	const provider = settings.providers[settings.defaultProvider];
+	if (!provider) throw new Error(`Missing provider ${settings.defaultProvider}`);
+	return provider[tier];
+}
+
 vi.mock("@openrouter/sdk", () => ({
 	OpenRouter: vi.fn(function OpenRouter() {
 		return {
@@ -160,7 +166,7 @@ describe("pipeline/core.executeAgent", () => {
 		const result = await executeAgent({ turn, def, variables: [] });
 
 		expect(result).toMatchObject({
-			model: "anthropic/claude-sonnet-4.6",
+			model: defaultModel("medium"),
 			tier: "medium",
 			usage: { promptTokens: 16, completionTokens: 20 },
 			systemPrompt: "You are core-test.",
@@ -193,7 +199,7 @@ describe("pipeline/core.executeAgent", () => {
 			],
 		});
 		expect(firstChatRequest()).toMatchObject({
-			model: "anthropic/claude-sonnet-4.6",
+			model: defaultModel("medium"),
 			messages: [
 				{ role: "system", content: "You are core-test." },
 				{ role: "user", content: "objective" },
@@ -649,7 +655,7 @@ describe("pipeline/core.executeAgent", () => {
 			agent: "core-test",
 			outcome: { kind: "ok" },
 			llm: {
-				model: "anthropic/claude-sonnet-4.6",
+				model: defaultModel("medium"),
 				steps: [
 					{
 						toolCalls: [{ tool: "probe", args: { value: "reported" } }],

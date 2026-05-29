@@ -17,6 +17,12 @@ import { makeTurn } from "../helpers/turn.ts";
 
 const sendMock = vi.hoisted(() => vi.fn());
 
+function defaultModel(tier: "medium"): string {
+	const provider = settings.providers[settings.defaultProvider];
+	if (!provider) throw new Error(`Missing provider ${settings.defaultProvider}`);
+	return provider[tier];
+}
+
 vi.mock("@openrouter/sdk", () => ({
 	OpenRouter: vi.fn(function OpenRouter() {
 		return {
@@ -82,7 +88,7 @@ describe("pipeline/persistence.persistDynamic", () => {
 
 		expect(sendMock).toHaveBeenCalledOnce();
 		expect(firstChatRequest()).toMatchObject({
-			model: "anthropic/claude-sonnet-4.6",
+			model: defaultModel("medium"),
 			toolChoice: { type: "function", function: { name: "persist" } },
 			stream: false,
 		});

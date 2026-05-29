@@ -56,6 +56,13 @@ import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 
 const sendMock = vi.hoisted(() => vi.fn());
 const probeSchema = z.object({ value: z.number() });
+
+function defaultModel(tier: "medium" | "large"): string {
+	const provider = settings.providers[settings.defaultProvider];
+	if (!provider) throw new Error(`Missing provider ${settings.defaultProvider}`);
+	return provider[tier];
+}
+
 const probeTool: ToolDefinition<typeof probeSchema> = {
 	name: "probe",
 	description: "Probe tool for index tests",
@@ -292,7 +299,7 @@ describe("pipeline/index.handleTurn", () => {
 			trigger: { kind: "message", messageId: msg.id },
 			outcome: { kind: "ok" },
 			llm: expect.objectContaining({
-				model: "anthropic/claude-sonnet-4.6",
+				model: defaultModel("medium"),
 				steps: [
 					expect.objectContaining({
 						toolCalls: [expect.objectContaining({ tool: "send_message" })],
@@ -363,7 +370,7 @@ describe("pipeline/index.handleTurn", () => {
 
 		expect(getNextPrefix("chat1")).toBeUndefined();
 		expect(firstChatRequest()).toMatchObject({
-			model: "anthropic/claude-opus-4.7",
+			model: defaultModel("large"),
 		});
 		expect(enqueueMessage).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -426,7 +433,7 @@ describe("pipeline/index.handleTurn", () => {
 		await handleTurn(makeMsg("chat1", "", "!large hello"));
 
 		expect(firstChatRequest()).toMatchObject({
-			model: "anthropic/claude-opus-4.7",
+			model: defaultModel("large"),
 		});
 		expect((await getConversation())[0]).toMatchObject({
 			content: "hello",

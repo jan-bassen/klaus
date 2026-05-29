@@ -7,6 +7,7 @@ import {
 	type AgentVaultMap,
 	accessError,
 	checkPermission,
+	isVaultPathReadable,
 	permissionError,
 	resolveVaultPath,
 	type VaultOp,
@@ -25,8 +26,8 @@ export async function gateVaultTool(
 	const resolved = resolveVaultPath(rel);
 	if (!resolved) return { error: accessError() };
 
-	if (checkPermission(resolved.folder, op, vaultMap(context)) === "denied") {
-		return { error: permissionError(resolved.folder.path, op) };
+	if (checkPermission(resolved.path, op, vaultMap(context)) === "denied") {
+		return { error: permissionError(resolved.path, op) };
 	}
 
 	return resolved.absolute;
@@ -38,6 +39,7 @@ export async function walkVaultDir(
 	maxEntries: number,
 	lines: string[],
 	indent: number,
+	agentMap?: AgentVaultMap,
 ): Promise<number> {
 	if (indent >= maxDepth || maxEntries <= 0) return maxEntries;
 
@@ -59,15 +61,20 @@ export async function walkVaultDir(
 		if (entry.name.startsWith(".")) continue;
 
 		const prefix = "  ".repeat(indent);
+		const filePath = path.join(dir, entry.name);
+		const vaultRel = path.relative(vaultRoot(), filePath) || ".";
+		if (!isVaultPathReadable(vaultRel, agentMap)) continue;
+
 		if (entry.isDirectory()) {
 			lines.push(`${prefix}${entry.name}/`);
 			remaining--;
 			remaining = await walkVaultDir(
-				path.join(dir, entry.name),
+				filePath,
 				maxDepth,
 				remaining,
 				lines,
 				indent + 1,
+				agentMap,
 			);
 		} else if (entry.name.endsWith(".md")) {
 			lines.push(`${prefix}${entry.name}`);

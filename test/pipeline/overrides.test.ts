@@ -111,10 +111,10 @@ describe("pipeline/overrides.buildTurnConfig", () => {
 			overrides: { vault: { Private: "full" } },
 		});
 		const agent = makeAgent({ vault: { Notes: "read" } });
-		// settings.agentDefaults.vault is "*: full" by default.
 		const cfg = buildTurnConfig(agent, { openPrivate: true });
 		expect(cfg.vault).toMatchObject({
-			"*": "full",
+			"*": "read",
+			Klaus: "none",
 			Notes: "read",
 			Private: "full",
 		});

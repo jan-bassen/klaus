@@ -1,24 +1,24 @@
 import path from "node:path";
-import {
-	type AgentVaultEntry,
-	settings,
-	type VaultFolder,
-	type VaultPermission,
-} from "../config.ts";
+import { type AgentVaultEntry, settings } from "../config.ts";
 
 export type VaultOp = "read" | "append" | "full";
+type VaultPermission = AgentVaultEntry | "append";
 type PermissionCheck = "allowed" | "denied";
 
-/** Per-agent override map: folder.path → permission entry. "*" matches any folder. */
+/** Per-agent path permission map. "*" is the fallback for any scoped path. */
 export type AgentVaultMap = Record<string, AgentVaultEntry>;
 
 interface ResolvedPath {
 	/** Absolute filesystem path. */
 	absolute: string;
-	/** The folder config this path belongs to. */
-	folder: VaultFolder;
-	/** Whether this path is inside the internal folder (Klaus/). */
-	isInternal: boolean;
+	/** Vault-relative path, with "." for the vault root. */
+	path: string;
+}
+
+export interface ReadableVaultRoot {
+	/** Vault-relative path, with "." for the vault root. */
+	path: string;
+	absolutePath: string;
 }
 
 const PERM_LEVEL: Record<VaultPermission, number> = {
@@ -28,125 +28,126 @@ const PERM_LEVEL: Record<VaultPermission, number> = {
 	full: 3,
 };
 
-interface EffectivePermission {
-	default: VaultPermission;
+function normalizeVaultRelative(value: string): string {
+	const normalized = path.normalize(value || ".");
+	return normalized === "" ? "." : normalized;
 }
 
-/**
- * The agent's vault map override (if any) replaces the folder's default
- * permission. Exact `folder.path` match wins over the `"*"` wildcard.
- */
-function effectivePermission(
-	folder: VaultFolder,
+function absoluteForVaultPath(vaultPath: string): string {
+	const root = settings.vault.root;
+	return vaultPath === "." ? root : path.resolve(root, vaultPath);
+}
+
+function isWithinVaultPath(child: string, parent: string): boolean {
+	if (parent === ".") return true;
+	return child === parent || child.startsWith(`${parent}${path.sep}`);
+}
+
+function matchingAccessEntry(
+	vaultPath: string,
 	agentMap?: AgentVaultMap,
-): EffectivePermission {
-	const fallback: EffectivePermission = { default: folder.default };
-	if (!agentMap) return fallback;
-	const entry = agentMap[folder.path] ?? agentMap["*"];
-	if (entry === undefined) return fallback;
-	return { default: entry };
+): AgentVaultEntry | undefined {
+	if (!agentMap) return undefined;
+
+	let best: { key: string; entry: AgentVaultEntry } | undefined;
+	for (const [rawKey, entry] of Object.entries(agentMap)) {
+		if (rawKey === "*") continue;
+		const key = normalizeVaultRelative(rawKey);
+		if (!isWithinVaultPath(vaultPath, key)) continue;
+		if (!best || key.length > best.key.length) best = { key, entry };
+	}
+
+	return best?.entry ?? agentMap["*"];
 }
 
 /**
- * Check whether an operation is allowed on a folder.
- *   - `allowed` — op level ≤ effective default
- *   - `denied`  — op level > effective default
+ * Check whether an operation is allowed on a vault-relative path.
+ * Longest matching access path wins; "*" is the fallback; no match denies.
  */
 export function checkPermission(
-	folder: VaultFolder,
+	vaultPath: string,
 	op: VaultOp,
 	agentMap?: AgentVaultMap,
 ): PermissionCheck {
-	const eff = effectivePermission(folder, agentMap);
+	const entry = matchingAccessEntry(normalizeVaultRelative(vaultPath), agentMap);
+	if (!entry) return "denied";
 	const needed = PERM_LEVEL[op];
-	if (needed <= PERM_LEVEL[eff.default]) return "allowed";
+	if (needed <= PERM_LEVEL[entry]) return "allowed";
 	return "denied";
 }
 
 /**
- * Resolve a vault-relative path to its owning folder + absolute path.
- * Returns null if the path escapes the vault root or falls outside any
- * configured folder.
+ * Resolve a vault-relative path to an absolute path.
+ * Returns null if the path escapes the vault root or falls outside all
+ * configured global scopes.
  */
 export function resolveVaultPath(relative: string): ResolvedPath | null {
 	const root = settings.vault.root;
 	const resolved = path.resolve(root, relative);
 
-	// Path traversal guard
 	if (resolved !== root && !resolved.startsWith(root + path.sep)) return null;
 
-	// Check if path falls under the internal directory
-	const internalPath = settings.vault.internalPath;
-	if (
-		resolved === internalPath ||
-		resolved.startsWith(internalPath + path.sep)
-	) {
-		return {
-			absolute: resolved,
-			folder: {
-				path: settings.vault.internal,
-				...settings.vault.internalPermission,
-			},
-			isInternal: true,
-		};
-	}
-
-	// Match against configured folders (longest prefix first)
-	const sorted = [...settings.vault.folders].sort(
-		(a, b) => b.path.length - a.path.length,
-	);
-
-	for (const folder of sorted) {
-		if (folder.path === "") {
-			// Root-level catch-all: only matches files directly in root or
-			// paths not claimed by any other folder
-			return { absolute: resolved, folder, isInternal: false };
-		}
-
-		const folderAbs = path.resolve(root, folder.path);
-		if (resolved === folderAbs || resolved.startsWith(folderAbs + path.sep)) {
-			return { absolute: resolved, folder, isInternal: false };
+	const vaultPath = normalizeVaultRelative(path.relative(root, resolved));
+	for (const scope of settings.vault.scopes) {
+		const scopePath = normalizeVaultRelative(scope);
+		const scopeAbs = absoluteForVaultPath(scopePath);
+		if (resolved === scopeAbs || resolved.startsWith(scopeAbs + path.sep)) {
+			return { absolute: resolved, path: vaultPath };
 		}
 	}
 
-	// No matching folder — path is outside configured areas
 	return null;
 }
 
-/** Return all folders the agent can read, after applying the agent vault map. */
+/** Return scoped roots the agent can read, after applying its access map. */
 export function getReadableFolders(
 	agentMap?: AgentVaultMap,
-): Array<{ folder: VaultFolder; absolutePath: string }> {
-	const root = settings.vault.root;
-	const results: Array<{ folder: VaultFolder; absolutePath: string }> = [];
+): ReadableVaultRoot[] {
+	const results: ReadableVaultRoot[] = [];
 
-	const internalFolder: VaultFolder = {
-		path: settings.vault.internal,
-		...settings.vault.internalPermission,
-	};
-	if (checkPermission(internalFolder, "read", agentMap) !== "denied") {
+	function add(vaultPath: string) {
+		const normalized = normalizeVaultRelative(vaultPath);
+		if (results.some((entry) => entry.path === normalized)) return;
 		results.push({
-			folder: internalFolder,
-			absolutePath: settings.vault.internalPath,
+			path: normalized,
+			absolutePath: absoluteForVaultPath(normalized),
 		});
 	}
 
-	for (const folder of settings.vault.folders) {
-		if (checkPermission(folder, "read", agentMap) === "denied") continue;
-		const abs = folder.path === "" ? root : path.resolve(root, folder.path);
-		results.push({ folder, absolutePath: abs });
+	for (const rawScope of settings.vault.scopes) {
+		const scope = normalizeVaultRelative(rawScope);
+		if (checkPermission(scope, "read", agentMap) !== "denied") {
+			add(scope);
+			continue;
+		}
+
+		for (const [rawPath, permission] of Object.entries(agentMap ?? {})) {
+			if (rawPath === "*" || PERM_LEVEL[permission] < PERM_LEVEL.read) {
+				continue;
+			}
+			const vaultPath = normalizeVaultRelative(rawPath);
+			const resolved = resolveVaultPath(vaultPath);
+			if (resolved && isWithinVaultPath(resolved.path, scope)) add(resolved.path);
+		}
 	}
 
 	return results;
 }
 
+export function isVaultPathReadable(
+	vaultPath: string,
+	agentMap?: AgentVaultMap,
+): boolean {
+	return checkPermission(vaultPath, "read", agentMap) !== "denied";
+}
+
 /** Human-readable error for path resolution failure. */
 export function accessError(): string {
-	return "Invalid path — must be inside a configured vault folder.";
+	return "Invalid path — must be inside a configured vault scope.";
 }
 
 /** Human-readable error for permission denial. */
-export function permissionError(folderPath: string, op: VaultOp): string {
-	const name = folderPath || "(root)";
+export function permissionError(vaultPath: string, op: VaultOp): string {
+	const name = vaultPath === "." ? "(root)" : vaultPath;
 	return `Access denied — ${op} not allowed in ${name}.`;
 }
