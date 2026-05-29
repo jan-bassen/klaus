@@ -30,20 +30,24 @@ import { readText, scanFiles } from "../infra/runtime.ts";
  * to disambiguate "explicitly default" from "not set" — the resolver in
  * `pipeline/overrides.ts` translates these into the runtime `TurnConfig`.
  */
+const AgentBehaviorFields = {
+	provider: z.string().optional(),
+	modelTier: z.enum(modelTiers).optional(),
+	voice: z.enum(["on", "auto", "off"]).default("auto"),
+	temp: z.enum(["cold", "default", "hot"]).default("default"),
+	topP: z.enum(["creative", "default", "rigid"]).default("default"),
+	reasoningEffort: z.enum(["low", "default", "high"]).default("default"),
+	stepLimit: z.number().optional(),
+	historyLimit: z.number().optional(),
+	historyScope: z.enum(["full", "agent"]).optional(),
+	/** Render names-only tool summaries on future assistant history rows? */
+	showTools: z.boolean().default(true),
+	report: z.boolean().default(true),
+};
+
 const AgentSettingsSchema = z
 	.object({
-		provider: z.string().optional(),
-		modelTier: z.enum(modelTiers).optional(),
-		voice: z.enum(["on", "auto", "off"]).default("auto"),
-		temp: z.enum(["cold", "default", "hot"]).default("default"),
-		topP: z.enum(["creative", "default", "rigid"]).default("default"),
-		reasoningEffort: z.enum(["low", "default", "high"]).default("default"),
-		stepLimit: z.number().optional(),
-		historyLimit: z.number().optional(),
-		historyScope: z.enum(["full", "agent"]).optional(),
-		/** Render names-only tool summaries on future assistant history rows? */
-		showTools: z.boolean().default(true),
-		report: z.boolean().default(true),
+		...AgentBehaviorFields,
 		vault: z.record(z.string(), z.enum(["none", "read", "full"])).optional(),
 	})
 	.transform((s) => ({
@@ -110,17 +114,7 @@ const AgentFrontmatterSchema = z
 		toolsets: z.array(z.string()).default([]),
 		serverTools: z.array(z.string()).default([]),
 		skills: z.array(z.string()).default([]),
-		provider: z.string().optional(),
-		modelTier: z.enum(modelTiers).optional(),
-		voice: z.enum(["on", "auto", "off"]).default("auto"),
-		temp: z.enum(["cold", "default", "hot"]).default("default"),
-		topP: z.enum(["creative", "default", "rigid"]).default("default"),
-		reasoningEffort: z.enum(["low", "default", "high"]).default("default"),
-		stepLimit: z.number().optional(),
-		historyLimit: z.number().optional(),
-		historyScope: z.enum(["full", "agent"]).optional(),
-		showTools: z.boolean().default(true),
-		report: z.boolean().default(true),
+		...AgentBehaviorFields,
 		vaultAccess: z.array(z.string()).default([]),
 		persist: z.boolean().default(false),
 		persistHint: z.string().optional(),

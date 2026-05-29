@@ -303,24 +303,22 @@ function applyReaction(
 	);
 	if (reaction.emoji === "") {
 		if (existing >= 0) msg.reactions.splice(existing, 1);
-	} else if (existing >= 0) {
-		msg.reactions[existing] = {
-			emoji: reaction.emoji,
-			senderId: reaction.senderId,
-			fromMe: reaction.fromMe,
-			...(reaction.createdAt ? { createdAt: reaction.createdAt } : {}),
-			...(reaction.agent ? { agent: reaction.agent } : {}),
-			...(reaction.runId ? { runId: reaction.runId } : {}),
-		};
+		return;
+	}
+
+	const nextReaction: ConversationMessage["reactions"][number] = {
+		emoji: reaction.emoji,
+		senderId: reaction.senderId,
+		fromMe: reaction.fromMe,
+		...(reaction.createdAt ? { createdAt: reaction.createdAt } : {}),
+		...(reaction.agent ? { agent: reaction.agent } : {}),
+		...(reaction.runId ? { runId: reaction.runId } : {}),
+	};
+
+	if (existing >= 0) {
+		msg.reactions[existing] = nextReaction;
 	} else {
-		msg.reactions.push({
-			emoji: reaction.emoji,
-			senderId: reaction.senderId,
-			fromMe: reaction.fromMe,
-			...(reaction.createdAt ? { createdAt: reaction.createdAt } : {}),
-			...(reaction.agent ? { agent: reaction.agent } : {}),
-			...(reaction.runId ? { runId: reaction.runId } : {}),
-		});
+		msg.reactions.push(nextReaction);
 	}
 }
 

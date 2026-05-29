@@ -8,6 +8,7 @@ import { z } from "zod";
 import { toJSONSchema } from "zod/v4";
 import { type ModelTier, resolveModel, settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
+import { parseJsonObject } from "../infra/runtime.ts";
 import { addTimer } from "../infra/store/timers.ts";
 import type { AgentDefinition } from "./agents.ts";
 import type { TurnContext } from "./core.ts";
@@ -130,9 +131,13 @@ export async function persistDynamic(
 		throw new Error(`@${input.def.name}: persist tool was not called`);
 	}
 
-	const parsed = persistInputSchema.parse(parseArgs(call.function.arguments));
+	const parsed = persistInputSchema.parse(
+		parseJsonObject(call.function.arguments, "persist"),
+	);
 	const runAt = computeNextRun(parsed.nextRun);
-	const overrides = mergeOverrides(input.overrides, parsed.overrides);
+	const overrides = [
+		...new Set([...input.overrides, ...(parsed.overrides ?? [])]),
+	];
 
 	await addTimer({
 		id: crypto.randomUUID(),
@@ -145,10 +150,6 @@ export async function persistDynamic(
 	});
 
 	log.info(`[persist] @${input.def.name} rescheduled for ${runAt}`);
-}
-
-function mergeOverrides(base: string[], next: string[] | undefined): string[] {
-	return [...new Set([...base, ...(next ?? [])])];
 }
 
 /**
@@ -193,21 +194,6 @@ function parseDurationMs(value: string): number | undefined {
 	if (unit === "h") return amount * 3_600_000;
 	if (unit === "d") return amount * 86_400_000;
 	return undefined;
-}
-
-function parseArgs(raw: string): Record<string, unknown> {
-	if (!raw) return {};
-	try {
-		const parsed = JSON.parse(raw);
-		return parsed && typeof parsed === "object"
-			? (parsed as Record<string, unknown>)
-			: {};
-	} catch {
-		log.warn("[persist] failed to parse tool call arguments JSON", {
-			raw: raw.slice(0, 200),
-		});
-		return {};
-	}
 }
 
 function clamp(v: number, lo: number, hi: number): number {

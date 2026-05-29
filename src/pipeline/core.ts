@@ -22,6 +22,7 @@ import { OpenRouterError } from "@openrouter/sdk/models/errors";
 import { toJSONSchema } from "zod/v4";
 import { type ModelTier, resolveModel, settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
+import { parseJsonObject } from "../infra/runtime.ts";
 import { appendTrace, type TraceStep } from "../infra/store/history.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
 import { SEND_MESSAGE_TOOL_NAME } from "../primitives/tools/message.ts";
@@ -462,7 +463,7 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 		let toolCalls = rawCalls.map((tc) => ({
 			toolCallId: tc.id,
 			toolName: tc.function.name,
-			args: parseArgs(tc.function.arguments),
+			args: parseJsonObject(tc.function.arguments, "agent"),
 		}));
 
 		let fallback: ModelCallStep["fallback"];
@@ -577,21 +578,6 @@ function directReplyFallback(
 	if (typeof content !== "string") return undefined;
 	const trimmed = content.trim();
 	return trimmed ? trimmed : undefined;
-}
-
-function parseArgs(raw: string): Record<string, unknown> {
-	if (!raw) return {};
-	try {
-		const parsed = JSON.parse(raw);
-		return parsed && typeof parsed === "object"
-			? (parsed as Record<string, unknown>)
-			: {};
-	} catch {
-		log.warn("[agent] failed to parse tool call arguments JSON", {
-			raw: raw.slice(0, 200),
-		});
-		return {};
-	}
 }
 
 function extractServerToolUse(

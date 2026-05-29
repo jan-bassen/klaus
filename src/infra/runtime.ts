@@ -1,20 +1,39 @@
 import type { Dirent } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { log } from "./logger.ts";
+
+const JSON_LOG_PREVIEW_CHARS = 200;
 
 export async function readText(filePath: string): Promise<string> {
 	return await readFile(filePath, "utf8");
 }
 
-async function readBytes(filePath: string): Promise<Uint8Array> {
-	return await readFile(filePath);
-}
-
 export async function readArrayBuffer(filePath: string): Promise<ArrayBuffer> {
-	const bytes = await readBytes(filePath);
+	const bytes = await readFile(filePath);
 	const copy = new ArrayBuffer(bytes.byteLength);
 	new Uint8Array(copy).set(bytes);
 	return copy;
+}
+
+export function parseJsonObject(
+	raw: string,
+	logLabel: string,
+): Record<string, unknown> {
+	if (!raw) return {};
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		return isRecord(parsed) ? parsed : {};
+	} catch {
+		log.warn(`[${logLabel}] failed to parse tool call arguments JSON`, {
+			raw: raw.slice(0, JSON_LOG_PREVIEW_CHARS),
+		});
+		return {};
+	}
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export async function writeData(
