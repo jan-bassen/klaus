@@ -8,6 +8,16 @@ The core pieces are already wired up: WhatsApp intake, agent routing, prompts, t
 
 If you're looking for a simpler and more complete setup, projects like [Hermes Agent](https://github.com/NousResearch/hermes-agent) or [OpenClaw](https://github.com/openclaw/openclaw) may be a calmer harbor. Klaus is for when you would rather sail with your strange little ship.
 
+## Approach
+
+Klaus is minimal by design. It is less a finished assistant app than a working template for building one: the basic harness is already wired up, and the interesting behavior is meant to come from your own agents, prompts, tools, variables, commands, templates, and vault files.
+
+That shape is intentional. Personal AI agents are hard to make universal because people want very different things from them: different workflows, privacy boundaries, tones, schedules, tools, notes, and habits. Klaus keeps the core small, exposes the primitive pieces directly, and leaves room for you or an AI coding tool to add the specific behavior you actually need.
+
+The bet is that modern coding agents are now good enough to build most reasonable features on top of a clear local structure. Klaus gives them a simple place to work: flat files, explicit primitives, strict types, visible reports, and no hidden database or admin UI.
+
+LLMs and their harnesses can still behave strangely. Klaus treats iteration as part of the product: every run can produce a report with rendered prompts, history, tools, variables, results, and errors, so you can inspect what happened and make the next small fix.
+
 ## Quick Start
 
 You need Docker, Obsidian Sync, a WhatsApp account to link as a device, and an OpenRouter API key unless you change the provider settings.

@@ -12,6 +12,22 @@ WhatsApp
 
 The architecture stays useful because the same shape appears at every level. User-owned behavior lives in `{vault}/Klaus/`. New runtime behavior lives in `src/`. Flat files carry state. There is no database and no hidden admin UI.
 
+## Design Approach
+
+Klaus is built as a small, inspectable harness around extensible primitives. The goal is not to provide one complete assistant for everyone, but to make a personal assistant easy to adapt.
+
+The defaults cover the common skeleton: WhatsApp intake, agent routing, commands, variables, tools, schedules, timers, vault access, reports, and flat-file stores. New behavior is expected to land in one of the primitive layers:
+
+- change prompts, agents, snippets, templates, overrides, or settings in `{vault}/Klaus/`
+- add deterministic chat actions as commands
+- add context as variables
+- add model-callable capabilities as tools or toolsets
+- adjust the pipeline only when the turn lifecycle itself needs to change
+
+This keeps the codebase small enough for humans to understand and regular AI coding tools to modify. That matters because personal agents usually become useful through local iteration, not through a large generic feature set.
+
+Reports are part of that loop. Model behavior can be surprising, especially when prompts, history, tool results, media, schedules, and persistence interact. Klaus makes those inputs visible so the next change can be based on evidence instead of vibes.
+
 ## Authoring Surfaces
 
 Most tinkering happens in three places:
