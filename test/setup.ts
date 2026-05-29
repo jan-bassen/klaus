@@ -9,7 +9,6 @@
  */
 
 import { afterEach } from "vitest";
-import { settings } from "../src/infra/config.ts";
 import { agentRegistry } from "../src/pipeline/agents.ts";
 import { overrideRegistry } from "../src/pipeline/overrides.ts";
 import {
@@ -17,8 +16,6 @@ import {
 	toolsetRegistry,
 } from "../src/primitives/tools/index.ts";
 import { skillRegistry } from "../src/primitives/tools/skill.ts";
-
-settings.reports.vaultMarkdown = false;
 
 afterEach(() => {
 	agentRegistry.clear();

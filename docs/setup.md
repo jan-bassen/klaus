@@ -65,7 +65,7 @@ docker run -d --restart unless-stopped \
 The two volumes have different jobs:
 
 - `klaus-vault`: Synced Obsidian vault.
-- `klaus-data`: WhatsApp credentials, Obsidian login state, conversation JSONL, file blobs, schedules, timers, and per-run report JSON.
+- `klaus-data`: WhatsApp credentials, Obsidian login state, conversation JSONL, file blobs, schedules, and timers.
 
 Synology Container Manager and other compose-based installs can use host
 folders instead:
@@ -174,7 +174,7 @@ If you changed `defaultProvider` or an endpoint in `{vault}/Klaus/settings.yml`,
 
 Check that `OBSIDIAN_EMAIL`, `OBSIDIAN_PASSWORD`, and `OBSIDIAN_VAULT_NAME` match the Obsidian Sync account and remote vault exactly. Klaus stores Obsidian login state under `{dataDir}/obsidian-headless`, so the data volume must be mounted and persistent.
 
-If you need to retry first-time Obsidian setup from a clean state, stop the container and remove only the data volume. This also removes WhatsApp auth, schedules, timers, history, files, and reports:
+If you need to retry first-time Obsidian setup from a clean state, stop the container and remove only the data volume. This also removes WhatsApp auth, schedules, timers, history, and files:
 
 ```bash
 docker rm -f klaus

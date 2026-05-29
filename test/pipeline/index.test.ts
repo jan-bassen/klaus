@@ -14,7 +14,7 @@
  * preloads `src/infra/config.ts` to avoid the crash. Don't reorder.
  */
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
@@ -25,7 +25,6 @@ import {
 	getConversation,
 	getTraces,
 } from "../../src/infra/store/history.ts";
-import { readReports } from "../../src/infra/store/report.ts";
 import {
 	startPresence,
 	stopPresence,
@@ -59,7 +58,8 @@ const probeSchema = z.object({ value: z.number() });
 
 function defaultModel(tier: "medium" | "large"): string {
 	const provider = settings.providers[settings.defaultProvider];
-	if (!provider) throw new Error(`Missing provider ${settings.defaultProvider}`);
+	if (!provider)
+		throw new Error(`Missing provider ${settings.defaultProvider}`);
 	return provider[tier];
 }
 
@@ -95,6 +95,7 @@ describe("pipeline/index.handleTurn", () => {
 	let tmpDir: string;
 	let originalAllowedChat: string | undefined;
 	let originalTemplatesDir: string;
+	let originalReportsDir: string;
 	let originalApiKey: string | undefined;
 
 	beforeEach(() => {
@@ -103,10 +104,12 @@ describe("pipeline/index.handleTurn", () => {
 
 		originalAllowedChat = settings.basics.allowedChat;
 		originalTemplatesDir = settings.vault.templatesDir;
+		originalReportsDir = settings.vault.reportsDir;
 		originalApiKey = process.env.OPENROUTER_API_KEY;
 
 		settings.basics.allowedChat = "chat1";
 		settings.vault.templatesDir = path.join(tmpDir, "templates");
+		settings.vault.reportsDir = path.join(tmpDir, "reports");
 		process.env.OPENROUTER_API_KEY = "test-key";
 
 		mkdirSync(settings.vault.templatesDir, { recursive: true });
@@ -130,6 +133,10 @@ describe("pipeline/index.handleTurn", () => {
 			path.join(settings.vault.templatesDir, "welcome.md"),
 			"Hey! Klaus is set up and ready to go 🤙",
 		);
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "report.md"),
+			readFileSync(path.resolve("vault/templates/report.md"), "utf-8"),
+		);
 
 		registerTool(sendMessageTool);
 		registerTool(probeTool);
@@ -149,6 +156,7 @@ describe("pipeline/index.handleTurn", () => {
 		setDefaultAgent("chat1", null);
 		clearNextPrefix("chat1");
 		settings.vault.templatesDir = originalTemplatesDir;
+		settings.vault.reportsDir = originalReportsDir;
 		if (originalAllowedChat === undefined) {
 			delete settings.basics.allowedChat;
 		} else {
@@ -293,20 +301,12 @@ describe("pipeline/index.handleTurn", () => {
 		await handleTurn(msg);
 
 		const report = await waitForReport("reporter");
-		expect(report).toMatchObject({
-			agent: "reporter",
-			chatId: "chat1",
-			trigger: { kind: "message", messageId: msg.id },
-			outcome: { kind: "ok" },
-			llm: expect.objectContaining({
-				model: defaultModel("medium"),
-				steps: [
-					expect.objectContaining({
-						toolCalls: [expect.objectContaining({ tool: "send_message" })],
-					}),
-				],
-			}),
-		});
+		expect(report).toContain("**Agent**: `reporter`");
+		expect(report).toContain("**Chat**: `chat1`");
+		expect(report).toContain(`**Trigger**: message \`${msg.id}\``);
+		expect(report).toContain("**Outcome**: ok");
+		expect(report).toContain(defaultModel("medium"));
+		expect(report).toContain("**Tool call: send_message**");
 	});
 
 	it("rejects messages from non-allowlisted chatIds", async () => {
@@ -681,11 +681,31 @@ function firstChatRequest(): Record<string, unknown> {
 
 async function waitForReport(agent: string) {
 	for (let i = 0; i < 50; i++) {
-		const report = (await readReports({ agent, days: 1 }))[0];
+		const report = readReportMarkdownFiles().find((text) =>
+			text.includes(`**Agent**: \`${agent}\``),
+		);
 		if (report) return report;
 		await new Promise((resolve) => setTimeout(resolve, 0));
 	}
 	throw new Error(`Timed out waiting for report for ${agent}`);
+}
+
+function readReportMarkdownFiles(): string[] {
+	try {
+		const dates = readdirSync(settings.vault.reportsDir);
+		const reports: string[] = [];
+		for (const date of dates) {
+			const dir = path.join(settings.vault.reportsDir, date);
+			for (const file of readdirSync(dir)) {
+				if (file.endsWith(".md")) {
+					reports.push(readFileSync(path.join(dir, file), "utf-8"));
+				}
+			}
+		}
+		return reports;
+	} catch {
+		return [];
+	}
 }
 
 async function waitForTrace(runId: string) {

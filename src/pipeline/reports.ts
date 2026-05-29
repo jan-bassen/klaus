@@ -2,25 +2,14 @@
  * Per-turn report builder + emitter.
  *
  * Called from `pipeline/core.ts` once per `executeAgent` invocation when
- * `turn.config.report !== false`. Always writes a single full report:
- *
- *   1. Always: a JSON file at `{dataDir}/logs/<date>/<filename>.json`.
- *   2. If `settings.reports.vaultMarkdown` is on: a rendered markdown file at
- *      `{vault}/Klaus/reports/<date>/<filename>.md`.
+ * `turn.config.report !== false`. Writes one rendered Markdown report at
+ * `{vault}/Klaus/reports/<date>/<filename>.md`.
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
-import {
-	localDateString,
-	type ReportEntry,
-	type ReportLlm,
-	type ReportStep,
-	reportFilename,
-	writeReport,
-} from "../infra/store/report.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
 import { SEND_MESSAGE_TOOL_NAME } from "../primitives/tools/message.ts";
 import type { AgentRunResult, TurnContext } from "./core.ts";
@@ -36,23 +25,93 @@ interface EmitReportInput {
 	error?: unknown;
 }
 
+interface ReportStep {
+	reasoning?: string;
+	toolCalls: { tool: string; args: unknown }[];
+	toolResults: { tool: string; result: unknown }[];
+	serverToolUse?: Record<string, number>;
+	citations?: {
+		type: "url_citation";
+		url: string;
+		title?: string;
+		content?: string;
+		startIndex?: number;
+		endIndex?: number;
+	}[];
+	fallback?: "assistant_content_reply";
+	finishReason?: string;
+	usage?: {
+		inputTokens: number;
+		outputTokens: number;
+	};
+}
+
+interface ReportLlm {
+	model: string;
+	tier: string;
+	context: {
+		variables: string[];
+		tools: string[];
+		serverTools: string[];
+		toolsets: string[];
+		skills: string[];
+	};
+	durationMs: number;
+	usage: {
+		promptTokens: number;
+		completionTokens: number;
+	};
+	systemPromptChars: number;
+	userMessageChars: number;
+	historyMessageCount: number;
+	replyChars: number;
+	steps: ReportStep[];
+	systemPrompt: string;
+	userMessage: string;
+	assistantMessage: string;
+	historyTranscript: unknown[];
+}
+
+interface ReportEntry {
+	runId: string;
+	chatId: string;
+	agent: string;
+	trigger: TurnContext["trigger"];
+	timestamp: string;
+	durationMs: number;
+	outcome:
+		| { kind: "ok" }
+		| { kind: "error"; error: { name: string; message: string } };
+	overrides: string[];
+	config: {
+		provider?: string;
+		modelTier?: string;
+		historyLimit?: number;
+		historyScope?: string;
+		showTools?: boolean;
+		report?: boolean;
+	};
+	llm?: ReportLlm;
+	message?: {
+		externalId: string;
+		text?: string;
+		hasMedia?: boolean;
+		mediaType?: string;
+	};
+}
+
 /**
- * Build the report entry, write it to disk, and (when enabled) mirror it as
- * markdown into the vault. Catches its own errors — never throws — so report
- * failures are visible in logs without masking the turn result.
+ * Build the report entry and write it as Markdown into the vault. Catches its
+ * own errors — never throws — so report failures are visible in logs without
+ * masking the turn result.
  */
 export async function emitReport(input: EmitReportInput): Promise<void> {
 	try {
 		const entry = buildReport(input);
 		const filename = reportFilename(entry);
-		await writeReport(entry, filename);
-		let vaultPath: string | undefined;
-		if (settings.reports.vaultMarkdown) {
-			vaultPath = await mirrorToVault(entry, filename);
-		}
+		await writeMarkdownReport(entry, filename);
 		log.info("[reports] emitted", {
 			name: filename,
-			...(vaultPath ? { vaultMirror: true } : {}),
 		});
 	} catch (err) {
 		log.warn("[reports] failed to emit", {
@@ -210,7 +269,9 @@ function sanitizeReportText(text: string): string {
 	);
 }
 
-function buildMessageSection(msg: InboundMessage): ReportEntry["message"] {
+function buildMessageSection(
+	msg: InboundMessage,
+): NonNullable<ReportEntry["message"]> {
 	const out: NonNullable<ReportEntry["message"]> = {
 		externalId: msg.id,
 	};
@@ -222,16 +283,40 @@ function buildMessageSection(msg: InboundMessage): ReportEntry["message"] {
 	return out;
 }
 
-// ── Vault mirror ───────────────────────────────────────────────────────────
+// ── Vault write ────────────────────────────────────────────────────────────
 
-async function mirrorToVault(
+function localDateString(timezone: string): string {
+	const fmt = new Intl.DateTimeFormat("en-CA", {
+		timeZone: timezone,
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	});
+	return fmt.format(new Date());
+}
+
+function localTimeString(timezone: string): string {
+	const fmt = new Intl.DateTimeFormat("en-GB", {
+		timeZone: timezone,
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+		hour12: false,
+	});
+	return fmt.format(new Date()).replaceAll(":", "-");
+}
+
+function reportFilename(entry: ReportEntry): string {
+	const time = localTimeString(settings.timezone);
+	const shortId = entry.runId.replace(/-/g, "").slice(0, 8);
+	return `${time}--${shortId}`;
+}
+
+async function writeMarkdownReport(
 	entry: ReportEntry,
 	filename: string,
 ): Promise<string> {
-	const rendered = renderTemplate(
-		"report",
-		entry as unknown as Record<string, unknown>,
-	);
+	const rendered = renderTemplate("report", entry);
 	const date = localDateString(settings.timezone);
 	const dir = path.join(settings.vault.reportsDir, date);
 	await mkdir(dir, { recursive: true });

@@ -6,7 +6,6 @@
 
 import { initFilesStore } from "../../src/infra/store/files.ts";
 import { initHistoryStore } from "../../src/infra/store/history.ts";
-import { initReportStore } from "../../src/infra/store/report.ts";
 import { initSchedulesStore } from "../../src/infra/store/schedules.ts";
 import { initTimersStore } from "../../src/infra/store/timers.ts";
 
@@ -15,5 +14,4 @@ export function initAllStores(dataDir: string, timezone = "UTC"): void {
 	initFilesStore({ dataDir });
 	initTimersStore({ dataDir });
 	initSchedulesStore({ dataDir, timezone });
-	initReportStore({ dataDir });
 }

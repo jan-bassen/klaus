@@ -49,7 +49,7 @@ agents/       agent Markdown files
 skills/       loadable reference docs
 snippets/     reusable prompt fragments
 templates/    render wrappers for messages, reports, help, errors
-reports/      optional Markdown report mirror
+reports/      Markdown report output
 overrides.yml one-turn config presets
 settings.yml  strict runtime settings
 ```
@@ -79,7 +79,6 @@ The Obsidian vault is knowledge and user-owned configuration. The data directory
 | Store | Format | Purpose |
 | --- | --- | --- |
 | `history` | JSONL, day-partitioned | Conversation events, traces, reactions, breaks. |
-| `report` | JSONL, day-partitioned | Per-turn execution records. |
 | `files` | JSONL index + blobs | Uploaded file metadata and content. |
 | `schedules` | JSON + croner | Recurring runs. |
 | `timers` | JSON + setTimeout | One-shot future runs. |

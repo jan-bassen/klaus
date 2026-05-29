@@ -60,7 +60,6 @@ Runtime state lives under `{dataDir}`. Local runs default to `./data`; productio
 | Store | Format | Purpose |
 | --- | --- | --- |
 | `history` | JSONL, day-partitioned | Conversation events, reactions, traces, context breaks. |
-| `report` | JSONL, day-partitioned | Per-turn execution records. |
 | `files` | JSONL index + blobs | Uploaded file metadata and stored content. |
 | `schedules` | JSON + croner | Recurring cron jobs. |
 | `timers` | JSON + setTimeout | One-shot future runs. |

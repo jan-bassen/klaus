@@ -69,7 +69,10 @@ export function checkPermission(
 	op: VaultOp,
 	agentMap?: AgentVaultMap,
 ): PermissionCheck {
-	const entry = matchingAccessEntry(normalizeVaultRelative(vaultPath), agentMap);
+	const entry = matchingAccessEntry(
+		normalizeVaultRelative(vaultPath),
+		agentMap,
+	);
 	if (!entry) return "denied";
 	const needed = PERM_LEVEL[op];
 	if (needed <= PERM_LEVEL[entry]) return "allowed";
@@ -127,7 +130,8 @@ export function getReadableFolders(
 			}
 			const vaultPath = normalizeVaultRelative(rawPath);
 			const resolved = resolveVaultPath(vaultPath);
-			if (resolved && isWithinVaultPath(resolved.path, scope)) add(resolved.path);
+			if (resolved && isWithinVaultPath(resolved.path, scope))
+				add(resolved.path);
 		}
 	}
 

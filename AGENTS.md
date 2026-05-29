@@ -43,7 +43,7 @@ npm run build
 
 A maximally simple, headless personal AI agent: **WhatsApp → TypeScript → Obsidian vault → Docker**.
 
-Stack: Node 25, native TypeScript, strict TypeScript, Zod, Handlebars, Baileys. Models via a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default only OpenRouter); request/response types come from the `openrouter` sdk. Liteparse for docs, sharp for images. JSONL for conversations/reports, JSON for schedules/timers. No database.
+Stack: Node 25, native TypeScript, strict TypeScript, Zod, Handlebars, Baileys. Models via a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default only OpenRouter); request/response types come from the `openrouter` sdk. Liteparse for docs, sharp for images. JSONL for conversations, JSON for schedules/timers. No database.
 
 ## Docs layout
 
@@ -178,16 +178,13 @@ Persistence:
 
 ## Reports
 
-One JSON file per run at `{dataDir}/logs/<date>/<file>.json` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, explicit local tools, server tools, toolsets, skills, LLM steps, local tool calls/results, server-tool usage/citations when OpenRouter exposes them, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Toolset members stay grouped in the context summary; individual local calls still appear in the step trace with returned values. Inline agent-task messages show up as the parent `run_agent` tool result. Image data URLs are redacted from text mirrors; the message wrapper records readable media metadata such as `input: image filename` when available. `send_message` step args keep short metadata such as `asVoiceNote` before long `text` so truncation stays readable.
-
-`settings.reports.vaultMarkdown: true` mirrors each report into `{vault}/Klaus/reports/<date>/<file>.md` for Obsidian reading.
+One Markdown file per run at `{vault}/Klaus/reports/<date>/<file>.md` when `turn.config.report !== false`. Reports include message metadata, overrides, variable summaries, explicit local tools, server tools, toolsets, skills, LLM steps, local tool calls/results, server-tool usage/citations when OpenRouter exposes them, and rendered system prompt + user message + history transcript for spotting injection or format bugs. Toolset members stay grouped in the context summary; individual local calls still appear in the step trace with returned values. Inline agent-task messages show up as the parent `run_agent` tool result. Image data URLs are redacted from text mirrors; the message wrapper records readable media metadata such as `input: image filename` when available. `send_message` step args keep short metadata such as `asVoiceNote` before long `text` so truncation stays readable.
 
 ## Storage
 
 | Store | Format | Purpose |
 |---|---|---|
 | `history` | JSONL, day-partitioned | Conversation events (msg, ack, reaction, trace, break); assistant voice rows carry `voice: true` |
-| `report` | JSONL, day-partitioned | Per-turn execution record |
 | `files` | JSONL index + blobs | File metadata + content on disk |
 | `schedules` | JSON + croner | Recurring cron jobs |
 | `timers` | JSON + setTimeout | One-shot future execution |
@@ -210,7 +207,7 @@ skills/       # on-demand reference docs
 snippets/     # prompt fragments compiled into {{snippets.<name>}}
 templates/    # message-user.md, message-agent.md, history-user.md,
               # history-agent.md, persistence.md, report.md, error.md, welcome.md
-reports/      # optional vault-markdown report mirror
+reports/      # Markdown report output
 overrides.yml # !preset definitions
 settings.yml  # YAML settings (hot-reloaded via Zod validation)
 ```

@@ -91,13 +91,10 @@ const VaultScopeSchema = z
 	.min(1)
 	.refine((value) => value !== "", "Use . for the vault root")
 	.refine((value) => !path.isAbsolute(value), "Scope must be vault-relative")
-	.refine(
-		(value) => {
-			const normalized = path.normalize(value);
-			return normalized === "." || !normalized.startsWith("..");
-		},
-		"Scope must stay inside the vault",
-	);
+	.refine((value) => {
+		const normalized = path.normalize(value);
+		return normalized === "." || !normalized.startsWith("..");
+	}, "Scope must stay inside the vault");
 
 const AgentVaultEntrySchema = z.enum(["none", "read", "full"]);
 
@@ -252,15 +249,6 @@ const PersistenceSchema = z
 	})
 	.strict();
 
-const ReportsSchema = z
-	.object({
-		/** Mirror each turn's report as rendered markdown into `{vault}/Klaus/reports/`. */
-		vaultMarkdown: z.boolean(),
-		/** Days of report history surfaced via read APIs. */
-		lookbackDays: z.number(),
-	})
-	.strict();
-
 const SyncSchema = z
 	.object({
 		/** SIGTERM grace period before SIGKILL is sent to the `ob` child. */
@@ -299,7 +287,6 @@ const SettingsSchema = z
 		whatsapp: WhatsAppSchema,
 		vault: VaultYamlSchema,
 		persistence: PersistenceSchema,
-		reports: ReportsSchema,
 		sync: SyncSchema,
 	})
 	.strict();

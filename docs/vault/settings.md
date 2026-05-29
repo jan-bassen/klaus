@@ -25,7 +25,6 @@ last valid config and send a warning.
 | `whatsapp` | Self-mode, labels, send delays, retries, media limits, presence. |
 | `vault` | Watcher, list limits, and global vault scopes. |
 | `persistence` | Dynamic persistence duration clamps and fallback. |
-| `reports` | JSON/Markdown report behavior. |
 | `sync` | Obsidian Sync supervisor settings. |
 
 If code adds a tunable setting, add it to both `vault/settings.yml` and `src/infra/config.ts`. Do not use Zod `.default()` fallbacks for runtime settings.

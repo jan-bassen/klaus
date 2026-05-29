@@ -4,20 +4,14 @@ Reports are the main way to understand what Klaus actually did. They show the re
 
 ## Files
 
-When enabled, each run writes JSON under:
-
-```text
-{dataDir}/logs/<date>/
-```
-
-If `reports.vaultMarkdown: true`, Klaus also mirrors a readable Markdown report to:
+When enabled, each run writes a readable Markdown report to:
 
 ```text
 {vault}/Klaus/reports/<date>/
 ```
 
-Report behavior is configured in [settings.md](settings.md). Report emission can also be controlled per agent or per turn.
-The process log announces each emitted report by filename, plus whether a vault Markdown mirror was written.
+Report emission is controlled by `agentDefaults.report`, agent frontmatter, and one-turn `!report` / `!no-report` overrides.
+The process log announces each emitted report by filename.
 
 ## Contents
 
@@ -33,7 +27,7 @@ Reports include:
 
 Toolset members stay grouped in the context summary, so a `vault` toolset appears as `vault` instead of every individual vault helper. Individual local tool calls still appear in the step trace. Server tools execute inside OpenRouter; reports show declared server tools and the usage/citation metadata OpenRouter returns, but not the hidden server-side transcript.
 
-They intentionally include rendered prompt and history text so prompt bugs, injection, missing variables, and wrong history scope are visible. Image data URLs are redacted from the text mirror; the surrounding message template still records readable media metadata such as `input: image filename` when available.
+They intentionally include rendered prompt and history text so prompt bugs, injection, missing variables, and wrong history scope are visible. Image data URLs are redacted from report text; the surrounding message template still records readable media metadata such as `input: image filename` when available.
 
 Step arguments keep short metadata before long content where that improves scanability. For example, `send_message` calls with `asVoiceNote: true` render the voice flag before the message text so it remains visible even when the text is truncated.
 

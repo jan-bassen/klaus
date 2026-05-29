@@ -70,7 +70,9 @@ describe("infra/vault: resolveVaultPath", () => {
 		expect(resolveVaultPath("NotesArchive/x.md")?.path).toBe(
 			path.join("NotesArchive", "x.md"),
 		);
-		expect(resolveVaultPath("Notes/x.md")?.path).toBe(path.join("Notes", "x.md"));
+		expect(resolveVaultPath("Notes/x.md")?.path).toBe(
+			path.join("Notes", "x.md"),
+		);
 		expect(resolveVaultPath("Notebook/x.md")).toBeNull();
 	});
 });

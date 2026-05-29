@@ -1,17 +1,11 @@
 /**
  * `pipeline/reports.ts` — `emitReport` build + write paths.
- *
- * Distinct from `test/infra/store/report.test.ts`, which tests the per-file
- * round-trip primitive. Here we test the report *builder*: how a full
- * `TurnContext` + `AgentRunResult` collapse into the report entry, including
- * the never-throws contract on the error path.
  */
 
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { settings } from "../../src/infra/config.ts";
-import { initReportStore, readReports } from "../../src/infra/store/report.ts";
 import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
 import type { AgentRunResult, TurnContext } from "../../src/pipeline/core.ts";
 import { emitReport } from "../../src/pipeline/reports.ts";
@@ -55,21 +49,24 @@ function makeResult(patch: Partial<AgentRunResult> = {}): AgentRunResult {
 
 describe("pipeline/reports: emitReport", () => {
 	let tmp: string;
-	let savedVaultMarkdown: boolean;
 	let savedTemplatesDir: string;
 	let savedReportsDir: string;
 
 	beforeEach(() => {
 		tmp = makeTmpDir();
-		initReportStore({ dataDir: tmp });
-		savedVaultMarkdown = settings.reports.vaultMarkdown;
 		savedTemplatesDir = settings.vault.templatesDir;
 		savedReportsDir = settings.vault.reportsDir;
-		settings.reports.vaultMarkdown = false; // skip markdown mirror in tests
+		settings.vault.templatesDir = path.join(tmp, "templates");
+		settings.vault.reportsDir = path.join(tmp, "vault-reports");
+		mkdirSync(settings.vault.templatesDir, { recursive: true });
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "report.md"),
+			readFileSync(path.resolve("vault/templates/report.md"), "utf-8"),
+		);
+		invalidateTemplate("report");
 	});
 
 	afterEach(() => {
-		settings.reports.vaultMarkdown = savedVaultMarkdown;
 		settings.vault.templatesDir = savedTemplatesDir;
 		settings.vault.reportsDir = savedReportsDir;
 		invalidateTemplate("report");
@@ -99,24 +96,20 @@ describe("pipeline/reports: emitReport", () => {
 			result: makeResult(),
 		});
 
-		const [entry] = await readReports({ days: 1 });
-		expect(entry?.outcome).toEqual({ kind: "ok" });
-		expect(entry?.llm?.model).toBe("openrouter/auto");
-		expect(entry?.llm?.systemPrompt).toBe("you are a helpful agent");
-		expect(entry?.llm?.userMessage).toBe("hello");
-		expect(entry?.llm?.historyTranscript).toHaveLength(1);
-		expect(entry?.message?.externalId).toBe("m-42");
-		expect(entry?.message?.text).toBe("hello");
-		expect(entry?.message?.hasMedia).toBe(true);
-		expect(entry?.message?.mediaType).toBe("image/png");
-		expect(entry?.llm?.context).toEqual({
-			variables: ["time", "user"],
-			tools: ["send_message"],
-			serverTools: ["openrouter:web_search"],
-			toolsets: ["vault"],
-			skills: ["obsidian-markdown"],
-		});
-		expect(entry?.overrides).toEqual(["voice"]);
+		const markdown = readOnlyReport();
+		expect(markdown).toContain("**Agent**: `test`");
+		expect(markdown).toContain("**Run**: `");
+		expect(markdown).toContain("**Outcome**: ok");
+		expect(markdown).toContain("**Tokens**: 100 in / 50 out");
+		expect(markdown).toContain("time, user");
+		expect(markdown).toContain("send_message");
+		expect(markdown).toContain("openrouter:web_search");
+		expect(markdown).toContain("vault");
+		expect(markdown).toContain("obsidian-markdown");
+		expect(markdown).toContain("you are a helpful agent");
+		expect(markdown).toContain("hello");
+		expect(markdown).toContain("earlier");
+		expect(markdown).toContain("**Overrides**: voice");
 	});
 
 	it("keeps send_message voice metadata before long text in report step args", async () => {
@@ -144,23 +137,13 @@ describe("pipeline/reports: emitReport", () => {
 			}),
 		});
 
-		const [entry] = await readReports({ days: 1 });
-		expect(JSON.stringify(entry?.llm?.steps[0]?.toolCalls[0]?.args)).toBe(
-			'{"asVoiceNote":true,"text":"long spoken answer"}',
+		const markdown = readOnlyReport();
+		expect(markdown).toContain(
+			'`{"asVoiceNote":true,"text":"long spoken answer"}`',
 		);
 	});
 
-	it("mirrors tool results into markdown report steps", async () => {
-		settings.reports.vaultMarkdown = true;
-		settings.vault.templatesDir = path.join(tmp, "templates");
-		settings.vault.reportsDir = path.join(tmp, "vault-reports");
-		mkdirSync(settings.vault.templatesDir, { recursive: true });
-		writeFileSync(
-			path.join(settings.vault.templatesDir, "report.md"),
-			readFileSync(path.resolve("vault/templates/report.md"), "utf-8"),
-		);
-		invalidateTemplate("report");
-
+	it("writes tool results into markdown report steps", async () => {
 		await emitReport({
 			turn: makeTurn(),
 			startedAt: Date.now() - 10,
@@ -187,29 +170,13 @@ describe("pipeline/reports: emitReport", () => {
 			}),
 		});
 
-		const [dateDir] = readdirSync(settings.vault.reportsDir);
-		const reportDir = path.join(settings.vault.reportsDir, dateDir ?? "");
-		const [filename] = readdirSync(reportDir);
-		const markdown = readFileSync(
-			path.join(reportDir, filename ?? ""),
-			"utf-8",
-		);
+		const markdown = readOnlyReport();
 		expect(markdown).toContain("**Tool call: run_agent**");
 		expect(markdown).toContain("**Tool result: run_agent**");
 		expect(markdown).toContain("child result");
 	});
 
-	it("mirrors server tool usage and citations into markdown report steps", async () => {
-		settings.reports.vaultMarkdown = true;
-		settings.vault.templatesDir = path.join(tmp, "templates");
-		settings.vault.reportsDir = path.join(tmp, "vault-reports");
-		mkdirSync(settings.vault.templatesDir, { recursive: true });
-		writeFileSync(
-			path.join(settings.vault.templatesDir, "report.md"),
-			readFileSync(path.resolve("vault/templates/report.md"), "utf-8"),
-		);
-		invalidateTemplate("report");
-
+	it("writes server tool usage and citations into markdown report steps", async () => {
 		await emitReport({
 			turn: makeTurn(),
 			startedAt: Date.now() - 10,
@@ -235,19 +202,7 @@ describe("pipeline/reports: emitReport", () => {
 			}),
 		});
 
-		const [entry] = await readReports({ days: 1 });
-		expect(entry?.llm?.steps[0]).toMatchObject({
-			serverToolUse: { web_search_requests: 2 },
-			citations: [{ url: "https://example.com", title: "Example" }],
-		});
-
-		const [dateDir] = readdirSync(settings.vault.reportsDir);
-		const reportDir = path.join(settings.vault.reportsDir, dateDir ?? "");
-		const [filename] = readdirSync(reportDir);
-		const markdown = readFileSync(
-			path.join(reportDir, filename ?? ""),
-			"utf-8",
-		);
+		const markdown = readOnlyReport();
 		expect(markdown).toContain("**Server tool use**");
 		expect(markdown).toContain('"web_search_requests":2');
 		expect(markdown).toContain("Example");
@@ -277,13 +232,10 @@ describe("pipeline/reports: emitReport", () => {
 			}),
 		});
 
-		const [entry] = await readReports({ days: 1 });
-		const encoded = JSON.stringify(entry);
-		expect(encoded).not.toContain("AAAABBBB");
-		expect(encoded).not.toContain("CCCCDDDD");
-		expect(entry?.llm?.userMessage).toBe(
-			"[base64 data URL omitted from report]",
-		);
+		const markdown = readOnlyReport();
+		expect(markdown).not.toContain("AAAABBBB");
+		expect(markdown).not.toContain("CCCCDDDD");
+		expect(markdown).toContain("[base64 data URL omitted from report]");
 	});
 
 	it("error path: outcome is { kind: 'error' } with name+message", async () => {
@@ -296,12 +248,10 @@ describe("pipeline/reports: emitReport", () => {
 			error: err,
 		});
 
-		const [entry] = await readReports({ days: 1 });
-		expect(entry?.outcome).toEqual({
-			kind: "error",
-			error: { name: "TypeError", message: "boom" },
-		});
-		expect(entry?.llm).toBeUndefined();
+		const markdown = readOnlyReport();
+		expect(markdown).toContain("**Outcome**: error");
+		expect(markdown).toContain("`TypeError: boom`");
+		expect(markdown).not.toContain("### Steps");
 	});
 
 	it("never throws — corrupt overlay / missing fields are swallowed", async () => {
@@ -340,14 +290,18 @@ describe("pipeline/reports: emitReport", () => {
 			result: makeResult(),
 		});
 
-		const [entry] = await readReports({ days: 1 });
-		expect(entry?.config).toEqual({
-			provider: "openai",
-			modelTier: "large",
-			historyLimit: 20,
-			historyScope: "agent",
-			showTools: true,
-			report: true,
-		});
+		const markdown = readOnlyReport();
+		expect(markdown).toContain("**Config**: openai/large, history agent/20");
 	});
 });
+
+function readOnlyReport(): string {
+	const [dateDir] = readdirSync(settings.vault.reportsDir);
+	if (!dateDir) throw new Error("Missing report date directory");
+	const reportDir = path.join(settings.vault.reportsDir, dateDir);
+	const files = readdirSync(reportDir);
+	expect(files).toHaveLength(1);
+	const [filename] = files;
+	if (!filename) throw new Error("Missing report file");
+	return readFileSync(path.join(reportDir, filename), "utf-8");
+}

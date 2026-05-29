@@ -8,6 +8,7 @@
 {{#if overrides.length}}**Overrides**: {{join overrides ", "}}
 {{/if}}**Config**: {{config.provider}}/{{config.modelTier}}{{#if config.historyLimit}}, history {{config.historyScope}}/{{config.historyLimit}}{{/if}}
 {{#if llm}}
+**Model**: {{llm.model}} ({{llm.tier}})
 **Tokens**: {{llm.usage.promptTokens}} in / {{llm.usage.completionTokens}} out
 **Prompt**: {{llm.systemPromptChars}} chars system + {{llm.userMessageChars}} chars user, {{llm.historyMessageCount}} history msgs
 **Message**: {{llm.replyChars}} chars
@@ -58,6 +59,9 @@
 {{/if}}{{#if reasoning}}
 **Reasoning**
 {{codeFence (trunc reasoning 800)}}
+
+{{/if}}
+{{#if fallback}}`{{fallback}}`
 
 {{/if}}
 {{#if serverToolUse}}

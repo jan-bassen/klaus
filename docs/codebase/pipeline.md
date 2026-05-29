@@ -19,7 +19,7 @@ The pipeline owns one turn from inbound message to model execution. It is intent
 | `outbound.ts` | Send/reaction preparation, quotes, dedup keys, trace persistence. |
 | `dispatch.ts` | Run agents from schedules, timers, persistence, or another agent. |
 | `persistence.ts` | Dynamic self-rescheduling timer creation. |
-| `reports.ts` | JSON reports and optional vault Markdown mirrors. |
+| `reports.ts` | Vault Markdown reports. |
 
 ## Inbound Turns
 
@@ -79,4 +79,4 @@ Startup loads and syncs schedules/timers while their clocks are paused. `activat
 
 ## Reports
 
-Reports are emitted unless `turn.config.report === false`. They include the assembled variable names, explicit local tools, server tools, toolsets, and skill names alongside prompts, history, steps, tool calls, and tool results. Toolset members stay grouped by set in the context summary; individual local calls still appear in the step trace with their returned values. Server tools run inside OpenRouter, so Klaus records the declared server tools plus response-surfaced usage counts and URL citations when available, not a hidden call transcript. Inline agent-task messages are visible as the parent `run_agent` tool result. The human-facing agent message is derived from nonblank `send_message.text` tool calls only; malformed or empty calls remain visible in the step trace without becoming separator-only message fragments. `send_message` step args keep `asVoiceNote` before long `text` values for readable truncation. The report path and vault Markdown mirror are configured in `settings.yml`; the runtime log records the report filename and whether a vault mirror was written. See [../vault/reports.md](../vault/reports.md).
+Reports are emitted to `{vault}/Klaus/reports/<date>/` unless `turn.config.report === false`. They include the assembled variable names, explicit local tools, server tools, toolsets, and skill names alongside prompts, history, steps, tool calls, and tool results. Toolset members stay grouped by set in the context summary; individual local calls still appear in the step trace with their returned values. Server tools run inside OpenRouter, so Klaus records the declared server tools plus response-surfaced usage counts and URL citations when available, not a hidden call transcript. Inline agent-task messages are visible as the parent `run_agent` tool result. The human-facing agent message is derived from nonblank `send_message.text` tool calls only; malformed or empty calls remain visible in the step trace without becoming separator-only message fragments. `send_message` step args keep `asVoiceNote` before long `text` values for readable truncation. The runtime log records the report filename. See [../vault/reports.md](../vault/reports.md).

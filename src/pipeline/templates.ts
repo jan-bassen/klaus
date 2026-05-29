@@ -99,10 +99,7 @@ export function loadTemplates(): void {
  * Render a template with the given variables and tidy collapsed blank lines.
  * Cold-loads the file on first use if `loadTemplates()` wasn't called yet.
  */
-export function renderTemplate(
-	name: TemplateName,
-	vars: Record<string, unknown>,
-): string {
+export function renderTemplate(name: TemplateName, vars: object): string {
 	const cached = _compiled.get(name);
 	const compiled = cached ?? registerTemplate(name);
 	if (!compiled) {

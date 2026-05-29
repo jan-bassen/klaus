@@ -1,10 +1,9 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { settings } from "../../src/infra/config.ts";
 import { getTraces } from "../../src/infra/store/history.ts";
-import { readReports } from "../../src/infra/store/report.ts";
 import { listTimers, stopAllTimers } from "../../src/infra/store/timers.ts";
 import {
 	type AgentDefinition,
@@ -29,7 +28,8 @@ const hiddenSchema = z.object({});
 
 function defaultModel(tier: "medium" | "large"): string {
 	const provider = settings.providers[settings.defaultProvider];
-	if (!provider) throw new Error(`Missing provider ${settings.defaultProvider}`);
+	if (!provider)
+		throw new Error(`Missing provider ${settings.defaultProvider}`);
 	return provider[tier];
 }
 
@@ -69,6 +69,7 @@ describe("pipeline/core.executeAgent", () => {
 	let tmpDir: string;
 	let originalApiKey: string | undefined;
 	let originalTemplatesDir: string;
+	let originalReportsDir: string;
 	let originalAgent: typeof settings.agent;
 	let originalPersistence: typeof settings.persistence;
 
@@ -78,11 +79,13 @@ describe("pipeline/core.executeAgent", () => {
 
 		originalApiKey = process.env.OPENROUTER_API_KEY;
 		originalTemplatesDir = settings.vault.templatesDir;
+		originalReportsDir = settings.vault.reportsDir;
 		originalAgent = structuredClone(settings.agent);
 		originalPersistence = structuredClone(settings.persistence);
 
 		process.env.OPENROUTER_API_KEY = "test-key";
 		settings.vault.templatesDir = path.join(tmpDir, "templates");
+		settings.vault.reportsDir = path.join(tmpDir, "reports");
 		settings.agent.timeout = 1_000;
 		settings.agent.retries.max = 1;
 		settings.agent.retries.backoffMs = 0;
@@ -111,6 +114,10 @@ describe("pipeline/core.executeAgent", () => {
 			path.join(settings.vault.templatesDir, "persistence.md"),
 			"{{prompt}}",
 		);
+		writeFileSync(
+			path.join(settings.vault.templatesDir, "report.md"),
+			readFileSync(path.resolve("vault/templates/report.md"), "utf-8"),
+		);
 
 		registerTool(sendMessageTool);
 		registerTool(probeTool);
@@ -124,6 +131,7 @@ describe("pipeline/core.executeAgent", () => {
 	afterEach(() => {
 		stopAllTimers();
 		settings.vault.templatesDir = originalTemplatesDir;
+		settings.vault.reportsDir = originalReportsDir;
 		Object.assign(settings.agent, originalAgent);
 		Object.assign(settings.persistence, originalPersistence);
 		if (originalApiKey === undefined) {
@@ -440,16 +448,11 @@ describe("pipeline/core.executeAgent", () => {
 		});
 
 		const report = await waitForReport("run-direct-send_message");
-		expect(report.llm?.steps[0]).toMatchObject({
-			fallback: "assistant_content_reply",
-			toolCalls: [
-				{
-					tool: "send_message",
-					args: { text: "I should have used send_message." },
-				},
-			],
-			toolResults: [{ tool: "send_message", result: "sent" }],
-		});
+		expect(report).toContain("`assistant_content_reply`");
+		expect(report).toContain("**Tool call: send_message**");
+		expect(report).toContain("I should have used send_message.");
+		expect(report).toContain("**Tool result: send_message**");
+		expect(report).toContain("sent");
 	});
 
 	it("does not recover direct assistant text when tools are disabled", async () => {
@@ -650,22 +653,14 @@ describe("pipeline/core.executeAgent", () => {
 		await executeAgent({ turn, def, variables: [] });
 
 		const report = await waitForReport("run-report-ok");
-		expect(report).toMatchObject({
-			runId: "run-report-ok",
-			agent: "core-test",
-			outcome: { kind: "ok" },
-			llm: {
-				model: defaultModel("medium"),
-				steps: [
-					{
-						toolCalls: [{ tool: "probe", args: { value: "reported" } }],
-						toolResults: [
-							{ tool: "probe", result: { ok: true, value: "reported" } },
-						],
-					},
-				],
-			},
-		});
+		expect(report).toContain("**Run**: `run-report-ok`");
+		expect(report).toContain("**Agent**: `core-test`");
+		expect(report).toContain("**Outcome**: ok");
+		expect(report).toContain(defaultModel("medium"));
+		expect(report).toContain("**Tool call: probe**");
+		expect(report).toContain('"value":"reported"');
+		expect(report).toContain("**Tool result: probe**");
+		expect(report).toContain('"ok":true');
 	});
 
 	it("emits an error report when the model loop fails", async () => {
@@ -684,13 +679,9 @@ describe("pipeline/core.executeAgent", () => {
 		);
 
 		const report = await waitForReport("run-report-error");
-		expect(report).toMatchObject({
-			runId: "run-report-error",
-			outcome: {
-				kind: "error",
-				error: { name: "Error", message: "rate limit exceeded" },
-			},
-		});
+		expect(report).toContain("**Run**: `run-report-error`");
+		expect(report).toContain("**Outcome**: error");
+		expect(report).toContain("`Error: rate limit exceeded`");
 	});
 
 	it("persists non-send_message tool traces with the runId and trigger", async () => {
@@ -961,9 +952,29 @@ function rejectWhenAborted(signal?: AbortSignal): Promise<never> {
 
 async function waitForReport(runId: string) {
 	return waitFor(async () => {
-		const reports = await readReports({ runId, days: 1 });
-		return reports[0];
+		for (const report of readReportMarkdownFiles()) {
+			if (report.includes(`**Run**: \`${runId}\``)) return report;
+		}
+		return undefined;
 	}, `report ${runId}`);
+}
+
+function readReportMarkdownFiles(): string[] {
+	try {
+		const dates = readdirSync(settings.vault.reportsDir);
+		const reports: string[] = [];
+		for (const date of dates) {
+			const dir = path.join(settings.vault.reportsDir, date);
+			for (const file of readdirSync(dir)) {
+				if (file.endsWith(".md")) {
+					reports.push(readFileSync(path.join(dir, file), "utf-8"));
+				}
+			}
+		}
+		return reports;
+	} catch {
+		return [];
+	}
 }
 
 async function waitForTrace(runId: string) {

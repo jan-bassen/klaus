@@ -19,7 +19,8 @@ const sendMock = vi.hoisted(() => vi.fn());
 
 function defaultModel(tier: "medium"): string {
 	const provider = settings.providers[settings.defaultProvider];
-	if (!provider) throw new Error(`Missing provider ${settings.defaultProvider}`);
+	if (!provider)
+		throw new Error(`Missing provider ${settings.defaultProvider}`);
 	return provider[tier];
 }
 

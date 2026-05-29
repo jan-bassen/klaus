@@ -17,7 +17,6 @@ import {
 	initHistoryStore,
 	rebuildIndexes as rebuildConversationIndexes,
 } from "./infra/store/history.ts";
-import { initReportStore } from "./infra/store/report.ts";
 import {
 	addSchedule,
 	getSchedules,
@@ -273,7 +272,6 @@ async function main(): Promise<void> {
 		settings.dataDir,
 		path.join(settings.dataDir, "conversations"),
 		path.join(settings.dataDir, "files"),
-		path.join(settings.dataDir, "logs"),
 	];
 	for (const dir of dirs) {
 		await mkdir(dir, { recursive: true });
@@ -288,7 +286,6 @@ async function main(): Promise<void> {
 
 	initHistoryStore({ dataDir: settings.dataDir });
 	initFilesStore({ dataDir: settings.dataDir });
-	initReportStore({ dataDir: settings.dataDir });
 	initSchedulesStore({
 		dataDir: settings.dataDir,
 		timezone: settings.timezone,

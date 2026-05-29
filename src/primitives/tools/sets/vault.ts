@@ -425,7 +425,8 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 				const filePath = path.join(absolutePath, file);
 				const vaultRel = path.relative(vaultRoot(), filePath);
 				if (!isVaultPathReadable(vaultRel, access)) continue;
-				const canWrite = checkPermission(vaultRel, "full", access) === "allowed";
+				const canWrite =
+					checkPermission(vaultRel, "full", access) === "allowed";
 
 				try {
 					const text = await readText(filePath);

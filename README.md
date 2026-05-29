@@ -130,7 +130,7 @@ Start with [docs/architecture.md](docs/architecture.md) for the product model, t
 - [Vault Prompts](docs/vault/prompts.md): snippets and skills as reusable prompt context.
 - [Vault Templates](docs/vault/templates.md): message, history, persistence, help, error, welcome, and report render wrappers.
 - [Vault Settings](docs/vault/settings.md): `settings.yml` and `overrides.yml`.
-- [Vault Reports](docs/vault/reports.md): JSON reports, Markdown mirrors, debugging.
+- [Vault Reports](docs/vault/reports.md): Markdown reports and debugging.
 
 ## Develop
 
