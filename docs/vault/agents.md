@@ -12,7 +12,7 @@ The first-run vault template includes four agents:
 
 | Agent | Alias | Role |
 | --- | --- | --- |
-| `assistant` |  | General daily driver with messages, vault, files, agent tasks, image, math, and web access. |
+| `assistant` |  | General daily driver with messages, vault, files, agent tasks, image, math, web access, Obsidian skills, and the `introspection` self-knowledge skill. |
 | `research` | `r` | Read-oriented investigation agent with web search/fetch, vault/file context, careful synthesis, and no broad vault write permission. |
 | `meta` | `m` | Klaus-folder maintainer for agents, skills, snippets, templates, overrides, and settings. |
 | `dispatch` | `d` | Generic helper used by `run_agent` for delegated work. |
@@ -127,6 +127,8 @@ serverTools: [web_search, web_fetch]
 TypeScript implementations for these primitives are documented in [../codebase/primitives.md](../codebase/primitives.md).
 
 When an agent declares `skills`, Klaus adds the scoped `read_skill` tool automatically.
+
+The bundled `assistant` declares `introspection` so Klaus can answer questions about his own identity, architecture, configuration, tools, storage, reports, and limits without carrying that whole reference in every prompt.
 
 ## Vault Permissions
 

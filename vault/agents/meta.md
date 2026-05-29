@@ -21,6 +21,8 @@ tools:
 serverTools:
   - web_search
   - web_fetch
+skills:
+  - introspection
 modelTier: large
 reasoningEffort: high
 historyLimit: 30

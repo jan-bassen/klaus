@@ -14,6 +14,7 @@ toolsets:
   - agents
   - files
 skills:
+  - introspection
   - obsidian-markdown
   - obsidian-bases
   - obsidian-bases-functions

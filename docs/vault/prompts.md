@@ -72,6 +72,8 @@ skills: [meeting-notes]
 
 The model can now call the automatically generated `read_skill` tool when the skill is useful. Skills can also grant tools or toolsets after they are loaded.
 
+Bundled skills include `introspection`, which gives the default `assistant` deeper self-knowledge about Klaus' architecture, runtime behavior, configuration surfaces, tools, storage, reports, and limits. Keep it updated when Klaus' internals change in ways users might ask about.
+
 ## When To Use Which
 
 | Need | Use |
