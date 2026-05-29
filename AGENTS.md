@@ -70,7 +70,8 @@ src/
 ├── errors.ts         # user-facing error formatting
 ├── pipeline/         # per-turn orchestration
 │   ├── index.ts      # handleTurn — auth + full turn
-│   ├── message.ts    # parseMessage (STT, @agent, !overrides, commands)
+│   ├── message.ts    # parseMessage (STT, commands, /next, @agent, !overrides)
+│   ├── next.ts       # single-use per-chat prefix for the next non-command message
 │   ├── overrides.ts  # TurnConfig + !preset registry + merge
 │   ├── agents.ts     # Agent schema + registry + default-agent
 │   ├── context.ts    # variables + tools + history assembly
@@ -82,7 +83,7 @@ src/
 ├── primitives/       # pluggable extensions (auto-discovered via glob)
 │   ├── tools/        # send_message, set_reaction, search_messages, read_skill + sets/{vault,agents,files}
 │   ├── variables/    # time, media, tasks, dispatch, config, snippets, trigger
-│   └── commands/     # /break, /default, /help, /image, /model, /provider, /resume, /retry, /schedules, /stop, /voice
+│   └── commands/     # /break, /default, /help, /image, /model, /next, /provider, /resume, /retry, /schedules, /stop, /voice
 └── infra/            # external systems + state
     ├── config.ts     # YAML settings + env paths + resolveModel/resolveImageModel (live mutable `settings`)
     ├── logger.ts
@@ -94,7 +95,7 @@ src/
 ## Message flow
 
 1. **Auth** — allowlist (fail-closed). Unset → setup mode; self-mode auto-resolves own JID.
-2. **Parse** — `parseMessage`: STT transcribe → doc extract → image/sticker vision media → voice transcript rewrite → `/command` → `@agent` → `!overrides`.
+2. **Parse** — `parseMessage`: STT transcribe → doc extract → image/sticker vision media → `/command` → `/next` prefix for non-command messages → `@agent` → `!overrides`.
 3. **Resolve agent + build config** — `getOrLoadAgent` + `buildTurnConfig` (globalDefaults → frontmatter → `!overrides`).
 4. **Persist message** — append to day-partitioned JSONL, resolve quoted media.
 5. **Execute agent** — `executeAgent`: assemble context (vars + tools + history) → compile prompts → `runLoop` (multi-step `completeChat` calls until the model stops calling tools) → recover plain assistant content as a visible fallback `send_message` when that tool is active → report → reschedule if persistent.
@@ -169,7 +170,7 @@ Persistence:
 
 **Overrides** are `!preset` words in messages, defined in `Klaus/overrides.yml`. Parsed out, merged into `TurnConfig` on top of agent frontmatter defaults. Reserved for pipeline/agent behavior — NOT for prompt content. Aliases resolve at parse time.
 
-**Commands** are `/command` handlers that bypass the LLM. Auto-discovered from `src/primitives/commands/`. `/stop` (`/kill`) is the panic button: it aborts active runs and pauses schedules/timers without deleting persisted state; `/resume` re-arms them.
+**Commands** are `/command` handlers that bypass the LLM. Auto-discovered from `src/primitives/commands/`. `/next <prefix>` arms a single-use prefix for the next non-command message, mostly for voice-note agent routing and overrides. `/stop` (`/kill`) is the panic button: it aborts active runs and pauses schedules/timers without deleting persisted state; `/resume` re-arms them.
 
 **Extension pattern** — drop a file, export the right shape, restart. No wiring.
 

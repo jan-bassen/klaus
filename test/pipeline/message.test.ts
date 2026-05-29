@@ -1,10 +1,9 @@
 /**
  * `pipeline/message.ts` — `parseMessage`: STT apply, `@agent` extract,
- * `!overrides` strip, command parse, voice transcript rewriting.
+ * `!overrides` strip, command parse, and `/next` prefix application.
  *
  * Mocks `src/pipeline/media.ts` so transcribe / parseDocument are spies and no
- * real network or disk work happens. Override registry is populated manually
- * via `loadOverrides` against the bundled vault yaml.
+ * real network or disk work happens. Override registry is populated manually.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,6 +44,7 @@ function baseMsg(text: string): InboundMessage {
 beforeEach(() => {
 	transcribeMock.mockReset();
 	parseDocumentMock.mockReset();
+	overrideRegistry.clear();
 	regOv({
 		name: "voice",
 		aliases: ["v"],
@@ -61,7 +61,7 @@ beforeEach(() => {
 
 describe("pipeline/message.parseMessage: text", () => {
 	it("plain text: no agent, no overrides, cleanText === text", async () => {
-		const r = await parseMessage(baseMsg("hello there"), new Set(), []);
+		const r = await parseMessage(baseMsg("hello there"));
 		expect(r.cleanText).toBe("hello there");
 		expect(r.agent).toBeUndefined();
 		expect(r.overrides).toEqual({});
@@ -69,51 +69,58 @@ describe("pipeline/message.parseMessage: text", () => {
 	});
 
 	it("@name extracts agent and trims it from cleanText", async () => {
-		const r = await parseMessage(baseMsg("@fitness do thing"), new Set(), []);
+		const r = await parseMessage(baseMsg("@fitness do thing"));
 		expect(r.agent).toBe("fitness");
 		expect(r.cleanText).toBe("do thing");
 	});
 
 	it("@name-with-dash supports hyphenated names", async () => {
-		const r = await parseMessage(baseMsg("@bug-bot ping"), new Set(), []);
+		const r = await parseMessage(baseMsg("@bug-bot ping"));
 		expect(r.agent).toBe("bug-bot");
 		expect(r.cleanText).toBe("ping");
 	});
 
 	it("@name + !voice extracts both, leaves cleanText", async () => {
-		const r = await parseMessage(
-			baseMsg("@fitness !voice hello"),
-			new Set(),
-			[],
-		);
+		const r = await parseMessage(baseMsg("@fitness !voice hello"));
 		expect(r.agent).toBe("fitness");
 		expect(r.overrides).toEqual({ voice: true });
 		expect(r.cleanText).toBe("hello");
 	});
 
 	it("multiple !overrides without agent", async () => {
-		const r = await parseMessage(baseMsg("!voice !large hello"), new Set(), []);
+		const r = await parseMessage(baseMsg("!voice !large hello"));
 		expect(r.overrides).toEqual({ voice: true, large: true });
 		expect(r.cleanText).toBe("hello");
 	});
 
 	it("unknown !word stays in cleanText", async () => {
-		const r = await parseMessage(baseMsg("!unknown hi"), new Set(), []);
+		const r = await parseMessage(baseMsg("!unknown hi"));
 		expect(r.cleanText).toBe("!unknown hi");
 		expect(r.overrides).toEqual({});
 	});
 
 	it("/command short-circuits: returns command, no agent or overrides parsed", async () => {
-		const r = await parseMessage(
-			baseMsg("/foo bar baz @fitness !voice"),
-			new Set(),
-			[],
-		);
+		const r = await parseMessage(baseMsg("/foo bar baz @fitness !voice"));
 		expect(r.command).toEqual({
 			name: "foo",
 			args: ["bar", "baz", "@fitness", "!voice"],
 		});
 		expect(r.agent).toBeUndefined();
+		expect(r.overrides).toEqual({});
+	});
+
+	it("next prefix is prepended before route and override parsing", async () => {
+		const r = await parseMessage(baseMsg("hello"), "@fitness !voice");
+		expect(r.msg.text).toBe("hello");
+		expect(r.agent).toBe("fitness");
+		expect(r.overrides).toEqual({ voice: true });
+		expect(r.cleanText).toBe("hello");
+	});
+
+	it("next prefix is not applied to commands", async () => {
+		const r = await parseMessage(baseMsg("/help"), "@fitness !voice");
+		expect(r.command).toEqual({ name: "help", args: [] });
+		expect(r.msg.text).toBe("/help");
 		expect(r.overrides).toEqual({});
 	});
 });
@@ -125,7 +132,7 @@ describe("pipeline/message.parseMessage: STT", () => {
 			...baseMsg("typed caption"),
 			media: { fileId: "f", path: "/tmp/x.ogg", mimeType: "audio/ogg" },
 		};
-		const r = await parseMessage(msg, new Set(), []);
+		const r = await parseMessage(msg);
 		expect(r.msg.text).toBe("hello from voice");
 		expect(r.msg.media?.transcription).toBe("hello from voice");
 		expect(r.msg.media?.voiceCaption).toBe("typed caption");
@@ -137,7 +144,7 @@ describe("pipeline/message.parseMessage: STT", () => {
 			...baseMsg("caption"),
 			media: { fileId: "f", path: "/tmp/x.ogg", mimeType: "audio/ogg" },
 		};
-		const r = await parseMessage(msg, new Set(), []);
+		const r = await parseMessage(msg);
 		expect(r.msg.text).toBe("caption");
 		expect(r.msg.media?.transcription).toBeUndefined();
 	});
@@ -150,7 +157,7 @@ describe("pipeline/message.parseMessage: documents", () => {
 			...baseMsg("look at this"),
 			media: { fileId: "f", path: "/tmp/x.pdf", mimeType: "application/pdf" },
 		};
-		const r = await parseMessage(msg, new Set(), []);
+		const r = await parseMessage(msg);
 		expect(r.msg.media?.extractedText).toBe("doc body");
 	});
 
@@ -160,7 +167,7 @@ describe("pipeline/message.parseMessage: documents", () => {
 			...baseMsg("look"),
 			media: { fileId: "f", path: "/tmp/x.pdf", mimeType: "application/pdf" },
 		};
-		const r = await parseMessage(msg, new Set(), []);
+		const r = await parseMessage(msg);
 		expect(r.msg.media?.extractedText).toBeUndefined();
 	});
 
@@ -169,52 +176,33 @@ describe("pipeline/message.parseMessage: documents", () => {
 			...baseMsg("look"),
 			media: { fileId: "f", path: "/tmp/x.png", mimeType: "image/png" },
 		};
-		await parseMessage(msg, new Set(), []);
+		await parseMessage(msg);
 		expect(parseDocumentMock).not.toHaveBeenCalled();
 	});
 });
 
-describe("pipeline/message.parseMessage: voice transcript rewriting", () => {
-	it("trigger prefix: 'hey fitness, help me' → '@fitness help me'", async () => {
-		transcribeMock.mockResolvedValue("hey fitness, help me");
-		const msg: InboundMessage = {
-			...baseMsg(""),
-			media: { fileId: "f", path: "/tmp/x.ogg", mimeType: "audio/ogg" },
-		};
-		const r = await parseMessage(msg, new Set(["fitness"]), ["hey"]);
-		expect(r.agent).toBe("fitness");
-		expect(r.cleanText).toBe("help me");
-	});
-
-	it("bare-name comma: 'fitness, help me' → '@fitness help me'", async () => {
+describe("pipeline/message.parseMessage: voice + next prefix", () => {
+	it("voice transcript stays literal unless a next prefix is armed", async () => {
 		transcribeMock.mockResolvedValue("fitness, help me");
 		const msg: InboundMessage = {
 			...baseMsg(""),
 			media: { fileId: "f", path: "/tmp/x.ogg", mimeType: "audio/ogg" },
 		};
-		const r = await parseMessage(msg, new Set(["fitness"]), ["hey"]);
+		const r = await parseMessage(msg);
+		expect(r.agent).toBeUndefined();
+		expect(r.cleanText).toBe("fitness, help me");
+	});
+
+	it("next prefix routes a voice transcript deterministically", async () => {
+		transcribeMock.mockResolvedValue("help me please");
+		const msg: InboundMessage = {
+			...baseMsg(""),
+			media: { fileId: "f", path: "/tmp/x.ogg", mimeType: "audio/ogg" },
+		};
+		const r = await parseMessage(msg, "@fitness !voice");
 		expect(r.agent).toBe("fitness");
-		expect(r.cleanText).toBe("help me");
-	});
-
-	it("unknown agent after trigger: text unchanged", async () => {
-		transcribeMock.mockResolvedValue("hey unknown, do thing");
-		const msg: InboundMessage = {
-			...baseMsg(""),
-			media: { fileId: "f", path: "/tmp/x.ogg", mimeType: "audio/ogg" },
-		};
-		const r = await parseMessage(msg, new Set(["fitness"]), ["hey"]);
-		expect(r.agent).toBeUndefined();
-		expect(r.cleanText).toContain("hey unknown");
-	});
-
-	it("no trigger, no comma: unchanged (conservative)", async () => {
-		transcribeMock.mockResolvedValue("fitness help me please");
-		const msg: InboundMessage = {
-			...baseMsg(""),
-			media: { fileId: "f", path: "/tmp/x.ogg", mimeType: "audio/ogg" },
-		};
-		const r = await parseMessage(msg, new Set(["fitness"]), ["hey"]);
-		expect(r.agent).toBeUndefined();
+		expect(r.overrides).toEqual({ voice: true });
+		expect(r.cleanText).toBe("help me please");
+		expect(r.msg.media?.transcription).toBe("help me please");
 	});
 });

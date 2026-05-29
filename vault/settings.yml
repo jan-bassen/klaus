@@ -95,12 +95,6 @@ media:
       endpoint: openrouter
       model: mistralai/voxtral-mini-transcribe
       timeout: 30000
-      agentTriggers:
-        - hey
-        - at
-        - an
-        - to
-        - dear
   image:
     vision:
       maxSize: 1568

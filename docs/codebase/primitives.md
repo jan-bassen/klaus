@@ -6,6 +6,8 @@ Primitives are the pluggable extension surface under `src/primitives/`. Add a fi
 
 Commands live in `src/primitives/commands/`. They start with `/`, bypass the LLM, and are for deterministic runtime actions.
 
+`/next <prefix>` stores a single-use per-chat prefix for the next non-command message. It is mainly for voice-note routing and overrides, for example `/next @research !large`; `/next` shows the pending prefix and `/next cancel` clears it.
+
 `/stop` is the panic button: it aborts active agent runs through the shared run registry and pauses schedule/timer clocks without deleting their persisted state. Its alias is `/kill`. `/resume` re-arms future work after a panic stop.
 
 ```ts

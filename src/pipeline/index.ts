@@ -2,7 +2,7 @@
  * Inbound message orchestrator — single entry point for WhatsApp turns.
  *
  *   1. Auth (allowlist)
- *   2. Normalize + parse (STT, doc, links, commands, @agent, !overrides)
+ *   2. Normalize + parse (STT, doc, links, commands, /next, @agent, !overrides)
  *   3. Resolve agent + build effective config
  *   4. Resolve quoted media + persist message
  *   5. Execute agent (assemble context, prompts, run loop)
@@ -33,10 +33,11 @@ import type { InboundMessage } from "../infra/whatsapp/receive.ts";
 import { enqueueMessage, sendReaction } from "../infra/whatsapp/send.ts";
 import { registry as commandRegistry } from "../primitives/commands/index.ts";
 import { getVariables } from "../primitives/variables/index.ts";
-import { agentRegistry, getDefaultAgent, getOrLoadAgent } from "./agents.ts";
+import { getDefaultAgent, getOrLoadAgent } from "./agents.ts";
 import type { Trigger, TurnContext } from "./core.ts";
 import { executeAgent, isAbortError } from "./core.ts";
 import { parseMessage } from "./message.ts";
+import { consumeNextPrefix, getNextPrefix } from "./next.ts";
 import { buildTurnConfig } from "./overrides.ts";
 import { registerActiveRun } from "./runs.ts";
 import { renderTemplate } from "./templates.ts";
@@ -79,12 +80,8 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			return;
 		}
 
-		const knownAgents = new Set(agentRegistry.keys());
-		const parsed = await parseMessage(
-			msg,
-			knownAgents,
-			settings.media.voice.stt.agentTriggers,
-		);
+		const nextPrefix = getNextPrefix(msg.chatId);
+		const parsed = await parseMessage(msg, nextPrefix);
 		const processedMsg = parsed.msg;
 		const effectiveMsg = resolveQuotedMedia(processedMsg);
 
@@ -94,6 +91,8 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			if (command) await command.execute(effectiveMsg, parsed.command.args);
 			return;
 		}
+
+		if (nextPrefix !== undefined) consumeNextPrefix(processedMsg.chatId);
 
 		const agentName = parsed.agent ?? getDefaultAgent(processedMsg.chatId);
 		const def = await getOrLoadAgent(agentName);

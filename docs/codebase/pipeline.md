@@ -7,7 +7,8 @@ The pipeline owns one turn from inbound message to model execution. It is intent
 | File | Role |
 | --- | --- |
 | `index.ts` | Top-level `handleTurn`: auth, setup mode, parse, config, persistence, execution. |
-| `message.ts` | Voice/document/link parsing, `/commands`, `@agent`, `!overrides`. |
+| `message.ts` | Voice/document/link parsing, `/commands`, `/next` prefixes, `@agent`, `!overrides`. |
+| `next.ts` | Single-use per-chat message prefixes armed by `/next`. |
 | `media.ts` | Speech-to-text, text-to-speech, document extraction, image prep. |
 | `agents.ts` | Agent schema, prompt sections, aliases, registry, default agent. |
 | `overrides.ts` | `TurnConfig`, override registry, config merge. |
@@ -35,7 +36,7 @@ infra/whatsapp/receive.ts
   -> primitives/tools/* + pipeline/outbound.ts + pipeline/reports.ts
 ```
 
-`parseMessage` does the messy edge work before the model sees anything: transcribes voice, extracts documents, prepares images and stickers for vision, normalizes spoken routes, detects `/commands`, resolves `@agent`, and strips `!overrides`. `handleTurn` resolves quoted media before dispatching a command, so commands such as `/image` can use a quoted image as input. For persisted user turns, quoted context is saved from the WhatsApp payload, the stored original message, or a short media descriptor so future history keeps useful reply context even when the quoted message has no text.
+`parseMessage` does the messy edge work before the model sees anything: transcribes voice, extracts documents, prepares images and stickers for vision, detects `/commands`, applies any armed `/next` prefix, resolves `@agent`, and strips `!overrides`. `handleTurn` resolves quoted media before dispatching a command, so commands such as `/image` can use a quoted image as input. `/next` prefixes are not consumed by commands; the next non-command message consumes the prefix exactly once. For persisted user turns, quoted context is saved from the WhatsApp payload, the stored original message, or a short media descriptor so future history keeps useful reply context even when the quoted message has no text.
 
 ## Config Resolution
 

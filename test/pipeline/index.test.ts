@@ -39,6 +39,11 @@ import {
 	setDefaultAgent,
 } from "../../src/pipeline/agents.ts";
 import { handleTurn } from "../../src/pipeline/index.ts";
+import {
+	clearNextPrefix,
+	getNextPrefix,
+	setNextPrefix,
+} from "../../src/pipeline/next.ts";
 import { overrideRegistry } from "../../src/pipeline/overrides.ts";
 import { registry as commandRegistry } from "../../src/primitives/commands/index.ts";
 import {
@@ -125,6 +130,7 @@ describe("pipeline/index.handleTurn", () => {
 		agentRegistry.set("researcher", makeAgent("researcher", tmpDir));
 		agentRegistry.set("reporter", makeAgent("reporter", tmpDir, true));
 		setDefaultAgent("chat1", "default");
+		clearNextPrefix("chat1");
 		overrideRegistry.set("large", {
 			name: "large",
 			description: "Use the large model",
@@ -134,6 +140,7 @@ describe("pipeline/index.handleTurn", () => {
 
 	afterEach(() => {
 		setDefaultAgent("chat1", null);
+		clearNextPrefix("chat1");
 		settings.vault.templatesDir = originalTemplatesDir;
 		if (originalAllowedChat === undefined) {
 			delete settings.basics.allowedChat;
@@ -330,6 +337,46 @@ describe("pipeline/index.handleTurn", () => {
 		expect(sendMock).not.toHaveBeenCalled();
 		// Commands are out-of-band: they don't pollute the chat history.
 		expect(await getConversation()).toEqual([]);
+	});
+
+	it("does not consume /next prefix when dispatching a command", async () => {
+		setNextPrefix("chat1", "@researcher !large");
+		const commandExecute = vi.fn(async () => {});
+		commandRegistry.register({
+			name: "prefixcmd",
+			description: "test command",
+			execute: commandExecute,
+		});
+
+		await handleTurn(makeMsg("chat1", "", "/prefixcmd"));
+
+		expect(commandExecute).toHaveBeenCalledOnce();
+		expect(getNextPrefix("chat1")).toBe("@researcher !large");
+		expect(sendMock).not.toHaveBeenCalled();
+	});
+
+	it("applies /next prefix to the next non-command message once", async () => {
+		setNextPrefix("chat1", "@researcher !large");
+		sendMock.mockResolvedValueOnce(replyResponse("prefixed"));
+
+		await handleTurn(makeMsg("chat1", "", "hello from voice"));
+
+		expect(getNextPrefix("chat1")).toBeUndefined();
+		expect(firstChatRequest()).toMatchObject({
+			model: "anthropic/claude-opus-4.7",
+		});
+		expect(enqueueMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				chatId: "chat1",
+				content: "[researcher] prefixed",
+				label: "researcher",
+			}),
+			expect.any(Function),
+		);
+		expect((await getConversation())[0]).toMatchObject({
+			content: "hello from voice",
+			overrides: ["large"],
+		});
 	});
 
 	it("resolves quoted media before dispatching /commands", async () => {

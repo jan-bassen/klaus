@@ -203,7 +203,6 @@ const MediaSchema = z
 						endpoint: z.string(),
 						model: z.string(),
 						timeout: z.number(),
-						agentTriggers: z.array(z.string()),
 					})
 					.strict(),
 			})
