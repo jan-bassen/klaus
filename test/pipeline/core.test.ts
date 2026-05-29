@@ -86,8 +86,8 @@ describe("pipeline/core.executeAgent", () => {
 		settings.agent.timeout = 1_000;
 		settings.agent.retries.max = 1;
 		settings.agent.retries.backoffMs = 0;
-		settings.persistence.minNextRun = 1_000;
-		settings.persistence.maxNextRun = 3_600_000;
+		settings.persistence.minNextRun = "1s";
+		settings.persistence.maxNextRun = "1h";
 		settings.persistence.defaultNextRun = "1h";
 
 		mkdirSync(settings.vault.templatesDir, { recursive: true });

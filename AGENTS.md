@@ -154,6 +154,7 @@ Scheduled-run message with {{schedule.label}} metadata.
 Persistence:
 - `schedules` — recurring cron entries fire with the agent's `# Message` as the synthetic user message. Timer and `run_agent` runs also use `# Message` when present, with `{{dispatch.prompt}}` carrying the objective.
 - `persist: true` — after each run, a forced `persist` tool call produces `{nextRun, prompt, overrides?}`; one-shot timer created, chain unbreakable.
+- Persistence timing settings use compact durations (`1m`, `1h`, `7d`) for min/max clamps and fallback next run.
 
 ## Primitives
 

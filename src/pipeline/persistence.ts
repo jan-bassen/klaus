@@ -158,8 +158,11 @@ function mergeOverrides(base: string[], next: string[] | undefined): string[] {
  * the chain alive than throw.
  */
 function computeNextRun(nextRun: string): string {
-	const min = settings.persistence.minNextRun;
-	const max = settings.persistence.maxNextRun;
+	const min = parseDurationMs(settings.persistence.minNextRun);
+	const max = parseDurationMs(settings.persistence.maxNextRun);
+	if (min === undefined || max === undefined) {
+		throw new Error("Invalid persistence bounds in settings.yml");
+	}
 	const now = Date.now();
 
 	const iso = Date.parse(nextRun);
@@ -168,16 +171,8 @@ function computeNextRun(nextRun: string): string {
 		return new Date(ms).toISOString();
 	}
 
-	const duration = nextRun.match(/^(\d+)([smhd])$/);
-	if (duration) {
-		const factors: Record<string, number> = {
-			s: 1_000,
-			m: 60_000,
-			h: 3_600_000,
-			d: 86_400_000,
-		};
-		const delta =
-			parseInt(duration[1] ?? "0", 10) * (factors[duration[2] ?? ""] ?? 0);
+	const delta = parseDurationMs(nextRun);
+	if (delta !== undefined) {
 		const ms = clamp(now + delta, now + min, now + max);
 		return new Date(ms).toISOString();
 	}
@@ -186,6 +181,18 @@ function computeNextRun(nextRun: string): string {
 		`[persist] unparseable nextRun "${nextRun}", using default ${settings.persistence.defaultNextRun}`,
 	);
 	return computeNextRun(settings.persistence.defaultNextRun);
+}
+
+function parseDurationMs(value: string): number | undefined {
+	const duration = /^(\d+)([smhd])$/.exec(value);
+	if (duration === null) return undefined;
+	const amount = Number(duration[1]);
+	const unit = duration[2];
+	if (unit === "s") return amount * 1_000;
+	if (unit === "m") return amount * 60_000;
+	if (unit === "h") return amount * 3_600_000;
+	if (unit === "d") return amount * 86_400_000;
+	return undefined;
 }
 
 function parseArgs(raw: string): Record<string, unknown> {

@@ -178,7 +178,7 @@ For dynamic persistence, Klaus forces a final `persist` tool call after the main
 | `prompt` | Objective for the next run. |
 | `overrides` | Optional override names for the next run. |
 
-`nextRun` is clamped by `settings.persistence.minNextRun` and `settings.persistence.maxNextRun`.
+`nextRun` is clamped by `settings.persistence.minNextRun` and `settings.persistence.maxNextRun`, which are compact durations such as `1m` and `7d`. If the model returns an unparseable value, Klaus falls back to `settings.persistence.defaultNextRun`.
 
 Frontmatter schedules, `schedule_agent` schedules, and persistence timers all run in the single configured chat. They do not store their own chat target; Klaus resolves `settings.allowedChat` when the run fires.
 

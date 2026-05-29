@@ -246,9 +246,9 @@ const VaultYamlSchema = z
 
 const PersistenceSchema = z
 	.object({
-		minNextRun: z.number(),
-		maxNextRun: z.number(),
-		defaultNextRun: z.string(),
+		minNextRun: z.string().regex(/^\d+[smhd]$/),
+		maxNextRun: z.string().regex(/^\d+[smhd]$/),
+		defaultNextRun: z.string().regex(/^\d+[smhd]$/),
 	})
 	.strict();
 

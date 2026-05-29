@@ -128,8 +128,8 @@ vault:
     - "."
 
 persistence:
-  minNextRun: 60000
-  maxNextRun: 604800000
+  minNextRun: 1m
+  maxNextRun: 7d
   defaultNextRun: 1h
 
 reports:

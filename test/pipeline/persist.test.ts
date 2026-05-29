@@ -52,8 +52,8 @@ describe("pipeline/persistence.persistDynamic", () => {
 			process.cwd(),
 			"vault/templates",
 		);
-		settings.persistence.minNextRun = 1_000;
-		settings.persistence.maxNextRun = 60 * 60 * 1_000;
+		settings.persistence.minNextRun = "1s";
+		settings.persistence.maxNextRun = "1h";
 		settings.persistence.defaultNextRun = "15m";
 		invalidateTemplate("persistence");
 	});
@@ -150,8 +150,8 @@ describe("pipeline/persistence.persistDynamic", () => {
 	});
 
 	it("clamps ISO nextRun values into the configured scheduling window", async () => {
-		settings.persistence.minNextRun = 10_000;
-		settings.persistence.maxNextRun = 20_000;
+		settings.persistence.minNextRun = "10s";
+		settings.persistence.maxNextRun = "20s";
 		const started = Date.now();
 		sendMock.mockResolvedValueOnce(
 			chatResponse(
