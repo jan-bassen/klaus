@@ -93,7 +93,6 @@ Overrides are for behavior, not prompt content. Use [prompts.md](prompts.md) for
 | `vault` | map of path to `none`, `read`, or `full` |
 | `skipHistory` | boolean |
 | `ghost` | boolean |
-| `fast` | boolean |
 | `toolChoice` | `none`, `required` |
 
 ## Bundled Overrides
@@ -121,4 +120,3 @@ Overrides are for behavior, not prompt content. Use [prompts.md](prompts.md) for
 | `no-tools` | `nt` | Disable tools. |
 | `low` | `lo` | Low reasoning effort. |
 | `high` | `hi` | High reasoning effort. |
-| `fast` | `f` | Fast inference flag. |

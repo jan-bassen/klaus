@@ -181,4 +181,11 @@ describe("pipeline/overrides default presets", () => {
 			false,
 		);
 	});
+
+	it("does not ship a fast inference preset", async () => {
+		await loadOverrides("vault/overrides.yml");
+
+		expect(parseOverrides({ text: "!fast use the quick path" })).toEqual({});
+		expect(parseOverrides({ text: "!f use the quick path" })).toEqual({});
+	});
 });

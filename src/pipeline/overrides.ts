@@ -23,7 +23,7 @@ import type { AgentDefinition } from "./agents.ts";
  *
  * Fields here are what downstream code actually reads. Some come from the
  * agent frontmatter (mapped via `fromFrontmatter`), some only ever
- * come from `!overrides` (e.g. `ghost`, `fast`, `skipHistory`, `toolChoice`).
+ * come from `!overrides` (e.g. `ghost`, `skipHistory`, `toolChoice`).
  */
 export interface TurnConfig {
 	// from agent settings + overrides
@@ -43,7 +43,6 @@ export interface TurnConfig {
 	// override-only
 	skipHistory?: boolean;
 	ghost?: boolean;
-	fast?: boolean;
 	toolChoice?: "none" | "required";
 	[key: string]: unknown;
 }
@@ -66,7 +65,6 @@ const turnConfigSchema = z
 		vault: z.record(z.string(), z.enum(["none", "read", "full"])).optional(),
 		skipHistory: z.boolean().optional(),
 		ghost: z.boolean().optional(),
-		fast: z.boolean().optional(),
 		toolChoice: z.enum(["none", "required"]).optional(),
 	})
 	.passthrough();

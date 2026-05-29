@@ -98,8 +98,3 @@ high:
   aliases: [hi]
   description: High reasoning effort
   overrides: { reasoningEffort: high }
-
-fast:
-  aliases: [f]
-  description: Fast inference
-  overrides: { fast: true }

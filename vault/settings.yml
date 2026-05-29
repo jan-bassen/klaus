@@ -1,7 +1,7 @@
 basics:
   locale: en-GB
   timezone: Europe/London
-  # allowedChat is set at runtime via /setup; uncomment to pin manually
+  # allowedChat is set at runtime; uncomment to pin manually
   # allowedChat: ""
 
 agent:
