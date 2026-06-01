@@ -1,104 +1,63 @@
 # Architecture
 
-Klaus is a small loop around one idea: WhatsApp messages become typed turns, turns gather vault context and tools, the model decides what to do, and durable state lands in the Obsidian vault or the local data store.
+Klaus is a small loop around one idea: a WhatsApp message becomes a typed turn, the turn gathers vault context and tools, the model decides what to do, and durable state lands in the Obsidian vault or the local data store.
 
-```text
-WhatsApp
-  -> pipeline parse/config/history
-  -> context variables + tools + templates
-  -> chat-completions loop
-  -> replies, vault changes, schedules, reports, data stores
+```mermaid
+flowchart TD
+  WA[WhatsApp message] --> AUTH{allowed chat?}
+  AUTH -- no --> SETUP[setup mode]
+  AUTH -- yes --> PARSE[parse: STT / docs, /command, /next, @agent, !overrides]
+  PARSE -- /command --> CMD[command handler] --> END([reply])
+  PARSE --> CFG[resolve agent + build TurnConfig]
+  CFG --> STORE[persist user message]
+  STORE --> CTX[assemble context: variables + tools + history]
+  CTX --> TPL[render system prompt + user message]
+  TPL --> LOOP[chat-completions loop]
+  LOOP --> TOOLS[tools: send_message, vault, run_agent, ...]
+  TOOLS --> LOOP
+  LOOP --> OUT[reply, vault changes, schedules]
+  OUT --> REPORT[report + trace persisted]
+  REPORT --> END
+
+  DISP[schedule / timer / run_agent] --> CTX
 ```
 
-The architecture stays useful because the same shape appears at every level. User-owned behavior lives in `{vault}/Klaus/`. New runtime behavior lives in `src/`. Flat files carry state. There is no database and no hidden admin UI.
+Scheduled runs, timers, persistence reschedules, and sub-agent calls (`run_agent`) skip the WhatsApp parse and enter the same execution path with a synthesised trigger.
 
-## Design Approach
+There is no database and no hidden admin UI. Flat files carry all state: the Obsidian vault holds knowledge and user-owned configuration; the data directory holds operational stores.
 
-Klaus is built as a small, inspectable harness around extensible primitives. The goal is not to provide one complete assistant for everyone, but to make a personal assistant easy to adapt.
+## The three code zones
 
-The defaults cover the common skeleton: WhatsApp intake, agent routing, commands, variables, tools, schedules, timers, vault access, reports, and flat-file stores. New behavior is expected to land in one of the primitive layers:
+The whole of `src/` is three zones, each a coherent responsibility. They map one-to-one to the reference docs below.
 
-- change prompts, agents, snippets, templates, overrides, or settings in `{vault}/Klaus/`
-- add deterministic chat actions as commands
-- add context as variables
-- add model-callable capabilities as tools or toolsets
-- adjust the pipeline only when the turn lifecycle itself needs to change
+| Zone | Path | Responsibility | Reload | Doc |
+| --- | --- | --- | --- | --- |
+| Pipeline | `src/pipeline/` | What happens during one turn: parse, config, context, templates, the model loop, reports, persistence. | restart | [pipeline.md](pipeline.md) |
+| Primitives | `src/primitives/` | The pluggable pieces: tools, commands, variables (plus snippets and skills). | restart | [primitives.md](primitives.md) |
+| Infra | `src/infra/` | External systems and state: config, vault + Obsidian sync, WhatsApp, the flat-file stores. | restart / hot | [infra.md](infra.md) |
 
-This keeps the codebase small enough for humans to understand and regular AI coding tools to modify. That matters because personal agents usually become useful through local iteration, not through a large generic feature set.
+Two cross-cutting concepts live where the code puts them rather than where you might expect:
 
-Reports are part of that loop. Model behavior can be surprising, especially when prompts, history, tool results, media, schedules, and persistence interact. Klaus makes those inputs visible so the next change can be based on evidence instead of vibes.
+- **Templates** are vault files (`Klaus/templates/*.md`) but the rendering logic is a pipeline file (`pipeline/templates.ts`). They are documented with the [pipeline](pipeline.md), not as a separate authoring surface.
+- **Stores** (`history`, `files`, `schedules`, `timers`) live inside `infra/store/` and are documented with [infra](infra.md).
 
-## Authoring Surfaces
+**Agents** are technically a pipeline concept (`pipeline/agents.ts` resolves them), but because they are the single thing you author most, they get [their own page](agents.md).
 
-Most tinkering happens in three places:
+## Authoring surfaces
+
+Most tinkering happens in three places, by reload speed:
 
 | Surface | Use | Reload |
 | --- | --- | --- |
-| WhatsApp | Route messages, arm `/next` prefixes, run commands, apply one-turn overrides. | immediate |
-| `{vault}/Klaus/` | Agents, prompts, settings, templates, reports. | hot |
-| `src/` | New commands, variables, tools, toolsets, stores, pipeline behavior. | restart |
+| WhatsApp | Route messages, run commands, arm `/next`, apply one-turn `!overrides`. | immediate |
+| `{vault}/Klaus/` | Agents, snippets, skills, templates, `settings.yml`, `overrides.yml`. | hot |
+| `src/` | New tools, commands, variables, or pipeline behaviour. | restart |
 
-If you understand those surfaces, the rest of Klaus is mostly file placement.
+The repo `vault/` directory is only the first-run template. On first boot Klaus copies it to `{vault}/Klaus/` and from then on reads and watches the user's copy. Once `{vault}/Klaus/` exists it is user-owned: Klaus never merges defaults into it or backfills files. See [infra.md](infra.md#vault) for the sync and hot-reload model.
 
-## Turn Flow
-
-Inbound WhatsApp messages enter through `src/infra/whatsapp/receive.ts` and are handled by the pipeline:
-
-1. Auth checks the allowed chat. Without an allowed chat, Klaus enters setup mode.
-2. `parseMessage` handles voice transcription, document parsing, image/sticker vision media, `/commands`, single-use `/next` prefixes, `@agent` routing, and `!overrides`; the pipeline resolves quoted media before command or agent execution.
-3. The agent and turn config are resolved from settings, agent frontmatter, and one-turn overrides.
-4. The user message is stored unless the turn is ghosted.
-5. Context variables, tools, history, and templates are assembled.
-6. The model loop runs until it replies or reaches the step limit.
-7. Reports are written, traces are persisted, and persistent agents schedule their next run.
-
-Scheduled, timer, persistence, and agent-task runs enter through `src/pipeline/dispatch.ts` and converge on the same execution path.
-
-For the code-level details, see [codebase/pipeline.md](codebase/pipeline.md).
-
-## Vault Model
-
-The repo `vault/` directory is only the first-run template. At runtime Klaus reads and watches the user's synced `{vault}/Klaus/` folder:
-
-```text
-agents/       agent Markdown files
-skills/       loadable reference docs
-snippets/     reusable prompt fragments
-templates/    render wrappers for messages, reports, help, errors
-reports/      Markdown report output
-overrides.yml one-turn config presets
-settings.yml  strict runtime settings
-```
-
-`ensureDefaults()` copies the bundled `vault/` tree only when `{vault}/Klaus/` does not exist. Once it exists, the folder is user-owned state. Klaus does not merge repo defaults into it or backfill missing files.
-
-For vault files, start with [vault/agents.md](vault/agents.md), [vault/prompts.md](vault/prompts.md), and [vault/settings.md](vault/settings.md).
-
-## Primitives
-
-Primitives are the extension points under `src/primitives/`:
-
-| Primitive | Purpose |
-| --- | --- |
-| Commands | Deterministic `/command` handlers that bypass the LLM. |
-| Variables | Handlebars namespaces such as `{{time.*}}` and `{{media.*}}`. |
-| Tools | Model-callable functions such as `send_message`, `set_reaction`, and `read_skill`. |
-| Toolsets | Lazy groups exposed through `load_<name>` meta-tools. |
-| Server tools | Server-side OpenRouter tools passed through to the request. |
-
-Drop in a file, export the right shape, restart, and the registry loader picks it up. See [codebase/primitives.md](codebase/primitives.md).
-
-## State And Reports
-
-The Obsidian vault is knowledge and user-owned configuration. The data directory is runtime state:
-
-| Store | Format | Purpose |
-| --- | --- | --- |
-| `history` | JSONL, day-partitioned | Conversation events, traces, reactions, breaks. |
-| `files` | JSONL index + blobs | Uploaded file metadata and content. |
-| `schedules` | JSON + croner | Recurring runs. |
-| `timers` | JSON + setTimeout | One-shot future runs. |
-
-Reactions are stored against WhatsApp message IDs and rendered on selected history message rows. Agent reactions include agent/run attribution where Klaus produced them. When a user turn was handled only by an agent reaction, the model transcript gets a transient assistant cue so the turn no longer looks open.
-
-Reports are the main debugging surface. They include the rendered prompt, variables, history, tool calls, results, and errors. See [vault/reports.md](vault/reports.md).
+---
+---
+---
+---
+---
+## [Continue to Usage](usage.md)
