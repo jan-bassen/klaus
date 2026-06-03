@@ -1,26 +1,12 @@
 # Klaus
 
-**A headless personal AI agent template for Obsidian and WhatsApp — minimal, self-hosted, and yours to extend.**
+**A headless personal AI agent template for Obsidian and WhatsApp. Minimal, self-hosted, and yours to extend.**
 
-Klaus is less a finished assistant than a working harness for building one. The core pieces are already wired up — WhatsApp intake, agent routing, prompts, tools, variables, commands, schedules, timers, vault reads and writes, reports, and flat-file storage — and everything interesting is meant to come from your own ideas. Copy the repo and start tinkering.
+Klaus is less a finished assistant than a working harness for building one. The core pieces are already wired up: WhatsApp intake, agent routing, prompts, tools, variables, commands, schedules, timers, vault reads and writes, reports, and flat-file storage. Everything more interesting is meant to come from your own ideas. Copy the repo and start tinkering.
 
 The bet behind it: personal agents resist one-size-fits-all. Everyone wants different workflows, privacy boundaries, tones, schedules, and notes. So Klaus keeps the core small, exposes the primitive pieces directly, and trusts that a modern coding agent can build most features on top of a clear local structure. Iteration is the whole point.
 
 The name nods to [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), the pirate who allegedly walked past his crew after being beheaded, because this stack is headless. Klaus is for when you would rather sail with your own strange little ship.
-
-## How it fits together
-
-One idea, repeated: a WhatsApp message becomes a typed turn, the turn gathers context and tools from your Obsidian vault, the model decides what to do, and any durable result lands back in the vault or the local data store. There is no database and no hidden admin panel. Flat files carry all the state, the vault holds your knowledge and configuration, and a single data directory holds the operational bookkeeping.
-
-The code is three small zones. The **pipeline** runs a single turn from message to reply. The **primitives** are the pluggable pieces you extend: tools, commands, and variables. The **infra** is the plumbing underneath: the vault and its Obsidian sync, WhatsApp, and the flat-file stores.
-
-What you actually touch falls into three layers, sorted by how fast a change lands:
-
-- **WhatsApp**, where you route messages, run commands, and apply one-turn tweaks — effective immediately.
-- **Your vault** (`{vault}/Klaus/`), where agents, snippets, skills, templates, and settings live — hot-reloaded on save.
-- **The code** (`src/`), where new tools, commands, and variables are added — picked up on restart.
-
-Most of the time you live in the vault, and most changes are one edit and one message away from working.
 
 ## Getting started
 
@@ -58,7 +44,7 @@ On first boot Klaus hydrates the vault from Obsidian Sync, creates `{vault}/Klau
 
 ## How to use it
 
-You talk to Klaus in one ordinary WhatsApp chat, the way you would text a person. Everything happens through messages — there is no app to open and no dashboard to log into.
+You talk to Klaus in one ordinary WhatsApp chat, the way you would text a person. Everything happens through messages, there is no app to open or dashboard to log into.
 
 The work inside Klaus is done by **agents**. An agent is just a Markdown file that gives a personality, a model, and a set of abilities to one worker. The template ships four: `assistant` (your daily driver), `research` (read-only web and notes investigation), `meta` (edits Klaus's own configuration for you), and `dispatch` (a generic worker other agents hand jobs to). A plain message goes to your default agent; you reach a specific one by name.
 
