@@ -176,16 +176,13 @@ docker stop klaus && docker rm klaus
 docker run -d ... klaus                    # same -v klaus-vault / klaus-data flags
 ```
 
-State survives because it all lives in the volumes, not the container. After upgrading, watch `docker logs -f klaus` through first boot: a new or renamed setting fails startup loudly (see [infra.md](infra.md#settings)), so a clean boot is the signal the upgrade took.
+State survives because it all lives in the volumes, not the container. After upgrading, watch `docker logs -f klaus` through first boot: a new or renamed setting fails startup loudly (see [settings](vault/settings.md)), so a clean boot is the signal the upgrade took.
 
 **Backups.** Two volumes, two different recovery stories:
 
 - `klaus-vault` is mirrored to Obsidian Sync, so the vault and your `Klaus/` config are already replicated remotely. A fresh deploy re-pulls it on first boot.
-- `klaus-data` is **only** on the host: WhatsApp auth, Obsidian login state, conversation history, file blobs, schedules, and timers. Back this volume up if you care about conversation history or want to avoid relinking WhatsApp. Losing `baileys-auth` inside it forces a WhatsApp relink (see [infra.md](infra.md#whatsapp)).
+- `klaus-data` is **only** on the host: WhatsApp auth, Obsidian login state, conversation history, file blobs, schedules, and timers. Back this volume up if you care about conversation history or want to avoid relinking WhatsApp. Losing `baileys-auth` inside it forces a WhatsApp relink (see [infra](codebase/infra.md#whatsapp)).
 
 ---
----
----
----
----
-## [Continue to Architecture](architecture.md)
+
+Once Klaus is running, [usage](usage.md) covers talking to it, and [iteration](iteration.md) covers making it your own.

@@ -1,51 +1,54 @@
 # AGENTS.md
 
-Guidance for coding agents working in this repository. Reference documentation is **not** duplicated here — it lives once in `docs/`. This file is conventions plus a map.
+Guidance for coding agents working in this repository. This file is the essentials you should always keep in context: what Klaus is, where the docs live, the conventions that matter most, and a pointer to the full development guide. Reference documentation is **not** duplicated here — it lives once in `docs/`.
+
+The complete how-to-work-here picture (local loop, adding primitives, testing, layout) is in [docs/development.md](docs/development.md). Read it when you start writing code.
 
 ## Status
 
 - In development; nothing is deployed. If you change something, clean up after it — no legacy code, no compatibility shims.
 - Keep the docs in sync with every change: the affected `docs/` page, the `README.md` front door, and this file. Include doc updates in your plans.
 
-## Where the docs live
-
-`docs/` is the canonical reference, organised to mirror the code and read start to end:
-
-| Page | Covers | Source it documents |
-| --- | --- | --- |
-| [docs/setup.md](docs/setup.md) | Install, first boot, WhatsApp login, troubleshooting | Docker, env, sync |
-| [docs/architecture.md](docs/architecture.md) | The map: three code zones + turn flow | whole `src/` |
-| [docs/usage.md](docs/usage.md) | WhatsApp surface: routing, commands, overrides, voice | `pipeline/message.ts`, `commands/` |
-| [docs/agents.md](docs/agents.md) | Agent files, frontmatter, schedules, persistence, vault access | `pipeline/agents.ts`, `vault/agents/` |
-| [docs/pipeline.md](docs/pipeline.md) | Turn lifecycle, templates, overrides, reports | `src/pipeline/` |
-| [docs/primitives.md](docs/primitives.md) | Tools, commands, variables, snippets, skills | `src/primitives/` |
-| [docs/infra.md](docs/infra.md) | Settings, vault + sync, WhatsApp, stores | `src/infra/` |
-
-Templates are documented with the pipeline (the rendering logic lives there); stores are documented with infra (they live under `infra/store/`).
-
 ## What Klaus is
 
 A maximally simple, headless personal AI agent: **WhatsApp → TypeScript → Obsidian vault → Docker**.
 
-Node 25, native TypeScript (strict), Zod, Handlebars, Baileys. Models go through a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default OpenRouter); request/response types come from the `@openrouter/sdk`. LiteParse for documents, sharp for images. JSONL for conversations and the file index, single JSON files for schedules/timers. No database.
+Node 25, native TypeScript (strict), Zod, Handlebars, Baileys. Models go through a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default OpenRouter); request/response types come from the `@openrouter/sdk`. LiteParse for documents, sharp for images. JSONL for conversations and the file index, single JSON files for schedules and timers. No database.
 
-## Code conventions
-- Short, clean, readable. Prefer removing code to adding it. Don't add knobs, abstractions, or migration burden unless behaviour truly needs to be runtime-configurable. Tune bundled `vault/templates/` with existing helpers before adding settings.
-- Errors are values to be returned, only throw at true system boundaries.
-- Fully typesafe! No `any`, no convenient `as`.
-- No inline magic numbers, prefer `settings.*` or template helpers.
-- `vault/settings.yml` (repo) is the first-run template. At runtime Klaus reads the user's `{vault}/Klaus/settings.yml` directly; it is not merged with repo defaults. Zod validates only — no `.default()` fallbacks. A new field needs editing both the schema in `src/infra/config.ts` and the template.
-- Comments explain *why*, never *what*. Prefer good naming.
-- Keep the dependency list short; `npm install` only when genuinely needed. Don't use auto-upgrades.
-- No barrel imports. Specific relative module paths with explicit `.ts` extensions.
+The code is three zones, each documented once:
 
-## Testing conventions
+- `src/pipeline/` — per-turn orchestration. [docs/codebase/pipeline.md](docs/codebase/pipeline.md)
+- `src/primitives/` — pluggable tools, commands, variables. [docs/codebase/primitives.md](docs/codebase/primitives.md)
+- `src/infra/` — vault + sync, WhatsApp, stores, runtime. [docs/codebase/infra.md](docs/codebase/infra.md)
 
-- Vitest, `pool: forks` for module isolation. Tests in `test/` mirror `src/`.
-- Keep the implementation clean of test seams. Confirm with the user if one is truly needed.
-- Optimise for critical paths (pipeline, tool execution, store round-trip). No coverage targets.
-- `test/setup.ts` preloads `src/infra/config.ts` (the logger reads settings eagerly) and clears registries in `afterEach`. Helpers in `test/helpers/{tmp,stores,turn}.ts`.
-- Module mocking: `vi.hoisted()` + `vi.mock("../relative/path.ts", ...)`. For settings overrides, mutate the live `settings` object in `beforeEach`.
+## Where the docs live
+
+`docs/` is the canonical reference. The **guides** read start to end; the **reference** is for looking up a detail.
+
+| Guide | Covers |
+| --- | --- |
+| [setup.md](docs/setup.md) | Install, first boot, WhatsApp login, operations |
+| [usage.md](docs/usage.md) | WhatsApp surface: routing, commands, overrides, voice |
+| [iteration.md](docs/iteration.md) | The loop of changing and debugging Klaus |
+| [development.md](docs/development.md) | Extending Klaus in code (the full dev picture) |
+| [examples/](docs/examples/) | Follow-along feature builds |
+
+| Reference — vault (`{vault}/Klaus/`, hot-reloads) | Reference — codebase (`src/`, restart) |
+| --- | --- |
+| [agents](docs/vault/agents.md), [snippets](docs/vault/snippets.md), [skills](docs/vault/skills.md), [templates](docs/vault/templates.md), [overrides](docs/vault/overrides.md), [reports](docs/vault/reports.md), [settings](docs/vault/settings.md) | [pipeline](docs/codebase/pipeline.md), [primitives](docs/codebase/primitives.md), [infra](docs/codebase/infra.md) |
+
+The split is by what you edit: vault docs cover files the user edits in Obsidian (hot-reload); codebase docs cover `src/` (restart). Templates and reports are vault surfaces even though their rendering lives in `pipeline/`; settings is a vault surface even though its loader lives in `infra/`.
+
+## Conventions that matter most
+
+The full list is in [development.md](docs/development.md#code-conventions). The ones to internalise:
+
+- Prefer removing code to adding it. No knobs, abstractions, or migration burden unless behaviour truly needs to be runtime-configurable.
+- Errors are values to be returned; only throw at true system boundaries.
+- Fully typesafe. No `any`, no convenient `as`.
+- No inline magic numbers — use `settings.*` or a template helper.
+- Comments explain *why*, never *what*. No barrel imports; explicit relative `.ts` paths.
+- `vault/settings.yml` (repo) is the first-run template only. At runtime Klaus reads the user's `{vault}/Klaus/settings.yml` directly and does not merge repo defaults. Zod validates with no `.default()` fallbacks, so a new setting needs editing both the schema in `src/infra/config.ts` and the template.
 
 ## Commands
 
@@ -56,46 +59,6 @@ npm run test:watch
 npx biome check --write .
 npm run build
 npm run dev    # run the built image against the klaus-vault / klaus-data volumes
-```
-
-## Directory layout
-
-Intentionally flat and opinionated — one glance should tell a newcomer where to look.
-
-```
-src/
-├── index.ts          # bootstrap / startup sequence
-├── errors.ts         # user-facing error formatting
-├── pipeline/         # per-turn orchestration (see docs/pipeline.md)
-│   ├── index.ts      # handleTurn — auth + full turn
-│   ├── message.ts    # parseMessage (STT, commands, /next, @agent, !overrides)
-│   ├── next.ts       # single-use per-chat prefix
-│   ├── overrides.ts  # TurnConfig + !preset registry + merge
-│   ├── agents.ts     # Agent schema + registry + default agent
-│   ├── context.ts    # variables + tools + history assembly
-│   ├── templates.ts  # system/user/agent-message rendering
-│   ├── core.ts       # model loop (runAgent/runLoop), TurnContext, Trigger
-│   ├── dispatch.ts   # schedule/timer/sub-agent entrypoint
-│   ├── persistence.ts# forced persist reschedule
-│   ├── schedules.ts  # frontmatter-schedule entries
-│   ├── runs.ts       # active AbortController registry
-│   ├── outbound.ts   # assistant message persistence + quote refs
-│   ├── media.ts      # STT, TTS, doc parse, image prep/gen
-│   └── reports.ts    # per-turn report emitter
-├── primitives/       # pluggable extensions, auto-discovered (see docs/primitives.md)
-│   ├── tools/        # send_message, set_reaction, search_messages, send_image, math,
-│   │                 # skill, server + sets/{vault,files,dispatch}
-│   ├── variables/    # time, media, tasks, dispatch, config, schedule, trigger, snippets
-│   └── commands/     # break, default, help, image, model(+provider), next, resume,
-│                     # retry, schedules, stop, voice
-└── infra/            # external systems + state (see docs/infra.md)
-    ├── config.ts     # YAML settings + env paths + model resolution (live mutable `settings`)
-    ├── runtime.ts    # fs helpers (read/write/scan)
-    ├── future.ts     # schedule/timer start-pause gate
-    ├── logger.ts
-    ├── store/        # history, files, schedules, timers
-    ├── vault/        # path resolution, defaults, sync, watcher, permissions, markdown
-    └── whatsapp/     # connection, login, presence, receive, send
 ```
 
 ## Vault layout (`{vault}/Klaus/`)

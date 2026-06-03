@@ -20,7 +20,7 @@ Route to a specific agent with `@name` or an alias:
 @research compare these sources with my project notes
 ```
 
-Aliases are defined per agent (`@m` → `meta`, `@r` → `research`, `@d` → `dispatch`). The bundled agents are described in [agents.md](agents.md). Change the default agent for the chat with `/default`.
+Aliases are defined per agent (`@m` → `meta`, `@r` → `research`, `@d` → `dispatch`). The bundled agents are described in [agents](vault/agents.md). Change the default agent for the chat with `/default`.
 
 ## Commands
 
@@ -45,7 +45,7 @@ A message starting with `/` is a command. It bypasses the model entirely — the
 
 ## Overrides
 
-`!preset` words tweak a single turn. They are parsed out anywhere after the route and merged on top of the agent's defaults. Presets are defined in `{vault}/Klaus/overrides.yml` (see [pipeline.md](pipeline.md#overrides) for the merge rules and [primitives.md](primitives.md) for what they can set).
+`!preset` words tweak a single turn. They are parsed out anywhere after the route and merged on top of the agent's defaults. Presets are defined in `{vault}/Klaus/overrides.yml` (see [overrides](vault/overrides.md) for defining and merging them).
 
 ```text
 !large !voice think through this plan with me
@@ -71,7 +71,7 @@ The next message — including a voice note — is parsed as if it began with `@
 - **Documents** (PDF, Office formats) are parsed to text, cached next to the file, and truncated to a configured length.
 - **Quoted messages** can carry their original media into the turn.
 
-Reports redact image data URLs but keep a readable media marker and the stored filename. See [pipeline.md](pipeline.md#reports).
+Reports redact image data URLs but keep a readable media marker and the stored filename. See [reports](vault/reports.md).
 
 ## How agents reply
 
@@ -80,8 +80,5 @@ Agents reply by calling the `send_message` tool, not by emitting plain text. The
 A turn may also just react (`set_reaction`) without sending a message; that stays valid and is recorded. If a turn that *should* have sent a message ends with plain assistant text instead, Klaus sends that text as a fallback message and flags the formatting miss in the run report.
 
 ---
----
----
----
----
-## [Continue to Agents](agents.md)
+
+**Related:** [agents](vault/agents.md) · [overrides](vault/overrides.md) · [iteration](iteration.md)
