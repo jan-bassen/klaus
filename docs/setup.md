@@ -73,7 +73,7 @@ folders instead:
 ```yaml
 services:
   klaus:
-    image: janbassen1/klaus:latest
+    image: klaus:latest
     container_name: klaus
     restart: unless-stopped
     env_file:
