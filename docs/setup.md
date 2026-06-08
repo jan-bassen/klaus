@@ -162,16 +162,15 @@ Day-two notes for keeping a deployment alive.
 **Publishing your own image.** The bundled image builds from the repo with no secrets inside, so you can host it yourself:
 
 ```bash
-docker build -t <your-registry>/klaus:<tag> .
-docker push <your-registry>/klaus:<tag>
+npm run publish -- <dockerhub-user>
 ```
 
-Reference that name in your compose file instead of building on the host. Tag immutably (a version or commit SHA) rather than leaning on `latest`, so a redeploy is a deliberate version bump.
+The command publishes a Docker Hub image for `linux/amd64/v2`, tagged only as `<dockerhub-user>/klaus:X.X.X` from `package.json` and `<dockerhub-user>/klaus:latest`. Reference the versioned name in your compose file instead of building on the host, so a redeploy is a deliberate version bump.
 
 **Upgrading.** Pull or rebuild the new image, then recreate the container against the *same two volumes*:
 
 ```bash
-docker pull <your-registry>/klaus:<tag>   # or: docker build -t klaus .
+docker pull <dockerhub-user>/klaus:<tag>   # or: docker build -t klaus .
 docker stop klaus && docker rm klaus
 docker run -d ... klaus                    # same -v klaus-vault / klaus-data flags
 ```

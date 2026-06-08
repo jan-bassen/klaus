@@ -19,6 +19,7 @@ npm run test        # vitest
 npm run test:watch  # vitest in watch mode
 npx biome check --write .   # lint + format
 npm run build       # build the Docker image
+npm run publish -- <dockerhub-user>   # push version + latest to Docker Hub
 npm run dev         # run the built image against the klaus-vault / klaus-data volumes
 ```
 

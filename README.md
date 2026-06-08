@@ -56,6 +56,14 @@ docker run -d --restart unless-stopped \
 
 On first boot Klaus hydrates the vault from Obsidian Sync, creates `{vault}/Klaus`, and writes a temporary `{vault}/Klaus/_login/` folder. Open `instructions.md` there, choose solo or active-chat mode, and scan `qr-code.svg` from WhatsApp → Linked Devices. The full install path, including E2EE vaults, self-mode, and fixes for common startup problems, is in [docs/setup.md](docs/setup.md).
 
+To publish the current package version as a Docker Hub image for `linux/amd64/v2`, use:
+
+```bash
+npm run publish -- <dockerhub-user>
+```
+
+This pushes `<dockerhub-user>/klaus:X.X.X` and `<dockerhub-user>/klaus:latest`.
+
 ## How to use it
 
 You talk to Klaus in one ordinary WhatsApp chat, the way you would text a person. There is no app to open or dashboard to log into.

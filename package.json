@@ -13,7 +13,8 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"build": "docker build -t klaus ."
+		"build": "docker build -t klaus .",
+		"publish": "sh -c 'docker buildx build --platform linux/amd64 --build-arg VERSION=$npm_package_version -t ${1:?Usage: npm run publish -- <dockerhub-user>}/klaus:$npm_package_version -t ${1}/klaus:latest --push .' --"
 	},
 	"dependencies": {
 		"@llamaindex/liteparse": "^1.5.3",

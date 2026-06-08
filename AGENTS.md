@@ -60,6 +60,7 @@ npm run test
 npm run test:watch
 npx biome check --write .
 npm run build
+npm run publish -- <dockerhub-user>
 npm run dev    # run the built image against the klaus-vault / klaus-data volumes
 ```
 
