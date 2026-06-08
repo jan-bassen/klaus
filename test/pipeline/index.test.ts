@@ -470,6 +470,15 @@ describe("pipeline/index.handleTurn", () => {
 			}),
 		);
 		expect(sendReaction).toHaveBeenCalledWith("chat1", msg.messageKey, "❌");
+
+		const [report] = readReportMarkdownFiles();
+		expect(report).toContain("**Agent**: `default`");
+		expect(report).toContain(`**Trigger**: message \`${msg.id}\``);
+		expect(report).toContain("**Outcome**: error");
+		expect(report).toContain("**Error phase**: `agent_run`");
+		expect(report).toContain("### User-facing error");
+		expect(report).toContain("Too many requests");
+		expect(report).toContain("### Stack");
 	});
 
 	describe("per-agent turn interruption", () => {

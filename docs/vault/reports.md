@@ -6,13 +6,14 @@ Reports land at `{vault}/Klaus/reports/<date>/<time>--<runId>.md`, so they sort 
 
 ## When a report is written
 
-Every run writes one report unless `config.report` is false (you can turn it off per agent with `report: false`, or per turn with an override). Reports are also skipped for [ghosted](overrides.md#ghost-mode) turns and for aborts. Report writing never throws, so a problem here can never break a turn.
+Every run writes one report unless `config.report` is false (you can turn it off per agent with `report: false`, or per turn with an override). Reports are also skipped for [ghosted](overrides.md#ghost-mode) turns and for aborts. If a turn fails before the normal agent report can be written, Klaus writes a smaller pipeline error report with the failure phase, the user-facing error text, and the stack trace. Report writing never throws, so a problem here can never break a turn.
 
 ## What's in one
 
 A report contains, in order:
 
 - **Message metadata** and the trigger (`message` / `schedule` / `timer` / `dispatch`), the duration, and the outcome.
+- **When something failed:** the pipeline phase, user-facing error text, and stack trace.
 - **The applied overrides** and a picked subset of the resolved config.
 - **When the model ran:** the model and tier, token usage, prompt size, and reply size.
 - **The output**, when the run produced one.

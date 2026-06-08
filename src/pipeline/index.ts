@@ -39,6 +39,7 @@ import { executeAgent, isAbortError } from "./core.ts";
 import { parseMessage } from "./message.ts";
 import { consumeNextPrefix, getNextPrefix } from "./next.ts";
 import { buildTurnConfig } from "./overrides.ts";
+import { emitPipelineErrorReport } from "./reports.ts";
 import { registerActiveRun } from "./runs.ts";
 import { renderTemplate } from "./templates.ts";
 
@@ -50,6 +51,24 @@ interface AuthResult {
 interface ActiveTurn {
 	ac: AbortController;
 	done: Promise<void>;
+}
+
+type PipelineErrorPhase =
+	| "auth"
+	| "parse"
+	| "command"
+	| "agent"
+	| "config"
+	| "history"
+	| "concurrency"
+	| "agent_run"
+	| "cleanup";
+
+interface FailedTurnContext {
+	agent: string;
+	runId: string;
+	reportEnabled: boolean;
+	agentReportMayExist: boolean;
 }
 
 const activeTurns = new Map<string, ActiveTurn>();
@@ -71,8 +90,10 @@ function checkAllowlist(msg: InboundMessage): AuthResult {
 }
 
 export async function handleTurn(msg: InboundMessage): Promise<void> {
+	const startedAt = Date.now();
 	const arrivalGeneration = nextTurnGeneration++;
-	let failedContext: { agent: string; runId: string } | undefined;
+	let failedContext: FailedTurnContext | undefined;
+	let errorPhase: PipelineErrorPhase = "auth";
 	try {
 		const auth = checkAllowlist(msg);
 		if (!auth.allowed) {
@@ -80,12 +101,14 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			return;
 		}
 
+		errorPhase = "parse";
 		const nextPrefix = getNextPrefix(msg.chatId);
 		const parsed = await parseMessage(msg, nextPrefix);
 		const processedMsg = parsed.msg;
 		const effectiveMsg = resolveQuotedMedia(processedMsg);
 
 		if (parsed.command) {
+			errorPhase = "command";
 			log.info(`[pipeline] dispatching /${parsed.command.name} command`);
 			const command = commandRegistry.get(parsed.command.name);
 			if (command) await command.execute(effectiveMsg, parsed.command.args);
@@ -94,13 +117,16 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 
 		if (nextPrefix !== undefined) consumeNextPrefix(processedMsg.chatId);
 
+		errorPhase = "agent";
 		const agentName = parsed.agent ?? getDefaultAgent(processedMsg.chatId);
 		const def = await getOrLoadAgent(agentName);
 		log.info(`[pipeline] routing to @${agentName}`);
+		errorPhase = "config";
 		const config = buildTurnConfig(def, parsed.overrides);
 
 		let messageId: string | undefined;
 		if (!config.ghost) {
+			errorPhase = "history";
 			const overrideNames = Object.keys(parsed.overrides);
 			const quotedContext = await buildQuotedContext(effectiveMsg);
 			messageId = await appendMessage({
@@ -124,6 +150,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			}
 		}
 
+		errorPhase = "concurrency";
 		const turnKey = `${effectiveMsg.chatId}:${agentName}`;
 		const latestGeneration = turnGenerations.get(turnKey) ?? 0;
 		if (arrivalGeneration < latestGeneration) {
@@ -156,7 +183,12 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		};
 
 		const runId = crypto.randomUUID();
-		failedContext = { agent: def.name, runId };
+		failedContext = {
+			agent: def.name,
+			runId,
+			reportEnabled: config.report !== false,
+			agentReportMayExist: false,
+		};
 
 		const partialTurn: Omit<TurnContext, "vars"> = {
 			chatId: effectiveMsg.chatId,
@@ -169,6 +201,7 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 			messageRefs: {},
 		};
 
+		let agentCompleted = false;
 		try {
 			if (msg.kind === "whatsapp") {
 				startPresence(
@@ -176,13 +209,18 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 					config.forceVoice ? "recording" : "composing",
 				);
 			}
+			errorPhase = "agent_run";
+			const variables = getVariables();
+			failedContext.agentReportMayExist = true;
 			await executeAgent({
 				turn: partialTurn,
 				def,
-				variables: getVariables(),
+				variables,
 				signal: ac.signal,
 			});
+			agentCompleted = true;
 		} finally {
+			if (agentCompleted) errorPhase = "cleanup";
 			unregisterActiveRun();
 			if (msg.kind === "whatsapp") await stopPresence(effectiveMsg.chatId);
 			if (activeTurns.get(turnKey) === activeEntry) {
@@ -195,7 +233,11 @@ export async function handleTurn(msg: InboundMessage): Promise<void> {
 		}
 	} catch (err) {
 		if (!isAbortError(err)) {
-			await reportPipelineError(msg, err, failedContext);
+			await reportPipelineError(msg, err, {
+				startedAt,
+				phase: errorPhase,
+				...(failedContext ? { context: failedContext } : {}),
+			});
 		}
 	}
 }
@@ -306,16 +348,41 @@ function describeQuotedMedia(
 async function reportPipelineError(
 	msg: InboundMessage,
 	err: unknown,
-	context?: { agent: string; runId: string },
+	input: {
+		startedAt: number;
+		phase: PipelineErrorPhase;
+		context?: FailedTurnContext;
+	},
 ): Promise<void> {
 	log.error("[pipeline] unhandled error", {
 		error: err instanceof Error ? err.message : String(err),
 		stack: err instanceof Error ? err.stack : undefined,
 	});
 
-	if (msg.kind !== "whatsapp") return;
-
 	const errorContent = formatUserError(err);
+	const context = input.context;
+	const shouldEmitPipelineReport =
+		!context ||
+		!context.reportEnabled ||
+		!context.agentReportMayExist ||
+		input.phase !== "agent_run";
+
+	if (shouldEmitPipelineReport) {
+		await emitPipelineErrorReport({
+			chatId: msg.chatId,
+			startedAt: input.startedAt,
+			error: err,
+			phase: input.phase,
+			userError: errorContent,
+			...(context
+				? { agent: context.agent, runId: context.runId }
+				: {}),
+			trigger: { kind: "message", messageId: msg.id },
+			message: msg,
+		});
+	}
+
+	if (msg.kind !== "whatsapp") return;
 
 	try {
 		enqueueMessage({

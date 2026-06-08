@@ -73,6 +73,6 @@ reports/      # Markdown report output      overrides.yml # !preset definitions
 settings.yml  # strict YAML settings (hot-reloaded)
 ```
 
-Reports are debug-first: they keep the outcome, output, and step trace near the top, then put the rendered user message, history, system prompt, and context details below.
+Reports are debug-first: they keep the outcome, output, error details, and step trace near the top, then put the rendered user message, history, system prompt, and context details below.
 
 `ensureVaultDefaults` copies the repo `vault/` tree into `{vault}/Klaus/` only when that folder does not exist. Once it exists it is user-owned state.

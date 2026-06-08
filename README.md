@@ -20,7 +20,7 @@ Klaus starts as a basic but usable WhatsApp assistant. Out of the box it can:
 - **Run deterministic commands** like `/model`, `/voice`, `/default`, `/image`, `/schedules`, `/retry`, `/stop`, and `/resume` without spending a model call.
 - **Adjust one turn at a time** with `!overrides`, for example a larger model, a voice reply, or a ghost run that stays out of history.
 - **Wake itself up** with cron schedules or self-rescheduling timers, useful for briefs, reviews, reminders, and recurring maintenance.
-- **Leave receipts** in `{vault}/Klaus/reports/`, showing the output, tool calls, results, rendered prompt, model choice, and token use for every turn.
+- **Leave receipts** in `{vault}/Klaus/reports/`, showing the output, tool calls, results, rendered prompt, model choice, token use, and error details for failed turns.
 
 ## Getting started
 

@@ -7,8 +7,20 @@
 **Trigger**: {{trigger.kind}}{{#if trigger.messageId}} `{{trigger.messageId}}`{{/if}}{{#if trigger.scheduleId}} `{{trigger.scheduleId}}`{{/if}}{{#if trigger.timerId}} `{{trigger.timerId}}`{{/if}}{{#if trigger.parentRunId}} parent `{{trigger.parentRunId}}`{{/if}}
 **Duration**: {{durationMs}}ms
 **Outcome**: {{outcome.kind}}{{#if outcome.error}} — `{{outcome.error.name}}: {{outcome.error.message}}`{{/if}}
+{{#if outcome.error.phase}}**Error phase**: `{{outcome.error.phase}}`
+{{/if}}
 {{#if overrides.length}}**Overrides**: {{join overrides ", "}}
-{{/if}}**Config**: {{config.provider}}/{{config.modelTier}}{{#if config.historyLimit}}, history {{config.historyScope}}/{{config.historyLimit}}{{/if}}
+{{/if}}**Config**: {{#if config.provider}}{{config.provider}}{{else}}unknown{{/if}}/{{#if config.modelTier}}{{config.modelTier}}{{else}}unknown{{/if}}{{#if config.historyLimit}}, history {{config.historyScope}}/{{config.historyLimit}}{{/if}}
+{{#if outcome.error.userMessage}}
+
+### User-facing error
+{{codeFence outcome.error.userMessage}}
+{{/if}}
+{{#if outcome.error.stack}}
+
+### Stack
+{{codeFence outcome.error.stack}}
+{{/if}}
 {{#if llm}}
 **Model**: {{llm.model}} ({{llm.tier}})
 **Tokens**: {{llm.usage.promptTokens}} in / {{llm.usage.completionTokens}} out

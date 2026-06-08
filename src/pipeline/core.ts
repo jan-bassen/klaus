@@ -237,7 +237,12 @@ export async function executeAgent(
 		return result;
 	} catch (err) {
 		if (reportEnabled && !isAbortError(err)) {
-			await emitReport({ turn: fullTurn, startedAt, error: err });
+			await emitReport({
+				turn: fullTurn,
+				startedAt,
+				error: err,
+				errorPhase: "agent_run",
+			});
 		}
 		throw err;
 	}

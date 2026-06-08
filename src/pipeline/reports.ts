@@ -23,6 +23,22 @@ interface EmitReportInput {
 	startedAt: number;
 	result?: AgentRunResult;
 	error?: unknown;
+	errorPhase?: string;
+	userError?: string;
+}
+
+interface EmitPipelineErrorReportInput {
+	chatId: string;
+	startedAt: number;
+	error: unknown;
+	phase: string;
+	userError?: string;
+	agent?: string;
+	runId?: string;
+	trigger?: TurnContext["trigger"];
+	message?: InboundMessage;
+	overrides?: Record<string, boolean>;
+	config?: TurnConfig;
 }
 
 interface ReportStep {
@@ -81,7 +97,16 @@ interface ReportEntry {
 	durationMs: number;
 	outcome:
 		| { kind: "ok" }
-		| { kind: "error"; error: { name: string; message: string } };
+		| {
+				kind: "error";
+				error: {
+					name: string;
+					message: string;
+					phase?: string;
+					userMessage?: string;
+					stack?: string;
+				};
+		  };
 	overrides: string[];
 	config: {
 		provider?: string;
@@ -120,11 +145,31 @@ export async function emitReport(input: EmitReportInput): Promise<void> {
 	}
 }
 
+export async function emitPipelineErrorReport(
+	input: EmitPipelineErrorReportInput,
+): Promise<void> {
+	try {
+		const entry = buildPipelineErrorReport(input);
+		const filename = reportFilename(entry);
+		await writeMarkdownReport(entry, filename);
+		log.info("[reports] emitted pipeline error", {
+			name: filename,
+		});
+	} catch (err) {
+		log.warn("[reports] failed to emit pipeline error", {
+			error: err instanceof Error ? err.message : String(err),
+		});
+	}
+}
+
 // ── Build ──────────────────────────────────────────────────────────────────
 
 function buildReport(input: EmitReportInput): ReportEntry {
-	const { turn, startedAt, result, error } = input;
+	const { turn, startedAt, result, error, errorPhase, userError } = input;
 	const durationMs = Date.now() - startedAt;
+	const errorDetails: { phase?: string; userMessage?: string } = {};
+	if (errorPhase) errorDetails.phase = errorPhase;
+	if (userError) errorDetails.userMessage = userError;
 
 	const entry: ReportEntry = {
 		runId: turn.runId,
@@ -133,7 +178,7 @@ function buildReport(input: EmitReportInput): ReportEntry {
 		trigger: turn.trigger,
 		timestamp: new Date().toISOString(),
 		durationMs,
-		outcome: error ? errorOutcome(error) : { kind: "ok" },
+		outcome: error ? errorOutcome(error, errorDetails) : { kind: "ok" },
 		overrides: Object.keys(turn.overrides),
 		config: pickConfig(turn.config),
 	};
@@ -144,9 +189,52 @@ function buildReport(input: EmitReportInput): ReportEntry {
 	return entry;
 }
 
-function errorOutcome(err: unknown): ReportEntry["outcome"] {
+function buildPipelineErrorReport(
+	input: EmitPipelineErrorReportInput,
+): ReportEntry {
+	const durationMs = Date.now() - input.startedAt;
+	const errorDetails: { phase?: string; userMessage?: string } = {
+		phase: input.phase,
+	};
+	if (input.userError) errorDetails.userMessage = input.userError;
+
+	const entry: ReportEntry = {
+		runId: input.runId ?? crypto.randomUUID(),
+		chatId: input.chatId,
+		agent: input.agent ?? "pipeline",
+		trigger: input.trigger ?? {
+			kind: "message",
+			messageId: input.message?.id ?? "unknown",
+		},
+		timestamp: new Date().toISOString(),
+		durationMs,
+		outcome: errorOutcome(input.error, errorDetails),
+		overrides: Object.keys(input.overrides ?? {}),
+		config: input.config ? pickConfig(input.config) : {},
+	};
+
+	if (input.message) entry.message = buildMessageSection(input.message);
+
+	return entry;
+}
+
+function errorOutcome(
+	err: unknown,
+	details: { phase?: string; userMessage?: string } = {},
+): ReportEntry["outcome"] {
 	const e = err instanceof Error ? err : new Error(String(err));
-	return { kind: "error", error: { name: e.name, message: e.message } };
+	return {
+		kind: "error",
+		error: {
+			name: e.name,
+			message: sanitizeReportText(e.message),
+			...(details.phase ? { phase: details.phase } : {}),
+			...(details.userMessage
+				? { userMessage: sanitizeReportText(details.userMessage) }
+				: {}),
+			...(e.stack ? { stack: sanitizeReportText(e.stack) } : {}),
+		},
+	};
 }
 
 function pickConfig(c: TurnConfig): ReportEntry["config"] {

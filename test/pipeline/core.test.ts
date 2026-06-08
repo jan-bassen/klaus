@@ -805,7 +805,9 @@ describe("pipeline/core.executeAgent", () => {
 		const report = await waitForReport("run-report-error");
 		expect(report).toContain("**Run**: `run-report-error`");
 		expect(report).toContain("**Outcome**: error");
+		expect(report).toContain("**Error phase**: `agent_run`");
 		expect(report).toContain("`Error: rate limit exceeded`");
+		expect(report).toContain("### Stack");
 	});
 
 	it("persists non-send_message tool traces with the runId and trigger", async () => {

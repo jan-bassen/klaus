@@ -8,7 +8,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { settings } from "../../src/infra/config.ts";
 import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
 import type { AgentRunResult, TurnContext } from "../../src/pipeline/core.ts";
-import { emitReport } from "../../src/pipeline/reports.ts";
+import {
+	emitPipelineErrorReport,
+	emitReport,
+} from "../../src/pipeline/reports.ts";
 import { invalidateTemplate } from "../../src/pipeline/templates.ts";
 import { makeTmpDir, rmTmpDir } from "../helpers/tmp.ts";
 import { makeTurn } from "../helpers/turn.ts";
@@ -274,6 +277,40 @@ describe("pipeline/reports: emitReport", () => {
 		expect(markdown).toContain("**Outcome**: error");
 		expect(markdown).toContain("`TypeError: boom`");
 		expect(markdown).not.toContain("### Steps");
+	});
+
+	it("writes pipeline error reports with phase, user-facing text, and stack", async () => {
+		const message: InboundMessage = {
+			kind: "whatsapp",
+			id: "m-error",
+			chatId: "c1",
+			senderId: "s1",
+			text: "@missing hello",
+			timestamp: new Date(),
+			messageKey: {},
+		};
+
+		await emitPipelineErrorReport({
+			chatId: "c1",
+			startedAt: Date.now() - 10,
+			error: new Error("agent missing"),
+			phase: "agent",
+			userError: "Something went wrong: agent missing",
+			agent: "pipeline",
+			runId: "run-pipeline-error",
+			trigger: { kind: "message", messageId: message.id },
+			message,
+		});
+
+		const markdown = readOnlyReport();
+		expect(markdown).toContain("**Agent**: `pipeline`");
+		expect(markdown).toContain("**Run**: `run-pipeline-error`");
+		expect(markdown).toContain("**Outcome**: error");
+		expect(markdown).toContain("**Error phase**: `agent`");
+		expect(markdown).toContain("### User-facing error");
+		expect(markdown).toContain("Something went wrong: agent missing");
+		expect(markdown).toContain("### Stack");
+		expect(markdown).toContain("Error: agent missing");
 	});
 
 	it("never throws — corrupt overlay / missing fields are swallowed", async () => {
