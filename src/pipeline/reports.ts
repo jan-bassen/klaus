@@ -183,7 +183,7 @@ function buildReport(input: EmitReportInput): ReportEntry {
 		config: pickConfig(turn.config),
 	};
 
-	if (result) entry.llm = buildLlmSection(result);
+	if (result) entry.llm = buildLlmSection(result, turn.config);
 	if (turn.message) entry.message = buildMessageSection(turn.message);
 
 	return entry;
@@ -248,7 +248,10 @@ function pickConfig(c: TurnConfig): ReportEntry["config"] {
 	return out;
 }
 
-function buildLlmSection(result: AgentRunResult): ReportLlm {
+function buildLlmSection(
+	result: AgentRunResult,
+	config: TurnConfig,
+): ReportLlm {
 	const userMessage = sanitizeReportText(result.userMessage);
 	const systemPrompt = sanitizeReportText(result.systemPrompt);
 	const assistantMessage = sanitizeReportText(result.replyContent);
@@ -266,7 +269,7 @@ function buildLlmSection(result: AgentRunResult): ReportLlm {
 		userMessageChars: result.userMessage.length,
 		historyMessageCount: result.historyMessages.length,
 		replyChars: result.replyContent.length,
-		steps: result.steps.map(toReportStep),
+		steps: result.steps.map((step) => toReportStep(step, config)),
 		systemPrompt,
 		userMessage,
 		assistantMessage,
@@ -274,11 +277,16 @@ function buildLlmSection(result: AgentRunResult): ReportLlm {
 	};
 }
 
-function toReportStep(s: AgentRunResult["steps"][number]): ReportStep {
+function toReportStep(
+	s: AgentRunResult["steps"][number],
+	config: TurnConfig,
+): ReportStep {
 	const step: ReportStep = {
 		toolCalls: s.toolCalls.map((tc) => ({
 			tool: tc.toolName,
-			args: sanitizeReportValue(reorderReportArgs(tc.toolName, tc.args)),
+			args: sanitizeReportValue(
+				reorderReportArgs(tc.toolName, tc.args, config),
+			),
 		})),
 		toolResults: s.toolResults.map((tr) => ({
 			tool: tr.toolName,
@@ -311,20 +319,31 @@ function sanitizeCitation(
 	};
 }
 
-function reorderReportArgs(toolName: string, args: unknown): unknown {
-	if (
-		toolName !== SEND_MESSAGE_TOOL_NAME ||
-		!isRecord(args) ||
-		!("asVoiceNote" in args)
-	) {
+function reorderReportArgs(
+	toolName: string,
+	args: unknown,
+	config: TurnConfig,
+): unknown {
+	if (toolName !== SEND_MESSAGE_TOOL_NAME || !isRecord(args)) {
 		return args;
 	}
 
-	const out: Record<string, unknown> = { asVoiceNote: args.asVoiceNote };
+	const out: Record<string, unknown> = {
+		asVoiceNote: effectiveSendMessageVoice(args.asVoiceNote, config),
+	};
 	for (const [key, value] of Object.entries(args)) {
 		if (key !== "asVoiceNote") out[key] = value;
 	}
 	return out;
+}
+
+function effectiveSendMessageVoice(
+	asVoiceNote: unknown,
+	config: TurnConfig,
+): boolean {
+	if (config.suppressVoice) return false;
+	if (config.forceVoice) return true;
+	return asVoiceNote === true;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -2,7 +2,13 @@
  * `pipeline/reports.ts` — `emitReport` build + write paths.
  */
 
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { settings } from "../../src/infra/config.ts";
@@ -143,6 +149,64 @@ describe("pipeline/reports: emitReport", () => {
 		const markdown = readOnlyReport();
 		expect(markdown).toContain(
 			'`{"asVoiceNote":true,"text":"long spoken answer"}`',
+		);
+	});
+
+	it("reports the effective send_message voice mode after turn overrides", async () => {
+		await emitReport({
+			turn: makeTurn({ config: { forceVoice: true } }),
+			startedAt: Date.now() - 10,
+			result: makeResult({
+				steps: [
+					{
+						reasoning: "",
+						toolCalls: [
+							{
+								toolCallId: "t1",
+								toolName: "send_message",
+								args: { text: "forced spoken answer", asVoiceNote: false },
+							},
+						],
+						toolResults: [
+							{ toolCallId: "t1", toolName: "send_message", result: "sent" },
+						],
+					},
+				],
+			}),
+		});
+
+		const forceMarkdown = readOnlyReport();
+		expect(forceMarkdown).toContain(
+			'`{"asVoiceNote":true,"text":"forced spoken answer"}`',
+		);
+
+		rmOnlyReport();
+
+		await emitReport({
+			turn: makeTurn({ config: { suppressVoice: true } }),
+			startedAt: Date.now() - 10,
+			result: makeResult({
+				steps: [
+					{
+						reasoning: "",
+						toolCalls: [
+							{
+								toolCallId: "t1",
+								toolName: "send_message",
+								args: { text: "suppressed spoken answer", asVoiceNote: true },
+							},
+						],
+						toolResults: [
+							{ toolCallId: "t1", toolName: "send_message", result: "sent" },
+						],
+					},
+				],
+			}),
+		});
+
+		const suppressMarkdown = readOnlyReport();
+		expect(suppressMarkdown).toContain(
+			'`{"asVoiceNote":false,"text":"suppressed spoken answer"}`',
 		);
 	});
 
@@ -363,4 +427,15 @@ function readOnlyReport(): string {
 	const [filename] = files;
 	if (!filename) throw new Error("Missing report file");
 	return readFileSync(path.join(reportDir, filename), "utf-8");
+}
+
+function rmOnlyReport(): void {
+	const [dateDir] = readdirSync(settings.vault.reportsDir);
+	if (!dateDir) throw new Error("Missing report date directory");
+	const reportDir = path.join(settings.vault.reportsDir, dateDir);
+	const files = readdirSync(reportDir);
+	expect(files).toHaveLength(1);
+	const [filename] = files;
+	if (!filename) throw new Error("Missing report file");
+	rmSync(path.join(reportDir, filename));
 }

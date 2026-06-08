@@ -22,6 +22,8 @@ A report contains, in order:
 
 The top of the report is meant for fast debugging: outcome, final output, and the model/tool trace are visible before the longer rendered inputs. When you need to understand why the run behaved that way, keep reading into the user message, history, and system prompt. The rendered system prompt is where you catch a prompt-injection attempt, a snippet that didn't interpolate, or a template that wrapped something the wrong way.
 
+For `send_message`, the displayed `asVoiceNote` value is the effective delivery mode after turn config is applied. That means `!voice` shows `asVoiceNote: true` even if the model omitted or declined voice, and a voice-suppression override shows `false` even if the model requested audio.
+
 Base64 data URLs are stripped from every field, so an image-heavy turn produces a readable report instead of a multi-megabyte wall of encoded bytes. A readable media marker and the stored filename are kept in their place.
 
 ## Tuning the format
