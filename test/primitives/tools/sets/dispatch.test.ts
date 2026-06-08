@@ -40,9 +40,9 @@ describe("parseRunAt", () => {
 });
 
 describe("run_agent tool", () => {
-	it("returns child messages to the caller without queueing them for user send", async () => {
-		dispatchMock.mockImplementationOnce(async ({ replyCollector }) => {
-			replyCollector.push("child result");
+	it("returns child results to the caller without queueing them for user send", async () => {
+		dispatchMock.mockImplementationOnce(async ({ resultCollector }) => {
+			resultCollector.push("child result");
 			return "child result";
 		});
 
@@ -56,7 +56,7 @@ describe("run_agent tool", () => {
 				prompt: "check this",
 				chatId: "c1",
 				trigger: { kind: "dispatch", parentRunId: "r-test" },
-				replyCollector: expect.any(Array),
+				resultCollector: expect.any(Array),
 			}),
 		);
 	});

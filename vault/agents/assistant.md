@@ -1,10 +1,7 @@
 ---
 name: assistant
 tools:
-  - send_message
-  - set_reaction
   - search_messages
-  - send_image
   - math
 serverTools:
   - web_search

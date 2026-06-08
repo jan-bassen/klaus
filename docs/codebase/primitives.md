@@ -54,11 +54,14 @@ Standalone tools (`tools/*.ts`):
 
 | Tool | Input | Behaviour |
 | --- | --- | --- |
-| `send_message` | `text`, `asVoiceNote?`, `quoteMessageLabel?` | The canonical reply tool. Sends `text` to WhatsApp; `asVoiceNote` routes through TTS; a positive `quoteMessageLabel` quotes a history `ref #n` (`0` is ignored). In a sub-agent run it returns the text to the caller instead of sending. |
-| `set_reaction` | `emoji`, `messageLabel?` | React to a message (`""` removes the reaction). Label `0`/omitted targets the current message. |
+| `send_message` | `text`, `asVoiceNote?`, `quoteMessageLabel?` | Core tool for user-visible WhatsApp replies in message, schedule, and timer runs. `asVoiceNote` routes through TTS; a positive `quoteMessageLabel` quotes a history `ref #n` (`0` is ignored). |
+| `return_result` | `text` | Core tool for inline `run_agent` children. Returns `text` to the calling agent and never sends to WhatsApp. |
+| `set_reaction` | `emoji`, `messageLabel?` | Core tool for message runs. Reacts to a message (`""` removes the reaction). Label `0`/omitted targets the current message. |
 | `search_messages` | `text?`, `aroundMessageId?`, `after?`, `before?`, `limit?`, `contextMessages?` | Search conversation history, with optional context windows around hits. |
-| `send_image` | `prompt`, `inputFileIds?`, `inputMessageLabel?`, `quoteMessageLabel?` | Generate or edit an image and send it. |
+| `send_image` | `prompt`, `inputFileIds?`, `inputMessageLabel?`, `quoteMessageLabel?` | Core tool for message, schedule, and timer runs. Generates or edits an image and sends it. |
 | `math` | `expression`, `scope?` | Evaluate a mathjs expression. |
+
+Core tools are ignored when listed in agent or skill `tools`; Klaus activates them from the trigger instead. A message run gets `send_message`, `set_reaction`, and `send_image`; a schedule or timer gets `send_message` and `send_image`; an inline dispatch gets only `return_result`.
 
 `read_skill` is not a static tool. It is built per agent from that agent's declared `skills`, with an enum input of just those skill names. See [skills](../vault/skills.md).
 
@@ -72,7 +75,7 @@ A toolset is a named group of tools that loads lazily, which keeps an agent's in
 | `files` | `load_files` | `files_upload`, `files_download`, `files_read`, `files_list`, `files_delete` |
 | `agents` | `load_agents` | `run_agent`, `schedule_agent`, `list_agent_runs`, `cancel_agent_run` |
 
-Every vault tool routes through a single permission gate (`gateVaultTool`) that enforces the agent's [vault access](infra.md#vault). `run_agent` runs another agent, either inline (returning its reply to the caller) or scheduled for later, and respects the chain-depth limit.
+Every vault tool routes through a single permission gate (`gateVaultTool`) that enforces the agent's [vault access](infra.md#vault). `run_agent` runs another agent, either inline (returning its `return_result` text to the caller) or scheduled for later, and respects the chain-depth limit.
 
 ## Server tools
 

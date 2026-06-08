@@ -44,7 +44,7 @@ describe("pipeline/dispatch.dispatch", () => {
 		settings.agent.maxChainDepth = 10;
 
 		executeMock.mockImplementation(async ({ turn }) => {
-			turn._replyCollector?.push("child message");
+			turn._resultCollector?.push("child message");
 		});
 		agentRegistry.set("default", makeAgent("default"));
 		agentRegistry.set(
@@ -150,7 +150,7 @@ describe("pipeline/dispatch.dispatch", () => {
 	it("wires an inline message collector onto the child turn and returns joined messages", async () => {
 		const collector: string[] = ["first"];
 		executeMock.mockImplementationOnce(async ({ turn }) => {
-			turn._replyCollector?.push("second", "third");
+			turn._resultCollector?.push("second", "third");
 		});
 
 		const result = await dispatch({
@@ -158,10 +158,10 @@ describe("pipeline/dispatch.dispatch", () => {
 			prompt: "objective",
 			chatId: "chat-1",
 			trigger: { kind: "dispatch", parentRunId: "parent-1" },
-			replyCollector: collector,
+			resultCollector: collector,
 		});
 
-		expect(executedTurn()._replyCollector).toBe(collector);
+		expect(executedTurn()._resultCollector).toBe(collector);
 		expect(result).toBe("first\n\nsecond\n\nthird");
 	});
 
@@ -175,7 +175,7 @@ describe("pipeline/dispatch.dispatch", () => {
 			trigger: { kind: "schedule", scheduleId: "schedule-1" },
 		});
 
-		expect(executedTurn()._replyCollector).toBeUndefined();
+		expect(executedTurn()._resultCollector).toBeUndefined();
 		expect(result).toBeUndefined();
 	});
 

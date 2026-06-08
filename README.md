@@ -63,7 +63,7 @@ what changed in my project notes?      # plain text → your default agent
 
 Klaus is meant to be lived in and reshaped. Almost everything you'd want to change lives as a file in your vault under `{vault}/Klaus/`, and saving that file in Obsidian takes effect on your next message — no restart, no deploy. These are the pieces you compose:
 
-- **Agents** (`agents/*.md`) — a worker's prompt, model, abilities, and permissions in one Markdown file. Edit one to change how it behaves, or copy it to make a new specialist.
+- **Agents** (`agents/*.md`) — a worker's prompt, model, non-core abilities, and permissions in one Markdown file. Reply tools are added from how the agent is invoked, so inline helpers return results while message-triggered agents can send to WhatsApp.
 - **Snippets** (`snippets/*.md`) — reusable scraps of prompt you drop into agents with `{{snippets.tone}}`. Keep your voice or your bio in one place instead of repeating it.
 - **Skills** (`skills/*.md`) — knowledge an agent loads only when it's relevant, so it isn't carried on every turn. A skill can even bring its own tools along when it loads.
 - **Tools** — the things an agent can actually *do* mid-reply: send a message, read and write your vault, search the web, generate an image, or hand a job to another agent.

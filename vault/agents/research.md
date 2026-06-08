@@ -2,8 +2,6 @@
 name: research
 aliases: [r]
 tools:
-  - send_message
-  - set_reaction
   - search_messages
   - math
 serverTools:

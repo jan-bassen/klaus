@@ -144,8 +144,8 @@ export const logExpenseTool: ToolDefinition<typeof schema> = {
 The `description` and `inputSchema` are the tool's interface to the *model* — write
 them as instructions, since they're how it decides when and how to call it. It
 returns a clear value on success and `{ error }` on failure rather than throwing, so
-a problem feeds back into the loop instead of blowing it up. An agent only gets this
-tool if it lists it in frontmatter.
+a problem feeds back into the loop instead of blowing it up. This is a non-core
+tool, so an agent only gets it if it lists it in frontmatter.
 
 ## Step 4 — The agent
 

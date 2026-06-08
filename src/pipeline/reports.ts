@@ -11,7 +11,7 @@ import path from "node:path";
 import { settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
-import { SEND_MESSAGE_TOOL_NAME } from "../primitives/tools/message.ts";
+import { SEND_MESSAGE_TOOL_NAME } from "../primitives/tools/core.ts";
 import type { AgentRunResult, TurnContext } from "./core.ts";
 import type { TurnConfig } from "./overrides.ts";
 import { renderTemplate } from "./templates.ts";

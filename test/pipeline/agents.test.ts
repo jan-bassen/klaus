@@ -153,8 +153,6 @@ describe("pipeline/agents: loadAgentDefinition", () => {
 	it("parses the bundled meta agent contract", async () => {
 		const def = await loadAgentDefinition(path.resolve("vault/agents/meta.md"));
 		const expectedTools = [
-			"send_message",
-			"set_reaction",
 			"search_messages",
 			"math",
 			"vault_read",

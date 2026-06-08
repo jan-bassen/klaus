@@ -1,17 +1,3 @@
-/**
- * Dispatch primitive — the only way the framework kicks off an agent run.
- *
- * Three call sites:
- *   1. The `dispatch` tool (parent agent invokes a child inline)
- *   2. The cron handler (`src/index.ts`, `trigger.kind === "schedule"`)
- *   3. The timer handler (`src/index.ts`, `trigger.kind === "timer"`)
- *
- * Future work is always expressed as a timer. Inline
- * sub-agent replies are collected through a caller-provided `replyCollector`
- * and returned as the dispatch tool result. Top-level runs (schedule/timer)
- * pass no collector, so their reply tools fall through to WhatsApp directly.
- */
-
 import { settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
 import { getVariables } from "../primitives/variables/index.ts";
@@ -30,12 +16,7 @@ interface DispatchOptions {
 	trigger: Trigger;
 	/** Chain depth — incremented on each recursive dispatch. Enforces maxChainDepth. */
 	depth?: number;
-	/**
-	 * Ordered slot this run's reply(s) fill. Set by the dispatch tool; the
-	 * sub's reply tool pushes into it instead of enqueuing to WhatsApp. Omit
-	 * for top-level runs (cron/timer) so their replies go direct.
-	 */
-	replyCollector?: string[];
+	resultCollector?: string[];
 	schedule?: ScheduleContext;
 	signal?: AbortSignal;
 }
@@ -43,7 +24,13 @@ interface DispatchOptions {
 export async function dispatch(
 	opts: DispatchOptions,
 ): Promise<string | undefined> {
-	const { agent: agentName, chatId, trigger, depth = 0, replyCollector } = opts;
+	const {
+		agent: agentName,
+		chatId,
+		trigger,
+		depth = 0,
+		resultCollector,
+	} = opts;
 
 	if (depth >= settings.agent.maxChainDepth) {
 		log.warn(
@@ -70,7 +57,7 @@ export async function dispatch(
 			? { dispatchContext: { prompt: opts.prompt } }
 			: {}),
 		...(opts.schedule ? { schedule: opts.schedule } : {}),
-		...(replyCollector ? { _replyCollector: replyCollector } : {}),
+		...(resultCollector ? { _resultCollector: resultCollector } : {}),
 	};
 
 	const ac = new AbortController();
@@ -89,7 +76,7 @@ export async function dispatch(
 		unregisterActiveRun();
 	}
 
-	return replyCollector && replyCollector.length > 0
-		? replyCollector.join("\n\n")
+	return resultCollector && resultCollector.length > 0
+		? resultCollector.join("\n\n")
 		: undefined;
 }

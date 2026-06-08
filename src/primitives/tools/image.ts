@@ -10,6 +10,7 @@ import { enqueueMessage } from "../../infra/whatsapp/send.ts";
 import type { TurnContext } from "../../pipeline/core.ts";
 import { generateImage } from "../../pipeline/media.ts";
 import { prepareAssistantOutbound } from "../../pipeline/outbound.ts";
+import { SEND_IMAGE_TOOL_NAME } from "./core.ts";
 import type { ToolDefinition } from "./index.ts";
 
 const sendImageSchema = z.object({
@@ -94,7 +95,7 @@ async function resolveSourceImages(
 }
 
 export const sendImageTool: ToolDefinition<typeof sendImageSchema> = {
-	name: "send_image",
+	name: SEND_IMAGE_TOOL_NAME,
 	description:
 		"Generate or edit an image and send it as a WhatsApp message. With no input images, generates from the prompt alone. Returns the saved fileId.",
 	inputSchema: sendImageSchema,
@@ -102,10 +103,11 @@ export const sendImageTool: ToolDefinition<typeof sendImageSchema> = {
 		{ prompt, inputFileIds, inputMessageLabel, quoteMessageLabel },
 		context,
 	) => {
-		// Inline agent runs return a short description to their caller instead of sending to WhatsApp.
-		if (context._replyCollector) {
-			context._replyCollector.push(`[image: ${prompt}]`);
-			return { sent: true, fileId: null };
+		if (context.trigger.kind === "dispatch") {
+			return {
+				error:
+					"send_image is not available during inline dispatch; use return_result instead",
+			};
 		}
 
 		const sources = await resolveSourceImages(

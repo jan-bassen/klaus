@@ -10,10 +10,8 @@ import type { TurnContext } from "../../pipeline/core.ts";
 import { textToSpeech } from "../../pipeline/media.ts";
 import { prepareAssistantOutbound } from "../../pipeline/outbound.ts";
 import { renderTemplate } from "../../pipeline/templates.ts";
+import { SEND_MESSAGE_TOOL_NAME } from "./core.ts";
 import type { ToolDefinition } from "./index.ts";
-
-/** The canonical name of the output tool. Referenced by runner/messages to filter message sends from traces. */
-export const SEND_MESSAGE_TOOL_NAME = "send_message";
 
 const sendMessageSchema = z.object({
 	text: z
@@ -51,10 +49,11 @@ export const sendMessageTool: ToolDefinition<typeof sendMessageSchema> = {
 		"Send one user-visible WhatsApp message when the final text is ready. Use asVoiceNote only for voice-note delivery of that same text.",
 	inputSchema: sendMessageSchema,
 	execute: async ({ text, asVoiceNote, quoteMessageLabel }, context) => {
-		// Inline agent runs return the message text to their caller instead of sending to WhatsApp.
-		if (context._replyCollector) {
-			context._replyCollector.push(text);
-			return "sent";
+		if (context.trigger.kind === "dispatch") {
+			return {
+				error:
+					"send_message is not available during inline dispatch; use return_result instead",
+			};
 		}
 
 		log.info("[send_message] enqueuing message");

@@ -3,6 +3,7 @@ import { log } from "../../infra/logger.ts";
 import { appendReaction } from "../../infra/store/history.ts";
 import { getSocket } from "../../infra/whatsapp/connection.ts";
 import { type MessageKey, sendReaction } from "../../infra/whatsapp/send.ts";
+import { SET_REACTION_TOOL_NAME } from "./core.ts";
 import type { ToolDefinition } from "./index.ts";
 
 const reactSchema = z.object({
@@ -29,7 +30,7 @@ const reactSchema = z.object({
 });
 
 export const setReactionTool: ToolDefinition<typeof reactSchema> = {
-	name: "set_reaction",
+	name: SET_REACTION_TOOL_NAME,
 	description:
 		'Set an emoji reaction on a WhatsApp message. Use for lightweight acknowledgements. Pass "" to remove a reaction.',
 	inputSchema: reactSchema,

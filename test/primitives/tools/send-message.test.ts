@@ -1,10 +1,10 @@
 /**
- * `primitives/tools/message.ts` — collector branch.
+ * `primitives/tools/message.ts` — schema and inline guard.
  *
  * The full send path goes through `enqueueMessage`, the message-agent template,
  * and (optionally) TTS. Those are exercised end-to-end in
- * `test/pipeline/{core,index}.test.ts`. Here we only cover the cheap-to-isolate
- * inline-dispatch send_message collection branch.
+ * `test/pipeline/{core,index}.test.ts`. Here we only cover cheap-to-isolate
+ * schema and context behaviour.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -16,7 +16,7 @@ vi.mock("../../../src/infra/whatsapp/send.ts", () => ({
 	enqueueMessage: vi.fn(),
 }));
 
-describe("primitives/tools/send_message: collector branch", () => {
+describe("primitives/tools/send_message", () => {
 	it("requires text and exposes voice as a delivery choice", () => {
 		const schema = toJSONSchema(sendMessageTool.inputSchema);
 		expect(schema).toMatchObject({
@@ -56,22 +56,16 @@ describe("primitives/tools/send_message: collector branch", () => {
 		).toBe(true);
 	});
 
-	it("pushes text into the parent's _replyCollector and short-circuits", async () => {
-		const collector: string[] = [];
-		const turn = makeTurn({ _replyCollector: collector });
+	it("returns an error during inline dispatch", async () => {
+		const turn = makeTurn({
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+		});
 		const result = await sendMessageTool.execute(
 			{ text: "child send_message" },
 			turn,
 		);
-		expect(result).toBe("sent");
-		expect(collector).toEqual(["child send_message"]);
-	});
-
-	it("appends across multiple calls in collector mode", async () => {
-		const collector: string[] = [];
-		const turn = makeTurn({ _replyCollector: collector });
-		await sendMessageTool.execute({ text: "one" }, turn);
-		await sendMessageTool.execute({ text: "two" }, turn);
-		expect(collector).toEqual(["one", "two"]);
+		expect(result).toEqual({
+			error: expect.stringContaining("use return_result instead"),
+		});
 	});
 });

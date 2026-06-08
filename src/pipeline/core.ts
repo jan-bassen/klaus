@@ -25,7 +25,6 @@ import { log } from "../infra/logger.ts";
 import { parseJsonObject } from "../infra/runtime.ts";
 import { appendTrace, type TraceStep } from "../infra/store/history.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
-import { SEND_MESSAGE_TOOL_NAME } from "../primitives/tools/message.ts";
 import type { Variable } from "../primitives/variables/index.ts";
 import type { AgentDefinition } from "./agents.ts";
 import {
@@ -94,8 +93,8 @@ export interface TurnContext {
 	dispatchContext?: { prompt: string };
 	/** Present for generated frontmatter schedules while rendering # Message. */
 	schedule?: ScheduleContext;
-	/** @internal — collects message text for inline agent runs instead of sending to WhatsApp. */
-	_replyCollector?: string[];
+	/** @internal — collects return_result text for inline agent runs. */
+	_resultCollector?: string[];
 }
 
 export class LlmTimeoutError extends Error {
@@ -260,6 +259,8 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 	const toolChoice = turn.config?.toolChoice;
 	const stepLimit = turn.config?.stepLimit ?? settings.agent.maxSteps;
 	const sampling = resolveSampling(turn.config);
+	const finalTool =
+		turn.trigger.kind === "dispatch" ? "return_result" : "send_message";
 
 	log.info(`[agent] calling ${modelId} (${provider}/${tier}) for @${def.name}`);
 
@@ -276,6 +277,7 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 		system,
 		messages: initialMessages,
 		tools,
+		finalTool,
 		stepLimit,
 		toolChoice:
 			toolChoice === "none"
@@ -294,7 +296,7 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 	// Fire-and-forget — trace persistence is best-effort, never blocks user-visible output.
 	// Skipped under ghost so ephemeral runs don't pollute the conversation log.
 	if (!turn.config?.ghost && result.steps.length > 0) {
-		const traceSteps = toTraceSteps(result.steps);
+		const traceSteps = toTraceSteps(result.steps, finalTool);
 		if (traceSteps.length > 0) {
 			appendTrace(turn.runId, def.name, turn.trigger, traceSteps).catch((err) =>
 				log.warn("[agent] failed to persist trace", {
@@ -305,7 +307,7 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 	}
 
 	const replyContent = result.steps
-		.flatMap((step) => acceptedReplyContents(step))
+		.flatMap((step) => acceptedReplyContents(step, finalTool))
 		.join("\n---\n");
 
 	const userMessageStr = textOnlyUserContent(userContent);
@@ -318,9 +320,11 @@ async function runAgent(input: RunAgentInput): Promise<AgentRunResult> {
 		tier,
 		context: {
 			variables: sortedUnique(variables.map((v) => v.key)),
-			tools: sortedUnique([
-				...def.tools.filter((name) => tools.functionTools[name] !== undefined),
-			]),
+			tools: sortedUnique(
+				tools.initialActive.filter(
+					(name) => !name.startsWith("load_") && name !== "read_skill",
+				),
+			),
 			serverTools: sortedUnique(tools.serverTools.map((t) => t.type)),
 			toolsets: sortedUnique(
 				(def.toolsets ?? []).filter((name) =>
@@ -340,9 +344,12 @@ function sortedUnique(values: string[]): string[] {
 	return [...new Set(values)].sort((a, b) => a.localeCompare(b));
 }
 
-function acceptedReplyContents(step: ModelCallStep): string[] {
+function acceptedReplyContents(
+	step: ModelCallStep,
+	finalTool: string,
+): string[] {
 	return step.toolCalls.flatMap((call) => {
-		if (call.toolName !== SEND_MESSAGE_TOOL_NAME) return [];
+		if (call.toolName !== finalTool) return [];
 
 		const result = step.toolResults.find(
 			(toolResult) => toolResult.toolCallId === call.toolCallId,
@@ -374,6 +381,7 @@ interface RunLoopOptions {
 	system: string;
 	messages: ChatMessage[];
 	tools: AssembledTools;
+	finalTool: string;
 	stepLimit: number;
 	toolChoice?: "none" | "required" | undefined;
 	temperature?: number | undefined;
@@ -396,7 +404,7 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 
 	const messages: ChatMessage[] = [...opts.messages];
 	let active =
-		opts.toolChoice === "none" ? [SEND_MESSAGE_TOOL_NAME] : tools.initialActive;
+		opts.toolChoice === "none" ? [opts.finalTool] : tools.initialActive;
 	const steps: ModelCallStep[] = [];
 	let totalIn = 0;
 	let totalOut = 0;
@@ -472,16 +480,19 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 				msg.content,
 				active,
 				opts.toolChoice,
-				steps.some((step) => acceptedReplyContents(step).length > 0),
+				steps.some(
+					(step) => acceptedReplyContents(step, opts.finalTool).length > 0,
+				),
+				opts.finalTool,
 			);
 			if (fallbackReply) {
 				log.warn(
-					`[agent] @${opts.agentName} returned direct assistant content; sending as fallback message`,
+					`[agent] @${opts.agentName} returned direct assistant content; wrapping as fallback final text`,
 				);
 				toolCalls = [
 					{
-						toolCallId: `fallback-send-message-${i + 1}`,
-						toolName: SEND_MESSAGE_TOOL_NAME,
+						toolCallId: `fallback-${opts.finalTool}-${i + 1}`,
+						toolName: opts.finalTool,
 						args: { text: fallbackReply },
 					},
 				];
@@ -567,11 +578,12 @@ function directReplyFallback(
 	activeTools: string[],
 	toolChoice: RunLoopOptions["toolChoice"],
 	hasPriorReply: boolean,
+	finalTool: string,
 ): string | undefined {
 	if (
 		hasPriorReply ||
 		toolChoice === "none" ||
-		!activeTools.includes(SEND_MESSAGE_TOOL_NAME)
+		!activeTools.includes(finalTool)
 	) {
 		return undefined;
 	}
@@ -787,18 +799,16 @@ async function callWithRetry(
 // ── Trace transform (private) ──────────────────────────────────────────────
 
 /**
- * Convert model steps into persisted trace steps. Drops send_message tool calls
- * (they go in the message body) and orphaned calls (would break replay).
+ * Convert model steps into persisted trace steps. Drops final text tool calls
+ * (they go in the reply body) and orphaned calls (would break replay).
  */
-function toTraceSteps(steps: ModelCallStep[]): TraceStep[] {
+function toTraceSteps(steps: ModelCallStep[], finalTool: string): TraceStep[] {
 	const result: TraceStep[] = [];
 
 	for (const step of steps) {
-		const allCalls = step.toolCalls.filter(
-			(tc) => tc.toolName !== SEND_MESSAGE_TOOL_NAME,
-		);
+		const allCalls = step.toolCalls.filter((tc) => tc.toolName !== finalTool);
 		const allResults = step.toolResults.filter(
-			(tr) => tr.toolName !== SEND_MESSAGE_TOOL_NAME,
+			(tr) => tr.toolName !== finalTool,
 		);
 
 		const resultIds = new Set(allResults.map((tr) => tr.toolCallId));

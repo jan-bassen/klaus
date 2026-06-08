@@ -19,6 +19,10 @@ import { settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
 import { findFileByExternalId } from "../infra/store/files.ts";
 import { getConversation, getTraces } from "../infra/store/history.ts";
+import {
+	CORE_TOOL_NAMES,
+	resolveCoreToolNames,
+} from "../primitives/tools/core.ts";
 import type {
 	ToolDefinition,
 	ToolsetDefinition,
@@ -193,6 +197,7 @@ function addToolsetTools(tsName: string, assembly: ToolAssembly): void {
 }
 
 function addHiddenTool(toolName: string, assembly: ToolAssembly): void {
+	if (CORE_TOOL_NAMES.has(toolName)) return;
 	const tool = toolRegistry.get(toolName);
 	if (!tool) return;
 	if (!assembly.functionTools[tool.name]) {
@@ -205,6 +210,7 @@ function addSkillTool(
 	skillName: string,
 	assembly: ToolAssembly,
 ): void {
+	if (CORE_TOOL_NAMES.has(toolName)) return;
 	const tool = toolRegistry.get(toolName);
 	if (!tool) {
 		log.warn(`[context] unknown tool "${toolName}" in skill ${skillName}`);
@@ -303,7 +309,11 @@ function assembleTools(
 ): AssembledTools {
 	const assembly = createToolAssembly(turn);
 
+	for (const name of resolveCoreToolNames(turn)) {
+		addInitialTool(name, assembly);
+	}
 	for (const name of def.tools) {
+		if (CORE_TOOL_NAMES.has(name)) continue;
 		addInitialTool(name, assembly);
 	}
 	addServerTools(def, assembly);

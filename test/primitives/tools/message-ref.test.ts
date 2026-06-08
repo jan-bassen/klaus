@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sendImageTool } from "../../../src/primitives/tools/image.ts";
 import { setReactionTool } from "../../../src/primitives/tools/react.ts";
+import { makeTurn } from "../../helpers/turn.ts";
 
 describe("primitives/tools: numeric message references", () => {
 	it("set_reaction accepts omitted, current, and numbered labels only as integers", () => {
@@ -50,5 +51,20 @@ describe("primitives/tools: numeric message references", () => {
 				quoteMessageLabel: "3",
 			}).success,
 		).toBe(false);
+	});
+
+	it("send_image returns an error during inline dispatch", async () => {
+		const turn = makeTurn({
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+		});
+
+		const result = await sendImageTool.execute(
+			{ prompt: "make a chart" },
+			turn,
+		);
+
+		expect(result).toEqual({
+			error: expect.stringContaining("use return_result instead"),
+		});
 	});
 });

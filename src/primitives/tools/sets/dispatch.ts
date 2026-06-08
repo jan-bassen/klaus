@@ -66,7 +66,7 @@ const dispatchSchema = z.object({
 		.string()
 		.optional()
 		.describe(
-			"Omit to run the agent now and return its message to you. Set to a duration (e.g. '2h', '30m') or ISO datetime to schedule a one-shot timer.",
+			"Omit to run the agent now and return its result to you. Set to a duration (e.g. '2h', '30m') or ISO datetime to schedule a one-shot timer.",
 		),
 });
 
@@ -76,7 +76,7 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 		const names = [...agentRegistry.keys()];
 		const list =
 			names.length > 0 ? ` Available agents: ${names.join(", ")}.` : "";
-		return `Run another agent on a task. Omit runAt to run now and return its message to you; set runAt to schedule a one-shot timer.${list}`;
+		return `Run another agent on a task. Omit runAt to run now and return its result to you; set runAt to schedule a one-shot timer.${list}`;
 	},
 	inputSchema: dispatchSchema,
 	execute: async (input, context) => {
@@ -106,7 +106,7 @@ const dispatchTool: ToolDefinition<typeof dispatchSchema> = {
 			...(input.overridePresets ? { overrides: input.overridePresets } : {}),
 			chatId: context.chatId,
 			trigger: { kind: "dispatch", parentRunId: context.runId },
-			replyCollector: slot,
+			resultCollector: slot,
 		});
 		return result ?? "done";
 	},

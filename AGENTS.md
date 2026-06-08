@@ -49,6 +49,7 @@ The full list is in [development.md](docs/development.md#code-conventions). The 
 - No inline magic numbers — use `settings.*` or a template helper.
 - Comments explain *why*, never *what*. No barrel imports; explicit relative `.ts` paths.
 - Prompt authoring surfaces should stay beginner-friendly. Agents, snippets, and templates may use short HTML comments as human notes; Klaus strips them before rendering, and the docs should describe any new prompt/template convention.
+- Core reply tools (`send_message`, `set_reaction`, `send_image`, `return_result`) come from the invocation context, not agent frontmatter. Keep them out of bundled `tools:` lists.
 - `vault/settings.yml` (repo) is the first-run template only. At runtime Klaus reads the user's `{vault}/Klaus/settings.yml` directly and does not merge repo defaults. Zod validates with no `.default()` fallbacks, so a new setting needs editing both the schema in `src/infra/config.ts` and the template.
 
 ## Commands

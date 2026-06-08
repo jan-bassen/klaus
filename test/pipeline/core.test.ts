@@ -23,6 +23,9 @@ const sendMock = vi.hoisted(() => vi.fn());
 const sendMessageSchema = z.object({
 	text: z.string({ error: "Send the complete message text in text." }),
 });
+const returnResultSchema = z.object({
+	text: z.string({ error: "Return the complete result text in text." }),
+});
 const probeSchema = z.object({ value: z.string().optional() });
 const hiddenSchema = z.object({});
 
@@ -49,6 +52,18 @@ const sendMessageTool: ToolDefinition<typeof sendMessageSchema> = {
 	inputSchema: sendMessageSchema,
 	execute: async ({ text }) =>
 		text === "not actually sent" ? { error: "not sent" } : "sent",
+};
+
+const returnResultTool: ToolDefinition<typeof returnResultSchema> = {
+	name: "return_result",
+	description: "Return result with text",
+	inputSchema: returnResultSchema,
+	execute: async ({ text }, context) => {
+		context._resultCollector?.push(text);
+		return text === "not actually returned"
+			? { error: "not returned" }
+			: "returned";
+	},
 };
 
 const probeTool: ToolDefinition<typeof probeSchema> = {
@@ -120,6 +135,7 @@ describe("pipeline/core.executeAgent", () => {
 		);
 
 		registerTool(sendMessageTool);
+		registerTool(returnResultTool);
 		registerTool(probeTool);
 		registerToolset({
 			name: "bundle",
@@ -257,6 +273,49 @@ describe("pipeline/core.executeAgent", () => {
 		const result = await executeAgent({ turn, def, variables: [] });
 
 		expect(result.replyContent).toBe("first\n---\nsecond");
+	});
+
+	it("derives inline replyContent from return_result", async () => {
+		const collector: string[] = [];
+		sendMock
+			.mockResolvedValueOnce(
+				chatResponse({
+					toolCalls: [
+						toolCall("return_result", { text: "first" }, "return-result-1"),
+						toolCall("probe", { value: "ignored" }, "probe-1"),
+						toolCall("return_result", { text: "second" }, "return-result-2"),
+					],
+				}),
+			)
+			.mockResolvedValueOnce(chatResponse());
+
+		const def = makeAgent(tmpDir, { tools: ["send_message", "probe"] });
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 2, skipHistory: true },
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+			dispatchContext: { prompt: "objective" },
+			_resultCollector: collector,
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(result.replyContent).toBe("first\n---\nsecond");
+		expect(collector).toEqual(["first", "second"]);
+		expect(firstChatRequest().tools).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					function: expect.objectContaining({ name: "return_result" }),
+				}),
+			]),
+		);
+		expect(firstChatRequest().tools).not.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					function: expect.objectContaining({ name: "send_message" }),
+				}),
+			]),
+		);
 	});
 
 	it("reports explicit tools and toolsets without flattening hidden toolset members", async () => {
@@ -433,14 +492,14 @@ describe("pipeline/core.executeAgent", () => {
 			fallback: "assistant_content_reply",
 			toolCalls: [
 				{
-					toolCallId: "fallback-send-message-1",
+					toolCallId: "fallback-send_message-1",
 					toolName: "send_message",
 					args: { text: "I should have used send_message." },
 				},
 			],
 			toolResults: [
 				{
-					toolCallId: "fallback-send-message-1",
+					toolCallId: "fallback-send_message-1",
 					toolName: "send_message",
 					result: "sent",
 				},
@@ -453,6 +512,44 @@ describe("pipeline/core.executeAgent", () => {
 		expect(report).toContain("I should have used send_message.");
 		expect(report).toContain("**Tool result: send_message**");
 		expect(report).toContain("sent");
+	});
+
+	it("recovers direct assistant text as an inline fallback return_result", async () => {
+		const collector: string[] = [];
+		sendMock.mockResolvedValueOnce(
+			chatResponse({ content: "  I should have used return_result.  " }),
+		);
+
+		const def = makeAgent(tmpDir, { tools: ["send_message"] });
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 1, skipHistory: true },
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+			dispatchContext: { prompt: "objective" },
+			_resultCollector: collector,
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(result.replyContent).toBe("I should have used return_result.");
+		expect(collector).toEqual(["I should have used return_result."]);
+		expect(result.steps[0]).toMatchObject({
+			fallback: "assistant_content_reply",
+			toolCalls: [
+				{
+					toolCallId: "fallback-return_result-1",
+					toolName: "return_result",
+					args: { text: "I should have used return_result." },
+				},
+			],
+			toolResults: [
+				{
+					toolCallId: "fallback-return_result-1",
+					toolName: "return_result",
+					result: "returned",
+				},
+			],
+		});
 	});
 
 	it("does not recover direct assistant text when tools are disabled", async () => {
@@ -478,6 +575,33 @@ describe("pipeline/core.executeAgent", () => {
 			toolResults: [],
 		});
 		expect(result.steps[0]?.fallback).toBeUndefined();
+	});
+
+	it("offers only return_result for inline toolChoice none turns", async () => {
+		sendMock.mockResolvedValueOnce(chatResponse({ content: "plain text" }));
+
+		const def = makeAgent(tmpDir, { tools: ["send_message", "probe"] });
+		const turn = makeTurn({
+			agent: def,
+			config: {
+				report: false,
+				stepLimit: 1,
+				skipHistory: true,
+				toolChoice: "none",
+			},
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+			dispatchContext: { prompt: "objective" },
+			_resultCollector: [],
+		});
+
+		await executeAgent({ turn, def, variables: [] });
+
+		expect(firstChatRequest().tools).toEqual([
+			expect.objectContaining({
+				function: expect.objectContaining({ name: "return_result" }),
+			}),
+		]);
+		expect(firstChatRequest()).toMatchObject({ toolChoice: "none" });
 	});
 
 	it("renders # Message with schedule metadata for frontmatter schedule runs", async () => {
@@ -725,6 +849,48 @@ describe("pipeline/core.executeAgent", () => {
 							toolCallId: "probe-1",
 							toolName: "probe",
 							result: JSON.stringify({ ok: true, value: "traced" }),
+						},
+					],
+				},
+			],
+		});
+	});
+
+	it("persists non-return_result tool traces for inline runs", async () => {
+		sendMock
+			.mockResolvedValueOnce(
+				chatResponse({
+					toolCalls: [
+						toolCall("return_result", { text: "not traced" }, "return-1"),
+						toolCall("probe", { value: "traced" }, "probe-1"),
+					],
+				}),
+			)
+			.mockResolvedValueOnce(chatResponse());
+
+		const def = makeAgent(tmpDir, { tools: ["send_message", "probe"] });
+		const turn = makeTurn({
+			agent: def,
+			runId: "run-inline-trace",
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+			config: { report: false, stepLimit: 2, skipHistory: true },
+			dispatchContext: { prompt: "objective" },
+			_resultCollector: [],
+		});
+
+		await executeAgent({ turn, def, variables: [] });
+
+		const trace = await waitForTrace("run-inline-trace");
+		expect(trace).toMatchObject({
+			agent: "core-test",
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+			steps: [
+				{
+					toolCalls: [
+						{
+							toolCallId: "probe-1",
+							toolName: "probe",
+							args: JSON.stringify({ value: "traced" }),
 						},
 					],
 				},

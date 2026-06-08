@@ -16,6 +16,12 @@ import {
 import { assembleContext } from "../../src/pipeline/context.ts";
 import type { TurnContext } from "../../src/pipeline/core.ts";
 import {
+	RETURN_RESULT_TOOL_NAME,
+	SEND_IMAGE_TOOL_NAME,
+	SEND_MESSAGE_TOOL_NAME,
+	SET_REACTION_TOOL_NAME,
+} from "../../src/primitives/tools/core.ts";
+import {
 	registerTool,
 	type ToolDefinition,
 } from "../../src/primitives/tools/index.ts";
@@ -35,6 +41,13 @@ const refSchema = z.object({
 		}),
 });
 type ValueTool = ToolDefinition<typeof valueSchema>;
+
+const coreToolNames = [
+	SEND_MESSAGE_TOOL_NAME,
+	SET_REACTION_TOOL_NAME,
+	SEND_IMAGE_TOOL_NAME,
+	RETURN_RESULT_TOOL_NAME,
+];
 
 describe("pipeline/context.assembleVariables", () => {
 	let tmpDir: string;
@@ -575,6 +588,93 @@ describe("pipeline/context.invokeTool", () => {
 			),
 		});
 		expect(execute).not.toHaveBeenCalled();
+	});
+});
+
+describe("pipeline/context core tools", () => {
+	let tmpDir: string;
+	let originalTemplatesDir: string;
+
+	beforeEach(() => {
+		tmpDir = makeTmpDir();
+		initAllStores(tmpDir);
+		originalTemplatesDir = settings.vault.templatesDir;
+		writeTemplates(tmpDir);
+		for (const name of coreToolNames) {
+			registerTool(makeTool(name, async () => name));
+		}
+		registerTool(makeTool("pure_echo", async () => "pure"));
+	});
+
+	afterEach(() => {
+		settings.vault.templatesDir = originalTemplatesDir;
+		rmTmpDir(tmpDir);
+	});
+
+	it("adds message core tools and ignores frontmatter core tools", async () => {
+		const def = makeAgent(tmpDir, "alpha", [
+			"pure_echo",
+			RETURN_RESULT_TOOL_NAME,
+			SEND_MESSAGE_TOOL_NAME,
+		]);
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			config: { skipHistory: true },
+			trigger: { kind: "message", messageId: "m1" },
+		});
+
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.tools.initialActive).toEqual([
+			SEND_MESSAGE_TOOL_NAME,
+			SET_REACTION_TOOL_NAME,
+			SEND_IMAGE_TOOL_NAME,
+			"pure_echo",
+		]);
+		expect(ctx.tools.initialActive).not.toContain(RETURN_RESULT_TOOL_NAME);
+	});
+
+	it("adds schedule and timer core tools without reactions", async () => {
+		for (const trigger of [
+			{ kind: "schedule" as const, scheduleId: "s1" },
+			{ kind: "timer" as const, timerId: "t1" },
+		]) {
+			const def = makeAgent(tmpDir, `agent-${trigger.kind}`, ["pure_echo"]);
+			const turn = baseTurn(tmpDir, {
+				agent: def,
+				config: { skipHistory: true },
+				trigger,
+			});
+
+			const ctx = await assembleContext(turn, def, { variables: [] });
+
+			expect(ctx.tools.initialActive).toEqual([
+				SEND_MESSAGE_TOOL_NAME,
+				SEND_IMAGE_TOOL_NAME,
+				"pure_echo",
+			]);
+		}
+	});
+
+	it("adds only return_result for inline dispatch core tools", async () => {
+		const def = makeAgent(tmpDir, "alpha", [
+			"pure_echo",
+			SEND_MESSAGE_TOOL_NAME,
+			SET_REACTION_TOOL_NAME,
+			SEND_IMAGE_TOOL_NAME,
+		]);
+		const turn = baseTurn(tmpDir, {
+			agent: def,
+			config: { skipHistory: true },
+			trigger: { kind: "dispatch", parentRunId: "parent-1" },
+		});
+
+		const ctx = await assembleContext(turn, def, { variables: [] });
+
+		expect(ctx.tools.initialActive).toEqual([
+			RETURN_RESULT_TOOL_NAME,
+			"pure_echo",
+		]);
 	});
 });
 

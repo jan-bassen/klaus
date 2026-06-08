@@ -1,6 +1,6 @@
 # Agents
 
-An agent is a Markdown file at `{vault}/Klaus/agents/<name>.md`: YAML frontmatter on top, a prompt body below. The frontmatter declares the agent's tools, model, history, voice, and persistence. The body is the prompt itself, with Handlebars interpolation. Agents hot-reload, so editing the file in Obsidian means the next turn uses the new version.
+An agent is a Markdown file at `{vault}/Klaus/agents/<name>.md`: YAML frontmatter on top, a prompt body below. The frontmatter declares the agent's non-core tools, model, history, voice, and persistence. The body is the prompt itself, with Handlebars interpolation. Agents hot-reload, so editing the file in Obsidian means the next turn uses the new version.
 
 Agents are resolved and validated in `src/pipeline/agents.ts`. The frontmatter schema is `.strict()`, which means unknown keys are rejected, so a typo fails loudly instead of being silently ignored.
 
@@ -10,7 +10,7 @@ Agents are resolved and validated in `src/pipeline/agents.ts`. The frontmatter s
 ---
 name: agentName
 aliases: [short]
-tools: [send_message, set_reaction]
+tools: [search_messages, math]
 toolsets: [vault, files, agents]
 serverTools: [web_search, web_fetch]
 skills: [obsidian-markdown]
@@ -49,7 +49,7 @@ Message used for scheduled / dispatched runs, with {{schedule.label}} or {{dispa
 | --- | --- | --- | --- |
 | `name` | string | — | Required. Canonical registry key. |
 | `aliases` | string[] | `[]` | Extra names that route to this agent (`@alias`). |
-| `tools` | string[] | `[]` | Function tools active from the first step. |
+| `tools` | string[] | `[]` | Non-core function tools active from the first step. Reply tools are added from the run context. |
 | `toolsets` | string[] | `[]` | Lazy tool groups, exposed via a `load_<set>` meta-tool. |
 | `serverTools` | string[] | `[]` | OpenRouter server tools (e.g. `web_search`), always included. |
 | `skills` | string[] | `[]` | Skills this agent may load via `read_skill`. |
@@ -73,6 +73,8 @@ Message used for scheduled / dispatched runs, with {{schedule.label}} or {{dispa
 The behaviour fields (`provider` through `report`) are also reachable as one-turn [`!overrides`](overrides.md) and via `/model`, `/provider`, and `/voice`. Precedence runs global defaults → frontmatter → overrides, and the [pipeline](../codebase/pipeline.md#overrides) page has the full merge rules.
 
 > **Tip — `tools` vs `toolsets`.** A `toolset` is lazy: it sits behind a `load_<set>` meta-tool, so the first use costs an extra model step to load the group. Put a tool you reach for almost every turn directly in `tools` so it is live from step one, and reserve `toolsets` for groups that are only occasionally needed.
+
+> **Tip — core reply tools.** `send_message`, `set_reaction`, `send_image`, and `return_result` are assigned by the invocation context, not by agent frontmatter. Message runs get WhatsApp reply tools, scheduled and timer runs get send tools, and inline `run_agent` children get `return_result`.
 
 > **Tip — narrow history for side agents.** A delegated or persistent worker rarely needs the whole chat. Setting `historyScope: agent` (or a low `historyLimit`) keeps its context small and cheap, and it stops unrelated conversation from leaking in. The bundled `dispatch` agent does exactly this.
 
