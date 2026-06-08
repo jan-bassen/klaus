@@ -64,7 +64,7 @@ You don't even need Obsidian open, though. The bundled `@meta` agent has write a
 
 The habit that pays off most is the fourth step of the loop, and it's worth slowing down on. When Klaus does something you didn't expect, don't theorise about the prompt. Read the one it actually received.
 
-Every turn writes a [report](vault/reports.md) to `{vault}/Klaus/reports/<date>/`, and it contains the fully rendered system prompt, the user message, the history transcript, every tool call, and every result. The rendered prompt is the thing to study. A snippet that didn't interpolate, a template wrapping text oddly, an agent reading the wrong vault path, a tool that came back with a permission error the model then worked around: all of it is right there in plain text. Most "why did it do that?" questions answer themselves the moment you open the report for the run, and that turns debugging from a guessing game into reading.
+Every turn writes a [report](vault/reports.md) to `{vault}/Klaus/reports/<date>/`, and it starts with the outcome, output, every tool call, and every result. Below that are the fully rendered user message, history transcript, system prompt, and context summary. A snippet that didn't interpolate, a template wrapping text oddly, an agent reading the wrong vault path, a tool that came back with a permission error the model then worked around: all of it is right there in plain text. Most "why did it do that?" questions answer themselves the moment you open the report for the run, and that turns debugging from a guessing game into reading.
 
 ## When the loop needs code
 

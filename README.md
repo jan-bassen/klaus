@@ -2,7 +2,7 @@
 
 **A headless personal AI agent template for Obsidian and WhatsApp. Minimal, self-hosted, and yours to extend.**
 
-Klaus is less a finished assistant than a working harness for building one. The core pieces are already wired up: WhatsApp intake, agent routing, prompts, tools, variables, commands, schedules, timers, vault reads and writes, reports, and flat-file storage. The TypeScript core is deliberately small with fewer than 10k lines of code. Everything more interesting is meant to come from your own ideas. Copy the repo and start tinkering.
+Klaus is less a finished assistant than a working harness for building one. The core pieces are already wired up: WhatsApp intake, agent routing, prompts, tools, variables, commands, schedules, timers, vault reads and writes, reports, and flat-file storage. Everything more interesting is meant to come from your own ideas. Copy the repo and start tinkering.
 
 The bet behind it: personal agents resist one-size-fits-all. Everyone wants different workflows, privacy boundaries, tones, schedules, and notes. So Klaus keeps the core small, exposes the primitive pieces directly, and trusts that a modern coding agent can build most features on top of a clear local structure. Iteration is the whole point.
 
@@ -20,7 +20,7 @@ Klaus starts as a basic but usable WhatsApp assistant. Out of the box it can:
 - **Run deterministic commands** like `/model`, `/voice`, `/default`, `/image`, `/schedules`, `/retry`, `/stop`, and `/resume` without spending a model call.
 - **Adjust one turn at a time** with `!overrides`, for example a larger model, a voice reply, or a ghost run that stays out of history.
 - **Wake itself up** with cron schedules or self-rescheduling timers, useful for briefs, reviews, reminders, and recurring maintenance.
-- **Leave receipts** in `{vault}/Klaus/reports/`, showing the rendered prompt, tool calls, results, model choice, and token use for every turn.
+- **Leave receipts** in `{vault}/Klaus/reports/`, showing the output, tool calls, results, rendered prompt, model choice, and token use for every turn.
 
 ## Getting started
 
@@ -91,7 +91,7 @@ Klaus is meant to be lived in and reshaped. Almost everything you'd want to chan
 
 Prompt files can include short HTML comments as author notes; Klaus strips them before rendering, so the bundled defaults can stay easy to edit without leaking scaffolding into the model prompt.
 
-The loop is tight: change a file (or just ask the `@meta` agent to do it for you in chat — *"give the research agent a colder tone"*), send a message, and see the result. When a reply surprises you, open that turn's report under `{vault}/Klaus/reports/`. It shows the exact prompt the model saw, every tool it called, and what each one returned, which is almost always enough to spot what went wrong.
+The loop is tight: change a file (or just ask the `@meta` agent to do it for you in chat — *"give the research agent a colder tone"*), send a message, and see the result. When a reply surprises you, open that turn's report under `{vault}/Klaus/reports/`. It starts with the outcome, output, tool calls, and results, then keeps the exact prompt the model saw below, which is almost always enough to spot what went wrong.
 
 When a change genuinely needs new code rather than a vault edit — a tool that calls some outside service, a new `/command` — that's a small TypeScript file plus a restart. [docs/iteration.md](docs/iteration.md) teaches the building blocks and the day-to-day loop in depth, [docs/development.md](docs/development.md) covers extending Klaus in code, and [docs/examples/](docs/examples/) is a ladder of five worked builds — from a no-code movie tracker up to an expenses tracker with a custom tool and command — that's the gentlest way to learn the whole system by doing.
 

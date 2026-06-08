@@ -15,43 +15,11 @@
 **Prompt**: {{llm.systemPromptChars}} chars system + {{llm.userMessageChars}} chars user, {{llm.historyMessageCount}} history msgs
 **Message**: {{llm.replyChars}} chars
 
-### Context
-**Variables**
-```
-{{#if llm.context.variables.length}}{{join llm.context.variables ", "}}{{else}}none{{/if}}
-```
-**Tools**
-```
-{{#if llm.context.tools.length}}{{join llm.context.tools ", "}}{{else}}none{{/if}}
-```
-**Server tools**
-```
-{{#if llm.context.serverTools.length}}{{join llm.context.serverTools ", "}}{{else}}none{{/if}}
-```
-**Toolsets**
-```
-{{#if llm.context.toolsets.length}}{{join llm.context.toolsets ", "}}{{else}}none{{/if}}
-```
-**Skills**
-```
-{{#if llm.context.skills.length}}{{join llm.context.skills ", "}}{{else}}none{{/if}}
-```
-
-### System
-{{codeFence llm.systemPrompt}}
-{{#if llm.historyTranscript.length}}
-
-### History
-{{#each llm.historyTranscript}}
-**{{role}}**
-{{codeFence (json content)}}
-{{/each}}
+{{#if llm.assistantMessage}}
+### Output
+{{codeFence llm.assistantMessage}}
 {{/if}}
-{{#if llm.userMessage}}
 
-### User message
-{{codeFence llm.userMessage}}
-{{/if}}
 ### Steps
 {{#each llm.steps}}
 {{#if (or toolCalls.length serverToolUse citations.length)}}
@@ -101,9 +69,42 @@
 {{#if fallback}}`{{fallback}}`{{/if}}
 {{/if}}
 {{/each}}
-{{#if llm.assistantMessage}}
+{{#if llm.userMessage}}
 
-### Output
-{{codeFence llm.assistantMessage}}
+### User message
+{{codeFence llm.userMessage}}
 {{/if}}
+{{#if llm.historyTranscript.length}}
+
+### History
+{{#each llm.historyTranscript}}
+**{{role}}**
+{{codeFence (json content)}}
+{{/each}}
+{{/if}}
+
+### System
+{{codeFence llm.systemPrompt}}
+
+### Context
+**Variables**
+```
+{{#if llm.context.variables.length}}{{join llm.context.variables ", "}}{{else}}none{{/if}}
+```
+**Tools**
+```
+{{#if llm.context.tools.length}}{{join llm.context.tools ", "}}{{else}}none{{/if}}
+```
+**Server tools**
+```
+{{#if llm.context.serverTools.length}}{{join llm.context.serverTools ", "}}{{else}}none{{/if}}
+```
+**Toolsets**
+```
+{{#if llm.context.toolsets.length}}{{join llm.context.toolsets ", "}}{{else}}none{{/if}}
+```
+**Skills**
+```
+{{#if llm.context.skills.length}}{{join llm.context.skills ", "}}{{else}}none{{/if}}
+```
 {{/if}}

@@ -143,6 +143,28 @@ describe("pipeline/reports: emitReport", () => {
 		);
 	});
 
+	it("puts the output and step trace before the rendered inputs", async () => {
+		await emitReport({
+			turn: makeTurn(),
+			startedAt: Date.now() - 10,
+			result: makeResult(),
+		});
+
+		const markdown = readOnlyReport();
+		expect(markdown.indexOf("### Output")).toBeLessThan(
+			markdown.indexOf("### Steps"),
+		);
+		expect(markdown.indexOf("### Steps")).toBeLessThan(
+			markdown.indexOf("### User message"),
+		);
+		expect(markdown.indexOf("### User message")).toBeLessThan(
+			markdown.indexOf("### System"),
+		);
+		expect(markdown.indexOf("### System")).toBeLessThan(
+			markdown.indexOf("### Context"),
+		);
+	});
+
 	it("writes tool results into markdown report steps", async () => {
 		await emitReport({
 			turn: makeTurn(),

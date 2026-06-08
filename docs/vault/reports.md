@@ -14,11 +14,12 @@ A report contains, in order:
 
 - **Message metadata** and the trigger (`message` / `schedule` / `timer` / `dispatch`), the duration, and the outcome.
 - **The applied overrides** and a picked subset of the resolved config.
-- **When the model ran:** the model and tier, a context summary (variables, tools, server tools, toolsets, skills), and token usage.
-- **Every step**, with its tool calls and their results.
-- **The fully rendered system prompt, user message, and history transcript.**
+- **When the model ran:** the model and tier, token usage, prompt size, and reply size.
+- **The output**, when the run produced one.
+- **Every step**, with its tool calls and their results, in the order they ran.
+- **The rendered inputs:** user message, history transcript, system prompt, and context summary (variables, tools, server tools, toolsets, skills).
 
-That last part is the one to study. The rendered system prompt is where you catch a prompt-injection attempt, a snippet that didn't interpolate, or a template that wrapped something the wrong way. If an agent is misbehaving, read the prompt it actually received rather than the prompt you thought you wrote.
+The top of the report is meant for fast debugging: outcome, final output, and the model/tool trace are visible before the longer rendered inputs. When you need to understand why the run behaved that way, keep reading into the user message, history, and system prompt. The rendered system prompt is where you catch a prompt-injection attempt, a snippet that didn't interpolate, or a template that wrapped something the wrong way.
 
 Base64 data URLs are stripped from every field, so an image-heavy turn produces a readable report instead of a multi-megabyte wall of encoded bytes. A readable media marker and the stored filename are kept in their place.
 
