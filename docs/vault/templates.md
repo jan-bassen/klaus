@@ -27,7 +27,7 @@ HTML comments are for humans and are stripped before templates are rendered:
 
 ```markdown
 <!-- Shapes each inbound WhatsApp turn before it reaches the model. -->
-[{{time}}]: {{messageText}}
+[{{time.time}}]: {{messageText}}
 ```
 
 Use visible prose only for text the model, user, or report should actually receive. This same comment-stripping convention also applies to agent prompt bodies and [snippets](snippets.md).

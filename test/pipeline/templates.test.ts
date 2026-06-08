@@ -172,6 +172,36 @@ describe("pipeline/templates: renderTemplate", () => {
 	});
 });
 
+describe("pipeline/templates: bundled templates", () => {
+	let originalTemplatesDir: string;
+
+	beforeEach(() => {
+		originalTemplatesDir = settings.vault.templatesDir;
+		settings.vault.templatesDir = path.resolve("vault/templates");
+		invalidateTemplate("message-user");
+	});
+
+	afterEach(() => {
+		settings.vault.templatesDir = originalTemplatesDir;
+		invalidateTemplate("message-user");
+	});
+
+	it("renders the user message timestamp from the nested time value", () => {
+		const out = renderTemplate("message-user", {
+			tasks: { active: [] },
+			time: {
+				date: "Monday, June 8, 2026",
+				time: "09:30 CEST",
+				weekday: "Monday",
+			},
+			messageText: "Test!",
+		});
+
+		expect(out).toContain("[09:30 CEST]: Test!");
+		expect(out).not.toContain("[object Object]");
+	});
+});
+
 describe("pipeline/templates: buildSystemPrompt", () => {
 	it("interpolates variables and trims leading/trailing whitespace", () => {
 		const out = buildSystemPrompt("  Agent: {{agent}}\n  ", { agent: "coach" });
