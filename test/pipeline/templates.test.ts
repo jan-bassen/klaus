@@ -120,6 +120,16 @@ describe("pipeline/templates: renderTemplate", () => {
 		expect(out).toBe("Hello World!\n\nExtra blank");
 	});
 
+	it("strips HTML author comments before rendering", () => {
+		writeTemplate(
+			tmpDir,
+			"message-user",
+			"<!-- human note -->\nHello {{name}}!",
+		);
+		const out = renderTemplate("message-user", { name: "World" });
+		expect(out).toBe("Hello World!");
+	});
+
 	it("throws a descriptive error when template file is missing", () => {
 		expect(() => renderTemplate("message-user", {})).toThrow(
 			"Missing template",
@@ -178,6 +188,13 @@ describe("pipeline/templates: buildSystemPrompt", () => {
 		expect(out).toBe("<b>bold</b>");
 	});
 
+	it("strips HTML author comments before compiling", () => {
+		const out = buildSystemPrompt("<!-- human note -->\nAgent: {{agent}}", {
+			agent: "coach",
+		});
+		expect(out).toBe("Agent: coach");
+	});
+
 	it("returns empty string for empty body with whitespace", () => {
 		expect(buildSystemPrompt("   ", {})).toBe("");
 	});
@@ -189,6 +206,13 @@ describe("pipeline/templates: buildAgentMessage", () => {
 			'{{#if (eq schedule.label "morning")}}Hello $user.name{{/if}}',
 			{ schedule: { label: "morning" }, user: { name: "Jan" } },
 		);
+		expect(out).toBe("Hello Jan");
+	});
+
+	it("strips HTML author comments before compiling", () => {
+		const out = buildAgentMessage("<!-- human note -->\nHello $user.name", {
+			user: { name: "Jan" },
+		});
 		expect(out).toBe("Hello Jan");
 	});
 });

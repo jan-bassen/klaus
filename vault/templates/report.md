@@ -1,3 +1,5 @@
+<!-- Per-turn debug report written to Klaus/reports/. This is not sent to the model. -->
+
 **Agent**: `{{agent}}`
 **Time**: `{{timestamp}}`
 **Run**: `{{runId}}`

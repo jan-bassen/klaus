@@ -21,6 +21,17 @@ The distinction trips people up, so it is worth stating plainly. An agent's own 
 
 The user message itself is built from the inbound message, or, for messageless runs, from the agent's `# Message` or the dispatch prompt. Inbound or quoted images are passed through as vision parts alongside the rendered text.
 
+## Author notes
+
+HTML comments are for humans and are stripped before templates are rendered:
+
+```markdown
+<!-- Shapes each inbound WhatsApp turn before it reaches the model. -->
+[{{time}}]: {{messageText}}
+```
+
+Use visible prose only for text the model, user, or report should actually receive. This same comment-stripping convention also applies to agent prompt bodies and [snippets](snippets.md).
+
 ## A note on caching
 
 Because templates feed the prompt that is re-sent on every step, keeping the stable ones byte-stable helps providers cache the prompt prefix. The same advice as for agent bodies applies: keep volatile values out of the parts that repeat every turn. The rendering mechanics live in the [pipeline](../codebase/pipeline.md#templates).

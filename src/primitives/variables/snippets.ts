@@ -2,7 +2,7 @@ import path from "node:path";
 import { settings } from "../../infra/config.ts";
 import { log } from "../../infra/logger.ts";
 import { readText, scanFiles } from "../../infra/runtime.ts";
-import { hbs } from "../../infra/vault/markdown.ts";
+import { hbs, stripPromptAuthorComments } from "../../infra/vault/markdown.ts";
 import type { Variable } from "./index.ts";
 
 const fmPattern = /^---\n[\s\S]*?\n---\n?/;
@@ -10,7 +10,7 @@ const fmPattern = /^---\n[\s\S]*?\n---\n?/;
 async function readSnippet(filePath: string): Promise<string> {
 	try {
 		const raw = await readText(filePath);
-		return raw.replace(fmPattern, "").trim();
+		return stripPromptAuthorComments(raw.replace(fmPattern, "")).trim();
 	} catch {
 		return "";
 	}

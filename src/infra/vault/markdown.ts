@@ -70,6 +70,15 @@ hbs.registerHelper("codeFence", (value: unknown) => {
 
 export { hbs };
 
+// -- Prompt authoring --
+
+const htmlCommentPattern = /<!--[\s\S]*?-->/g;
+
+/** Remove Markdown author notes before user-authored prompt surfaces reach the model. */
+export function stripPromptAuthorComments(markdown: string): string {
+	return markdown.replace(htmlCommentPattern, "");
+}
+
 // -- Frontmatter --
 
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";

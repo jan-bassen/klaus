@@ -49,6 +49,16 @@ describe("primitives/variables/snippets", () => {
 		expect(out.voice).toBe("Be terse and direct.");
 	});
 
+	it("strips HTML author comments after YAML frontmatter", async () => {
+		writeSnippet(
+			tmp,
+			"voice",
+			"---\ndescription: speak\n---\n<!-- human note -->\nBe {{style}}.",
+		);
+		const out = await runSnippets({ style: "brief" });
+		expect(out.voice).toBe("Be brief.");
+	});
+
 	it("loads user.md like any other snippet", async () => {
 		writeSnippet(tmp, "user", "name: Jan");
 		writeSnippet(tmp, "tone", "polite");

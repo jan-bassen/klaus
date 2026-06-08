@@ -22,7 +22,11 @@ import type {
 } from "@openrouter/sdk/models";
 import { settings } from "../infra/config.ts";
 import { log } from "../infra/logger.ts";
-import { hbs, interpolateUserVars } from "../infra/vault/markdown.ts";
+import {
+	hbs,
+	interpolateUserVars,
+	stripPromptAuthorComments,
+} from "../infra/vault/markdown.ts";
 import type { TurnContext } from "./core.ts";
 import { prepareImage } from "./media.ts";
 import type { TurnConfig } from "./overrides.ts";
@@ -69,7 +73,9 @@ function registerTemplate(name: string): HandlebarsTemplateDelegate | null {
 		return null;
 	}
 
-	const compiled = hbs.compile(raw, { noEscape: true });
+	const compiled = hbs.compile(stripPromptAuthorComments(raw), {
+		noEscape: true,
+	});
 	_compiled.set(name, compiled);
 	hbs.registerPartial(name, compiled);
 	return compiled;
@@ -128,7 +134,9 @@ export function buildSystemPrompt(
 	body: string,
 	vars: Record<string, unknown>,
 ): string {
-	const template = hbs.compile(body, { noEscape: true });
+	const template = hbs.compile(stripPromptAuthorComments(body), {
+		noEscape: true,
+	});
 	return template(vars)
 		.replace(/\n{3,}/g, "\n\n")
 		.trim();
@@ -139,7 +147,9 @@ export function buildAgentMessage(
 	body: string,
 	vars: Record<string, unknown>,
 ): string {
-	const template = hbs.compile(body, { noEscape: true });
+	const template = hbs.compile(stripPromptAuthorComments(body), {
+		noEscape: true,
+	});
 	return interpolateUserVars(
 		template(vars)
 			.replace(/\n{3,}/g, "\n\n")

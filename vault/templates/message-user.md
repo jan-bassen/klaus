@@ -1,3 +1,5 @@
+<!-- Shapes each inbound WhatsApp turn before it reaches the model. -->
+
 {{#if tasks.active.length}}Context:
 - Active tasks:
 {{#each tasks.active}}

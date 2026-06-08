@@ -83,6 +83,8 @@ The body is split on the `# System` and `# Message` headings (case-insensitive).
 - **`# System`** is the stable prompt, compiled as a Handlebars template against the [variable namespace](../codebase/primitives.md#variables), so you can write `{{time.date}}` or `{{snippets.personality}}`.
 - **`# Message`** is the synthetic user message for runs that have no inbound WhatsApp message (schedules, timers, `run_agent`). Scheduled runs render it with `{{schedule.*}}`, and dispatched runs render it with `{{dispatch.prompt}}`.
 
+HTML comments are for human author notes and are stripped before the prompt is rendered. Use visible prose only for instructions the model should actually receive.
+
 > **Tip — keep `# System` stable for caching.** The system prompt is re-sent on every step of the loop, and providers cache identical prompt prefixes automatically, so a byte-stable `# System` is reused across steps *and* turns at no cost. Interpolating a volatile value (a live timestamp, a per-turn counter) into `# System` busts that cache on every run. Put changing context in `# Message`, or rely on the variable namespace only where the value is genuinely stable.
 
 A file that declares `schedules` but has no `# Message` fails to load. A scheduled agent needs something to say when it fires.

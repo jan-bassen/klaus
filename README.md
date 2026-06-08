@@ -69,6 +69,8 @@ Klaus is meant to be lived in and reshaped. Almost everything you'd want to chan
 - **Tools** — the things an agent can actually *do* mid-reply: send a message, read and write your vault, search the web, generate an image, or hand a job to another agent.
 - **Schedules** — any agent can run itself on a cron, or reschedule itself after each run, so Klaus comes to you (a morning brief, a weekly review) instead of only answering when asked.
 
+Prompt files can include short HTML comments as author notes; Klaus strips them before rendering, so the bundled defaults can stay easy to edit without leaking scaffolding into the model prompt.
+
 The loop is tight: change a file (or just ask the `@meta` agent to do it for you in chat — *"give the research agent a colder tone"*), send a message, and see the result. When a reply surprises you, open that turn's report under `{vault}/Klaus/reports/`. It shows the exact prompt the model saw, every tool it called, and what each one returned, which is almost always enough to spot what went wrong.
 
 When a change genuinely needs new code rather than a vault edit — a tool that calls some outside service, a new `/command` — that's a small TypeScript file plus a restart. [docs/iteration.md](docs/iteration.md) teaches the building blocks and the day-to-day loop in depth, [docs/development.md](docs/development.md) covers extending Klaus in code, and [docs/examples/](docs/examples/) is a ladder of five worked builds — from a no-code movie tracker up to an expenses tracker with a custom tool and command — that's the gentlest way to learn the whole system by doing.
