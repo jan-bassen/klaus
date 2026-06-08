@@ -6,8 +6,8 @@ basics:
 
 agent:
   defaultAgent: assistant
-  maxSteps: 10
-  timeout: 120000
+  maxSteps: 20
+  timeout: 300000
   retries:
     max: 3
     backoffMs: 1000
