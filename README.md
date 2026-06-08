@@ -2,11 +2,25 @@
 
 **A headless personal AI agent template for Obsidian and WhatsApp. Minimal, self-hosted, and yours to extend.**
 
-Klaus is less a finished assistant than a working harness for building one. The core pieces are already wired up: WhatsApp intake, agent routing, prompts, tools, variables, commands, schedules, timers, vault reads and writes, reports, and flat-file storage. Everything more interesting is meant to come from your own ideas. Copy the repo and start tinkering.
+Klaus is less a finished assistant than a working harness for building one. The core pieces are already wired up: WhatsApp intake, agent routing, prompts, tools, variables, commands, schedules, timers, vault reads and writes, reports, and flat-file storage. The TypeScript core is deliberately small with fewer than 10k lines of code. Everything more interesting is meant to come from your own ideas. Copy the repo and start tinkering.
 
 The bet behind it: personal agents resist one-size-fits-all. Everyone wants different workflows, privacy boundaries, tones, schedules, and notes. So Klaus keeps the core small, exposes the primitive pieces directly, and trusts that a modern coding agent can build most features on top of a clear local structure. Iteration is the whole point.
 
 The name nods to [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), the pirate who allegedly walked past his crew after being beheaded, because this stack is headless. Klaus is for when you would rather sail with your own strange little ship.
+
+## What ships in the box
+
+Klaus starts as a basic but usable WhatsApp assistant. Out of the box it can:
+
+- **Chat through WhatsApp** in one chosen conversation, including text replies, reactions, quoted replies, and optional voice-note output.
+- **Route work to agents** with `@assistant`, `@research`, `@meta`, and `@dispatch`, each defined as an editable Markdown file in your Obsidian vault.
+- **Understand common inputs**: voice notes are transcribed, images and stickers are passed to vision-capable models, and documents are extracted to text.
+- **Read and write your Obsidian vault** through scoped tools, so agents can search notes, edit Markdown, create files, and follow wikilinks without a database.
+- **Use generic tools**: web search/fetch via OpenRouter server tools, image generation, math, conversation search, file parsing, and handoffs to other agents.
+- **Run deterministic commands** like `/model`, `/voice`, `/default`, `/image`, `/schedules`, `/retry`, `/stop`, and `/resume` without spending a model call.
+- **Adjust one turn at a time** with `!overrides`, for example a larger model, a voice reply, or a ghost run that stays out of history.
+- **Wake itself up** with cron schedules or self-rescheduling timers, useful for briefs, reviews, reminders, and recurring maintenance.
+- **Leave receipts** in `{vault}/Klaus/reports/`, showing the rendered prompt, tool calls, results, model choice, and token use for every turn.
 
 ## Getting started
 
@@ -44,20 +58,18 @@ On first boot Klaus hydrates the vault from Obsidian Sync, creates `{vault}/Klau
 
 ## How to use it
 
-You talk to Klaus in one ordinary WhatsApp chat, the way you would text a person. Everything happens through messages, there is no app to open or dashboard to log into.
+You talk to Klaus in one ordinary WhatsApp chat, the way you would text a person. There is no app to open or dashboard to log into.
 
-The work inside Klaus is done by **agents**. An agent is just a Markdown file that gives a personality, a model, and a set of abilities to one worker. The template ships four: `assistant` (your daily driver), `research` (read-only web and notes investigation), `meta` (edits Klaus's own configuration for you), and `dispatch` (a generic worker other agents hand jobs to). A plain message goes to your default agent; you reach a specific one by name.
-
-Four small bits of grammar shape a message:
+Most messages go to your default agent. Prefix a message when you want a different route or one-turn behaviour:
 
 ```text
-what changed in my project notes?      # plain text → your default agent
+what changed in my project notes?       # default agent
 @research compare these two sources     # @name routes to a specific agent
-/model large                            # /command: a deterministic action, no model call
-!voice think this through with me        # !override: tweak just this one turn
+/model large                            # /command runs a model-free action
+!voice think this through with me        # !override tweaks one turn
 ```
 
-`@name` picks the agent, `/commands` do exact things instantly (switch model, list schedules, stop everything), and `!overrides` adjust a single reply (use a bigger model, answer as a voice note, leave no trace). Voice notes, images, and documents all work as input too — a voice note is transcribed, an image becomes something the agent can see, a PDF is read in. The complete manual, with every command and override, is in [docs/usage.md](docs/usage.md).
+That is the whole interface: `@name` routes, `/commands` do exact model-free actions, and `!overrides` change a single reply. Voice notes, images, quoted messages, and documents can be sent in the same chat. The complete manual is in [docs/usage.md](docs/usage.md).
 
 ## Make it your own
 
