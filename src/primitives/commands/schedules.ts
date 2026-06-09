@@ -3,13 +3,8 @@ import { getSchedules } from "../../infra/store/schedules.ts";
 import { listTimers } from "../../infra/store/timers.ts";
 import type { InboundMessage } from "../../infra/whatsapp/receive.ts";
 import { enqueueMessage } from "../../infra/whatsapp/send.ts";
+import { formatTimerRunAt } from "../time.ts";
 import type { Command } from "./index.ts";
-
-const timeFormatter = new Intl.DateTimeFormat(settings.locale, {
-	hour: "2-digit",
-	minute: "2-digit",
-	timeZone: settings.timezone,
-});
 
 export const schedulesCommand: Command = {
 	name: "schedules",
@@ -45,7 +40,7 @@ export const schedulesCommand: Command = {
 				if (lines.length > 0) lines.push("");
 				lines.push(`*Timers* (${timers.length})`);
 				for (const t of timers) {
-					const at = timeFormatter.format(new Date(t.runAt));
+					const at = formatTimerRunAt(t.runAt);
 					lines.push(`• ${t.agentName} — ${t.objective} (at ${at})`);
 				}
 			}

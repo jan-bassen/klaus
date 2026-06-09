@@ -41,7 +41,7 @@ A message starting with `/` is a command. It bypasses the model entirely — the
 | `/stop` | `/kill` | — | Panic stop: abort active runs and pause all schedules and timers. |
 | `/resume` | — | — | Re-arm schedules and timers after `/stop`. |
 
-`/model`, `/provider`, and `/voice` write to the agent's `.md` frontmatter in the vault, so changes persist and hot-reload. `/stop` does not delete any persisted schedule or timer — it only pauses them; `/resume` brings them back once setup is complete and WhatsApp is connected.
+`/model`, `/provider`, and `/voice` write to the agent's `.md` frontmatter in the vault, so changes persist and hot-reload. `/schedules` shows timer run times in the configured `basics.timezone`. `/stop` does not delete any persisted schedule or timer — it only pauses them; `/resume` brings them back once setup is complete and WhatsApp is connected.
 
 ## Overrides
 

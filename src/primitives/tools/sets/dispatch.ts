@@ -13,6 +13,7 @@ import {
 import { agentRegistry } from "../../../pipeline/agents.ts";
 import type { TurnContext } from "../../../pipeline/core.ts";
 import { dispatch as dispatchFn } from "../../../pipeline/dispatch.ts";
+import { formatTimerRunAt } from "../../time.ts";
 import type { ToolDefinition, ToolsetDefinition } from "../index.ts";
 
 // ── run_agent ──────────────────────────────────────────────────────────────
@@ -178,7 +179,7 @@ function renderList(
 		lines.push("**Timers**");
 		for (const t of timerEntries) {
 			lines.push(
-				`• [${t.id}] ${t.agentName} | fires at ${t.runAt} | ${t.objective}`,
+				`• [${t.id}] ${t.agentName} | fires at ${formatTimerRunAt(t.runAt)} (${t.runAt}) | ${t.objective}`,
 			);
 		}
 	}
