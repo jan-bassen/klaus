@@ -26,6 +26,7 @@ const sendMessageSchema = z.object({
 const returnResultSchema = z.object({
 	text: z.string({ error: "Return the complete result text in text." }),
 });
+const endTurnSchema = z.object({});
 const probeSchema = z.object({ value: z.string().optional() });
 const hiddenSchema = z.object({});
 
@@ -64,6 +65,13 @@ const returnResultTool: ToolDefinition<typeof returnResultSchema> = {
 			? { error: "not returned" }
 			: "returned";
 	},
+};
+
+const endTurnTool: ToolDefinition<typeof endTurnSchema> = {
+	name: "end_turn",
+	description: "End the current turn",
+	inputSchema: endTurnSchema,
+	execute: async () => "Turn ended.",
 };
 
 const probeTool: ToolDefinition<typeof probeSchema> = {
@@ -136,6 +144,7 @@ describe("pipeline/core.executeAgent", () => {
 
 		registerTool(sendMessageTool);
 		registerTool(returnResultTool);
+		registerTool(endTurnTool);
 		registerTool(probeTool);
 		registerToolset({
 			name: "bundle",
@@ -250,6 +259,44 @@ describe("pipeline/core.executeAgent", () => {
 		);
 	});
 
+	it("lets a run continue after send_message and stop explicitly with end_turn", async () => {
+		sendMock
+			.mockResolvedValueOnce(
+				chatResponse({
+					toolCalls: [
+						toolCall("send_message", { text: "ok, on it" }, "send_message-1"),
+					],
+					finishReason: "tool_calls",
+				}),
+			)
+			.mockResolvedValueOnce(
+				chatResponse({
+					toolCalls: [toolCall("end_turn", {}, "end_turn-1")],
+					finishReason: "tool_calls",
+				}),
+			);
+
+		const def = makeAgent(tmpDir, { tools: ["send_message", "probe"] });
+		const turn = makeTurn({
+			agent: def,
+			config: { report: false, stepLimit: 3, skipHistory: true },
+			dispatchContext: { prompt: "objective" },
+		});
+
+		const result = await executeAgent({ turn, def, variables: [] });
+
+		expect(sendMock).toHaveBeenCalledTimes(2);
+		expect(result.steps).toHaveLength(2);
+		expect(result.replyContent).toBe("ok, on it");
+		expect(result.steps[1]?.toolResults).toEqual([
+			{
+				toolCallId: "end_turn-1",
+				toolName: "end_turn",
+				result: "Turn ended.",
+			},
+		]);
+	});
+
 	it("joins send_message tool calls and ignores non-send_message calls when deriving replyContent", async () => {
 		sendMock
 			.mockResolvedValueOnce(
@@ -335,7 +382,7 @@ describe("pipeline/core.executeAgent", () => {
 
 		expect(result.context).toEqual({
 			variables: [],
-			tools: ["send_message"],
+			tools: ["end_turn", "send_message"],
 			serverTools: [],
 			toolsets: ["bundle"],
 			skills: [],
@@ -383,7 +430,7 @@ describe("pipeline/core.executeAgent", () => {
 		);
 		expect(result.context).toEqual({
 			variables: [],
-			tools: ["send_message"],
+			tools: ["end_turn", "send_message"],
 			serverTools: ["openrouter:web_search"],
 			toolsets: [],
 			skills: [],

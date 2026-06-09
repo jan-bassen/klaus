@@ -65,13 +65,13 @@ Presets are loaded from `overrides.yml` at startup and again on hot-reload. Each
 
 `runAgent` resolves the model (`provider` + `modelTier` give a base URL, key, and model id) and runs `runLoop` up to the step limit:
 
-1. The active tool list is serialised to JSON Schema, and server tools are appended verbatim. Core reply tools are chosen from the trigger. When `toolChoice` is `none`, only the trigger's final text tool is offered.
+1. The active tool list is serialised to JSON Schema, and server tools are appended verbatim. Core reply tools are chosen from the trigger, with `end_turn` available as the explicit stop control. When `toolChoice` is `none`, only the trigger's text tool is offered.
 2. The request is made with manual retries: a per-attempt timeout, exponential backoff, and a deliberately narrow retryable set. 5xx and network errors retry; timeouts, 429s, other 4xx, and "prompt too long" do not.
 3. Tool calls are executed. Unknown tools and thrown errors come back as `{ error }` results the model can react to.
-4. If the model returns no tool calls but the final text tool is active, its plain text is wrapped into a synthetic `send_message` or `return_result` call (the fallback path) and the loop ends.
-5. Otherwise the loop appends the results and may activate toolsets or skills for the next step.
+4. If the model returns no tool calls but the text reply tool is active, its plain text is wrapped into a synthetic `send_message` or `return_result` call (the fallback path) and the loop ends.
+5. A successful `end_turn` call ends the loop immediately after that step; otherwise the loop appends the results and may activate toolsets or skills for the next step.
 
-The reply is the concatenation of every accepted final text tool call: `send_message` for outward runs and `return_result` for inline dispatches. Traces (steps, tool calls, results) are persisted to history unless the turn is ghosted. Final text tool calls themselves are dropped from the stored trace, since the message/result is already represented by the run reply.
+The reply is the concatenation of every accepted text tool call: `send_message` for outward runs and `return_result` for inline dispatches. Agents may send a progress message, keep working, send another message, and then call `end_turn` when finished. Traces (steps, tool calls, results) are persisted to history unless the turn is ghosted. Text reply tool calls themselves are dropped from the stored trace, since the message/result is already represented by the run reply.
 
 ## Persistence and schedules
 

@@ -374,9 +374,7 @@ async function reportPipelineError(
 			error: err,
 			phase: input.phase,
 			userError: errorContent,
-			...(context
-				? { agent: context.agent, runId: context.runId }
-				: {}),
+			...(context ? { agent: context.agent, runId: context.runId } : {}),
 			trigger: { kind: "message", messageId: msg.id },
 			message: msg,
 		});

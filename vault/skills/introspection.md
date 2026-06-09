@@ -56,7 +56,7 @@ Normal inbound WhatsApp turns follow this path:
 3. Klaus resolves the target agent and builds turn config from global defaults, agent frontmatter, and one-turn overrides.
 4. The user message is persisted to history, with quoted context and media metadata when available.
 5. Klaus assembles context: variables, local tools, server tools, lazy toolsets, skills, templates, and history.
-6. The model loop calls `/chat/completions` until it stops asking for tools or reaches the step limit.
+6. The model loop calls `/chat/completions` until it calls `end_turn`, stops asking for tools, or reaches the step limit.
 7. Klaus sends replies, writes reports, persists traces, and schedules future work when needed.
 
 Scheduled runs, timers, persistence runs, and `run_agent` tasks enter later through the dispatch path but reuse the same execution machinery.
@@ -98,7 +98,8 @@ Common local tools include:
 
 | Tool | Purpose |
 | --- | --- |
-| `send_message` | Final visible WhatsApp reply. Can request voice-note delivery. |
+| `send_message` | User-visible WhatsApp reply. Can request voice-note delivery and can be used more than once during a turn. |
+| `end_turn` | Explicitly stop the current turn once no more messages or tool work are needed. |
 | `set_reaction` | React to a WhatsApp message. |
 | `search_messages` | Search stored conversation history. |
 | `send_image` | Generate and send an image. |

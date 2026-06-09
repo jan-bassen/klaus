@@ -25,6 +25,7 @@ import { log } from "../infra/logger.ts";
 import { parseJsonObject } from "../infra/runtime.ts";
 import { appendTrace, type TraceStep } from "../infra/store/history.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
+import { END_TURN_TOOL_NAME } from "../primitives/tools/core.ts";
 import type { Variable } from "../primitives/variables/index.ts";
 import type { AgentDefinition } from "./agents.ts";
 import {
@@ -366,6 +367,20 @@ function acceptedReplyContents(
 	});
 }
 
+function successfulEndTurn(
+	toolCalls: ModelCallStep["toolCalls"],
+	toolResults: ModelCallStep["toolResults"],
+): boolean {
+	for (const call of toolCalls) {
+		if (call.toolName !== END_TURN_TOOL_NAME) continue;
+		const result = toolResults.find(
+			(toolResult) => toolResult.toolCallId === call.toolCallId,
+		);
+		if (!isToolError(result?.result)) return true;
+	}
+	return false;
+}
+
 function isToolError(result: unknown): boolean {
 	return (
 		typeof result === "object" &&
@@ -506,6 +521,7 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 		}
 
 		const toolResults = await executeToolCalls(toolCalls, tools);
+		const endTurn = successfulEndTurn(toolCalls, toolResults);
 
 		const reasoning = typeof msg.reasoning === "string" ? msg.reasoning : "";
 		steps.push({
@@ -519,7 +535,13 @@ async function runLoop(opts: RunLoopOptions): Promise<RunLoopResult> {
 			usage: { inputTokens, outputTokens },
 		});
 
-		if (toolCalls.length === 0 || fallback) break;
+		log.info(`[agent] @${opts.agentName} step ${i + 1}/${opts.stepLimit}`, {
+			finishReason: choice.finishReason ?? undefined,
+			tools: toolCalls.map((tc) => tc.toolName),
+			endTurn,
+		});
+
+		if (toolCalls.length === 0 || fallback || endTurn) break;
 
 		// Append assistant message + tool responses to the running conversation
 		// for the next step. Pass through the raw toolCalls (unparsed args) to

@@ -83,10 +83,10 @@ That is the whole interface: `@name` routes, `/commands` do exact model-free act
 
 Klaus is meant to be lived in and reshaped. Almost everything you'd want to change lives as a file in your vault under `{vault}/Klaus/`, and saving that file in Obsidian takes effect on your next message — no restart, no deploy. These are the pieces you compose:
 
-- **Agents** (`agents/*.md`) — a worker's prompt, model, non-core abilities, and permissions in one Markdown file. Reply tools are added from how the agent is invoked, so inline helpers return results while message-triggered agents can send to WhatsApp.
+- **Agents** (`agents/*.md`) — a worker's prompt, model, non-core abilities, and permissions in one Markdown file. Reply tools are added from how the agent is invoked, so inline helpers return results while message-triggered agents can send to WhatsApp; every run also gets `end_turn` as an explicit stop control.
 - **Snippets** (`snippets/*.md`) — reusable scraps of prompt you drop into agents with `{{snippets.tone}}`. Keep your voice or your bio in one place instead of repeating it.
 - **Skills** (`skills/*.md`) — knowledge an agent loads only when it's relevant, so it isn't carried on every turn. A skill can even bring its own tools along when it loads.
-- **Tools** — the things an agent can actually *do* mid-reply: send a message, read and write your vault, search the web, generate an image, or hand a job to another agent.
+- **Tools** — the things an agent can actually *do* mid-reply: send one or more messages, end its turn, read and write your vault, search the web, generate an image, or hand a job to another agent.
 - **Schedules** — any agent can run itself on a cron, or reschedule itself after each run, so Klaus comes to you (a morning brief, a weekly review) instead of only answering when asked.
 
 Prompt files can include short HTML comments as author notes; Klaus strips them before rendering, so the bundled defaults can stay easy to edit without leaking scaffolding into the model prompt.

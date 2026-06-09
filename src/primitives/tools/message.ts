@@ -13,6 +13,9 @@ import { renderTemplate } from "../../pipeline/templates.ts";
 import { SEND_MESSAGE_TOOL_NAME } from "./core.ts";
 import type { ToolDefinition } from "./index.ts";
 
+const MESSAGE_DELIVERED_RESULT =
+	"Message delivered to WhatsApp. This is delivery confirmation, not a new user message. Continue working on the original user request if needed, send another message if useful, or call end_turn when finished.";
+
 const sendMessageSchema = z.object({
 	text: z
 		.string({ error: "Send the complete message text in text." })
@@ -124,7 +127,7 @@ export const sendMessageTool: ToolDefinition<typeof sendMessageSchema> = {
 				);
 			}
 
-			return "sent";
+			return MESSAGE_DELIVERED_RESULT;
 		} finally {
 			await stopPresence(context.chatId);
 		}

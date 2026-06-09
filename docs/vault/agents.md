@@ -74,7 +74,7 @@ The behaviour fields (`provider` through `report`) are also reachable as one-tur
 
 > **Tip — `tools` vs `toolsets`.** A `toolset` is lazy: it sits behind a `load_<set>` meta-tool, so the first use costs an extra model step to load the group. Put a tool you reach for almost every turn directly in `tools` so it is live from step one, and reserve `toolsets` for groups that are only occasionally needed.
 
-> **Tip — core reply tools.** `send_message`, `set_reaction`, `send_image`, and `return_result` are assigned by the invocation context, not by agent frontmatter. Message runs get WhatsApp reply tools, scheduled and timer runs get send tools, and inline `run_agent` children get `return_result`.
+> **Tip — core reply tools.** `send_message`, `set_reaction`, `send_image`, `return_result`, and `end_turn` are assigned by the invocation context, not by agent frontmatter. Message runs get WhatsApp reply tools, scheduled and timer runs get send tools, inline `run_agent` children get `return_result`, and every run gets `end_turn` to stop explicitly when finished.
 
 > **Tip — narrow history for side agents.** A delegated or persistent worker rarely needs the whole chat. Setting `historyScope: agent` (or a low `historyLimit`) keeps its context small and cheap, and it stops unrelated conversation from leaking in. The bundled `dispatch` agent does exactly this.
 

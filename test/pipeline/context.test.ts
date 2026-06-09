@@ -16,6 +16,7 @@ import {
 import { assembleContext } from "../../src/pipeline/context.ts";
 import type { TurnContext } from "../../src/pipeline/core.ts";
 import {
+	END_TURN_TOOL_NAME,
 	RETURN_RESULT_TOOL_NAME,
 	SEND_IMAGE_TOOL_NAME,
 	SEND_MESSAGE_TOOL_NAME,
@@ -47,6 +48,7 @@ const coreToolNames = [
 	SET_REACTION_TOOL_NAME,
 	SEND_IMAGE_TOOL_NAME,
 	RETURN_RESULT_TOOL_NAME,
+	END_TURN_TOOL_NAME,
 ];
 
 describe("pipeline/context.assembleVariables", () => {
@@ -629,6 +631,7 @@ describe("pipeline/context core tools", () => {
 			SEND_MESSAGE_TOOL_NAME,
 			SET_REACTION_TOOL_NAME,
 			SEND_IMAGE_TOOL_NAME,
+			END_TURN_TOOL_NAME,
 			"pure_echo",
 		]);
 		expect(ctx.tools.initialActive).not.toContain(RETURN_RESULT_TOOL_NAME);
@@ -651,6 +654,7 @@ describe("pipeline/context core tools", () => {
 			expect(ctx.tools.initialActive).toEqual([
 				SEND_MESSAGE_TOOL_NAME,
 				SEND_IMAGE_TOOL_NAME,
+				END_TURN_TOOL_NAME,
 				"pure_echo",
 			]);
 		}
@@ -673,6 +677,7 @@ describe("pipeline/context core tools", () => {
 
 		expect(ctx.tools.initialActive).toEqual([
 			RETURN_RESULT_TOOL_NAME,
+			END_TURN_TOOL_NAME,
 			"pure_echo",
 		]);
 	});

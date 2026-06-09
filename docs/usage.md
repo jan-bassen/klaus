@@ -75,11 +75,11 @@ Reports redact image data URLs but keep a readable media marker and the stored f
 
 ## How agents reply
 
-Agents reply through the final tool Klaus gives them for that run, not by emitting plain text. Normal WhatsApp, schedule, and timer runs use `send_message`; inline agents invoked by `run_agent` use `return_result` so their answer goes back to the caller instead of directly to WhatsApp.
+Agents reply through the tools Klaus gives them for that run, not by emitting plain text. Normal WhatsApp, schedule, and timer runs use `send_message`; inline agents invoked by `run_agent` use `return_result` so their answer goes back to the caller instead of directly to WhatsApp. Every run also gets `end_turn`, which is the explicit way to stop once no more messages or tool work are needed.
 
-`send_message` takes the final `text`, can mark that same text for voice delivery with `asVoiceNote`, and can quote an older message with a positive `quoteMessageLabel` taken from the visible `ref #n` history markers. Normal replies omit the quote label.
+`send_message` takes the user-visible `text`, can mark that same text for voice delivery with `asVoiceNote`, and can quote an older message with a positive `quoteMessageLabel` taken from the visible `ref #n` history markers. An agent may send a quick progress note, continue working, and send a later result; normal replies omit the quote label.
 
-A message turn may also just react (`set_reaction`) without sending a message; that stays valid and is recorded. If a turn that should have used its final tool ends with plain assistant text instead, Klaus wraps that text in the right tool as a fallback and flags the formatting miss in the run report.
+A message turn may also just react (`set_reaction`) without sending a message; that stays valid and is recorded. If a turn that should have used its text reply tool ends with plain assistant text instead, Klaus wraps that text in the right tool as a fallback and flags the formatting miss in the run report.
 
 ---
 

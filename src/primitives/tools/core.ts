@@ -6,26 +6,30 @@ export const SEND_MESSAGE_TOOL_NAME = "send_message";
 export const RETURN_RESULT_TOOL_NAME = "return_result";
 export const SET_REACTION_TOOL_NAME = "set_reaction";
 export const SEND_IMAGE_TOOL_NAME = "send_image";
+export const END_TURN_TOOL_NAME = "end_turn";
 
 export const CORE_TOOL_NAMES = new Set([
 	SEND_MESSAGE_TOOL_NAME,
 	RETURN_RESULT_TOOL_NAME,
 	SET_REACTION_TOOL_NAME,
 	SEND_IMAGE_TOOL_NAME,
+	END_TURN_TOOL_NAME,
 ]);
 
 export function resolveCoreToolNames(
 	turn: Pick<TurnContext, "trigger">,
 ): string[] {
-	if (turn.trigger.kind === "dispatch") return [RETURN_RESULT_TOOL_NAME];
+	if (turn.trigger.kind === "dispatch")
+		return [RETURN_RESULT_TOOL_NAME, END_TURN_TOOL_NAME];
 	if (turn.trigger.kind === "message") {
 		return [
 			SEND_MESSAGE_TOOL_NAME,
 			SET_REACTION_TOOL_NAME,
 			SEND_IMAGE_TOOL_NAME,
+			END_TURN_TOOL_NAME,
 		];
 	}
-	return [SEND_MESSAGE_TOOL_NAME, SEND_IMAGE_TOOL_NAME];
+	return [SEND_MESSAGE_TOOL_NAME, SEND_IMAGE_TOOL_NAME, END_TURN_TOOL_NAME];
 }
 
 const returnResultSchema = z.object({
@@ -50,4 +54,14 @@ export const returnResultTool: ToolDefinition<typeof returnResultSchema> = {
 		context._resultCollector.push(text);
 		return "returned";
 	},
+};
+
+const endTurnSchema = z.object({});
+
+export const endTurnTool: ToolDefinition<typeof endTurnSchema> = {
+	name: END_TURN_TOOL_NAME,
+	description:
+		"End this agent turn when the current user request is complete and no more tool work or user-visible messages are needed.",
+	inputSchema: endTurnSchema,
+	execute: async () => "Turn ended.",
 };

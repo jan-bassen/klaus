@@ -34,7 +34,7 @@ Klaus is small because it does one thing: it turns a message into a turn. Almost
 3. **Resolve and configure** (`pipeline/agents.ts`, `pipeline/overrides.ts`). The agent is chosen and its per-turn config is layered together from global defaults, frontmatter, and overrides.
 4. **Assemble context** (`pipeline/context.ts`). The **variables** run to build the `{{...}}` namespace, the agent's **tools** are gathered, and history is loaded.
 5. **Render** (`pipeline/templates.ts`). The agent's prompt and the surrounding templates are compiled against that namespace into the text the model receives.
-6. **The model loop** (`pipeline/core.ts`). The model is called. It answers, or it calls a **tool** whose result feeds back in for another pass, up to a step limit. The reply comes from the run's final text tool: `send_message` for outward runs, `return_result` for inline dispatches.
+6. **The model loop** (`pipeline/core.ts`). The model is called. It answers, or it calls a **tool** whose result feeds back in for another pass, up to a step limit. User-visible text comes from `send_message` for outward runs or `return_result` for inline dispatches, and `end_turn` gives the model an explicit stop control.
 7. **Finish** (`pipeline/outbound.ts`, `pipeline/reports.ts`). The reply is sent, history and a report are written, and persistent agents schedule their next run.
 
 Hold that sequence in your head and the codebase stops being a pile of files. It becomes a single path you can point at.

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { toJSONSchema } from "zod/v4";
-import { returnResultTool } from "../../../src/primitives/tools/core.ts";
+import {
+	endTurnTool,
+	returnResultTool,
+} from "../../../src/primitives/tools/core.ts";
 import { makeTurn } from "../../helpers/turn.ts";
 
 describe("primitives/tools/return_result", () => {
@@ -44,5 +47,19 @@ describe("primitives/tools/return_result", () => {
 			error: "return_result only works during inline dispatch",
 		});
 		expect(collector).toEqual([]);
+	});
+});
+
+describe("primitives/tools/end_turn", () => {
+	it("has no required input and returns a turn-ended marker", async () => {
+		const schema = toJSONSchema(endTurnTool.inputSchema);
+		expect(schema).toMatchObject({
+			properties: {},
+		});
+		expect(endTurnTool.inputSchema.safeParse({}).success).toBe(true);
+
+		const result = await endTurnTool.execute({}, makeTurn());
+
+		expect(result).toBe("Turn ended.");
 	});
 });

@@ -56,12 +56,13 @@ Standalone tools (`tools/*.ts`):
 | --- | --- | --- |
 | `send_message` | `text`, `asVoiceNote?`, `quoteMessageLabel?` | Core tool for user-visible WhatsApp replies in message, schedule, and timer runs. `asVoiceNote` routes through TTS; a positive `quoteMessageLabel` quotes a history `ref #n` (`0` is ignored). |
 | `return_result` | `text` | Core tool for inline `run_agent` children. Returns `text` to the calling agent and never sends to WhatsApp. |
+| `end_turn` | — | Core control tool for every run. Ends the current turn once the request is complete and no more tool work or user-visible messages are needed. |
 | `set_reaction` | `emoji`, `messageLabel?` | Core tool for message runs. Reacts to a message (`""` removes the reaction). Label `0`/omitted targets the current message. |
 | `search_messages` | `text?`, `aroundMessageId?`, `after?`, `before?`, `limit?`, `contextMessages?` | Search conversation history, with optional context windows around hits. |
 | `send_image` | `prompt`, `inputFileIds?`, `inputMessageLabel?`, `quoteMessageLabel?` | Core tool for message, schedule, and timer runs. Generates or edits an image and sends it. |
 | `math` | `expression`, `scope?` | Evaluate a mathjs expression. |
 
-Core tools are ignored when listed in agent or skill `tools`; Klaus activates them from the trigger instead. A message run gets `send_message`, `set_reaction`, and `send_image`; a schedule or timer gets `send_message` and `send_image`; an inline dispatch gets only `return_result`.
+Core tools are ignored when listed in agent or skill `tools`; Klaus activates them from the trigger instead. A message run gets `send_message`, `set_reaction`, `send_image`, and `end_turn`; a schedule or timer gets `send_message`, `send_image`, and `end_turn`; an inline dispatch gets `return_result` and `end_turn`.
 
 `read_skill` is not a static tool. It is built per agent from that agent's declared `skills`, with an enum input of just those skill names. See [skills](../vault/skills.md).
 
