@@ -48,14 +48,16 @@ Every vault tool calls one choke point (`gateVaultTool`) that checks scope, then
 
 Klaus links to WhatsApp as a device via Baileys. Auth state lives under `{dataDir}/baileys-auth`, and losing it means relinking.
 
-**Allowlist.** The gate is fail-closed and enforced in the [pipeline](pipeline.md), not in the transport. An unset `allowedChat` puts Klaus in setup mode with messages blocked, and only the configured chat is processed. The transport layer just drops messages with no content and, outside self-mode, anything `fromMe`.
+**Allowlist.** The gate is fail-closed and enforced in the [pipeline](pipeline.md), not in the transport. An unset `allowedChat` puts Klaus in setup mode with messages blocked, and only the configured chat is processed. The allowlist compares the chat JID; it does not restrict by sender JID inside a group, so group binding means shared group control. The transport layer just drops messages with no content and, outside self-mode, anything `fromMe`.
 
 **Setup modes.** There are two ways to bind the chat:
 
 - *Active chat*: a six-digit code is written into `_login/instructions.md`; sending it from the target chat binds that chat.
 - *Self / solo mode*: Klaus runs on your own account, auto-binds its own JID on first connect, and prefixes its replies with a system label so you can tell them from your own text. You enable it by ticking the solo box in `instructions.md` or by setting `whatsapp.selfMode`.
 
-**Login folder.** When no chat is configured, Klaus writes `{vault}/Klaus/_login/` with `instructions.md` and, once Baileys requests pairing, `qr-code.svg`. After binding, the folder is removed. If a chat is already configured but auth is missing, Klaus writes only a relink QR (no code needed) and clears it once connected. A hard logout has no auto-recovery: delete `baileys-auth` and restart.
+**Login folder.** When no chat is configured, Klaus writes `{vault}/Klaus/_login/` with `instructions.md` and, once Baileys requests pairing, `qr-code.svg`. The setup code and QR are live WhatsApp linking credentials while they exist and the folder is inside the synced vault, so an E2EE Obsidian vault is strongly preferred. After binding, the folder is removed. If a chat is already configured but auth is missing, Klaus writes only a relink QR (no code needed) and clears it once connected. A hard logout has no auto-recovery: delete `baileys-auth` and restart.
+
+WhatsApp transport is still WhatsApp transport, but Klaus is a linked device: it receives decrypted message content locally, can pass selected content to configured model providers and tools, and stores history, files, and reports under `{dataDir}` or `{vault}/Klaus/`.
 
 **Sending.** Outbound messages go through a single FIFO queue with dedup, mime-aware routing (text, image, voice note, video, document), quote-reply support, and retry with backoff.
 

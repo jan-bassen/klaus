@@ -43,6 +43,10 @@ ALLOWED_CHAT_ID=
 
 Prefer `basics.allowedChat` in `{vault}/Klaus/settings.yml` over `ALLOWED_CHAT_ID`; the env var is a fallback for headless or test setups.
 
+For a real personal vault, use Obsidian Sync's end-to-end encryption and set `OBSIDIAN_E2EE_PASSWORD`. Klaus still reads the decrypted vault inside the container so agents can work, but E2EE keeps the synced copy opaque to Obsidian and reduces the blast radius of the temporary login files described below.
+
+The bundled agent defaults are broad by design: agents can read the whole vault except `{vault}/Klaus/`. That keeps the first chat useful, but it means a normal agent can see notes you might consider private. After setup, review `agentDefaults.vaultAccess` and add `none` rules for sensitive folders before relying on Klaus with a real vault.
+
 ## Build And Run
 
 Build the local image:
@@ -124,10 +128,12 @@ The QR itself is written to:
 {vault}/Klaus/_login/qr-code.svg
 ```
 
+The setup code and QR are live WhatsApp linking credentials while they exist. Because `_login` sits inside the Obsidian vault, Obsidian Sync may replicate it to the remote service and to your other devices until Klaus removes the folder after pairing. Treat the setup window as sensitive: use an E2EE vault where possible, scan from trusted devices, and delete `_login` manually if setup is interrupted.
+
 Scan it from WhatsApp -> Linked Devices after choosing the setup mode:
 
 - **Solo mode**: Tick the solo checkbox before scanning. Klaus runs on the WhatsApp account you are linking, auto-resolves its own chat, writes `basics.allowedChat` and `whatsapp.selfMode`, sends the welcome message, and removes `_login`.
-- **Active chat mode**: Leave the checkbox unticked, scan the QR, then send the six-digit setup code from the chat Klaus should listen to. Klaus writes `basics.allowedChat`, sends the welcome message, and removes `_login`.
+- **Active chat mode**: Leave the checkbox unticked, scan the QR, then send the six-digit setup code from the chat Klaus should listen to. Klaus writes that chat JID to `basics.allowedChat`, sends the welcome message, and removes `_login`. If the chosen chat is a group, every member of the group can use Klaus; choose a 1:1 chat or solo mode unless group access is intentional.
 - **Relink mode**: If `basics.allowedChat` or `ALLOWED_CHAT_ID` is already set but `{dataDir}/baileys-auth` is missing, Klaus still writes `_login/qr-code.svg` so you can link WhatsApp again. No setup code is needed; `_login` is removed after WhatsApp connects.
 
 You can still pin `basics.allowedChat` manually in `{vault}/Klaus/settings.yml` or with `ALLOWED_CHAT_ID`, but the normal clone-and-deploy path should not need it.
@@ -151,7 +157,7 @@ If your Obsidian vault is end-to-end encrypted, set:
 OBSIDIAN_E2EE_PASSWORD=
 ```
 
-The password is passed to `obsidian-headless` during first-time sync setup.
+The password is passed to `obsidian-headless` during first-time sync setup. E2EE is recommended for Klaus because the vault contains your notes, agent configuration, reports, and the temporary WhatsApp login folder during pairing.
 
 ## Operations
 

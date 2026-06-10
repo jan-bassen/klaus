@@ -28,7 +28,7 @@ Two things that live in `src/pipeline/` but read more naturally as vault-authori
 
 An inbound message flows through `handleTurn` in this order:
 
-1. **Auth.** `checkAllowlist` is fail-closed. An unset `allowedChat` drops Klaus into setup mode, a non-matching chat is dropped silently, and the configured chat proceeds.
+1. **Auth.** `checkAllowlist` is fail-closed. An unset `allowedChat` drops Klaus into setup mode, a non-matching chat is dropped silently, and the configured chat proceeds. The allowlist is chat-scoped, not sender-scoped: a group chat intentionally authorizes every participant in that group.
 2. **Parse.** `parseMessage` transcribes audio and extracts documents, prepends any armed `/next` prefix, then pulls off a leading `/command`, an `@agent` route, and any `!overrides`. Quoted media is resolved here so the vision and document tools can see it.
 3. **Command short-circuit.** If the message was a command, its handler runs and the turn ends. No model call happens.
 4. **Resolve agent and config.** The agent is the `@route` or the chat default, and `buildTurnConfig` layers the config (described below).

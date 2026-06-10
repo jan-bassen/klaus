@@ -54,7 +54,7 @@ docker run -d --restart unless-stopped \
   klaus
 ```
 
-On first boot Klaus hydrates the vault from Obsidian Sync, creates `{vault}/Klaus`, and writes a temporary `{vault}/Klaus/_login/` folder. Open `instructions.md` there, choose solo or active-chat mode, and scan `qr-code.svg` from WhatsApp → Linked Devices. The full install path, including E2EE vaults, self-mode, and fixes for common startup problems, is in [docs/setup.md](docs/setup.md).
+On first boot Klaus hydrates the vault from Obsidian Sync, creates `{vault}/Klaus`, and writes a temporary `{vault}/Klaus/_login/` folder. Open `instructions.md` there, choose solo or active-chat mode, and scan `qr-code.svg` from WhatsApp → Linked Devices. The setup code and QR are live WhatsApp linking credentials while `_login` exists, and they live in the synced vault until Klaus removes the folder after pairing, so prefer an end-to-end encrypted Obsidian vault and scan from devices you trust. The full install path, including E2EE vaults, self-mode, and fixes for common startup problems, is in [docs/setup.md](docs/setup.md).
 
 To publish the current package version as a Docker Hub image for `linux/amd64/v2`, use:
 
@@ -66,7 +66,7 @@ This pushes `<dockerhub-user>/klaus:X.X.X` and `<dockerhub-user>/klaus:latest`.
 
 ## How to use it
 
-You talk to Klaus in one ordinary WhatsApp chat, the way you would text a person. There is no app to open or dashboard to log into.
+You talk to Klaus in one ordinary WhatsApp chat, the way you would text a person. There is no app to open or dashboard to log into. In active-chat mode, Klaus authorizes the chat JID, not individual participants; if you bind it to a group, every member of that group can use the configured agents and tools. Use a 1:1 chat or solo mode for a personal vault unless group access is intentional.
 
 Most messages go to your default agent. Prefix a message when you want a different route or one-turn behaviour:
 
@@ -92,6 +92,8 @@ Klaus is meant to be lived in and reshaped. Almost everything you'd want to chan
 Prompt files can include short HTML comments as author notes; Klaus strips them before rendering, so the bundled defaults can stay easy to edit without leaking scaffolding into the model prompt.
 
 The loop is tight: change a file (or just ask the `@meta` agent to do it for you in chat — *"give the research agent a colder tone"*), send a message, and see the result. When a reply surprises you, open that turn's report under `{vault}/Klaus/reports/`. It starts with the outcome, output, reasoning, tool calls, and results, then keeps the exact prompt the model saw below, which is almost always enough to spot what went wrong.
+
+The first-run defaults are intentionally broad: agents can read your vault by default, except for the `Klaus/` config folder. That makes the assistant useful immediately, but you should add `vaultAccess` deny rules for sensitive folders or tighten `agentDefaults.vaultAccess` when you want stricter boundaries.
 
 When a change genuinely needs new code rather than a vault edit — a tool that calls some outside service, a new `/command` — that's a small TypeScript file plus a restart. [docs/iteration.md](docs/iteration.md) teaches the building blocks and the day-to-day loop in depth, [docs/development.md](docs/development.md) covers extending Klaus in code, and [docs/examples/](docs/examples/) is a ladder of five worked builds — from a no-code movie tracker up to an expenses tracker with a custom tool and command — that's the gentlest way to learn the whole system by doing.
 

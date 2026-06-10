@@ -26,6 +26,8 @@ agentDefaults:
   historyScope: full
   showTools: true
   report: true
+  # Convenience default: agents can read the whole vault except Klaus config.
+  # Tighten this baseline or add per-agent vaultAccess rules for sensitive folders.
   vaultAccess:
     "*": read
     Klaus: none

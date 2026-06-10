@@ -52,6 +52,7 @@ The full list is in [development.md](docs/development.md#code-conventions). The 
 - Core reply/control tools (`send_message`, `set_reaction`, `send_image`, `return_result`, `end_turn`) come from the invocation context, not agent frontmatter. Keep them out of bundled `tools:` lists.
 - Timers are stored as ISO instants; any user-visible listing should format them with `settings.locale` and `settings.timezone`.
 - `vault/settings.yml` (repo) is the first-run template only. At runtime Klaus reads the user's `{vault}/Klaus/settings.yml` directly and does not merge repo defaults. Zod validates with no `.default()` fallbacks, so a new setting needs editing both the schema in `src/infra/config.ts` and the template.
+- Security-sensitive defaults should be documented plainly. WhatsApp auth is chat-scoped; a configured group chat lets every group member drive Klaus. The temporary `_login` folder contains live WhatsApp linking credentials while it exists. The bundled `agentDefaults.vaultAccess` grants read access to the whole vault except `Klaus/`, so docs should recommend E2EE Obsidian vaults, trusted setup devices, and explicit `none` rules for sensitive folders.
 
 ## Commands
 

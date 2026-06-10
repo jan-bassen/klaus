@@ -11,10 +11,12 @@ import { enqueueMessage } from "./send.ts";
 
 const LOGIN_INSTRUCTIONS = `# Klaus Login
 
+This folder is temporary, but the setup code and QR are live WhatsApp linking credentials while they exist. If this vault syncs to other devices or a cloud service, open and scan them only from devices you trust.
+
 1. Open WhatsApp on your phone → Settings → Linked Devices → Link a device
 2. Choose how Klaus should listen:
    - **Solo mode**: Klaus runs inside the WhatsApp account you are linking. Check the box below before scanning the QR code. After login, Klaus will message its own chat and setup is complete.
-   - **Active chat mode**: Leave the box unchecked. After scanning, send the setup code from the chat Klaus should listen to.
+   - **Active chat mode**: Leave the box unchecked. After scanning, send the setup code from the chat Klaus should listen to. If that chat is a group, every group member can drive Klaus.
 3. Scan the QR code in this folder
 
 - [ ] Solo mode (I am linking the account Klaus should message itself from)
@@ -27,6 +29,8 @@ Active chat setup code:
 const PAIRING_INSTRUCTIONS = `# Klaus WhatsApp Pairing
 
 Klaus already has an allowed chat configured, so this folder is only for linking WhatsApp again.
+
+The QR code is a live WhatsApp linking credential while it exists. If this vault syncs to other devices or a cloud service, scan it only from devices you trust.
 
 1. Open WhatsApp on your phone → Settings → Linked Devices → Link a device
 2. Scan qr-code.svg

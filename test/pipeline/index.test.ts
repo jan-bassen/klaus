@@ -296,13 +296,17 @@ describe("pipeline/index.handleTurn", () => {
 
 	it("writes a report when the routed agent requests reports", async () => {
 		sendMock.mockResolvedValueOnce(replyResponse("reported"));
-		const msg = makeMsg("chat1", "reporter", "please report");
+		const msg = {
+			...makeMsg("chat1", "reporter", "please report"),
+			senderId: "user@s.whatsapp.net",
+		};
 
 		await handleTurn(msg);
 
 		const report = await waitForReport("reporter");
 		expect(report).toContain("**Agent**: `reporter`");
 		expect(report).toContain("**Chat**: `chat1`");
+		expect(report).toContain("**Sender**: `user@s.whatsapp.net`");
 		expect(report).toContain(`**Trigger**: message \`${msg.id}\``);
 		expect(report).toContain("**Outcome**: ok");
 		expect(report).toContain(defaultModel("medium"));

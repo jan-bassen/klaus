@@ -21,7 +21,7 @@ The repo's `vault/settings.yml` is only the first-run template. At runtime Klaus
 | `persistence` | `minNextRun` / `maxNextRun` / `defaultNextRun` for reschedules. |
 | `sync` | Obsidian sync shutdown timeout, file types, restart backoff, first-sync gate. |
 
-`agentDefaults` is worth a second look, because it sets the floor that every agent inherits before its own frontmatter applies. Raising the default model tier or widening the baseline `vaultAccess` here changes every agent at once.
+`agentDefaults` is worth a second look, because it sets the floor that every agent inherits before its own frontmatter applies. The bundled template chooses convenience: `vaultAccess` starts at `"*": read` and then denies `Klaus`, so normal agents can read your whole vault unless an agent narrows that baseline. That is useful for a personal assistant, but it is not least-privilege. Add `none` rules for sensitive folders, or tighten the global baseline and grant only the agents that need broader context.
 
 ## Live and mutable
 

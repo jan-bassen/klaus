@@ -4,6 +4,8 @@
 **Time**: `{{timestamp}}`
 **Run**: `{{runId}}`
 **Chat**: `{{chatId}}`
+{{#if senderId}}**Sender**: `{{senderId}}`
+{{/if}}
 **Trigger**: {{trigger.kind}}{{#if trigger.messageId}} `{{trigger.messageId}}`{{/if}}{{#if trigger.scheduleId}} `{{trigger.scheduleId}}`{{/if}}{{#if trigger.timerId}} `{{trigger.timerId}}`{{/if}}{{#if trigger.parentRunId}} parent `{{trigger.parentRunId}}`{{/if}}
 **Duration**: {{durationMs}}ms
 **Outcome**: {{outcome.kind}}{{#if outcome.error}} — `{{outcome.error.name}}: {{outcome.error.message}}`{{/if}}

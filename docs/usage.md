@@ -2,6 +2,8 @@
 
 How you talk to Klaus over WhatsApp. Everything here happens in the one chat Klaus listens to (see [setup.md](setup.md) for choosing that chat).
 
+Klaus authorizes a WhatsApp chat, not a person. In a 1:1 chat those are effectively the same thing; in a group, every member can route agents, run commands, use tools, and trigger vault reads or writes allowed by the current agent config. Use a group only when shared control is deliberate.
+
 Every inbound message is parsed in the same order: voice is transcribed and documents are extracted to text, then an armed `/next` prefix is prepended, then a leading `/command` is detected, then a leading `@agent` route is pulled off, then `!overrides` are stripped out. What remains is the message the agent sees.
 
 ## Routing to an agent

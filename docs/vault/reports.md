@@ -12,7 +12,7 @@ Every run writes one report unless `config.report` is false (you can turn it off
 
 A report contains, in order:
 
-- **Message metadata** and the trigger (`message` / `schedule` / `timer` / `dispatch`), the duration, and the outcome.
+- **Message metadata** and the trigger (`message` / `schedule` / `timer` / `dispatch`), the duration, and the outcome. For WhatsApp message turns, this includes both the chat JID and sender JID so group turns can be audited.
 - **When something failed:** the pipeline phase, user-facing error text, and stack trace.
 - **The applied overrides** and a picked subset of the resolved config.
 - **When the model ran:** the model and tier, token usage, prompt size, and reply size.

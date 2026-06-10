@@ -108,6 +108,8 @@ vaultAccess:
 
 This is the per-agent layer. There is also a global scope gate in `settings.vault.scopes` that no agent can escape; the mechanics are in [infra](../codebase/infra.md#vault).
 
+The bundled `agentDefaults.vaultAccess` is broad on purpose: `"*:read"` plus `"Klaus:none"`, so most agents can answer from your notes without setup work while the Klaus config folder stays protected. Treat that as a convenience baseline, not a security boundary. For sensitive folders, add `none` rules globally or on specific agents, then grant `read`/`full` only where the agent's job really needs it.
+
 > **Tip — seed a baseline, then carve down.** Because no match means denied, an agent with an empty or too-narrow `vaultAccess` silently cannot read anything. Start from a broad baseline (`"*:read"`, or the `agentDefaults` baseline you inherit) and *subtract* with `none` or narrower paths, rather than building the list up from nothing and wondering why the agent is blind.
 
 ## Persistence and schedules

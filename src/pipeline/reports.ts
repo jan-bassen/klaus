@@ -91,6 +91,7 @@ interface ReportLlm {
 interface ReportEntry {
 	runId: string;
 	chatId: string;
+	senderId?: string;
 	agent: string;
 	trigger: TurnContext["trigger"];
 	timestamp: string;
@@ -174,6 +175,7 @@ function buildReport(input: EmitReportInput): ReportEntry {
 	const entry: ReportEntry = {
 		runId: turn.runId,
 		chatId: turn.chatId,
+		...(turn.message ? { senderId: turn.message.senderId } : {}),
 		agent: turn.agent.name,
 		trigger: turn.trigger,
 		timestamp: new Date().toISOString(),
@@ -201,6 +203,7 @@ function buildPipelineErrorReport(
 	const entry: ReportEntry = {
 		runId: input.runId ?? crypto.randomUUID(),
 		chatId: input.chatId,
+		...(input.message ? { senderId: input.message.senderId } : {}),
 		agent: input.agent ?? "pipeline",
 		trigger: input.trigger ?? {
 			kind: "message",
