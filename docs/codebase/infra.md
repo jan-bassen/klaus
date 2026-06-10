@@ -70,7 +70,7 @@ All operational state lives under `{dataDir}`, separate from the vault. Each sto
 
 History is an append-only event log. `getConversation` reads the last `lookbackDays` files and truncates at the most recent `break`, applying acks (message-id → WhatsApp external id) and reactions onto their message rows. Assistant rows carry `agent`, `runId`, and a `voice`/`failed` flag. Reactions are stored against external ids and rendered as metadata, so a reaction-only turn stays visible without consuming a history slot.
 
-Schedules and timers are rewritten in full on each change and only *run* once the [future-work gate](#paths-env-and-runtime) opens (setup complete and WhatsApp connected). They pause on disconnect and on `/stop`.
+Schedules and timers are rewritten in full on each change and only *run* once the [future-work gate](#paths-env-and-runtime) opens (setup complete and WhatsApp connected). Timers farther out than Node's single-timeout limit are re-armed in bounded hops until their target instant arrives. They pause on disconnect and on `/stop`.
 
 ---
 

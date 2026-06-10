@@ -5,7 +5,7 @@
 
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readText, writeData } from "../../../src/infra/runtime.ts";
 import {
 	addTimer,
@@ -29,6 +29,8 @@ function makeEntry(overrides: Partial<TimerEntry> = {}): TimerEntry {
 		...overrides,
 	};
 }
+
+const NODE_MAX_TIMEOUT_DELAY_MS = 2_147_483_647;
 
 describe("infra/store/timers: add/list/remove", () => {
 	let tmpDir: string;
@@ -114,6 +116,30 @@ describe("infra/store/timers: firing", () => {
 
 		await new Promise((r) => setTimeout(r, 30));
 		expect(fired).toEqual([e]);
+	});
+
+	it("caps each timeout hop at Node's maximum delay", async () => {
+		const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+		const store = createTimerStore({ dataDir: tmpDir });
+		const e = makeEntry({
+			runAt: new Date(
+				Date.now() + NODE_MAX_TIMEOUT_DELAY_MS + 5_000,
+			).toISOString(),
+		});
+
+		try {
+			await store.add(e);
+			store.startAll();
+
+			expect(setTimeoutSpy).toHaveBeenCalledWith(
+				expect.any(Function),
+				NODE_MAX_TIMEOUT_DELAY_MS,
+			);
+			expect(store.list()).toEqual([e]);
+		} finally {
+			store.stopAll();
+			setTimeoutSpy.mockRestore();
+		}
 	});
 
 	it("does not fire before timers are started", async () => {

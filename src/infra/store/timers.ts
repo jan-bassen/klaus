@@ -27,6 +27,8 @@ const TimerEntrySchema = z.object({
 
 export type TimerEntry = z.infer<typeof TimerEntrySchema>;
 
+const MAX_TIMEOUT_DELAY_MS = 2_147_483_647;
+
 interface TimerStoreEnv {
 	dataDir: string;
 }
@@ -51,9 +53,16 @@ export function createTimerStore(env: TimerStoreEnv): TimerStore {
 		const existing = timeouts.get(entry.id);
 		if (existing) clearTimeout(existing);
 
-		const delayMs = Math.max(0, new Date(entry.runAt).getTime() - Date.now());
+		const runAtMs = new Date(entry.runAt).getTime();
+		const remainingMs = Math.max(0, runAtMs - Date.now());
+		const delayMs = Math.min(remainingMs, MAX_TIMEOUT_DELAY_MS);
 
 		const handle = setTimeout(() => {
+			if (Date.now() < runAtMs) {
+				if (active && timers.has(entry.id)) scheduleTimeout(entry);
+				return;
+			}
+
 			timeouts.delete(entry.id);
 			timers.delete(entry.id);
 			persist().catch((err) =>
