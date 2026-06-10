@@ -72,6 +72,8 @@ All operational state lives under `{dataDir}`, separate from the vault. Each sto
 
 History is an append-only event log. `getConversation` reads the last `lookbackDays` files and truncates at the most recent `break`, applying acks (message-id → WhatsApp external id) and reactions onto their message rows. Assistant rows carry `agent`, `runId`, and a `voice`/`failed` flag. Reactions are stored against external ids and rendered as metadata, so a reaction-only turn stays visible without consuming a history slot.
 
+The file index is JSONL for easy inspection, but it is compacted on metadata updates and deletes so message-id backfills and removed files do not accumulate stale duplicate records.
+
 Schedules and timers are rewritten in full on each change and only *run* once the [future-work gate](#paths-env-and-runtime) opens (setup complete and WhatsApp connected). Timers farther out than Node's single-timeout limit are re-armed in bounded hops until their target instant arrives. Overdue timers catch up serially after downtime, so a restart does not burst several agent runs at once. They pause on disconnect and on `/stop`.
 
 ---

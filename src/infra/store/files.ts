@@ -1,4 +1,4 @@
-import { appendFile, mkdir } from "node:fs/promises";
+import { appendFile, mkdir, rename } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { log } from "../logger.ts";
@@ -21,7 +21,7 @@ interface FileStore {
 		externalId: string,
 	): { fileId: string; path: string; mimeType: string } | null;
 	listFiles(prefix?: string): FileMeta[];
-	deleteFile(fileId: string): boolean;
+	deleteFile(fileId: string): Promise<boolean>;
 	rebuildIndex(): Promise<void>;
 }
 
@@ -95,6 +95,16 @@ function createFileStore(env: FileStoreEnv): FileStore {
 		}
 	}
 
+	async function rewriteIndex(): Promise<void> {
+		await mkdir(filesDir(), { recursive: true });
+		const compact = [...fileIndex.values()]
+			.map((record) => JSON.stringify(record))
+			.join("\n");
+		const tmpPath = `${indexPath()}.tmp`;
+		await writeData(tmpPath, compact ? `${compact}\n` : "");
+		await rename(tmpPath, indexPath());
+	}
+
 	async function persistFileBlob(
 		input: PersistFileBlobInput,
 	): Promise<PersistedFileBlob | Error> {
@@ -151,7 +161,7 @@ function createFileStore(env: FileStoreEnv): FileStore {
 		meta.messageId = messageId;
 		messageFileIndex.set(messageId, fileId);
 		try {
-			await appendFile(indexPath(), `${JSON.stringify(meta)}\n`);
+			await rewriteIndex();
 		} catch (err) {
 			return err instanceof Error ? err : new Error(String(err));
 		}
@@ -187,12 +197,13 @@ function createFileStore(env: FileStoreEnv): FileStore {
 		return all.filter((f) => f.path.startsWith(prefix));
 	}
 
-	function deleteFile(fileId: string): boolean {
+	async function deleteFile(fileId: string): Promise<boolean> {
 		const meta = fileIndex.get(fileId);
 		if (!meta) return false;
 		fileIndex.delete(fileId);
 		if (meta.messageId) messageFileIndex.delete(meta.messageId);
 		if (meta.externalId) externalFileIndex.delete(meta.externalId);
+		await rewriteIndex();
 		return true;
 	}
 
@@ -291,7 +302,7 @@ export function listFiles(prefix?: string): FileMeta[] {
 	return store().listFiles(prefix);
 }
 
-export function deleteFile(fileId: string): boolean {
+export function deleteFile(fileId: string): Promise<boolean> {
 	return store().deleteFile(fileId);
 }
 

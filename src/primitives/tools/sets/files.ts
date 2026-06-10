@@ -181,7 +181,7 @@ export const filesDeleteTool: ToolDefinition<typeof filesDeleteSchema> = {
 			});
 		}
 
-		deleteFile(meta.id);
+		await deleteFile(meta.id);
 		return `Deleted ${path.basename(meta.path)} (${meta.id})`;
 	},
 };

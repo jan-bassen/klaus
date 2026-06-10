@@ -1,4 +1,6 @@
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { readText } from "../../../src/infra/runtime.ts";
 import {
 	deleteFile,
 	findFile,
@@ -179,11 +181,11 @@ describe("infra/store/files: listFiles + deleteFile", () => {
 		expect(result).not.toBeInstanceOf(Error);
 		if (result instanceof Error) return;
 
-		expect(deleteFile(result.id)).toBe(true);
+		expect(await deleteFile(result.id)).toBe(true);
 		expect(findFile(result.id)).toBeNull();
 		expect(findFileByMessageId("msg-del")).toBeNull();
 		expect(findFileByExternalId("ext-del")).toBeNull();
-		expect(deleteFile(result.id)).toBe(false);
+		expect(await deleteFile(result.id)).toBe(false);
 	});
 });
 
@@ -233,6 +235,55 @@ describe("infra/store/files: rebuildFileIndex", () => {
 			initFilesStore({ dataDir: tmpDir });
 			await rebuildFileIndex();
 			expect(findFileByMessageId("msg-backfill")?.fileId).toBe(result.id);
+		} finally {
+			rmTmpDir(tmpDir);
+		}
+	});
+
+	it("update records rewrite the JSONL index compactly", async () => {
+		const tmpDir = makeTmpDir();
+		try {
+			initFilesStore({ dataDir: tmpDir });
+			const result = await persistFileBlob({
+				bytes: Buffer.from("data"),
+				mimeType: "text/plain",
+			});
+			expect(result).not.toBeInstanceOf(Error);
+			if (result instanceof Error) return;
+
+			await updateFileMessageId(result.id, "msg-backfill");
+			const text = await readText(
+				path.join(tmpDir, "files", "files-index.jsonl"),
+			);
+			const lines = text.split("\n").filter((line) => line.trim());
+			expect(lines).toHaveLength(1);
+			expect(JSON.parse(lines[0] ?? "{}")).toMatchObject({
+				id: result.id,
+				messageId: "msg-backfill",
+			});
+		} finally {
+			rmTmpDir(tmpDir);
+		}
+	});
+
+	it("deleted metadata stays deleted after rebuild", async () => {
+		const tmpDir = makeTmpDir();
+		try {
+			initFilesStore({ dataDir: tmpDir });
+			const result = await persistFileBlob({
+				bytes: Buffer.from("data"),
+				mimeType: "text/plain",
+				messageId: "msg-delete",
+			});
+			expect(result).not.toBeInstanceOf(Error);
+			if (result instanceof Error) return;
+
+			expect(await deleteFile(result.id)).toBe(true);
+
+			initFilesStore({ dataDir: tmpDir });
+			await rebuildFileIndex();
+			expect(findFile(result.id)).toBeNull();
+			expect(findFileByMessageId("msg-delete")).toBeNull();
 		} finally {
 			rmTmpDir(tmpDir);
 		}
