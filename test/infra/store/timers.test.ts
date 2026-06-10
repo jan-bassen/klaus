@@ -118,6 +118,39 @@ describe("infra/store/timers: firing", () => {
 		expect(fired).toEqual([e]);
 	});
 
+	it("serializes overdue timer fires", async () => {
+		const store = createTimerStore({ dataDir: tmpDir });
+		const started: string[] = [];
+		const finished: string[] = [];
+		const firstDone = Promise.withResolvers<void>();
+		store.setOnFire(async (e) => {
+			started.push(e.id);
+			if (e.id === "first") await firstDone.promise;
+			finished.push(e.id);
+		});
+
+		const first = makeEntry({
+			id: "first",
+			runAt: new Date(Date.now() - 10_000).toISOString(),
+		});
+		const second = makeEntry({
+			id: "second",
+			runAt: new Date(Date.now() - 10_000).toISOString(),
+		});
+		await store.add(first);
+		await store.add(second);
+		store.startAll();
+
+		await new Promise((r) => setTimeout(r, 30));
+		expect(started).toEqual(["first"]);
+		expect(finished).toEqual([]);
+
+		firstDone.resolve();
+		await new Promise((r) => setTimeout(r, 30));
+		expect(started).toEqual(["first", "second"]);
+		expect(finished).toEqual(["first", "second"]);
+	});
+
 	it("caps each timeout hop at Node's maximum delay", async () => {
 		const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
 		const store = createTimerStore({ dataDir: tmpDir });

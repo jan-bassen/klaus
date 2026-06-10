@@ -37,6 +37,7 @@ export function createTimerStore(env: TimerStoreEnv): TimerStore {
 	const timers = new Map<string, TimerEntry>();
 	const timeouts = new Map<string, ReturnType<typeof setTimeout>>();
 	let onFire: ((entry: TimerEntry) => Promise<void>) | null = null;
+	let fireQueue = Promise.resolve();
 	let active = false;
 
 	const timersPath = (): string => path.join(env.dataDir, "timers.json");
@@ -47,6 +48,20 @@ export function createTimerStore(env: TimerStoreEnv): TimerStore {
 			timersPath(),
 			JSON.stringify([...timers.values()], null, 2),
 		);
+	}
+
+	function enqueueFire(entry: TimerEntry): void {
+		fireQueue = fireQueue.then(async () => {
+			log.info(`[timers] fired for @${entry.agentName}`);
+			try {
+				await onFire?.(entry);
+			} catch (err) {
+				log.error("[timers] fire handler error", {
+					id: entry.id,
+					error: err instanceof Error ? err.message : String(err),
+				});
+			}
+		});
 	}
 
 	function scheduleTimeout(entry: TimerEntry): void {
@@ -71,13 +86,7 @@ export function createTimerStore(env: TimerStoreEnv): TimerStore {
 					error: err instanceof Error ? err.message : String(err),
 				}),
 			);
-			log.info(`[timers] fired for @${entry.agentName}`);
-			onFire?.(entry).catch((err) =>
-				log.error("[timers] fire handler error", {
-					id: entry.id,
-					error: err instanceof Error ? err.message : String(err),
-				}),
-			);
+			enqueueFire(entry);
 		}, delayMs);
 
 		timeouts.set(entry.id, handle);
