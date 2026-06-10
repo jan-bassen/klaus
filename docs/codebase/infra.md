@@ -23,6 +23,8 @@ The other environment variables are: `OBSIDIAN_EMAIL` / `OBSIDIAN_PASSWORD` / `O
 
 `runtime.ts` is a small wrapper over `node:fs/promises` (`readText`, `writeData`, `parseJsonObject`, `scanFiles`) that every store, the config loader, and the primitive loaders go through. `future.ts` is the gate that actually starts the schedule and timer clocks. It requires both a configured `allowedChat` and a live WhatsApp connection, and it is what `/stop` and `/resume` toggle.
 
+SIGTERM and SIGINT use the graceful shutdown path: abort startup work, drain the WhatsApp send queue, stop Obsidian sync, close the socket, and stop local clocks. An uncaught exception is treated as process-corrupting; Klaus logs it and exits non-zero so the container supervisor can restart it cleanly.
+
 ## Vault
 
 The vault is both the knowledge graph and the user-owned configuration. `{vault}/Klaus/` holds agents, skills, snippets, templates, reports, `settings.yml`, and `overrides.yml`.

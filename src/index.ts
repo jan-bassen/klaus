@@ -117,7 +117,10 @@ process.on("unhandledRejection", (reason) => {
 	});
 });
 process.on("uncaughtException", (err) => {
-	log.error("[process] uncaughtException", { error: err.message });
+	log.error("[process] uncaughtException", {
+		error: err.stack ?? err.message,
+	});
+	process.exit(1);
 });
 
 async function runScheduledDispatch(
