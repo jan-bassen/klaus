@@ -1,3 +1,4 @@
+import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { settings } from "../../../src/infra/config.ts";
@@ -37,12 +38,13 @@ describe("infra/vault: resolveVaultPath", () => {
 	});
 
 	it("'.' scope resolves root files and nested files", () => {
+		const realTmp = realpathSync(tmp);
 		expect(resolveVaultPath("scratch.md")).toMatchObject({
-			absolute: path.join(tmp, "scratch.md"),
+			absolute: path.join(realTmp, "scratch.md"),
 			path: "scratch.md",
 		});
 		expect(resolveVaultPath("Notes/today.md")).toMatchObject({
-			absolute: path.join(tmp, "Notes/today.md"),
+			absolute: path.join(realTmp, "Notes/today.md"),
 			path: path.join("Notes", "today.md"),
 		});
 	});
@@ -57,9 +59,10 @@ describe("infra/vault: resolveVaultPath", () => {
 	});
 
 	it("Klaus paths are normal vault paths when covered by scope", () => {
+		const realTmp = realpathSync(tmp);
 		const r = resolveVaultPath("Klaus/agents/coach.md");
 		expect(r).toMatchObject({
-			absolute: path.join(tmp, "Klaus/agents/coach.md"),
+			absolute: path.join(realTmp, "Klaus/agents/coach.md"),
 			path: path.join("Klaus", "agents", "coach.md"),
 		});
 	});
@@ -74,6 +77,40 @@ describe("infra/vault: resolveVaultPath", () => {
 			path.join("Notes", "x.md"),
 		);
 		expect(resolveVaultPath("Notebook/x.md")).toBeNull();
+	});
+
+	it("rejects existing symlinks that resolve outside the vault root", () => {
+		const outside = makeTmpDir();
+		try {
+			writeFileSync(path.join(outside, "secret.md"), "secret");
+			symlinkSync(path.join(outside, "secret.md"), path.join(tmp, "link.md"));
+
+			expect(resolveVaultPath("link.md")).toBeNull();
+		} finally {
+			rmTmpDir(outside);
+		}
+	});
+
+	it("rejects writes through a symlinked parent outside the vault root", () => {
+		const outside = makeTmpDir();
+		try {
+			mkdirSync(path.join(outside, "notes"), { recursive: true });
+			symlinkSync(path.join(outside, "notes"), path.join(tmp, "LinkedNotes"));
+
+			expect(resolveVaultPath("LinkedNotes/new.md")).toBeNull();
+		} finally {
+			rmTmpDir(outside);
+		}
+	});
+
+	it("allows missing files under real vault parents", () => {
+		const realTmp = realpathSync(tmp);
+		mkdirSync(path.join(tmp, "Notes"), { recursive: true });
+
+		expect(resolveVaultPath("Notes/new.md")).toMatchObject({
+			absolute: path.join(realTmp, "Notes", "new.md"),
+			path: path.join("Notes", "new.md"),
+		});
 	});
 });
 

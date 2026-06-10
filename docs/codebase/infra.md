@@ -39,7 +39,7 @@ The vault is both the knowledge graph and the user-owned configuration. `{vault}
 
 Vault access is gated in two layers, both fail-closed:
 
-1. **Global scopes** (`settings.vault.scopes`) are vault-relative paths that cannot escape the root. Anything outside every scope is unreachable by any agent.
+1. **Global scopes** (`settings.vault.scopes`) are vault-relative paths that cannot escape the root. Anything outside every scope is unreachable by any agent. Paths are checked after resolving symlinks, so a link inside the vault cannot point tools at `{dataDir}` or another host path.
 2. **Per-agent `vaultAccess`** is a `path → none|read|full` map, merged over the `agentDefaults` baseline. The longest matching prefix wins, `"*"` is the fallback, and no match means denied. Internally the `read`/`append`/`full` levels order the operations a tool may perform.
 
 Every vault tool calls one choke point (`gateVaultTool`) that checks scope, then permission, and returns an absolute path or an error. How an agent declares its own slice of this is in [agents](../vault/agents.md#vault-access).

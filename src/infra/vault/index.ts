@@ -1,3 +1,4 @@
+import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { type AgentVaultEntry, settings } from "../config.ts";
 
@@ -38,9 +39,38 @@ function absoluteForVaultPath(vaultPath: string): string {
 	return vaultPath === "." ? root : path.resolve(root, vaultPath);
 }
 
+function isWithinAbsolutePath(child: string, parent: string): boolean {
+	const relative = path.relative(parent, child);
+	return (
+		relative === "" ||
+		(!relative.startsWith("..") && !path.isAbsolute(relative))
+	);
+}
+
 function isWithinVaultPath(child: string, parent: string): boolean {
 	if (parent === ".") return true;
 	return child === parent || child.startsWith(`${parent}${path.sep}`);
+}
+
+function realTargetForPath(absolute: string): string | null {
+	const missingParts: string[] = [];
+	let existing = absolute;
+
+	while (!existsSync(existing)) {
+		const parent = path.dirname(existing);
+		if (parent === existing) return null;
+		missingParts.push(path.basename(existing));
+		existing = parent;
+	}
+
+	try {
+		const realExisting = realpathSync(existing);
+		return missingParts.length === 0
+			? realExisting
+			: path.join(realExisting, ...missingParts.reverse());
+	} catch {
+		return null;
+	}
 }
 
 function matchingAccessEntry(
@@ -87,15 +117,21 @@ export function checkPermission(
 export function resolveVaultPath(relative: string): ResolvedPath | null {
 	const root = settings.vault.root;
 	const resolved = path.resolve(root, relative);
+	const realRoot = realTargetForPath(root);
+	if (!realRoot) return null;
 
-	if (resolved !== root && !resolved.startsWith(root + path.sep)) return null;
+	if (!isWithinAbsolutePath(resolved, root)) return null;
+
+	const realResolved = realTargetForPath(resolved);
+	if (!realResolved || !isWithinAbsolutePath(realResolved, realRoot))
+		return null;
 
 	const vaultPath = normalizeVaultRelative(path.relative(root, resolved));
 	for (const scope of settings.vault.scopes) {
 		const scopePath = normalizeVaultRelative(scope);
 		const scopeAbs = absoluteForVaultPath(scopePath);
-		if (resolved === scopeAbs || resolved.startsWith(scopeAbs + path.sep)) {
-			return { absolute: resolved, path: vaultPath };
+		if (isWithinAbsolutePath(resolved, scopeAbs)) {
+			return { absolute: realResolved, path: vaultPath };
 		}
 	}
 
