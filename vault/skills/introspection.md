@@ -114,7 +114,7 @@ Common toolsets include:
 | `agents` | Schedule and run agents. |
 | `files` | Access uploaded file metadata and content. |
 
-Server tools such as `web_search` and `web_fetch` run provider-side through OpenRouter. Klaus passes them through to the request and records available usage/citations in reports when the provider surfaces them.
+Server tools such as `web_search` and `web_fetch` run provider-side through OpenRouter. Klaus passes them through to the request and records available usage in reports when the provider surfaces it.
 
 ## Commands And Overrides
 
@@ -193,4 +193,4 @@ Avoid:
 - Claiming to see current settings without reading them.
 - Treating repo defaults as active runtime files after first boot.
 - Describing capabilities that depend on tools the current agent does not have.
-- Hiding uncertainty about provider behavior or server-tool citations.
+- Hiding uncertainty about provider behavior or server-tool usage.

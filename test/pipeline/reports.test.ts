@@ -265,7 +265,7 @@ describe("pipeline/reports: emitReport", () => {
 		expect(markdown).toContain("child result");
 	});
 
-	it("writes server tool usage and citations into markdown report steps", async () => {
+	it("writes server tool usage without dumping citations into markdown report steps", async () => {
 		await emitReport({
 			turn: makeTurn(),
 			startedAt: Date.now() - 10,
@@ -294,8 +294,8 @@ describe("pipeline/reports: emitReport", () => {
 		const markdown = readOnlyReport();
 		expect(markdown).toContain("**Server tool use**");
 		expect(markdown).toContain('"web_search_requests":2');
-		expect(markdown).toContain("Example");
-		expect(markdown).toContain("https://example.com");
+		expect(markdown).not.toContain("**Citations**");
+		expect(markdown).not.toContain("cited content");
 	});
 
 	it("redacts base64 data URLs from report prompts and history", async () => {

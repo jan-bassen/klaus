@@ -87,7 +87,7 @@ Server tools execute on OpenRouter's side rather than in the loop. An agent decl
 | `web_search` | `{ type: "openrouter:web_search" }` |
 | `web_fetch` | `{ type: "openrouter:web_fetch" }` |
 
-The loop never sees a client-side call for these. Any usage and citations are read back from the model response and shown in [reports](../vault/reports.md).
+The loop never sees a client-side call for these. Usage is read back from the model response and shown in [reports](../vault/reports.md), while surfaced citations stay available to custom report templates.
 
 ## Variables
 

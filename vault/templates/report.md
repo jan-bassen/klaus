@@ -34,7 +34,7 @@
 
 ### Steps
 {{#each llm.steps}}
-{{#if (or toolCalls.length serverToolUse citations.length)}}
+{{#if (or toolCalls.length serverToolUse)}}
 ### Step {{inc @index}}
 {{#if usage}}({{usage.inputTokens}}↑/{{usage.outputTokens}}↓)
 
@@ -49,13 +49,6 @@
 {{#if serverToolUse}}
 **Server tool use**
 `{{json serverToolUse}}`
-
-{{/if}}
-{{#if citations.length}}
-**Citations**
-{{#each citations}}
-- {{#if title}}{{title}} — {{/if}}{{url}}{{#if content}}: {{trunc content 240}}{{/if}}
-{{/each}}
 
 {{/if}}
 {{#each toolCalls}}

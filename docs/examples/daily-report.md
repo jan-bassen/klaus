@@ -13,8 +13,7 @@ message at all. It's the canonical lesson on **self-running, outbound work**.
 - [`schedules`](../vault/agents.md#persistence-and-schedules): cron entries that
   fire an agent, and the `# Message` body a fired run renders.
 - [Server tools](../codebase/primitives.md#server-tools) — `web_search` and
-  `web_fetch` run on OpenRouter's side, and their citations come back into the
-  report automatically.
+  `web_fetch` run on OpenRouter's side, with usage recorded in the report.
 - The [`schedule` and `trigger` variables](../codebase/primitives.md#variables), so
   the prompt knows it's a scheduled run and why.
 - Producing a digest note, and where the per-turn [report](../vault/reports.md) fits
@@ -105,7 +104,7 @@ What's new here:
 
 - **`serverTools: [web_search, web_fetch]`** are always available to this agent and
   execute on OpenRouter's side — the loop never sees a client-side call, and
-  citations are read back into the report.
+  server-tool usage is read back into the report.
 - **`schedules`** fires the agent at 7am every day. Klaus registers and
   de-registers cron entries automatically as you edit the file.
 - **`# Message`** is what the scheduled run actually reads — there's no user message
@@ -121,8 +120,8 @@ You have two records of every run, and they serve different purposes:
 
 - **The digest note** (`Brief/<date>.md`) is the *product* — what you read over
   coffee. The agent writes it with the vault tools.
-- **The [report](../vault/reports.md)** is the *receipt* — what the agent searched,
-  what it cited, what it cost. You only open it when something looks off.
+- **The [report](../vault/reports.md)** is the *receipt* — what the agent reasoned,
+  which server tools ran, what it cost. You only open it when something looks off.
 
 If you want to reshape the report itself, it's a [template](../vault/templates.md)
 (`templates/report.md`); the digest's shape is just what you ask for in the prompt.
@@ -131,8 +130,8 @@ If you want to reshape the report itself, it's a [template](../vault/templates.m
 
 Restart for the new variable, then trigger the schedule rather than waiting until
 morning (send the agent a message asking it to run the brief now, or wait for 7am).
-Check three things in the report: the search actually ran, the citations are
-present, and `Brief/<date>.md` landed with a section per topic. Confirm the rendered
+Check three things in the report: the search actually ran, the reasoning is
+visible, and `Brief/<date>.md` landed with a section per topic. Confirm the rendered
 `# Message` shows your topics and the right `{{trigger}}`/`{{schedule.label}}`.
 
 ## Going further
