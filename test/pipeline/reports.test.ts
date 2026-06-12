@@ -12,6 +12,7 @@ import {
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { settings } from "../../src/infra/config.ts";
+import { log } from "../../src/infra/logger.ts";
 import type { InboundMessage } from "../../src/infra/whatsapp/receive.ts";
 import type { AgentRunResult, TurnContext } from "../../src/pipeline/core.ts";
 import {
@@ -325,6 +326,31 @@ describe("pipeline/reports: emitReport", () => {
 		expect(markdown).not.toContain("AAAABBBB");
 		expect(markdown).not.toContain("CCCCDDDD");
 		expect(markdown).toContain("[base64 data URL omitted from report]");
+	});
+
+	it("writes recent runtime logs before the rendered inputs", async () => {
+		const startedAt = Date.now();
+		log.warn("[probe] report-visible log", {
+			file: "data:image/png;base64,LOGDATA",
+		});
+
+		await emitReport({
+			turn: makeTurn(),
+			startedAt,
+			result: makeResult(),
+		});
+
+		const markdown = readOnlyReport();
+		expect(markdown).toContain("### Logs");
+		expect(markdown).toContain("WARN [probe] report-visible log");
+		expect(markdown).toContain("[base64 data URL omitted from report]");
+		expect(markdown).not.toContain("LOGDATA");
+		expect(markdown.indexOf("### Steps")).toBeLessThan(
+			markdown.indexOf("### Logs"),
+		);
+		expect(markdown.indexOf("### Logs")).toBeLessThan(
+			markdown.indexOf("### User message"),
+		);
 	});
 
 	it("error path: outcome is { kind: 'error' } with name+message", async () => {

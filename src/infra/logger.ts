@@ -29,14 +29,24 @@ const LEVEL_LABEL: Record<Level, string> = {
 	error: "ERR",
 };
 
+const REPORT_LOG_BUFFER_CAPACITY = 500;
+
+interface RecentLogEntry {
+	timestampMs: number;
+	line: string;
+}
+
+const recentLogEntries: RecentLogEntry[] = [];
+
 const MODULE_RE = /^\[([^\]]+)\]\s*/;
 
 function formatText(
 	level: Level,
 	msg: string,
 	data?: Record<string, unknown>,
+	now: Date = new Date(),
 ): string {
-	const time = new Date().toISOString().slice(11, 23);
+	const time = now.toISOString().slice(11, 23);
 	const badge = `${LEVEL_COLOR[level]}${LEVEL_LABEL[level]}${RESET}`;
 	const tail =
 		data && Object.keys(data).length > 0
@@ -50,6 +60,18 @@ function formatText(
 		return `${DIM}${time}${RESET} ${badge} ${CYAN}${BOLD}[${module}]${RESET} ${rest}${tail}`;
 	}
 	return `${DIM}${time}${RESET} ${badge} ${msg}${tail}`;
+}
+
+function formatPlain(
+	level: Level,
+	msg: string,
+	data?: Record<string, unknown>,
+	now: Date = new Date(),
+): string {
+	const time = now.toISOString();
+	const tail =
+		data && Object.keys(data).length > 0 ? ` ${formatData(data)}` : "";
+	return `${time} ${level.toUpperCase()} ${msg}${tail}`;
 }
 
 function formatData(data: Record<string, unknown>): string {
@@ -68,13 +90,43 @@ function formatValue(v: unknown): string {
 // Silenced during test runs so assertions can inspect stdout/stderr without noise.
 const SILENT = process.env.NODE_ENV === "test";
 
+function rememberLog(entry: RecentLogEntry): void {
+	recentLogEntries.push(entry);
+	if (recentLogEntries.length > REPORT_LOG_BUFFER_CAPACITY) {
+		recentLogEntries.splice(
+			0,
+			recentLogEntries.length - REPORT_LOG_BUFFER_CAPACITY,
+		);
+	}
+}
+
 function emit(level: Level, msg: string, data?: Record<string, unknown>): void {
+	const now = new Date();
+	rememberLog({
+		timestampMs: now.getTime(),
+		line: formatPlain(level, msg, data, now),
+	});
 	if (SILENT) return;
 	const line =
 		logFormat === "json"
-			? JSON.stringify({ ts: new Date().toISOString(), level, msg, ...data })
-			: formatText(level, msg, data);
+			? JSON.stringify({ ts: now.toISOString(), level, msg, ...data })
+			: formatText(level, msg, data, now);
 	(level === "error" || level === "warn" ? console.error : console.log)(line);
+}
+
+export function recentLogs(input: {
+	sinceMs: number;
+	untilMs: number;
+	limit: number;
+}): string[] {
+	const filtered = recentLogEntries
+		.filter(
+			(entry) =>
+				entry.timestampMs >= input.sinceMs &&
+				entry.timestampMs <= input.untilMs,
+		)
+		.map((entry) => entry.line);
+	return filtered.slice(Math.max(0, filtered.length - input.limit));
 }
 
 export const log = {

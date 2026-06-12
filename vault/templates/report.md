@@ -23,6 +23,11 @@
 ### Stack
 {{codeFence outcome.error.stack}}
 {{/if}}
+{{#if (and logs (not llm))}}
+
+### Logs
+{{codeFence logs}}
+{{/if}}
 {{#if llm}}
 **Model**: {{llm.model}} ({{llm.tier}})
 **Tokens**: {{llm.usage.promptTokens}} in / {{llm.usage.completionTokens}} out
@@ -76,6 +81,11 @@
 {{#if fallback}}`{{fallback}}`{{/if}}
 {{/if}}
 {{/each}}
+{{#if logs}}
+
+### Logs
+{{codeFence logs}}
+{{/if}}
 {{#if llm.userMessage}}
 
 ### User message

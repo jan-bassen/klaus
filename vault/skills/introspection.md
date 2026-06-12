@@ -159,7 +159,7 @@ Klaus keeps durable runtime state under `{dataDir}`:
 | `schedules` | JSON plus croner | Recurring future runs. |
 | `timers` | JSON plus `setTimeout` | One-shot future runs. |
 
-Reports are written to `Klaus/reports/<date>/` when reporting is enabled. They are the best place to inspect a specific turn because they include message metadata, overrides, variables, tools, server tools, skills, model steps, tool calls/results, and rendered prompt/history text.
+Reports are written to `Klaus/reports/<date>/` when reporting is enabled. They are the best place to inspect a specific turn because they include message metadata, overrides, variables, tools, server tools, skills, model steps, tool calls/results, nearby runtime logs, and rendered prompt/history text.
 
 If the user asks "why did you do that?", look for the relevant report before guessing.
 

@@ -9,7 +9,7 @@ infra/
   config.ts     # settings.yml + env paths + model resolution (the live `settings`)
   runtime.ts    # thin fs helpers (read/write/scan) used everywhere
   future.ts     # gate that starts/pauses schedules + timers
-  logger.ts     # text/JSON logger
+  logger.ts     # text/JSON logger + recent log buffer for reports
   store/        # history, files, schedules, timers
   vault/        # path resolution, defaults, sync, watcher, permissions, markdown
   whatsapp/     # Baileys connection, receive, send, presence, login
@@ -24,6 +24,8 @@ The other environment variables are: `OBSIDIAN_EMAIL` / `OBSIDIAN_PASSWORD` / `O
 `runtime.ts` is a small wrapper over `node:fs/promises` (`readText`, `writeData`, `parseJsonObject`, `scanFiles`) that every store, the config loader, and the primitive loaders go through. `future.ts` is the gate that actually starts the schedule and timer clocks. It requires both a configured `allowedChat` and a live WhatsApp connection, and it is what `/pause`, `/stop`, and `/resume` toggle.
 
 SIGTERM and SIGINT use the graceful shutdown path: abort startup work, drain the WhatsApp send queue, stop Obsidian sync, close the socket, and stop local clocks. An uncaught exception is treated as process-corrupting; Klaus logs it and exits non-zero so the container supervisor can restart it cleanly.
+
+The logger also keeps a bounded in-memory buffer of recent plain-text log lines. Per-turn reports read a small time window from that buffer so the report can show nearby runtime clues without shell access or a full Docker log dump.
 
 ## Vault
 

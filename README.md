@@ -20,7 +20,7 @@ Klaus starts as a basic but usable WhatsApp assistant. Out of the box it can:
 - **Run deterministic commands** like `/model`, `/voice`, `/default`, `/image`, `/schedules`, `/retry`, `/abort`, `/pause`, `/stop`, and `/resume` without spending a model call.
 - **Adjust one turn at a time** with `!overrides`, for example a larger model, a voice reply, or a ghost run that stays out of history.
 - **Wake itself up** with cron schedules or self-rescheduling timers, useful for briefs, reviews, reminders, and recurring maintenance; timer listings render in your configured timezone.
-- **Leave receipts** in `{vault}/Klaus/reports/`, showing the output, reasoning, tool calls, results, rendered prompt, model choice, token use, and error details for failed turns.
+- **Leave receipts** in `{vault}/Klaus/reports/`, showing the output, reasoning, tool calls, results, nearby runtime logs, rendered prompt, model choice, token use, and error details for failed turns.
 
 ## Getting started
 
@@ -91,7 +91,7 @@ Klaus is meant to be lived in and reshaped. Almost everything you'd want to chan
 
 Prompt files can include short HTML comments as author notes; Klaus strips them before rendering, so the bundled defaults can stay easy to edit without leaking scaffolding into the model prompt.
 
-The loop is tight: change a file (or just ask the `@meta` agent to do it for you in chat — *"give the research agent a colder tone"*), send a message, and see the result. When a reply surprises you, open that turn's report under `{vault}/Klaus/reports/`. It starts with the outcome, output, reasoning, tool calls, and results, then keeps the exact prompt the model saw below, which is almost always enough to spot what went wrong.
+The loop is tight: change a file (or just ask the `@meta` agent to do it for you in chat — *"give the research agent a colder tone"*), send a message, and see the result. When a reply surprises you, open that turn's report under `{vault}/Klaus/reports/`. It starts with the outcome, output, reasoning, tool calls, results, and nearby runtime logs, then keeps the exact prompt the model saw below, which is almost always enough to spot what went wrong.
 
 The first-run defaults are intentionally broad: agents can read your vault by default, except for the `Klaus/` config folder. That makes the assistant useful immediately, but you should add `vaultAccess` deny rules for sensitive folders or tighten `agentDefaults.vaultAccess` when you want stricter boundaries.
 

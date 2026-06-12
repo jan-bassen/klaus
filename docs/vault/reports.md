@@ -18,9 +18,12 @@ A report contains, in order:
 - **When the model ran:** the model and tier, token usage, prompt size, and reply size.
 - **The output**, when the run produced one.
 - **Every step**, with its reasoning, server-tool usage, tool calls, and their results, in the order they ran.
+- **Recent runtime logs** from around the turn, capped to keep the report readable.
 - **The rendered inputs:** user message, history transcript, system prompt, and context summary (variables, tools, server tools, toolsets, skills).
 
-The top of the report is meant for fast debugging: outcome, final output, model reasoning, and the tool trace are visible before the longer rendered inputs. Server-tool citations are captured from provider responses when they are surfaced, but the bundled report template does not print citation excerpts by default because provider snippets are often noisy. When you need to understand why the run behaved that way, keep reading into the user message, history, and system prompt. The rendered system prompt is where you catch a prompt-injection attempt, a snippet that didn't interpolate, or a template that wrapped something the wrong way.
+The top of the report is meant for fast debugging: outcome, final output, model reasoning, the tool trace, and the nearby runtime logs are visible before the longer rendered inputs. Server-tool citations are captured from provider responses when they are surfaced, but the bundled report template does not print citation excerpts by default because provider snippets are often noisy. When you need to understand why the run behaved that way, keep reading into the user message, history, and system prompt. The rendered system prompt is where you catch a prompt-injection attempt, a snippet that didn't interpolate, or a template that wrapped something the wrong way.
+
+The log section is a small in-memory slice, not a full Docker log dump. It includes recent lines from just before the turn started through report writing, with a hard line cap so reports stay usable on a phone. Nearby background activity can still appear when two things happen at once, so treat it as context rather than a perfect run-scoped trace.
 
 For `send_message`, the displayed `asVoiceNote` value is the effective delivery mode after turn config is applied. That means `!voice` shows `asVoiceNote: true` even if the model omitted or declined voice, and a voice-suppression override shows `false` even if the model requested audio.
 

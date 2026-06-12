@@ -9,7 +9,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { settings } from "../infra/config.ts";
-import { log } from "../infra/logger.ts";
+import { log, recentLogs } from "../infra/logger.ts";
 import type { InboundMessage } from "../infra/whatsapp/receive.ts";
 import { SEND_MESSAGE_TOOL_NAME } from "../primitives/tools/core.ts";
 import type { AgentRunResult, TurnContext } from "./core.ts";
@@ -17,6 +17,9 @@ import type { TurnConfig } from "./overrides.ts";
 import { renderTemplate } from "./templates.ts";
 
 // ── Public API ─────────────────────────────────────────────────────────────
+
+const REPORT_LOG_LEAD_IN_MS = 2_000;
+const REPORT_LOG_MAX_LINES = 160;
 
 interface EmitReportInput {
 	turn: TurnContext;
@@ -124,6 +127,7 @@ interface ReportEntry {
 		hasMedia?: boolean;
 		mediaType?: string;
 	};
+	logs?: string;
 }
 
 /**
@@ -168,6 +172,7 @@ export async function emitPipelineErrorReport(
 function buildReport(input: EmitReportInput): ReportEntry {
 	const { turn, startedAt, result, error, errorPhase, userError } = input;
 	const durationMs = Date.now() - startedAt;
+	const logs = buildLogSection(startedAt);
 	const errorDetails: { phase?: string; userMessage?: string } = {};
 	if (errorPhase) errorDetails.phase = errorPhase;
 	if (userError) errorDetails.userMessage = userError;
@@ -183,6 +188,7 @@ function buildReport(input: EmitReportInput): ReportEntry {
 		outcome: error ? errorOutcome(error, errorDetails) : { kind: "ok" },
 		overrides: Object.keys(turn.overrides),
 		config: pickConfig(turn.config),
+		...(logs ? { logs } : {}),
 	};
 
 	if (result) entry.llm = buildLlmSection(result, turn.config);
@@ -195,6 +201,7 @@ function buildPipelineErrorReport(
 	input: EmitPipelineErrorReportInput,
 ): ReportEntry {
 	const durationMs = Date.now() - input.startedAt;
+	const logs = buildLogSection(input.startedAt);
 	const errorDetails: { phase?: string; userMessage?: string } = {
 		phase: input.phase,
 	};
@@ -214,6 +221,7 @@ function buildPipelineErrorReport(
 		outcome: errorOutcome(input.error, errorDetails),
 		overrides: Object.keys(input.overrides ?? {}),
 		config: input.config ? pickConfig(input.config) : {},
+		...(logs ? { logs } : {}),
 	};
 
 	if (input.message) entry.message = buildMessageSection(input.message);
@@ -377,6 +385,15 @@ function sanitizeReportText(text: string): string {
 		/data:[^;,\s]+;base64,[A-Za-z0-9+/=]+/g,
 		"[base64 data URL omitted from report]",
 	);
+}
+
+function buildLogSection(startedAt: number): string | undefined {
+	const lines = recentLogs({
+		sinceMs: startedAt - REPORT_LOG_LEAD_IN_MS,
+		untilMs: Date.now(),
+		limit: REPORT_LOG_MAX_LINES,
+	}).map(sanitizeReportText);
+	return lines.length > 0 ? lines.join("\n") : undefined;
 }
 
 function buildMessageSection(
