@@ -14,9 +14,9 @@ reaching for code.
 
 ## What you'll learn
 
-- The rest of the [`vault` toolset](../codebase/primitives.md#toolsets) beyond read
-  and append: `vault_search`, `vault_backlinks`, `vault_links`, `vault_tags`,
-  `vault_outline`, `vault_patch`, and `vault_move`.
+- The rest of the [`vault` toolset](../codebase/primitives.md#toolsets) beyond
+  basic reading and appending: `vault_find`'s tag and backlink filters,
+  `vault_read`'s outline view, `vault_edit`'s section replace, and `vault_move`.
 - Writing a [skill](../vault/skills.md) that captures *your* note-taking
   conventions and loads only when the agent needs it.
 - How a skill can carry its own `toolsets`, so reading it both instructs the agent
@@ -105,13 +105,16 @@ real judgement, not just formatting.
 It helps to know which tool does what, because the report will show the agent moving
 through these in order:
 
-- **`vault_search`** — find whether a note on this idea already exists.
-- **`vault_read`** — open the candidate home to decide extend-or-create.
-- **`vault_patch`** — make a small, targeted edit instead of rewriting the file.
-- **`vault_links` / `vault_backlinks`** — see what a note points to, and what points
-  back at it, so connections can be made both ways.
-- **`vault_tags`** — check existing tags before adding new ones, to avoid synonyms.
-- **`vault_outline`** — get the lay of the land across many notes.
+- **`vault_find`** with a `query` — find whether a note on this idea already
+  exists.
+- **`vault_read`** — open the candidate home to decide extend-or-create; the
+  `view: "outline"` option gives the lay of the land without the full text.
+- **`vault_edit`** — make a small, targeted append or section replace instead of
+  rewriting the file.
+- **`vault_find`** with `linksTo` — see what points back at a note, so connections
+  can be made both ways (a note's outgoing links are visible right in its text).
+- **`vault_find`** with a `tag` — check existing tags before adding new ones, to
+  avoid synonyms.
 - **`vault_move`** — relocate or rename a note when the structure shifts.
 
 You don't wire any of this up. You describe the behaviour in the skill and the
@@ -135,7 +138,7 @@ Then probe the graph it built:
 @brain what connects to my note on CRDTs?
 ```
 
-It should answer from real `vault_backlinks` output, not a guess. Open your
+It should answer from real `vault_find` backlink output, not a guess. Open your
 `Knowledge/` folder and you should see short notes that actually `[[link]]` to one
 another. As always, if something lands wrong, the [report](../vault/reports.md) for
 the turn shows the rendered prompt (including the skill body once it was read) and

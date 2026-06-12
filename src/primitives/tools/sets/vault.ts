@@ -11,7 +11,6 @@ import {
 } from "../../../infra/vault/index.ts";
 import {
 	extractFrontmatterTags,
-	extractWikilinks,
 	findSection,
 	listHeadings,
 	wikilinkTargetPattern,
@@ -25,9 +24,40 @@ import {
 import type { TurnContext } from "../../../pipeline/core.ts";
 import type { ToolDefinition, ToolsetDefinition } from "../index.ts";
 
-interface AppendUpdate {
-	content: string;
-	message: string;
+// ─── shared helpers ──────────────────────────────────────────────────────────
+
+interface VaultNote {
+	vaultRel: string;
+	absolutePath: string;
+	text: string;
+}
+
+/**
+ * Iterate every markdown note the current agent may read, optionally scoped to
+ * a single directory. Unreadable files are skipped silently.
+ */
+async function* readableNotes(
+	context: TurnContext,
+	scopeAbs?: string,
+): AsyncGenerator<VaultNote> {
+	const access = vaultMap(context);
+	const roots = scopeAbs
+		? [{ absolutePath: scopeAbs }]
+		: getReadableFolders(access);
+
+	for (const { absolutePath: root } of roots) {
+		for await (const file of scanFiles(root, "**/*.md")) {
+			const absolutePath = path.join(root, file);
+			const vaultRel = path.relative(vaultRoot(), absolutePath);
+			if (!isVaultPathReadable(vaultRel, access)) continue;
+
+			try {
+				yield { vaultRel, absolutePath, text: await readText(absolutePath) };
+			} catch {
+				// Skip unreadable files
+			}
+		}
+	}
 }
 
 function formatHeadingList(lines: string[]): string {
@@ -37,42 +67,55 @@ function formatHeadingList(lines: string[]): string {
 		: "(no headings)";
 }
 
-function buildAppendUpdate(
-	existing: string,
-	content: string,
-	heading: string | undefined,
+function headingNotFound(
+	heading: string,
 	rel: string,
-): AppendUpdate | string {
-	if (heading === undefined) {
-		return {
-			content: existing ? `${existing}\n${content}` : content,
-			message: `Appended to: ${rel}`,
-		};
+	lines: string[],
+): string {
+	return `Heading "${heading}" not found in ${rel}. Available headings:\n${formatHeadingList(
+		lines,
+	)}`;
+}
+
+function buildOutline(lines: string[]): string {
+	const headings = listHeadings(lines);
+
+	if (headings.length === 0) {
+		const nonEmpty = lines.filter((l) => l.trim().length > 0).length;
+		return nonEmpty > 0 ? `(no headings, ${nonEmpty} lines)` : "(empty file)";
 	}
 
-	if (!existing) {
-		return {
-			content,
-			message: `Appended to: ${rel}`,
-		};
+	const outline: string[] = [];
+
+	const topSection = findSection(lines, "");
+	if (topSection) {
+		const topLines = lines
+			.slice(Math.max(topSection.headingIdx + 1, 0), topSection.endIdx)
+			.filter((l) => l.trim().length > 0).length;
+		if (topLines > 0) {
+			outline.push(
+				`(top-level: ${topLines} ${topLines === 1 ? "line" : "lines"})`,
+			);
+		}
 	}
 
-	const lines = existing.split("\n");
-	const section = findSection(lines, heading);
-
-	if (!section) {
-		return `Heading "${heading}" not found in ${rel}. Available headings:\n${formatHeadingList(
-			lines,
-		)}`;
+	for (let i = 0; i < headings.length; i++) {
+		const h = headings[i];
+		if (!h) continue;
+		const nextIdx =
+			i + 1 < headings.length
+				? (headings[i + 1]?.lineIdx ?? lines.length)
+				: lines.length;
+		const contentLines = lines
+			.slice(h.lineIdx + 1, nextIdx)
+			.filter((l) => l.trim().length > 0).length;
+		const prefix = "#".repeat(h.level);
+		outline.push(
+			`${prefix} ${h.text} (${contentLines} ${contentLines === 1 ? "item" : "items"})`,
+		);
 	}
 
-	const before = lines.slice(0, section.endIdx);
-	const after = lines.slice(section.endIdx);
-	const sectionName = heading === "" ? "(top-level)" : `"${heading}"`;
-	return {
-		content: [...before, content, ...after].join("\n"),
-		message: `Appended to section ${sectionName} in: ${rel}`,
-	};
+	return outline.join("\n");
 }
 
 async function readVaultNote(
@@ -100,34 +143,67 @@ const vaultReadSchema = z.object({
 		.string({ error: "path must be the vault-relative note path to read." })
 		.min(1, { error: "path must be the vault-relative note path to read." })
 		.describe('Relative path to the note, e.g. "Projects/Klaus.md"'),
+	section: z
+		.string()
+		.optional()
+		.describe(
+			'Optional heading: return only that section. Use exact heading text without # markers, or "" for the top-level content before the first heading.',
+		),
+	view: z
+		.enum(["full", "outline"])
+		.optional()
+		.default("full")
+		.describe(
+			'"full" returns note content; "outline" returns only the heading structure with per-section item counts (cheap way to see a note\'s shape).',
+		),
 });
 
 export const vaultReadTool: ToolDefinition<typeof vaultReadSchema> = {
 	name: "vault_read",
 	description:
-		"Read a note from the vault by its relative path. Returns the full markdown content including frontmatter.",
+		'Read a note from the vault. Returns full markdown including frontmatter by default. Set section to read just one section, or view: "outline" to see the heading structure without the content — useful before editing a large note.',
 	inputSchema: vaultReadSchema,
-	execute: async ({ path: rel }, context) => {
-		const result = await gateVaultTool(rel, "read", context);
-		if (typeof result === "object") return result.error;
+	execute: async ({ path: rel, section, view }, context) => {
+		const note = await readVaultNote(rel, "read", context);
+		if (typeof note === "string") return note;
 
-		try {
-			return await readText(result);
-		} catch {
-			return `Note not found: ${rel}`;
-		}
+		if (view === "outline") return buildOutline(note.text.split("\n"));
+
+		if (section === undefined) return note.text;
+
+		const lines = note.text.split("\n");
+		const found = findSection(lines, section);
+		if (!found) return headingNotFound(section, rel, lines);
+
+		const start = Math.max(found.headingIdx, 0);
+		const body = lines.slice(start, found.endIdx).join("\n").trim();
+		return body || "(empty section)";
 	},
 };
 
-// ─── search ──────────────────────────────────────────────────────────────────
+// ─── find ────────────────────────────────────────────────────────────────────
 
-const vaultSearchSchema = z.object({
+const vaultFindSchema = z.object({
 	query: z
-		.string({ error: "query must include search text." })
-		.min(1, { error: "query must include search text." })
+		.string()
+		.optional()
 		.describe(
-			"Search terms (case-insensitive substring match across all notes)",
+			"Full-text filter: case-insensitive, all words must appear in the note",
 		),
+	tag: z
+		.string()
+		.optional()
+		.describe('Frontmatter tag filter, e.g. "recipe" (without #)'),
+	linksTo: z
+		.string()
+		.optional()
+		.describe(
+			'Backlink filter: only notes containing a [[wikilink]] to this note title (without .md), e.g. "Klaus"',
+		),
+	in: z
+		.string()
+		.optional()
+		.describe('Optional folder to search within, e.g. "Projects"'),
 	limit: z
 		.number({ error: "limit must be a whole number." })
 		.int({ error: "limit must be a whole number." })
@@ -137,49 +213,77 @@ const vaultSearchSchema = z.object({
 		.describe("Max results to return"),
 });
 
-export const vaultSearchTool: ToolDefinition<typeof vaultSearchSchema> = {
-	name: "vault_search",
+const MAX_PREVIEW_LINES = 3;
+
+export const vaultFindTool: ToolDefinition<typeof vaultFindSchema> = {
+	name: "vault_find",
 	description:
-		"Full-text search across all markdown notes in the vault. Returns matching file paths with context lines.",
-	inputSchema: vaultSearchSchema,
-	execute: async ({ query, limit }, context) => {
-		const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-		if (terms.length === 0) return "Empty query.";
+		"Find notes across the vault. Filters combine (AND): query for full-text search, tag for frontmatter tags, linksTo for backlinks to a note. Returns matching paths with preview lines. Provide at least one filter.",
+	inputSchema: vaultFindSchema,
+	execute: async ({ query, tag, linksTo, in: scope, limit }, context) => {
+		const terms = (query ?? "").toLowerCase().split(/\s+/).filter(Boolean);
+		const wantTag = tag?.toLowerCase();
+		const linkPattern = linksTo ? wikilinkTargetPattern(linksTo) : undefined;
 
-		const readable = getReadableFolders(vaultMap(context));
-		const results: string[] = [];
-		const access = vaultMap(context);
-
-		for (const { absolutePath } of readable) {
-			if (results.length >= limit) break;
-
-			for await (const file of scanFiles(absolutePath, "**/*.md")) {
-				if (results.length >= limit) break;
-				const filePath = path.join(absolutePath, file);
-				const vaultRel = path.relative(vaultRoot(), filePath);
-				if (!isVaultPathReadable(vaultRel, access)) continue;
-
-				try {
-					const text = await readText(filePath);
-					const lower = text.toLowerCase();
-					if (terms.every((t) => lower.includes(t))) {
-						const lines = text.split("\n");
-						const matchLine = lines.find((l) => {
-							const ll = l.toLowerCase();
-							return terms.some((t) => ll.includes(t));
-						});
-						const preview = matchLine?.trim().slice(0, 120) ?? "";
-						results.push(`${vaultRel}${preview ? ` — ${preview}` : ""}`);
-					}
-				} catch {
-					// Skip unreadable files
-				}
-			}
+		if (terms.length === 0 && !wantTag && !linkPattern) {
+			return "Provide at least one filter: query, tag, or linksTo.";
 		}
 
-		return results.length > 0
-			? results.join("\n")
-			: `No notes matching "${query}".`;
+		let scopeAbs: string | undefined;
+		if (scope) {
+			const result = await gateVaultTool(scope, "read", context);
+			if (typeof result === "object") return result.error;
+			scopeAbs = result;
+		}
+
+		const results: string[] = [];
+		const seenTags = new Set<string>();
+
+		for await (const note of readableNotes(context, scopeAbs)) {
+			if (results.length >= limit) break;
+
+			if (wantTag) {
+				const noteTags = extractFrontmatterTags(note.text).map((t) =>
+					t.toLowerCase(),
+				);
+				for (const t of noteTags) seenTags.add(t);
+				if (!noteTags.includes(wantTag)) continue;
+			}
+
+			if (linkPattern && !linkPattern.test(note.text)) continue;
+
+			const lower = note.text.toLowerCase();
+			if (terms.length > 0 && !terms.every((t) => lower.includes(t))) continue;
+
+			const lines = note.text.split("\n");
+			const previews = lines
+				.filter((l) => {
+					const ll = l.toLowerCase();
+					return (
+						(terms.length > 0 && terms.some((t) => ll.includes(t))) ||
+						(linkPattern?.test(l) ?? false)
+					);
+				})
+				.slice(0, MAX_PREVIEW_LINES)
+				.map((l) => `  ${l.trim().slice(0, 120)}`);
+
+			results.push([note.vaultRel, ...previews].join("\n"));
+		}
+
+		if (results.length > 0) return results.join("\n");
+
+		const filters = [
+			terms.length > 0 ? `query "${query}"` : null,
+			wantTag ? `tag "${tag}"` : null,
+			linksTo ? `linksTo "${linksTo}"` : null,
+		]
+			.filter(Boolean)
+			.join(", ");
+		let msg = `No notes matching ${filters}.`;
+		if (wantTag && seenTags.size > 0) {
+			msg += ` Tags in use: ${[...seenTags].sort().join(", ")}`;
+		}
+		return msg;
 	},
 };
 
@@ -267,7 +371,7 @@ const vaultWriteSchema = z.object({
 export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
 	name: "vault_write",
 	description:
-		"Create or overwrite a note in the vault. Parent directories are created automatically. Overwrites the entire file — read first with vault_read if you need to preserve existing content.",
+		"Create or overwrite a note in the vault. Parent directories are created automatically. Overwrites the entire file — for changes to an existing note prefer vault_edit, or read first with vault_read.",
 	inputSchema: vaultWriteSchema,
 	execute: async ({ path: rel, content }, context) => {
 		const result = await gateVaultTool(rel, "full", context);
@@ -279,94 +383,88 @@ export const vaultWriteTool: ToolDefinition<typeof vaultWriteSchema> = {
 	},
 };
 
-// ─── append ──────────────────────────────────────────────────────────────────
+// ─── edit ────────────────────────────────────────────────────────────────────
 
-const vaultAppendSchema = z.object({
+const vaultEditSchema = z.object({
 	path: z
-		.string({
-			error: "path must be the vault-relative note path to append to.",
-		})
-		.min(1, {
-			error: "path must be the vault-relative note path to append to.",
-		})
-		.describe("Relative path to the note to append to"),
+		.string({ error: "path must be the vault-relative note path to edit." })
+		.min(1, { error: "path must be the vault-relative note path to edit." })
+		.describe("Relative path to the note to edit"),
+	mode: z
+		.enum(["append", "replace"])
+		.describe(
+			'"append" adds content inside a section (or at end of file when no heading is given); "replace" overwrites a section body (heading required)',
+		),
 	content: z
-		.string({ error: "content must be the markdown to append." })
-		.min(1, { error: "content must be the markdown to append." })
-		.describe("Content to append (added after a newline)"),
+		.string({ error: "content must be the markdown to apply." })
+		.min(1, { error: "content must be the markdown to apply." })
+		.describe("Markdown content to append, or the replacement section body"),
 	heading: z
 		.string()
 		.optional()
 		.describe(
-			'Optional heading to append inside. Omit for EOF. Use "" for top-level section (before first heading). Use exact heading text without # markers for a named section.',
+			'Target section: exact heading text without # markers, or "" for the top-level content before the first heading. Omit (append mode only) to append at end of file. Use vault_read with view: "outline" to see available sections.',
 		),
 });
 
-export const vaultAppendTool: ToolDefinition<typeof vaultAppendSchema> = {
-	name: "vault_append",
+export const vaultEditTool: ToolDefinition<typeof vaultEditSchema> = {
+	name: "vault_edit",
 	description:
-		"Append content to an existing note (useful for daily notes, logs, inboxes). Creates the file if it does not exist. For structured notes with sections, set the heading parameter to append inside a specific section — use vault_outline first to see available sections.",
-	inputSchema: vaultAppendSchema,
-	execute: async ({ path: rel, content, heading }, context) => {
-		const result = await gateVaultTool(rel, "append", context);
+		"Edit an existing note section-by-section: append content into a section (or end of file), or replace a section's body while keeping the heading line. Creates the file when appending to a missing one. Prefer this over vault_write for targeted changes.",
+	inputSchema: vaultEditSchema,
+	execute: async ({ path: rel, mode, content, heading }, context) => {
+		if (mode === "replace" && heading === undefined) {
+			return 'replace mode requires a heading ("" targets the top-level section).';
+		}
+
+		const op: VaultOp = mode === "append" ? "append" : "full";
+		const result = await gateVaultTool(rel, op, context);
 		if (typeof result === "object") return result.error;
 
 		let existing = "";
+		let exists = true;
 		try {
 			existing = await readText(result);
 		} catch {
+			exists = false;
+		}
+
+		if (!exists) {
+			if (mode === "replace") return `Note not found: ${rel}`;
 			await mkdir(path.dirname(result), { recursive: true });
+			await writeData(result, content);
+			return `Appended to: ${rel}`;
 		}
 
-		const updated = buildAppendUpdate(existing, content, heading, rel);
-		if (typeof updated === "string") return updated;
-		await writeData(result, updated.content);
-		return updated.message;
-	},
-};
-
-// ─── backlinks ───────────────────────────────────────────────────────────────
-
-const vaultBacklinksSchema = z.object({
-	noteTitle: z
-		.string({ error: "noteTitle must be the linked note title to search for." })
-		.min(1, { error: "noteTitle must be the linked note title to search for." })
-		.describe('Note name without .md extension, e.g. "Klaus"'),
-});
-
-export const vaultBacklinksTool: ToolDefinition<typeof vaultBacklinksSchema> = {
-	name: "vault_backlinks",
-	description:
-		"Find all notes that link to a given note via [[wikilinks]]. Returns file paths with the linking line.",
-	inputSchema: vaultBacklinksSchema,
-	execute: async ({ noteTitle }, context) => {
-		const pattern = wikilinkTargetPattern(noteTitle);
-		const readable = getReadableFolders(vaultMap(context));
-		const results: string[] = [];
-		const access = vaultMap(context);
-
-		for (const { absolutePath } of readable) {
-			for await (const file of scanFiles(absolutePath, "**/*.md")) {
-				const filePath = path.join(absolutePath, file);
-				const vaultRel = path.relative(vaultRoot(), filePath);
-				if (!isVaultPathReadable(vaultRel, access)) continue;
-
-				try {
-					const text = await readText(filePath);
-					const lines = text.split("\n");
-					const match = lines.find((l) => pattern.test(l));
-					if (match) {
-						results.push(`${vaultRel} — ${match.trim().slice(0, 120)}`);
-					}
-				} catch {
-					// Skip unreadable files
-				}
-			}
+		// Append at end of file
+		if (mode === "append" && heading === undefined) {
+			await writeData(result, `${existing}\n${content}`);
+			return `Appended to: ${rel}`;
 		}
 
-		return results.length > 0
-			? results.join("\n")
-			: `No backlinks found for "${noteTitle}".`;
+		const lines = existing.split("\n");
+		const section = findSection(lines, heading ?? "");
+		if (!section) return headingNotFound(heading ?? "", rel, lines);
+
+		const sectionName = heading === "" ? "(top-level)" : `"${heading}"`;
+
+		if (mode === "append") {
+			const updated = [
+				...lines.slice(0, section.endIdx),
+				content,
+				...lines.slice(section.endIdx),
+			].join("\n");
+			await writeData(result, updated);
+			return `Appended to section ${sectionName} in: ${rel}`;
+		}
+
+		const updated = [
+			...lines.slice(0, section.headingIdx + 1),
+			content,
+			...lines.slice(section.endIdx),
+		].join("\n");
+		await writeData(result, updated);
+		return `Replaced section ${sectionName} in: ${rel}`;
 	},
 };
 
@@ -418,30 +516,16 @@ export const vaultMoveTool: ToolDefinition<typeof vaultMoveSchema> = {
 		let updatedCount = 0;
 		const skipped: string[] = [];
 		const access = vaultMap(context);
-		const readable = getReadableFolders(access);
 
-		for (const { absolutePath } of readable) {
-			for await (const file of scanFiles(absolutePath, "**/*.md")) {
-				const filePath = path.join(absolutePath, file);
-				const vaultRel = path.relative(vaultRoot(), filePath);
-				if (!isVaultPathReadable(vaultRel, access)) continue;
-				const canWrite =
-					checkPermission(vaultRel, "full", access) === "allowed";
+		for await (const note of readableNotes(context)) {
+			const updated = note.text.replace(pattern, `[[${newName}$1]]`);
+			if (updated === note.text) continue;
 
-				try {
-					const text = await readText(filePath);
-					const updated = text.replace(pattern, `[[${newName}$1]]`);
-					if (updated !== text) {
-						if (canWrite) {
-							await writeData(filePath, updated);
-							updatedCount++;
-						} else {
-							skipped.push(vaultRel);
-						}
-					}
-				} catch {
-					// Skip unreadable files
-				}
+			if (checkPermission(note.vaultRel, "full", access) === "allowed") {
+				await writeData(note.absolutePath, updated);
+				updatedCount++;
+			} else {
+				skipped.push(note.vaultRel);
 			}
 		}
 
@@ -480,227 +564,19 @@ export const vaultDeleteTool: ToolDefinition<typeof vaultDeleteSchema> = {
 	},
 };
 
-// ─── patch ───────────────────────────────────────────────────────────────────
-
-const vaultPatchSchema = z.object({
-	path: z
-		.string({ error: "path must be the vault-relative note path to patch." })
-		.min(1, { error: "path must be the vault-relative note path to patch." })
-		.describe("Relative path to the note"),
-	heading: z
-		.string({ error: "heading must be the exact section heading to patch." })
-		.min(1, { error: "heading must be the exact section heading to patch." })
-		.describe('Exact heading text without # markers, e.g. "Goals" or "Notes"'),
-	replacement: z
-		.string({ error: "replacement must be the replacement section body." })
-		.min(1, { error: "replacement must be the replacement section body." })
-		.describe(
-			"Replacement content for the section body (heading line is preserved)",
-		),
-});
-
-export const vaultPatchTool: ToolDefinition<typeof vaultPatchSchema> = {
-	name: "vault_patch",
-	description:
-		"Replace the body of a specific section in a note by heading. The heading line is kept; everything beneath it until the next same-or-higher-level heading (or EOF) is replaced. Read the note first with vault_read to see current content before replacing.",
-	inputSchema: vaultPatchSchema,
-	execute: async ({ path: rel, heading, replacement }, context) => {
-		const note = await readVaultNote(rel, "full", context);
-		if (typeof note === "string") return note;
-
-		const lines = note.text.split("\n");
-		const section = findSection(lines, heading);
-		if (!section) return `Heading "${heading}" not found in ${rel}.`;
-
-		const updated = [
-			...lines.slice(0, section.headingIdx + 1),
-			replacement,
-			...lines.slice(section.endIdx),
-		].join("\n");
-		await writeData(note.absolutePath, updated);
-		return `Patched section "${heading}" in ${rel}.`;
-	},
-};
-
-// ─── tags ────────────────────────────────────────────────────────────────────
-
-const vaultTagsSchema = z.object({
-	tags: z
-		.array(z.string())
-		.optional()
-		.describe("Return notes that have any of these tags in their frontmatter"),
-	listAll: z
-		.boolean()
-		.optional()
-		.default(false)
-		.describe("If true, return all unique tags across the vault instead"),
-});
-
-export const vaultTagsTool: ToolDefinition<typeof vaultTagsSchema> = {
-	name: "vault_tags",
-	description:
-		"Find notes by frontmatter tag, or list all tags used across the vault. Use listAll: true to discover available tags.",
-	inputSchema: vaultTagsSchema,
-	execute: async ({ tags, listAll }, context) => {
-		const access = vaultMap(context);
-		const readable = getReadableFolders(access);
-
-		if (listAll) {
-			const allTags = new Set<string>();
-			for (const { absolutePath } of readable) {
-				for await (const file of scanFiles(absolutePath, "**/*.md")) {
-					const filePath = path.join(absolutePath, file);
-					const vaultRel = path.relative(vaultRoot(), filePath);
-					if (!isVaultPathReadable(vaultRel, access)) continue;
-
-					try {
-						const text = await readText(filePath);
-						for (const t of extractFrontmatterTags(text)) allTags.add(t);
-					} catch {
-						// Skip unreadable files
-					}
-				}
-			}
-			return allTags.size > 0
-				? [...allTags].sort().join("\n")
-				: "No tags found.";
-		}
-
-		if (!tags || tags.length === 0)
-			return "Provide tags to search for, or set listAll: true.";
-
-		const searchTags = new Set(tags.map((t) => t.toLowerCase()));
-		const results: string[] = [];
-		for (const { absolutePath } of readable) {
-			for await (const file of scanFiles(absolutePath, "**/*.md")) {
-				const filePath = path.join(absolutePath, file);
-				const vaultRel = path.relative(vaultRoot(), filePath);
-				if (!isVaultPathReadable(vaultRel, access)) continue;
-
-				try {
-					const text = await readText(filePath);
-					const noteTags = extractFrontmatterTags(text).map((t) =>
-						t.toLowerCase(),
-					);
-					if (noteTags.some((t) => searchTags.has(t))) {
-						results.push(vaultRel);
-					}
-				} catch {
-					// Skip unreadable files
-				}
-			}
-		}
-
-		return results.length > 0
-			? results.join("\n")
-			: `No notes tagged with: ${tags.join(", ")}.`;
-	},
-};
-
-// ─── links ───────────────────────────────────────────────────────────────────
-
-const vaultLinksSchema = z.object({
-	path: z
-		.string({ error: "path must be the vault-relative note path to inspect." })
-		.min(1, { error: "path must be the vault-relative note path to inspect." })
-		.describe("Relative path to the note"),
-});
-
-export const vaultLinksTool: ToolDefinition<typeof vaultLinksSchema> = {
-	name: "vault_links",
-	description:
-		"Extract all outgoing [[wikilinks]] from a note. Complements vault_backlinks for graph traversal.",
-	inputSchema: vaultLinksSchema,
-	execute: async ({ path: rel }, context) => {
-		const note = await readVaultNote(rel, "read", context);
-		if (typeof note === "string") return note;
-
-		const targets = extractWikilinks(note.text);
-
-		return targets.length > 0
-			? targets.join("\n")
-			: `No outgoing links in "${rel}".`;
-	},
-};
-
-// ─── outline ─────────────────────────────────────────────────────────────────
-
-const vaultOutlineSchema = z.object({
-	path: z
-		.string({ error: "path must be the vault-relative note path to outline." })
-		.min(1, { error: "path must be the vault-relative note path to outline." })
-		.describe("Relative path to the note"),
-});
-
-export const vaultOutlineTool: ToolDefinition<typeof vaultOutlineSchema> = {
-	name: "vault_outline",
-	description:
-		"Return the heading structure of a note with item counts per section. Use before vault_append or vault_patch to see available sections without reading the full note.",
-	inputSchema: vaultOutlineSchema,
-	execute: async ({ path: rel }, context) => {
-		const note = await readVaultNote(rel, "read", context);
-		if (typeof note === "string") return note;
-
-		const lines = note.text.split("\n");
-		const headings = listHeadings(lines);
-
-		if (headings.length === 0) {
-			const nonEmpty = lines.filter((l) => l.trim().length > 0).length;
-			return nonEmpty > 0 ? `(no headings, ${nonEmpty} lines)` : "(empty file)";
-		}
-
-		const outlineResult: string[] = [];
-
-		const topSection = findSection(lines, "");
-		if (topSection) {
-			const topLines = lines
-				.slice(Math.max(topSection.headingIdx + 1, 0), topSection.endIdx)
-				.filter((l) => l.trim().length > 0).length;
-			if (topLines > 0) {
-				outlineResult.push(
-					`(top-level: ${topLines} ${topLines === 1 ? "line" : "lines"})`,
-				);
-			}
-		}
-
-		for (let i = 0; i < headings.length; i++) {
-			const h = headings[i];
-			if (!h) continue;
-			const nextIdx =
-				i + 1 < headings.length
-					? (headings[i + 1]?.lineIdx ?? lines.length)
-					: lines.length;
-			const contentLines = lines
-				.slice(h.lineIdx + 1, nextIdx)
-				.filter((l) => l.trim().length > 0).length;
-			const prefix = "#".repeat(h.level);
-			outlineResult.push(
-				`${prefix} ${h.text} (${contentLines} ${contentLines === 1 ? "item" : "items"})`,
-			);
-		}
-
-		return outlineResult.join("\n");
-	},
-};
-
 // ─── toolset export ──────────────────────────────────────────────────────────
 
 export const vaultToolset: ToolsetDefinition = {
 	name: "vault",
 	description:
-		"Use when the request involves Jan's vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. Agent vault access is path-scoped, so some notes or folders may be unreadable or read-only. Notes are memory, [[wikilinks]] are relationships, frontmatter tags enable discovery. Use for anything that sounds like a note, a document, something to remember, or something Jan would have written down. Prefer read-before-write: use vault_read or vault_outline before modifying notes to understand structure, language, and existing content.",
+		'Use when the request involves Jan\'s vault — his personal markdown note system for projects, ideas, journal entries, reference material, and second-brain content. Agent vault access is path-scoped, so some notes or folders may be unreadable or read-only. Notes are memory, [[wikilinks]] are relationships, frontmatter tags enable discovery. Use for anything that sounds like a note, a document, something to remember, or something Jan would have written down. Prefer read-before-write: use vault_read (optionally with view: "outline") before modifying notes to understand structure, language, and existing content.',
 	tools: [
 		vaultReadTool,
-		vaultSearchTool,
+		vaultFindTool,
 		vaultListTool,
 		vaultWriteTool,
-		vaultAppendTool,
-		vaultBacklinksTool,
+		vaultEditTool,
 		vaultMoveTool,
 		vaultDeleteTool,
-		vaultPatchTool,
-		vaultTagsTool,
-		vaultLinksTool,
-		vaultOutlineTool,
 	],
 };

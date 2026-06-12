@@ -72,7 +72,7 @@ A toolset is a named group of tools that loads lazily, which keeps an agent's in
 
 | Toolset | Meta-tool | Members |
 | --- | --- | --- |
-| `vault` | `load_vault` | `vault_read`, `vault_search`, `vault_list`, `vault_write`, `vault_append`, `vault_patch`, `vault_move`, `vault_delete`, `vault_backlinks`, `vault_links`, `vault_tags`, `vault_outline` |
+| `vault` | `load_vault` | `vault_read`, `vault_find`, `vault_list`, `vault_write`, `vault_edit`, `vault_move`, `vault_delete` |
 | `files` | `load_files` | `files_upload`, `files_download`, `files_read`, `files_list`, `files_delete` |
 | `agents` | `load_agents` | `run_agent`, `schedule_agent`, `list_agent_runs`, `cancel_agent_run` |
 
