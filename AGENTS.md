@@ -13,7 +13,7 @@ The complete how-to-work-here picture (local loop, adding primitives, testing, l
 
 A maximally simple, headless personal AI agent: **WhatsApp → TypeScript → Obsidian vault → Docker**.
 
-Node 25, native TypeScript (strict), Zod, Handlebars, Baileys. Models go through a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default OpenRouter); request/response types come from the `@openrouter/sdk`. LiteParse for documents, sharp for images. JSONL for conversations and the file index, single JSON files for schedules and timers. No database.
+Node 25, native TypeScript (strict), Zod, Handlebars, Baileys. Models go through a thin custom loop against any OpenAI-compatible `/chat/completions` endpoint (default OpenRouter); request/response types come from the `@openrouter/sdk`. LiteParse for documents, sharp for images. JSONL for conversations, sent WhatsApp ids, and the file index; single JSON files for schedules and timers. No database.
 
 The code is three zones, each documented once:
 

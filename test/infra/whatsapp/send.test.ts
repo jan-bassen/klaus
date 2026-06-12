@@ -7,7 +7,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { settings } from "../../../src/infra/config.ts";
+import {
+	initSentMessageStore,
+	wasSentMessageId,
+} from "../../../src/infra/store/sent.ts";
 import * as send from "../../../src/infra/whatsapp/send.ts";
+import { makeTmpDir, rmTmpDir } from "../../helpers/tmp.ts";
 
 interface MockSocket {
 	sendMessage: ReturnType<typeof vi.fn>;
@@ -28,8 +33,11 @@ describe("infra/whatsapp/send", () => {
 	let savedSelfMode: boolean;
 	let savedSendDelay: number;
 	let savedRetries: typeof settings.whatsapp.retries;
+	let tmpDir: string;
 
 	beforeEach(() => {
+		tmpDir = makeTmpDir();
+		initSentMessageStore({ dataDir: tmpDir });
 		savedSelfMode = settings.whatsapp.selfMode;
 		savedSendDelay = settings.whatsapp.sendDelay;
 		savedRetries = { ...settings.whatsapp.retries };
@@ -40,6 +48,7 @@ describe("infra/whatsapp/send", () => {
 		settings.whatsapp.selfMode = savedSelfMode;
 		settings.whatsapp.sendDelay = savedSendDelay;
 		settings.whatsapp.retries = savedRetries;
+		rmTmpDir(tmpDir);
 	});
 
 	it("delivers a single text message", async () => {
@@ -237,6 +246,7 @@ describe("infra/whatsapp/send", () => {
 		await mod.drainQueue();
 
 		expect(mod.wasSentByUs("wa-tracked")).toBe(true);
+		expect(wasSentMessageId("wa-tracked")).toBe(true);
 		expect(mod.wasSentByUs("not-ours")).toBe(false);
 	});
 

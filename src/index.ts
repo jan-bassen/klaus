@@ -28,6 +28,10 @@ import {
 	stopAllSchedules,
 } from "./infra/store/schedules.ts";
 import {
+	initSentMessageStore,
+	rebuildSentMessageIndex,
+} from "./infra/store/sent.ts";
+import {
 	initTimersStore,
 	loadTimers,
 	setOnTimerFire,
@@ -275,6 +279,7 @@ async function main(): Promise<void> {
 		settings.dataDir,
 		path.join(settings.dataDir, "conversations"),
 		path.join(settings.dataDir, "files"),
+		path.join(settings.dataDir, "whatsapp"),
 	];
 	for (const dir of dirs) {
 		await mkdir(dir, { recursive: true });
@@ -288,6 +293,7 @@ async function main(): Promise<void> {
 	syncHandle = syncResult.handle;
 
 	initHistoryStore({ dataDir: settings.dataDir });
+	initSentMessageStore({ dataDir: settings.dataDir });
 	initFilesStore({ dataDir: settings.dataDir });
 	initSchedulesStore({
 		dataDir: settings.dataDir,
@@ -325,6 +331,7 @@ async function main(): Promise<void> {
 
 	log.info("[startup] building in-memory indexes");
 	await rebuildConversationIndexes();
+	await rebuildSentMessageIndex();
 	await rebuildFileIndex();
 
 	await loadSchedules();

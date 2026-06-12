@@ -5,6 +5,7 @@ export type { WAMessageKey as MessageKey };
 
 import { settings } from "../config.ts";
 import { log } from "../logger.ts";
+import { markSentMessageId, wasSentMessageId } from "../store/sent.ts";
 
 // -- Send queue types (owned by this domain) --
 
@@ -52,7 +53,7 @@ const MAX_SEEN_SIZE = settings.whatsapp.maxSeenSize;
 
 /** Check if a Baileys message ID was sent by us (for self-mode loop prevention). */
 export function wasSentByUs(msgId: string): boolean {
-	return _sentIds.has(msgId);
+	return _sentIds.has(msgId) || wasSentMessageId(msgId);
 }
 
 function trackSentId(id: string | null | undefined): void {
@@ -62,6 +63,18 @@ function trackSentId(id: string | null | undefined): void {
 		if (oldest !== undefined) _sentIds.delete(oldest);
 	}
 	_sentIds.add(id);
+}
+
+async function recordSentId(id: string | null | undefined): Promise<void> {
+	trackSentId(id);
+	if (!id) return;
+	try {
+		await markSentMessageId(id);
+	} catch (err) {
+		log.warn("[send] failed to record sent message id", {
+			error: err instanceof Error ? err.message : String(err),
+		});
+	}
 }
 
 /**
@@ -96,7 +109,7 @@ export function enqueueMessage(
 					.sendMessage(msg.chatId, {
 						text: "Failed to deliver my last message. Please try again.",
 					})
-					.then((result) => trackSentId(result?.key?.id))
+					.then((result) => recordSentId(result?.key?.id))
 					.catch((sendErr: unknown) => {
 						log.warn("[send] could not notify user of delivery failure", {
 							error:
@@ -161,7 +174,7 @@ async function sendWithRetry(
 				}
 			: undefined;
 		const result = await _socket.sendMessage(msg.chatId, waContent, sendOpts);
-		trackSentId(result?.key?.id);
+		await recordSentId(result?.key?.id);
 		log.info("[send] message delivered");
 		await new Promise<void>((r) => setTimeout(r, settings.whatsapp.sendDelay));
 		return result?.key?.id ?? null;

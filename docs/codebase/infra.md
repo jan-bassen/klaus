@@ -50,6 +50,8 @@ Klaus links to WhatsApp as a device via Baileys. Auth state lives under `{dataDi
 
 **Allowlist.** The gate is fail-closed and enforced in the [pipeline](pipeline.md), not in the transport. An unset `allowedChat` puts Klaus in setup mode with messages blocked, and only the configured chat is processed. The allowlist compares the chat JID; it does not restrict by sender JID inside a group, so group binding means shared group control. The transport layer just drops messages with no content and, outside self-mode, anything `fromMe`.
 
+In self-mode, `fromMe` can mean either "the user typed into Note to Self" or "Klaus's own outbound message echoed back from WhatsApp." Klaus records every successful outbound WhatsApp message id in `{dataDir}` and uses that durable sent-id index, plus a hot in-memory cache, to ignore its own echoes without relying on message text.
+
 **Setup modes.** There are two ways to bind the chat:
 
 - *Active chat*: a six-digit code is written into `_login/instructions.md`; sending it from the target chat binds that chat.
@@ -69,12 +71,15 @@ All operational state lives under `{dataDir}`, separate from the vault. Each sto
 | --- | --- | --- | --- |
 | `history` | JSONL, one file per day | `conversations/YYYY-MM-DD.jsonl` | Conversation events: `msg`, `ack`, `reaction`, `trace`, `break`. |
 | `files` | JSONL index + blobs | `files/files-index.jsonl` + `files/<date>/<uuid>.<ext>` | Uploaded/generated file metadata and content. |
+| `sent` | JSONL | `whatsapp/sent-ids.jsonl` | WhatsApp message ids Klaus successfully sent, used for self-mode loop prevention. |
 | `schedules` | single JSON array | `schedules.json` | Recurring cron jobs (croner). |
 | `timers` | single JSON array | `timers.json` | One-shot future runs (`setTimeout`), including persistence reschedules. |
 
 History is an append-only event log. `getConversation` reads the last `lookbackDays` files and truncates at the most recent `break`, applying acks (message-id → WhatsApp external id) and reactions onto their message rows. Assistant rows carry `agent`, `runId`, and a `voice`/`failed` flag. Reactions are stored against external ids and rendered as metadata, so a reaction-only turn stays visible without consuming a history slot.
 
 The file index is JSONL for easy inspection, but it is compacted on metadata updates and deletes so message-id backfills and removed files do not accumulate stale duplicate records.
+
+The sent-id index is deliberately separate from conversation history. Normal assistant messages also get `ack` rows in history, but setup, system, ghost, and failure-notice sends still need loop prevention without becoming conversation content.
 
 Schedules and timers are rewritten in full on each change and only *run* once the [future-work gate](#paths-env-and-runtime) opens (setup complete and WhatsApp connected). Timers farther out than Node's single-timeout limit are re-armed in bounded hops until their target instant arrives. Overdue timers catch up serially after downtime, so a restart does not burst several agent runs at once. They pause on disconnect and on `/stop`.
 

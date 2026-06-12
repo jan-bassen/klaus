@@ -7,10 +7,12 @@
 import { initFilesStore } from "../../src/infra/store/files.ts";
 import { initHistoryStore } from "../../src/infra/store/history.ts";
 import { initSchedulesStore } from "../../src/infra/store/schedules.ts";
+import { initSentMessageStore } from "../../src/infra/store/sent.ts";
 import { initTimersStore } from "../../src/infra/store/timers.ts";
 
 export function initAllStores(dataDir: string, timezone = "UTC"): void {
 	initHistoryStore({ dataDir });
+	initSentMessageStore({ dataDir });
 	initFilesStore({ dataDir });
 	initTimersStore({ dataDir });
 	initSchedulesStore({ dataDir, timezone });

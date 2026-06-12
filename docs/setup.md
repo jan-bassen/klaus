@@ -69,7 +69,7 @@ docker run -d --restart unless-stopped \
 The two volumes have different jobs:
 
 - `klaus-vault`: Synced Obsidian vault.
-- `klaus-data`: WhatsApp credentials, Obsidian login state, conversation JSONL, file blobs, schedules, and timers.
+- `klaus-data`: WhatsApp credentials and sent-id index, Obsidian login state, conversation JSONL, file blobs, schedules, and timers.
 
 Synology Container Manager and other compose-based installs can use host
 folders instead:
@@ -186,7 +186,7 @@ State survives because it all lives in the volumes, not the container. After upg
 **Backups.** Two volumes, two different recovery stories:
 
 - `klaus-vault` is mirrored to Obsidian Sync, so the vault and your `Klaus/` config are already replicated remotely. A fresh deploy re-pulls it on first boot.
-- `klaus-data` is **only** on the host: WhatsApp auth, Obsidian login state, conversation history, file blobs, schedules, and timers. Back this volume up if you care about conversation history or want to avoid relinking WhatsApp. Losing `baileys-auth` inside it forces a WhatsApp relink (see [infra](codebase/infra.md#whatsapp)).
+- `klaus-data` is **only** on the host: WhatsApp auth and sent-id index, Obsidian login state, conversation history, file blobs, schedules, and timers. Back this volume up if you care about conversation history or want to avoid relinking WhatsApp. Losing `baileys-auth` inside it forces a WhatsApp relink (see [infra](codebase/infra.md#whatsapp)).
 
 ---
 
