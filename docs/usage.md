@@ -40,10 +40,12 @@ A message starting with `/` is a command. It bypasses the model entirely — the
 | `/schedules` | `/s` | — | List active schedules and timers (read-only). |
 | `/retry` | `/r` | — | Re-run the most recent failed turn with its original route and overrides. |
 | `/break` | `/b` | — | Insert a context boundary; history before it is dropped from future turns. |
+| `/abort` | — | — | Cancel active runs without pausing schedules or timers. |
+| `/pause` | — | — | Pause schedules and timers without cancelling active runs. |
 | `/stop` | `/kill` | — | Panic stop: abort active runs and pause all schedules and timers. |
-| `/resume` | — | — | Re-arm schedules and timers after `/stop`. |
+| `/resume` | — | — | Re-arm schedules and timers after `/pause` or `/stop`. |
 
-`/model`, `/provider`, and `/voice` write to the agent's `.md` frontmatter in the vault, so changes persist and hot-reload. `/schedules` shows timer run times in the configured `basics.timezone`. `/stop` does not delete any persisted schedule or timer — it only pauses them; `/resume` brings them back once setup is complete and WhatsApp is connected.
+`/model`, `/provider`, and `/voice` write to the agent's `.md` frontmatter in the vault, so changes persist and hot-reload. `/schedules` shows timer run times in the configured `basics.timezone`. `/abort` is only for currently running work. `/pause` and `/stop` do not delete any persisted schedule or timer — they only pause future work; `/resume` brings it back once setup is complete and WhatsApp is connected.
 
 ## Overrides
 

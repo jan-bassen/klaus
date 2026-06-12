@@ -112,7 +112,7 @@ Commands are `/slash` handlers that bypass the model entirely. The handler runs 
 
 - `/model`, `/provider`, and `/voice` write to the default agent's frontmatter file, so the change persists and hot-reloads.
 - `/next` arms a single-use prefix (stored in `pipeline/next.ts`) that the next non-command message consumes.
-- `/stop` and `/resume` toggle the future-work gate without deleting any persisted schedule or timer.
+- `/abort` cancels active runs only. `/pause` and `/resume` toggle the future-work gate without deleting any persisted schedule or timer. `/stop` is the panic command that does both `/abort` and `/pause`.
 
 ---
 

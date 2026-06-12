@@ -21,7 +21,7 @@ Paths resolve once at import. In `NODE_ENV=production` (Docker) they are `/vault
 
 The other environment variables are: `OBSIDIAN_EMAIL` / `OBSIDIAN_PASSWORD` / `OBSIDIAN_VAULT_NAME` (required for sync), the optional `OBSIDIAN_MFA` / `OBSIDIAN_E2EE_PASSWORD`, the provider key (commonly `OPENROUTER_API_KEY`), and `LOG_FORMAT` / `STARTUP_CONNECTION_WARN_AFTER_MS` / `ALLOWED_CHAT_ID`. The operator's view of all of these is in [setup](../setup.md).
 
-`runtime.ts` is a small wrapper over `node:fs/promises` (`readText`, `writeData`, `parseJsonObject`, `scanFiles`) that every store, the config loader, and the primitive loaders go through. `future.ts` is the gate that actually starts the schedule and timer clocks. It requires both a configured `allowedChat` and a live WhatsApp connection, and it is what `/stop` and `/resume` toggle.
+`runtime.ts` is a small wrapper over `node:fs/promises` (`readText`, `writeData`, `parseJsonObject`, `scanFiles`) that every store, the config loader, and the primitive loaders go through. `future.ts` is the gate that actually starts the schedule and timer clocks. It requires both a configured `allowedChat` and a live WhatsApp connection, and it is what `/pause`, `/stop`, and `/resume` toggle.
 
 SIGTERM and SIGINT use the graceful shutdown path: abort startup work, drain the WhatsApp send queue, stop Obsidian sync, close the socket, and stop local clocks. An uncaught exception is treated as process-corrupting; Klaus logs it and exits non-zero so the container supervisor can restart it cleanly.
 
@@ -81,7 +81,7 @@ The file index is JSONL for easy inspection, but it is compacted on metadata upd
 
 The sent-id index is deliberately separate from conversation history. Normal assistant messages also get `ack` rows in history, but setup, system, ghost, and failure-notice sends still need loop prevention without becoming conversation content.
 
-Schedules and timers are rewritten in full on each change and only *run* once the [future-work gate](#paths-env-and-runtime) opens (setup complete and WhatsApp connected). Timers farther out than Node's single-timeout limit are re-armed in bounded hops until their target instant arrives. Overdue timers catch up serially after downtime, so a restart does not burst several agent runs at once. They pause on disconnect and on `/stop`.
+Schedules and timers are rewritten in full on each change and only *run* once the [future-work gate](#paths-env-and-runtime) opens (setup complete and WhatsApp connected). Timers farther out than Node's single-timeout limit are re-armed in bounded hops until their target instant arrives. Overdue timers catch up serially after downtime, so a restart does not burst several agent runs at once. They pause on disconnect, on `/pause`, and on `/stop`.
 
 ---
 

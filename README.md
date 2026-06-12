@@ -17,7 +17,7 @@ Klaus starts as a basic but usable WhatsApp assistant. Out of the box it can:
 - **Understand common inputs**: voice notes are transcribed, images and stickers are passed to vision-capable models, and documents are extracted to text.
 - **Read and write your Obsidian vault** through scoped tools, so agents can search notes, edit Markdown, create files, and follow wikilinks without a database.
 - **Use generic tools**: web search/fetch via OpenRouter server tools, image generation, math, conversation search, file parsing, and handoffs to other agents.
-- **Run deterministic commands** like `/model`, `/voice`, `/default`, `/image`, `/schedules`, `/retry`, `/stop`, and `/resume` without spending a model call.
+- **Run deterministic commands** like `/model`, `/voice`, `/default`, `/image`, `/schedules`, `/retry`, `/abort`, `/pause`, `/stop`, and `/resume` without spending a model call.
 - **Adjust one turn at a time** with `!overrides`, for example a larger model, a voice reply, or a ghost run that stays out of history.
 - **Wake itself up** with cron schedules or self-rescheduling timers, useful for briefs, reviews, reminders, and recurring maintenance; timer listings render in your configured timezone.
 - **Leave receipts** in `{vault}/Klaus/reports/`, showing the output, reasoning, tool calls, results, rendered prompt, model choice, token use, and error details for failed turns.

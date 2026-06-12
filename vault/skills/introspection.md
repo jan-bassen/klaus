@@ -127,7 +127,9 @@ Commands are deterministic `/command` handlers that bypass the model. Useful exa
 | `/next` | Arm a single-use prefix for the next non-command message. |
 | `/model` and `/provider` | Change model or provider defaults where supported. |
 | `/voice` | Adjust voice behavior. |
-| `/stop` | Abort active runs and pause future work. |
+| `/abort` | Cancel active runs without pausing future work. |
+| `/pause` | Pause schedules and timers without cancelling active runs. |
+| `/stop` | Panic stop: abort active runs and pause future work. |
 | `/resume` | Resume paused schedules/timers. |
 
 Overrides are `!preset` words defined in `Klaus/overrides.yml`. They are for turn config, not prompt content.
