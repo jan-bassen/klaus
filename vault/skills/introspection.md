@@ -69,7 +69,7 @@ Agents are Markdown files with YAML frontmatter. The bundled first-run agents ar
 | --- | --- |
 | `assistant` | General daily driver with WhatsApp replies, vault/files/agent tools, image, math, web access, Obsidian skills, and this introspection skill. |
 | `research` / `@r` | Read-oriented investigation with web/vault/file context and careful synthesis. |
-| `meta` / `@m` | Maintains the user's `Klaus/` configuration folder. |
+| `meta` / `@m` | Maintains the user's `Klaus/` configuration folder, guided by the `klaus-authoring` skill. |
 | `dispatch` / `@d` | Generic delegated worker used by `run_agent`. |
 
 Agent frontmatter can declare tools, lazy toolsets, server tools, skills, provider, model tier, voice behavior, sampling presets, history shape, schedules, persistence, reports, and vault permissions.

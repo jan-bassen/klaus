@@ -33,6 +33,8 @@ An agent that lists this skill starts lean, and the moment it reads the skill it
 
 Skills hot-reload, so editing one in Obsidian takes effect on the next turn.
 
+The first-run template ships six skills: `introspection` (Klaus explaining itself), `klaus-authoring` (the rules for writing agents, snippets, templates, and overrides — used by the `meta` agent), and four Obsidian format references (`obsidian-markdown`, `obsidian-bases`, `obsidian-bases-functions`, `obsidian-canvas`). If you don't use a format, delete its skill from the agents that list it.
+
 The [knowledge-tree example](../examples/knowledge-tree.md) builds a skill to encode your note-taking conventions and load them on demand.
 
 ---
