@@ -58,16 +58,6 @@ A message starting with `/` is a command. It bypasses the model entirely — the
 
 Overrides are for pipeline and agent *behaviour* (model tier, voice, history, ghosting) — not prompt content. Unrecognised `!words` are left in the message text untouched.
 
-## /next for voice notes
-
-You cannot type a `@route` or `!override` into a voice note, so `/next` arms a prefix for the next non-command message:
-
-```text
-/next @research !large
-```
-
-The next message — including a voice note — is parsed as if it began with `@research !large`, then the prefix is consumed. `/next cancel` clears it; `/next` with no argument shows what is armed.
-
 ## Media
 
 - **Voice notes** are transcribed to text; the transcript becomes the message and the original is kept as a caption.
@@ -76,6 +66,20 @@ The next message — including a voice note — is parsed as if it began with `@
 - **Quoted messages** can carry their original media into the turn.
 
 Reports redact image data URLs but keep a readable media marker and the stored filename. See [reports](vault/reports.md).
+
+## Tips
+
+**Prefixes from a voice note.** You cannot type a `@route` or `!override` into a voice note, so `/next` arms a prefix for the next non-command message:
+
+```text
+/next @research !large
+```
+
+The next message — including a voice note — is parsed as if it began with `@research !large`, then the prefix is consumed. `/next cancel` clears it; `/next` with no argument shows what is armed.
+
+**One-tap routing from iOS.** Typing `@research` or `!large` every time gets old on a phone. An iOS Shortcut can do it for you: have the Shortcut ask for text (or dictation), prepend a fixed prefix to it, and send the result to the Klaus chat with WhatsApp's "Send Message" action. One Shortcut per route or override — "Ask Research", "Big Model", "Arm Ghost Run" — and you can fire them from the lock screen, the Action Button, or "Hey Siri" without opening WhatsApp. The same trick works for arming `/next` before a voice note.
+
+**Klaus can message first.** Replies aren't the only way Klaus talks to you. Any agent can run on a cron schedule or reschedule itself after each run, so a morning brief or a weekly review arrives without you sending anything. See [schedules](vault/agents.md#persistence-and-schedules) for setting them up, and `/schedules` to see what's active.
 
 ## How agents reply
 

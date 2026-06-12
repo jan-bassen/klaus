@@ -1,10 +1,10 @@
 # Klaus
 
-**A headless personal AI agent template for Obsidian and WhatsApp. Minimal, self-hosted, and yours to extend.**
+**A headless personal AI agent for Obsidian and WhatsApp. Minimal, self-hosted, and yours to extend.**
 
-Klaus is less a finished assistant than a working harness for building one. The core pieces are already wired up: WhatsApp intake, agent routing, prompts, tools, variables, commands, schedules, timers, vault reads and writes, reports, and flat-file storage. Everything more interesting is meant to come from your own ideas. Copy the repo and start tinkering.
+Klaus is a personal assistant you talk to in one ordinary WhatsApp chat. It reads and writes your Obsidian vault, so it can search your notes, log things you tell it, and keep records that are just Markdown files you own. It transcribes your voice notes, looks at images you send, researches the web, and can wake itself up on a schedule to message you a morning brief or a weekly review. There's no app to open and no dashboard — you text it like you'd text a person.
 
-The bet behind it: personal agents resist one-size-fits-all. Everyone wants different workflows, privacy boundaries, tones, schedules, and notes. So Klaus keeps the core small, exposes the primitive pieces directly, and trusts that a modern coding agent can build most features on top of a clear local structure. Iteration is the whole point.
+The twist is that you reshape it by editing Markdown. An agent's prompt, model, and permissions are a file in your vault; save it in Obsidian and the change is live on your next message. When something genuinely needs new code — a tool that calls an outside service, a custom command — that's a small TypeScript file and a restart. So Klaus ships as a usable assistant but is really a working harness: the core stays small and exposes the primitive pieces directly, on the bet that personal agents resist one-size-fits-all and that a modern coding agent can build most of what you want on top of a clear local structure. Iteration is the whole point.
 
 The name nods to [Klaus Störtebeker](https://en.wikipedia.org/wiki/Klaus_St%C3%B6rtebeker), the pirate who allegedly walked past his crew after being beheaded, because this stack is headless. Klaus is for when you would rather sail with your own strange little ship.
 
@@ -54,7 +54,7 @@ docker run -d --restart unless-stopped \
   klaus
 ```
 
-On first boot Klaus hydrates the vault from Obsidian Sync, creates `{vault}/Klaus`, and writes a temporary `{vault}/Klaus/_login/` folder. Open `instructions.md` there, choose solo or active-chat mode, and scan `qr-code.svg` from WhatsApp → Linked Devices. The setup code and QR are live WhatsApp linking credentials while `_login` exists, and they live in the synced vault until Klaus removes the folder after pairing, so prefer an end-to-end encrypted Obsidian vault and scan from devices you trust. The full install path, including E2EE vaults, self-mode, and fixes for common startup problems, is in [docs/setup.md](docs/setup.md).
+On first boot Klaus hydrates the vault from Obsidian Sync, seeds `{vault}/Klaus` from the repo's `vault/` template folder (only if it doesn't exist yet), and writes a temporary `{vault}/Klaus/_login/` folder. From then on `{vault}/Klaus` is your live config — you edit it in Obsidian, not the repo copy. Open `instructions.md` there, choose solo or active-chat mode, and scan `qr-code.svg` from WhatsApp → Linked Devices. The setup code and QR are live WhatsApp linking credentials while `_login` exists, and they live in the synced vault until Klaus removes the folder after pairing, so prefer an end-to-end encrypted Obsidian vault and scan from devices you trust. The full install path, including E2EE vaults, self-mode, and fixes for common startup problems, is in [docs/setup.md](docs/setup.md).
 
 To publish the current package version as a Docker Hub image for `linux/amd64/v2`, use:
 
@@ -79,6 +79,19 @@ what changed in my project notes?       # default agent
 
 That is the whole interface: `@name` routes, `/commands` do exact model-free actions, and `!overrides` change a single reply. Voice notes, images, quoted messages, and documents can be sent in the same chat. The complete manual is in [docs/usage.md](docs/usage.md).
 
+## What you can build
+
+Klaus isn't trying to be one particular assistant — it's the machinery for whichever one you want. The bundled agents are a starting point; the real product is that an assistant, a chat away, has read and write access to the place you keep your life in Markdown, and that you decide everything: what it knows, what it's allowed to touch, when it speaks up, and what it sounds like. The same few primitives — an agent file, a note, a schedule, occasionally a small tool — get pointed at whatever you actually need:
+
+- A **movie log** you message "saw Dune 2 last night, 4/5" and later ask "what did I rate five stars?" — one agent file, ten minutes, no code.
+- A **knowledge gardener** that turns things you send it into a connected web of linked, tagged notes instead of a pile.
+- A **weekly review** that reads your week's notes every Sunday evening and reflects them back at you.
+- A **language coach** that knows which words you're due to review and quizzes you over breakfast.
+- A **morning brief** that researches the web on your topics overnight and has a digest waiting in your vault when you wake up.
+- A **voice-note expense logger**: say "lunch, 14 euros" walking out of the restaurant, get a filed expense and a monthly summary — this one earns a custom tool and its own `/command`.
+
+Some of these are an evening of editing Markdown, some are a small TypeScript file; none of them are anyone's roadmap but yours. When you want to see how building actually feels, [docs/examples/](docs/examples/) walks five of these from start to finish in rising complexity.
+
 ## Make it your own
 
 Klaus is meant to be lived in and reshaped. Almost everything you'd want to change lives as a file in your vault under `{vault}/Klaus/`, and saving that file in Obsidian takes effect on your next message — no restart, no deploy. These are the pieces you compose:
@@ -95,7 +108,7 @@ The loop is tight: change a file (or just ask the `@meta` agent to do it for you
 
 The first-run defaults are intentionally broad: agents can read your vault by default, except for the `Klaus/` config folder. That makes the assistant useful immediately, but you should add `vaultAccess` deny rules for sensitive folders or tighten `agentDefaults.vaultAccess` when you want stricter boundaries.
 
-When a change genuinely needs new code rather than a vault edit — a tool that calls some outside service, a new `/command` — that's a small TypeScript file plus a restart. [docs/iteration.md](docs/iteration.md) teaches the building blocks and the day-to-day loop in depth, [docs/development.md](docs/development.md) covers extending Klaus in code, and [docs/examples/](docs/examples/) is a ladder of five worked builds — from a no-code movie tracker up to an expenses tracker with a custom tool and command — that's the gentlest way to learn the whole system by doing.
+When a change genuinely needs new code rather than a vault edit — a tool that calls some outside service, a new `/command` — that's a small TypeScript file plus a restart. [docs/iteration.md](docs/iteration.md) teaches the building blocks and the day-to-day loop in depth, [docs/development.md](docs/development.md) covers extending Klaus in code, and the [worked examples](docs/examples/) are the gentlest way to learn the whole system by doing.
 
 ## Docs
 

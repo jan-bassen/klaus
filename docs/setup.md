@@ -112,6 +112,8 @@ Startup does this in order:
 9. Connects WhatsApp and writes the QR code when Baileys provides one. If an allowed chat is already configured, the folder is only a relink helper and is removed once WhatsApp connects.
 10. Starts schedule and timer clocks once the allowed chat is configured and WhatsApp is connected.
 
+The repo's `vault/` directory is only a first-run template. Step 4 copies it into `{vault}/Klaus` once, and after that the copy is never read again — Klaus runs entirely off `{vault}/Klaus`. So editing the repo `vault/` folder only changes what a *fresh* install starts with; to change a running Klaus, edit the files in `{vault}/Klaus` from Obsidian (they hot-reload). The repo copy is worth keeping if you want to tweak the shipped defaults or seed a second deployment.
+
 ## WhatsApp Login
 
 Klaus writes a temporary login folder to:

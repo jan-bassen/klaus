@@ -60,7 +60,7 @@ You cannot type a `@route` or `!override` into a voice note, so `/next` arms a p
 /next @research !large
 ```
 
-The next message, voice note included, is parsed as if it began with `@research !large`. See [usage](../usage.md#next-for-voice-notes).
+The next message, voice note included, is parsed as if it began with `@research !large`. See [usage](../usage.md#tips).
 
 ---
 
